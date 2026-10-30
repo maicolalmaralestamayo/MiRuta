@@ -68,6 +68,11 @@ $router->group(['prefix' => 'api/v1', 'middleware' => 'jsonapi'], function () us
         $router->get('trips/{id}/passengers', 'TripPassengerController@index');
         $resource('trip-completions', 'TripCompletionController', ['index', 'store']);
         $router->post('operations', 'OperationController@store');
+        $resource('trip-legs', 'TripLegController', ['index', 'show', 'store', 'update']);
+        $resource('trip-positions', 'TripPositionController', ['index', 'store']);
+        $resource('trip-stop-passes', 'TripStopPassController', ['index']);
+        $resource('trip-boardings', 'TripBoardingController', ['index', 'store']);
+        $router->post('boarding-passes', 'BoardingPassController@store');
     });
 });
 

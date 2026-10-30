@@ -40,6 +40,7 @@ return [
     'present' => 'El campo :attribute debe estar presente.',
     'regex' => 'El formato de :attribute no es válido.',
     'required' => 'El campo :attribute es obligatorio.',
+    'required_if' => 'El campo :attribute es obligatorio.',
     'required_with' => 'El campo :attribute es obligatorio.',
     'string' => 'El campo :attribute debe ser texto.',
     'unique' => 'El valor de :attribute ya existe.',

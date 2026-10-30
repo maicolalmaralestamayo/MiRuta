@@ -25,11 +25,29 @@ return [
         App\Models\SettingDefinition::class => App\Serializers\SettingDefinitionSerializer::class,
         App\Models\Stop::class => App\Serializers\StopSerializer::class,
         App\Models\Trip::class => App\Serializers\TripSerializer::class,
+        App\Models\TripBoarding::class => App\Serializers\TripBoardingSerializer::class,
         App\Models\TripCompletion::class => App\Serializers\TripCompletionSerializer::class,
+        App\Models\TripLeg::class => App\Serializers\TripLegSerializer::class,
+        App\Models\TripPosition::class => App\Serializers\TripPositionSerializer::class,
+        App\Models\TripStopPass::class => App\Serializers\TripStopPassSerializer::class,
         App\Models\TransportChief::class => App\Serializers\TransportChiefSerializer::class,
         App\Models\Vehicle::class => App\Serializers\VehicleSerializer::class,
         App\Models\VehicleType::class => App\Serializers\VehicleTypeSerializer::class,
         App\Models\Worker::class => App\Serializers\WorkerSerializer::class,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Operaciones atómicas de otros recursos
+    |--------------------------------------------------------------------------
+    |
+    | "op:tipo" => [clase, método]. El método recibe (data, request, pointer)
+    | y devuelve el modelo creado o modificado.
+    |
+    */
+
+    'operations' => [
+        'add:trip-positions' => [App\Http\Controllers\TripPositionController::class, 'createFromOperation'],
     ],
 
 ];
