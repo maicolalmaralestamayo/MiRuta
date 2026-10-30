@@ -1,5 +1,6 @@
 package com.mitransporte.mitransporte
 
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 
-class MainActivity : FlutterActivity()
+// FlutterFragmentActivity: la necesita local_auth (huella o PIN).
+class MainActivity : FlutterFragmentActivity()

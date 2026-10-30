@@ -1,0 +1,93 @@
+{
+ "data": {
+  "type": "statistics",
+  "id": "live-trip",
+  "attributes": {
+   "columns": [
+    {
+     "key": "direction",
+     "label": "Trayecto",
+     "type": "string"
+    },
+    {
+     "key": "active",
+     "label": "En curso",
+     "type": "string"
+    },
+    {
+     "key": "boarded",
+     "label": "A bordo",
+     "type": "integer"
+    },
+    {
+     "key": "expected",
+     "label": "Esperados",
+     "type": "integer"
+    },
+    {
+     "key": "capacity",
+     "label": "Capacidad",
+     "type": "integer"
+    },
+    {
+     "key": "children",
+     "label": "Niños a bordo",
+     "type": "integer"
+    },
+    {
+     "key": "stopsPassed",
+     "label": "Paradas pasadas",
+     "type": "integer"
+    },
+    {
+     "key": "stopsRemaining",
+     "label": "Paradas restantes",
+     "type": "integer"
+    },
+    {
+     "key": "startDelayMinutes",
+     "label": "Retraso al iniciar (min)",
+     "type": "number"
+    },
+    {
+     "key": "traveledKm",
+     "label": "Recorrido (km)",
+     "type": "number"
+    },
+    {
+     "key": "remainingKm",
+     "label": "Restante (km)",
+     "type": "number"
+    },
+    {
+     "key": "activeSensors",
+     "label": "Sensores activos",
+     "type": "integer"
+    }
+   ],
+   "rows": [
+    {
+     "direction": "return",
+     "active": true,
+     "boarded": 1,
+     "expected": 1,
+     "capacity": 1,
+     "children": 1,
+     "stopsPassed": 1,
+     "stopsRemaining": 2,
+     "startDelayMinutes": -720,
+     "traveledKm": 0,
+     "remainingKm": 2.21,
+     "activeSensors": 1
+    }
+   ]
+  },
+  "meta": {
+   "period": {
+    "from": "2026-10-01",
+    "to": "2026-10-30",
+    "dates": null
+   }
+  }
+ }
+}

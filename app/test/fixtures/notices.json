@@ -1,0 +1,131 @@
+{
+ "data": [
+  {
+   "type": "notices",
+   "id": "7",
+   "attributes": {
+    "type": "application_received",
+    "readAt": null,
+    "createdAt": "2026-10-30T17:20:02+00:00"
+   },
+   "relationships": {
+    "application": {
+     "data": {
+      "type": "applications",
+      "id": "3"
+     }
+    },
+    "trip": {
+     "data": null
+    }
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/notices/7"
+   }
+  },
+  {
+   "type": "notices",
+   "id": "10",
+   "attributes": {
+    "type": "application_received",
+    "readAt": null,
+    "createdAt": "2026-10-30T17:20:02+00:00"
+   },
+   "relationships": {
+    "application": {
+     "data": {
+      "type": "applications",
+      "id": "4"
+     }
+    },
+    "trip": {
+     "data": null
+    }
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/notices/10"
+   }
+  },
+  {
+   "type": "notices",
+   "id": "13",
+   "attributes": {
+    "type": "application_received",
+    "readAt": null,
+    "createdAt": "2026-10-30T17:20:02+00:00"
+   },
+   "relationships": {
+    "application": {
+     "data": {
+      "type": "applications",
+      "id": "5"
+     }
+    },
+    "trip": {
+     "data": null
+    }
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/notices/13"
+   }
+  },
+  {
+   "type": "notices",
+   "id": "2",
+   "attributes": {
+    "type": "application_resolved",
+    "readAt": null,
+    "createdAt": "2026-10-30T17:20:01+00:00"
+   },
+   "relationships": {
+    "application": {
+     "data": {
+      "type": "applications",
+      "id": "1"
+     }
+    },
+    "trip": {
+     "data": null
+    }
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/notices/2"
+   }
+  },
+  {
+   "type": "notices",
+   "id": "4",
+   "attributes": {
+    "type": "application_received",
+    "readAt": null,
+    "createdAt": "2026-10-30T17:20:01+00:00"
+   },
+   "relationships": {
+    "application": {
+     "data": {
+      "type": "applications",
+      "id": "2"
+     }
+    },
+    "trip": {
+     "data": null
+    }
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/notices/4"
+   }
+  }
+ ],
+ "links": {
+  "self": "http://localhost:8000/api/v1/notices?page%5Bnumber%5D=1&page%5Bsize%5D=25",
+  "first": "http://localhost:8000/api/v1/notices?page%5Bnumber%5D=1&page%5Bsize%5D=25",
+  "prev": null,
+  "next": null,
+  "last": "http://localhost:8000/api/v1/notices?page%5Bnumber%5D=1&page%5Bsize%5D=25"
+ },
+ "meta": {
+  "total": 5,
+  "page": 1,
+  "size": 25
+ }
+}

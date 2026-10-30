@@ -1,0 +1,532 @@
+{
+ "data": [
+  {
+   "type": "user-settings",
+   "id": "background_sync_enabled",
+   "attributes": {
+    "value": "1",
+    "isCustom": false
+   },
+   "relationships": {
+    "definition": {
+     "data": {
+      "type": "setting-definitions",
+      "id": "background_sync_enabled"
+     }
+    }
+   }
+  },
+  {
+   "type": "user-settings",
+   "id": "cancel_notice_template",
+   "attributes": {
+    "value": "Se canceló tu viaje de {itinerario} del {fecha_salida}.",
+    "isCustom": false
+   },
+   "relationships": {
+    "definition": {
+     "data": {
+      "type": "setting-definitions",
+      "id": "cancel_notice_template"
+     }
+    }
+   }
+  },
+  {
+   "type": "user-settings",
+   "id": "change_notice_template",
+   "attributes": {
+    "value": "Cambió tu viaje de {itinerario} del {fecha_salida}: {cambios}.",
+    "isCustom": false
+   },
+   "relationships": {
+    "definition": {
+     "data": {
+      "type": "setting-definitions",
+      "id": "change_notice_template"
+     }
+    }
+   }
+  },
+  {
+   "type": "user-settings",
+   "id": "conversations_poll_background_minutes",
+   "attributes": {
+    "value": "30",
+    "isCustom": false
+   },
+   "relationships": {
+    "definition": {
+     "data": {
+      "type": "setting-definitions",
+      "id": "conversations_poll_background_minutes"
+     }
+    }
+   }
+  },
+  {
+   "type": "user-settings",
+   "id": "conversations_poll_foreground_seconds",
+   "attributes": {
+    "value": "10",
+    "isCustom": false
+   },
+   "relationships": {
+    "definition": {
+     "data": {
+      "type": "setting-definitions",
+      "id": "conversations_poll_foreground_seconds"
+     }
+    }
+   }
+  },
+  {
+   "type": "user-settings",
+   "id": "departure_notice_fallback",
+   "attributes": {
+    "value": "default",
+    "isCustom": false
+   },
+   "relationships": {
+    "definition": {
+     "data": {
+      "type": "setting-definitions",
+      "id": "departure_notice_fallback"
+     }
+    }
+   }
+  },
+  {
+   "type": "user-settings",
+   "id": "departure_notice_fixed_days_before",
+   "attributes": {
+    "value": "0",
+    "isCustom": false
+   },
+   "relationships": {
+    "definition": {
+     "data": {
+      "type": "setting-definitions",
+      "id": "departure_notice_fixed_days_before"
+     }
+    }
+   }
+  },
+  {
+   "type": "user-settings",
+   "id": "departure_notice_fixed_time",
+   "attributes": {
+    "value": "14:00",
+    "isCustom": false
+   },
+   "relationships": {
+    "definition": {
+     "data": {
+      "type": "setting-definitions",
+      "id": "departure_notice_fixed_time"
+     }
+    }
+   }
+  },
+  {
+   "type": "user-settings",
+   "id": "departure_notice_minutes_before",
+   "attributes": {
+    "value": "60",
+    "isCustom": false
+   },
+   "relationships": {
+    "definition": {
+     "data": {
+      "type": "setting-definitions",
+      "id": "departure_notice_minutes_before"
+     }
+    }
+   }
+  },
+  {
+   "type": "user-settings",
+   "id": "departure_notice_mode",
+   "attributes": {
+    "value": "relative",
+    "isCustom": false
+   },
+   "relationships": {
+    "definition": {
+     "data": {
+      "type": "setting-definitions",
+      "id": "departure_notice_mode"
+     }
+    }
+   }
+  },
+  {
+   "type": "user-settings",
+   "id": "departure_notice_template",
+   "attributes": {
+    "value": "Salida {fecha_salida} a las {hora_salida} desde {punto_salida}. {tipo} {matricula}, chofer {chofer}, capacidad {capacidad}. Regreso {fecha_regreso} a las {hora_regreso} desde {punto_regreso}.",
+    "isCustom": false
+   },
+   "relationships": {
+    "definition": {
+     "data": {
+      "type": "setting-definitions",
+      "id": "departure_notice_template"
+     }
+    }
+   }
+  },
+  {
+   "type": "user-settings",
+   "id": "location_interval_seconds",
+   "attributes": {
+    "value": "10",
+    "isCustom": false
+   },
+   "relationships": {
+    "definition": {
+     "data": {
+      "type": "setting-definitions",
+      "id": "location_interval_seconds"
+     }
+    }
+   }
+  },
+  {
+   "type": "user-settings",
+   "id": "notices_poll_background_minutes",
+   "attributes": {
+    "value": "30",
+    "isCustom": false
+   },
+   "relationships": {
+    "definition": {
+     "data": {
+      "type": "setting-definitions",
+      "id": "notices_poll_background_minutes"
+     }
+    }
+   }
+  },
+  {
+   "type": "user-settings",
+   "id": "notices_poll_foreground_seconds",
+   "attributes": {
+    "value": "60",
+    "isCustom": false
+   },
+   "relationships": {
+    "definition": {
+     "data": {
+      "type": "setting-definitions",
+      "id": "notices_poll_foreground_seconds"
+     }
+    }
+   }
+  },
+  {
+   "type": "user-settings",
+   "id": "notify_during_absence",
+   "attributes": {
+    "value": "0",
+    "isCustom": false
+   },
+   "relationships": {
+    "definition": {
+     "data": {
+      "type": "setting-definitions",
+      "id": "notify_during_absence"
+     }
+    }
+   }
+  },
+  {
+   "type": "user-settings",
+   "id": "return_notice_fallback",
+   "attributes": {
+    "value": "default",
+    "isCustom": false
+   },
+   "relationships": {
+    "definition": {
+     "data": {
+      "type": "setting-definitions",
+      "id": "return_notice_fallback"
+     }
+    }
+   }
+  },
+  {
+   "type": "user-settings",
+   "id": "return_notice_fixed_days_before",
+   "attributes": {
+    "value": "1",
+    "isCustom": false
+   },
+   "relationships": {
+    "definition": {
+     "data": {
+      "type": "setting-definitions",
+      "id": "return_notice_fixed_days_before"
+     }
+    }
+   }
+  },
+  {
+   "type": "user-settings",
+   "id": "return_notice_fixed_time",
+   "attributes": {
+    "value": "23:00",
+    "isCustom": false
+   },
+   "relationships": {
+    "definition": {
+     "data": {
+      "type": "setting-definitions",
+      "id": "return_notice_fixed_time"
+     }
+    }
+   }
+  },
+  {
+   "type": "user-settings",
+   "id": "return_notice_minutes_before",
+   "attributes": {
+    "value": "60",
+    "isCustom": false
+   },
+   "relationships": {
+    "definition": {
+     "data": {
+      "type": "setting-definitions",
+      "id": "return_notice_minutes_before"
+     }
+    }
+   }
+  },
+  {
+   "type": "user-settings",
+   "id": "return_notice_mode",
+   "attributes": {
+    "value": "relative",
+    "isCustom": false
+   },
+   "relationships": {
+    "definition": {
+     "data": {
+      "type": "setting-definitions",
+      "id": "return_notice_mode"
+     }
+    }
+   }
+  },
+  {
+   "type": "user-settings",
+   "id": "return_notice_template",
+   "attributes": {
+    "value": "Regreso {fecha_regreso} a las {hora_regreso} desde {punto_regreso}. {tipo} {matricula}, chofer {chofer}, capacidad {capacidad}.",
+    "isCustom": false
+   },
+   "relationships": {
+    "definition": {
+     "data": {
+      "type": "setting-definitions",
+      "id": "return_notice_template"
+     }
+    }
+   }
+  },
+  {
+   "type": "user-settings",
+   "id": "share_location",
+   "attributes": {
+    "value": "0",
+    "isCustom": false
+   },
+   "relationships": {
+    "definition": {
+     "data": {
+      "type": "setting-definitions",
+      "id": "share_location"
+     }
+    }
+   }
+  },
+  {
+   "type": "user-settings",
+   "id": "stop_notice_after_boarding",
+   "attributes": {
+    "value": "0",
+    "isCustom": false
+   },
+   "relationships": {
+    "definition": {
+     "data": {
+      "type": "setting-definitions",
+      "id": "stop_notice_after_boarding"
+     }
+    }
+   }
+  },
+  {
+   "type": "user-settings",
+   "id": "stop_notice_scope",
+   "attributes": {
+    "value": "previous",
+    "isCustom": false
+   },
+   "relationships": {
+    "definition": {
+     "data": {
+      "type": "setting-definitions",
+      "id": "stop_notice_scope"
+     }
+    }
+   }
+  },
+  {
+   "type": "user-settings",
+   "id": "stop_notice_template",
+   "attributes": {
+    "value": "El transporte pasó por {parada} a las {hora}. Faltan {paradas_restantes} paradas para la tuya.",
+    "isCustom": false
+   },
+   "relationships": {
+    "definition": {
+     "data": {
+      "type": "setting-definitions",
+      "id": "stop_notice_template"
+     }
+    }
+   }
+  },
+  {
+   "type": "user-settings",
+   "id": "tracking_poll_background_seconds",
+   "attributes": {
+    "value": "60",
+    "isCustom": false
+   },
+   "relationships": {
+    "definition": {
+     "data": {
+      "type": "setting-definitions",
+      "id": "tracking_poll_background_seconds"
+     }
+    }
+   }
+  },
+  {
+   "type": "user-settings",
+   "id": "tracking_poll_foreground_seconds",
+   "attributes": {
+    "value": "10",
+    "isCustom": false
+   },
+   "relationships": {
+    "definition": {
+     "data": {
+      "type": "setting-definitions",
+      "id": "tracking_poll_foreground_seconds"
+     }
+    }
+   }
+  },
+  {
+   "type": "user-settings",
+   "id": "trip_chat_poll_background_minutes",
+   "attributes": {
+    "value": "30",
+    "isCustom": false
+   },
+   "relationships": {
+    "definition": {
+     "data": {
+      "type": "setting-definitions",
+      "id": "trip_chat_poll_background_minutes"
+     }
+    }
+   }
+  },
+  {
+   "type": "user-settings",
+   "id": "trip_chat_poll_foreground_seconds",
+   "attributes": {
+    "value": "5",
+    "isCustom": false
+   },
+   "relationships": {
+    "definition": {
+     "data": {
+      "type": "setting-definitions",
+      "id": "trip_chat_poll_foreground_seconds"
+     }
+    }
+   }
+  },
+  {
+   "type": "user-settings",
+   "id": "trip_view",
+   "attributes": {
+    "value": "timeline",
+    "isCustom": false
+   },
+   "relationships": {
+    "definition": {
+     "data": {
+      "type": "setting-definitions",
+      "id": "trip_view"
+     }
+    }
+   }
+  },
+  {
+   "type": "user-settings",
+   "id": "trips_poll_background_minutes",
+   "attributes": {
+    "value": "30",
+    "isCustom": false
+   },
+   "relationships": {
+    "definition": {
+     "data": {
+      "type": "setting-definitions",
+      "id": "trips_poll_background_minutes"
+     }
+    }
+   }
+  },
+  {
+   "type": "user-settings",
+   "id": "trips_poll_foreground_seconds",
+   "attributes": {
+    "value": "60",
+    "isCustom": false
+   },
+   "relationships": {
+    "definition": {
+     "data": {
+      "type": "setting-definitions",
+      "id": "trips_poll_foreground_seconds"
+     }
+    }
+   }
+  },
+  {
+   "type": "user-settings",
+   "id": "tts_enabled",
+   "attributes": {
+    "value": "1",
+    "isCustom": false
+   },
+   "relationships": {
+    "definition": {
+     "data": {
+      "type": "setting-definitions",
+      "id": "tts_enabled"
+     }
+    }
+   }
+  }
+ ]
+}

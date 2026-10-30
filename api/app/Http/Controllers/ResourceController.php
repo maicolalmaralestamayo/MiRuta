@@ -91,7 +91,7 @@ abstract class ResourceController extends Controller
         $model = $model->fresh();
 
         return JsonApiResponse::make(
-            (new Document($request))->resource($model),
+            (new Document($request))->resource($model, QueryParameters::readIncludes($request, $this->includable)),
             201,
             ['Location' => url('api/v1/'.$this->type.'/'.$model->getKey())]
         );
@@ -115,7 +115,7 @@ abstract class ResourceController extends Controller
             $this->afterSave($model, $request, false);
         });
 
-        return JsonApiResponse::make((new Document($request))->resource($model->fresh()));
+        return JsonApiResponse::make((new Document($request))->resource($model->fresh(), QueryParameters::readIncludes($request, $this->includable)));
     }
 
     public function destroy(Request $request, $id)

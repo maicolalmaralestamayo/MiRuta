@@ -1,0 +1,1125 @@
+{
+ "data": [
+  {
+   "type": "setting-definitions",
+   "id": "access_token_ttl_minutes",
+   "attributes": {
+    "key": "access_token_ttl_minutes",
+    "name": "Validez del token de acceso (min)",
+    "description": null,
+    "valueType": "integer",
+    "defaultValue": "30",
+    "minValue": 5,
+    "maxValue": 240,
+    "minSetting": null,
+    "editableBy": "administrator",
+    "userOverridable": false,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/access_token_ttl_minutes"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "auto_boarding_distance_m",
+   "attributes": {
+    "key": "auto_boarding_distance_m",
+    "name": "Distancia máxima al vehículo para la subida automática (m)",
+    "description": null,
+    "valueType": "integer",
+    "defaultValue": "50",
+    "minValue": 10,
+    "maxValue": 500,
+    "minSetting": null,
+    "editableBy": "administrator",
+    "userOverridable": false,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/auto_boarding_distance_m"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "auto_boarding_samples",
+   "attributes": {
+    "key": "auto_boarding_samples",
+    "name": "Posiciones seguidas necesarias para la subida automática",
+    "description": null,
+    "valueType": "integer",
+    "defaultValue": "3",
+    "minValue": 2,
+    "maxValue": 20,
+    "minSetting": null,
+    "editableBy": "administrator",
+    "userOverridable": false,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/auto_boarding_samples"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "background_sync_enabled",
+   "attributes": {
+    "key": "background_sync_enabled",
+    "name": "Sincronización en segundo plano",
+    "description": null,
+    "valueType": "boolean",
+    "defaultValue": "1",
+    "minValue": null,
+    "maxValue": null,
+    "minSetting": null,
+    "editableBy": "administrator",
+    "userOverridable": true,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/background_sync_enabled"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "boarding_pass_ttl_seconds",
+   "attributes": {
+    "key": "boarding_pass_ttl_seconds",
+    "name": "Validez del código QR de subida (s)",
+    "description": null,
+    "valueType": "integer",
+    "defaultValue": "120",
+    "minValue": 30,
+    "maxValue": 3600,
+    "minSetting": null,
+    "editableBy": "administrator",
+    "userOverridable": false,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/boarding_pass_ttl_seconds"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "cancel_notice_template",
+   "attributes": {
+    "key": "cancel_notice_template",
+    "name": "Texto del aviso de cancelación",
+    "description": null,
+    "valueType": "string",
+    "defaultValue": "Se canceló tu viaje de {itinerario} del {fecha_salida}.",
+    "minValue": 1,
+    "maxValue": 500,
+    "minSetting": null,
+    "editableBy": "administrator",
+    "userOverridable": true,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/cancel_notice_template"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "change_notice_template",
+   "attributes": {
+    "key": "change_notice_template",
+    "name": "Texto del aviso de cambio",
+    "description": null,
+    "valueType": "string",
+    "defaultValue": "Cambió tu viaje de {itinerario} del {fecha_salida}: {cambios}.",
+    "minValue": 1,
+    "maxValue": 500,
+    "minSetting": null,
+    "editableBy": "administrator",
+    "userOverridable": true,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/change_notice_template"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "child_max_age",
+   "attributes": {
+    "key": "child_max_age",
+    "name": "Edad máxima de los hijos para viajar",
+    "description": "Tienen derecho hasta el 31 de agosto siguiente al cumpleaños de esta edad.",
+    "valueType": "integer",
+    "defaultValue": "16",
+    "minValue": 0,
+    "maxValue": 25,
+    "minSetting": null,
+    "editableBy": "transport_chief",
+    "userOverridable": false,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/child_max_age"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "conversation_retention_days",
+   "attributes": {
+    "key": "conversation_retention_days",
+    "name": "Días de conservación de las conversaciones",
+    "description": "Se cuentan desde el último mensaje.",
+    "valueType": "integer",
+    "defaultValue": "30",
+    "minValue": 1,
+    "maxValue": 365,
+    "minSetting": null,
+    "editableBy": "administrator",
+    "userOverridable": false,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/conversation_retention_days"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "conversations_poll_background_minutes",
+   "attributes": {
+    "key": "conversations_poll_background_minutes",
+    "name": "Conversaciones: consulta en segundo plano (min)",
+    "description": null,
+    "valueType": "integer",
+    "defaultValue": "30",
+    "minValue": null,
+    "maxValue": 1440,
+    "minSetting": "min_background_poll_minutes",
+    "editableBy": null,
+    "userOverridable": true,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/conversations_poll_background_minutes"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "conversations_poll_foreground_seconds",
+   "attributes": {
+    "key": "conversations_poll_foreground_seconds",
+    "name": "Conversaciones: consulta con la app abierta (s)",
+    "description": null,
+    "valueType": "integer",
+    "defaultValue": "10",
+    "minValue": null,
+    "maxValue": 600,
+    "minSetting": "min_foreground_poll_seconds",
+    "editableBy": null,
+    "userOverridable": true,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/conversations_poll_foreground_seconds"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "departure_notice_fallback",
+   "attributes": {
+    "key": "departure_notice_fallback",
+    "name": "Si la hora fija del aviso de salida no sirve",
+    "description": null,
+    "valueType": "option",
+    "defaultValue": "default",
+    "minValue": null,
+    "maxValue": null,
+    "minSetting": null,
+    "editableBy": "administrator",
+    "userOverridable": true,
+    "options": [
+     {
+      "value": "default",
+      "name": "Avisar 1 hora antes"
+     },
+     {
+      "value": "none",
+      "name": "No avisar"
+     }
+    ]
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/departure_notice_fallback"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "departure_notice_fixed_days_before",
+   "attributes": {
+    "key": "departure_notice_fixed_days_before",
+    "name": "Días antes de la hora fija del aviso de salida",
+    "description": null,
+    "valueType": "integer",
+    "defaultValue": "0",
+    "minValue": 0,
+    "maxValue": 7,
+    "minSetting": null,
+    "editableBy": null,
+    "userOverridable": true,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/departure_notice_fixed_days_before"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "departure_notice_fixed_time",
+   "attributes": {
+    "key": "departure_notice_fixed_time",
+    "name": "Hora fija del aviso de salida",
+    "description": null,
+    "valueType": "time",
+    "defaultValue": "14:00",
+    "minValue": null,
+    "maxValue": null,
+    "minSetting": null,
+    "editableBy": "administrator",
+    "userOverridable": true,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/departure_notice_fixed_time"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "departure_notice_minutes_before",
+   "attributes": {
+    "key": "departure_notice_minutes_before",
+    "name": "Minutos antes del aviso de salida",
+    "description": null,
+    "valueType": "integer",
+    "defaultValue": "60",
+    "minValue": 0,
+    "maxValue": 1440,
+    "minSetting": null,
+    "editableBy": null,
+    "userOverridable": true,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/departure_notice_minutes_before"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "departure_notice_mode",
+   "attributes": {
+    "key": "departure_notice_mode",
+    "name": "Forma del aviso de salida",
+    "description": null,
+    "valueType": "option",
+    "defaultValue": "relative",
+    "minValue": null,
+    "maxValue": null,
+    "minSetting": null,
+    "editableBy": "administrator",
+    "userOverridable": true,
+    "options": [
+     {
+      "value": "relative",
+      "name": "Tiempo antes"
+     },
+     {
+      "value": "fixed",
+      "name": "Hora fija"
+     }
+    ]
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/departure_notice_mode"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "departure_notice_template",
+   "attributes": {
+    "key": "departure_notice_template",
+    "name": "Texto del aviso de salida",
+    "description": null,
+    "valueType": "string",
+    "defaultValue": "Salida {fecha_salida} a las {hora_salida} desde {punto_salida}. {tipo} {matricula}, chofer {chofer}, capacidad {capacidad}. Regreso {fecha_regreso} a las {hora_regreso} desde {punto_regreso}.",
+    "minValue": 1,
+    "maxValue": 500,
+    "minSetting": null,
+    "editableBy": "administrator",
+    "userOverridable": true,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/departure_notice_template"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "inactivity_days",
+   "attributes": {
+    "key": "inactivity_days",
+    "name": "Días sin viajar para la baja automática",
+    "description": null,
+    "valueType": "integer",
+    "defaultValue": "30",
+    "minValue": 1,
+    "maxValue": 365,
+    "minSetting": null,
+    "editableBy": "transport_chief",
+    "userOverridable": false,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/inactivity_days"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "inactivity_warning_days",
+   "attributes": {
+    "key": "inactivity_warning_days",
+    "name": "Días de aviso previo a la baja por inactividad",
+    "description": null,
+    "valueType": "integer",
+    "defaultValue": "5",
+    "minValue": 0,
+    "maxValue": 30,
+    "minSetting": null,
+    "editableBy": "transport_chief",
+    "userOverridable": false,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/inactivity_warning_days"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "location_interval_seconds",
+   "attributes": {
+    "key": "location_interval_seconds",
+    "name": "Frecuencia de envío de ubicación (s)",
+    "description": null,
+    "valueType": "integer",
+    "defaultValue": "10",
+    "minValue": null,
+    "maxValue": 600,
+    "minSetting": "min_location_interval_seconds",
+    "editableBy": null,
+    "userOverridable": true,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/location_interval_seconds"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "message_max_length",
+   "attributes": {
+    "key": "message_max_length",
+    "name": "Longitud máxima de un mensaje de chat",
+    "description": null,
+    "valueType": "integer",
+    "defaultValue": "1000",
+    "minValue": 50,
+    "maxValue": 5000,
+    "minSetting": null,
+    "editableBy": "administrator",
+    "userOverridable": false,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/message_max_length"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "min_background_poll_minutes",
+   "attributes": {
+    "key": "min_background_poll_minutes",
+    "name": "Frecuencia mínima de sincronización en segundo plano (min)",
+    "description": null,
+    "valueType": "integer",
+    "defaultValue": "30",
+    "minValue": 15,
+    "maxValue": 1440,
+    "minSetting": null,
+    "editableBy": "administrator",
+    "userOverridable": false,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/min_background_poll_minutes"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "min_foreground_poll_seconds",
+   "attributes": {
+    "key": "min_foreground_poll_seconds",
+    "name": "Frecuencia mínima de consulta con la app abierta (s)",
+    "description": null,
+    "valueType": "integer",
+    "defaultValue": "5",
+    "minValue": 1,
+    "maxValue": 60,
+    "minSetting": null,
+    "editableBy": "administrator",
+    "userOverridable": false,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/min_foreground_poll_seconds"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "min_in_trip_background_poll_seconds",
+   "attributes": {
+    "key": "min_in_trip_background_poll_seconds",
+    "name": "Frecuencia mínima en segundo plano durante un recorrido (s)",
+    "description": null,
+    "valueType": "integer",
+    "defaultValue": "30",
+    "minValue": 10,
+    "maxValue": 600,
+    "minSetting": null,
+    "editableBy": "administrator",
+    "userOverridable": false,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/min_in_trip_background_poll_seconds"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "min_location_interval_seconds",
+   "attributes": {
+    "key": "min_location_interval_seconds",
+    "name": "Frecuencia mínima de envío de ubicación (s)",
+    "description": null,
+    "valueType": "integer",
+    "defaultValue": "5",
+    "minValue": 1,
+    "maxValue": 60,
+    "minSetting": null,
+    "editableBy": "administrator",
+    "userOverridable": false,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/min_location_interval_seconds"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "notices_poll_background_minutes",
+   "attributes": {
+    "key": "notices_poll_background_minutes",
+    "name": "Solicitudes y avisos: consulta en segundo plano (min)",
+    "description": null,
+    "valueType": "integer",
+    "defaultValue": "30",
+    "minValue": null,
+    "maxValue": 1440,
+    "minSetting": "min_background_poll_minutes",
+    "editableBy": null,
+    "userOverridable": true,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/notices_poll_background_minutes"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "notices_poll_foreground_seconds",
+   "attributes": {
+    "key": "notices_poll_foreground_seconds",
+    "name": "Solicitudes y avisos: consulta con la app abierta (s)",
+    "description": null,
+    "valueType": "integer",
+    "defaultValue": "60",
+    "minValue": null,
+    "maxValue": 3600,
+    "minSetting": "min_foreground_poll_seconds",
+    "editableBy": null,
+    "userOverridable": true,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/notices_poll_foreground_seconds"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "notify_during_absence",
+   "attributes": {
+    "key": "notify_during_absence",
+    "name": "Recibir avisos de viaje durante una ausencia",
+    "description": null,
+    "valueType": "boolean",
+    "defaultValue": "0",
+    "minValue": null,
+    "maxValue": null,
+    "minSetting": null,
+    "editableBy": "administrator",
+    "userOverridable": true,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/notify_during_absence"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "photo_max_kb",
+   "attributes": {
+    "key": "photo_max_kb",
+    "name": "Tamaño máximo de la foto de perfil (KB)",
+    "description": null,
+    "valueType": "integer",
+    "defaultValue": "2048",
+    "minValue": 100,
+    "maxValue": 10240,
+    "minSetting": null,
+    "editableBy": "administrator",
+    "userOverridable": false,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/photo_max_kb"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "rank_icon_max_kb",
+   "attributes": {
+    "key": "rank_icon_max_kb",
+    "name": "Tamaño máximo del icono de jerarquía (KB)",
+    "description": null,
+    "valueType": "integer",
+    "defaultValue": "512",
+    "minValue": 50,
+    "maxValue": 2048,
+    "minSetting": null,
+    "editableBy": "administrator",
+    "userOverridable": false,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/rank_icon_max_kb"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "refresh_token_ttl_days",
+   "attributes": {
+    "key": "refresh_token_ttl_days",
+    "name": "Validez del token de renovación (días)",
+    "description": null,
+    "valueType": "integer",
+    "defaultValue": "90",
+    "minValue": 1,
+    "maxValue": 365,
+    "minSetting": null,
+    "editableBy": "administrator",
+    "userOverridable": false,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/refresh_token_ttl_days"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "return_notice_fallback",
+   "attributes": {
+    "key": "return_notice_fallback",
+    "name": "Si la hora fija del aviso de regreso no sirve",
+    "description": null,
+    "valueType": "option",
+    "defaultValue": "default",
+    "minValue": null,
+    "maxValue": null,
+    "minSetting": null,
+    "editableBy": "administrator",
+    "userOverridable": true,
+    "options": [
+     {
+      "value": "default",
+      "name": "Avisar 1 hora antes"
+     },
+     {
+      "value": "none",
+      "name": "No avisar"
+     }
+    ]
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/return_notice_fallback"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "return_notice_fixed_days_before",
+   "attributes": {
+    "key": "return_notice_fixed_days_before",
+    "name": "Días antes de la hora fija del aviso de regreso",
+    "description": null,
+    "valueType": "integer",
+    "defaultValue": "1",
+    "minValue": 0,
+    "maxValue": 7,
+    "minSetting": null,
+    "editableBy": null,
+    "userOverridable": true,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/return_notice_fixed_days_before"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "return_notice_fixed_time",
+   "attributes": {
+    "key": "return_notice_fixed_time",
+    "name": "Hora fija del aviso de regreso",
+    "description": null,
+    "valueType": "time",
+    "defaultValue": "23:00",
+    "minValue": null,
+    "maxValue": null,
+    "minSetting": null,
+    "editableBy": "administrator",
+    "userOverridable": true,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/return_notice_fixed_time"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "return_notice_minutes_before",
+   "attributes": {
+    "key": "return_notice_minutes_before",
+    "name": "Minutos antes del aviso de regreso",
+    "description": null,
+    "valueType": "integer",
+    "defaultValue": "60",
+    "minValue": 0,
+    "maxValue": 1440,
+    "minSetting": null,
+    "editableBy": null,
+    "userOverridable": true,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/return_notice_minutes_before"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "return_notice_mode",
+   "attributes": {
+    "key": "return_notice_mode",
+    "name": "Forma del aviso de regreso",
+    "description": null,
+    "valueType": "option",
+    "defaultValue": "relative",
+    "minValue": null,
+    "maxValue": null,
+    "minSetting": null,
+    "editableBy": "administrator",
+    "userOverridable": true,
+    "options": [
+     {
+      "value": "relative",
+      "name": "Tiempo antes"
+     },
+     {
+      "value": "fixed",
+      "name": "Hora fija"
+     }
+    ]
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/return_notice_mode"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "return_notice_template",
+   "attributes": {
+    "key": "return_notice_template",
+    "name": "Texto del aviso de regreso",
+    "description": null,
+    "valueType": "string",
+    "defaultValue": "Regreso {fecha_regreso} a las {hora_regreso} desde {punto_regreso}. {tipo} {matricula}, chofer {chofer}, capacidad {capacidad}.",
+    "minValue": 1,
+    "maxValue": 500,
+    "minSetting": null,
+    "editableBy": "administrator",
+    "userOverridable": true,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/return_notice_template"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "sensor_outlier_distance_m",
+   "attributes": {
+    "key": "sensor_outlier_distance_m",
+    "name": "Distancia para descartar un sensor (m)",
+    "description": null,
+    "valueType": "integer",
+    "defaultValue": "300",
+    "minValue": 50,
+    "maxValue": 5000,
+    "minSetting": null,
+    "editableBy": "administrator",
+    "userOverridable": false,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/sensor_outlier_distance_m"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "sensor_stale_seconds",
+   "attributes": {
+    "key": "sensor_stale_seconds",
+    "name": "Segundos sin enviar para dejar de contar un sensor",
+    "description": null,
+    "valueType": "integer",
+    "defaultValue": "60",
+    "minValue": 10,
+    "maxValue": 600,
+    "minSetting": null,
+    "editableBy": "administrator",
+    "userOverridable": false,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/sensor_stale_seconds"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "share_location",
+   "attributes": {
+    "key": "share_location",
+    "name": "Compartir ubicación como sensor",
+    "description": null,
+    "valueType": "boolean",
+    "defaultValue": "0",
+    "minValue": null,
+    "maxValue": null,
+    "minSetting": null,
+    "editableBy": "administrator",
+    "userOverridable": true,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/share_location"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "stop_detection_radius_m",
+   "attributes": {
+    "key": "stop_detection_radius_m",
+    "name": "Radio de detección de paradas (m)",
+    "description": null,
+    "valueType": "integer",
+    "defaultValue": "100",
+    "minValue": 20,
+    "maxValue": 1000,
+    "minSetting": null,
+    "editableBy": "administrator",
+    "userOverridable": false,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/stop_detection_radius_m"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "stop_notice_after_boarding",
+   "attributes": {
+    "key": "stop_notice_after_boarding",
+    "name": "Seguir avisando después de subir",
+    "description": null,
+    "valueType": "boolean",
+    "defaultValue": "0",
+    "minValue": null,
+    "maxValue": null,
+    "minSetting": null,
+    "editableBy": "administrator",
+    "userOverridable": true,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/stop_notice_after_boarding"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "stop_notice_scope",
+   "attributes": {
+    "key": "stop_notice_scope",
+    "name": "Avisos de paso por paradas",
+    "description": null,
+    "valueType": "option",
+    "defaultValue": "previous",
+    "minValue": null,
+    "maxValue": null,
+    "minSetting": null,
+    "editableBy": "administrator",
+    "userOverridable": true,
+    "options": [
+     {
+      "value": "none",
+      "name": "Ninguna"
+     },
+     {
+      "value": "previous",
+      "name": "Solo la anterior a la mía"
+     },
+     {
+      "value": "all",
+      "name": "Todas las anteriores"
+     }
+    ]
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/stop_notice_scope"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "stop_notice_template",
+   "attributes": {
+    "key": "stop_notice_template",
+    "name": "Texto del aviso de paso por parada",
+    "description": null,
+    "valueType": "string",
+    "defaultValue": "El transporte pasó por {parada} a las {hora}. Faltan {paradas_restantes} paradas para la tuya.",
+    "minValue": 1,
+    "maxValue": 500,
+    "minSetting": null,
+    "editableBy": "administrator",
+    "userOverridable": true,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/stop_notice_template"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "tracking_poll_background_seconds",
+   "attributes": {
+    "key": "tracking_poll_background_seconds",
+    "name": "Recorrido: consulta en segundo plano (s)",
+    "description": null,
+    "valueType": "integer",
+    "defaultValue": "60",
+    "minValue": null,
+    "maxValue": 3600,
+    "minSetting": "min_in_trip_background_poll_seconds",
+    "editableBy": null,
+    "userOverridable": true,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/tracking_poll_background_seconds"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "tracking_poll_foreground_seconds",
+   "attributes": {
+    "key": "tracking_poll_foreground_seconds",
+    "name": "Recorrido: consulta con la app abierta (s)",
+    "description": null,
+    "valueType": "integer",
+    "defaultValue": "10",
+    "minValue": null,
+    "maxValue": 600,
+    "minSetting": "min_foreground_poll_seconds",
+    "editableBy": null,
+    "userOverridable": true,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/tracking_poll_foreground_seconds"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "trip_auto_complete_delay_minutes",
+   "attributes": {
+    "key": "trip_auto_complete_delay_minutes",
+    "name": "Minutos tras el regreso para marcar el viaje como realizado",
+    "description": null,
+    "valueType": "integer",
+    "defaultValue": "0",
+    "minValue": 0,
+    "maxValue": 1440,
+    "minSetting": null,
+    "editableBy": "administrator",
+    "userOverridable": false,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/trip_auto_complete_delay_minutes"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "trip_chat_poll_background_minutes",
+   "attributes": {
+    "key": "trip_chat_poll_background_minutes",
+    "name": "Chat del viaje: consulta en segundo plano (min)",
+    "description": null,
+    "valueType": "integer",
+    "defaultValue": "30",
+    "minValue": null,
+    "maxValue": 1440,
+    "minSetting": "min_background_poll_minutes",
+    "editableBy": null,
+    "userOverridable": true,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/trip_chat_poll_background_minutes"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "trip_chat_poll_foreground_seconds",
+   "attributes": {
+    "key": "trip_chat_poll_foreground_seconds",
+    "name": "Chat del viaje: consulta con la app abierta (s)",
+    "description": null,
+    "valueType": "integer",
+    "defaultValue": "5",
+    "minValue": null,
+    "maxValue": 600,
+    "minSetting": "min_foreground_poll_seconds",
+    "editableBy": null,
+    "userOverridable": true,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/trip_chat_poll_foreground_seconds"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "trip_view",
+   "attributes": {
+    "key": "trip_view",
+    "name": "Vista del recorrido",
+    "description": null,
+    "valueType": "option",
+    "defaultValue": "timeline",
+    "minValue": null,
+    "maxValue": null,
+    "minSetting": null,
+    "editableBy": "administrator",
+    "userOverridable": true,
+    "options": [
+     {
+      "value": "map",
+      "name": "Mapa"
+     },
+     {
+      "value": "timeline",
+      "name": "Línea con hitos"
+     }
+    ]
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/trip_view"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "trips_poll_background_minutes",
+   "attributes": {
+    "key": "trips_poll_background_minutes",
+    "name": "Viajes: consulta en segundo plano (min)",
+    "description": null,
+    "valueType": "integer",
+    "defaultValue": "30",
+    "minValue": null,
+    "maxValue": 1440,
+    "minSetting": "min_background_poll_minutes",
+    "editableBy": null,
+    "userOverridable": true,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/trips_poll_background_minutes"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "trips_poll_foreground_seconds",
+   "attributes": {
+    "key": "trips_poll_foreground_seconds",
+    "name": "Viajes: consulta con la app abierta (s)",
+    "description": null,
+    "valueType": "integer",
+    "defaultValue": "60",
+    "minValue": null,
+    "maxValue": 3600,
+    "minSetting": "min_foreground_poll_seconds",
+    "editableBy": null,
+    "userOverridable": true,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/trips_poll_foreground_seconds"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "tts_enabled",
+   "attributes": {
+    "key": "tts_enabled",
+    "name": "Voz durante el recorrido",
+    "description": null,
+    "valueType": "boolean",
+    "defaultValue": "1",
+    "minValue": null,
+    "maxValue": null,
+    "minSetting": null,
+    "editableBy": "administrator",
+    "userOverridable": true,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/tts_enabled"
+   }
+  }
+ ],
+ "links": {
+  "self": "http://localhost:8000/api/v1/setting-definitions"
+ }
+}

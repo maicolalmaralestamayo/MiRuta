@@ -1,0 +1,48 @@
+{
+ "data": {
+  "type": "vehicles",
+  "id": "1",
+  "attributes": {
+   "plate": "B123456",
+   "seats": 1,
+   "standingCapacity": 0
+  },
+  "relationships": {
+   "vehicleType": {
+    "data": {
+     "type": "vehicle-types",
+     "id": "1"
+    }
+   },
+   "driver": {
+    "data": {
+     "type": "drivers",
+     "id": "1"
+    }
+   }
+  },
+  "meta": {
+   "totalCapacity": 1
+  },
+  "links": {
+   "self": "http://localhost:8000/api/v1/vehicles/1"
+  }
+ },
+ "links": {
+  "self": "http://localhost:8000/api/v1/vehicles?include=vehicleType"
+ },
+ "included": [
+  {
+   "type": "vehicle-types",
+   "id": "1",
+   "attributes": {
+    "name": "Guagua",
+    "description": null,
+    "observation": null
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/vehicle-types/1"
+   }
+  }
+ ]
+}

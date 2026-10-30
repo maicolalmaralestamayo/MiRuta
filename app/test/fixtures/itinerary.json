@@ -1,0 +1,33 @@
+{
+ "data": {
+  "type": "itineraries",
+  "id": "1",
+  "attributes": {
+   "name": "Ruta Este",
+   "description": "Hacia el este",
+   "observation": null
+  },
+  "meta": {
+   "departurePoint": {
+    "type": "stops",
+    "id": "1"
+   },
+   "returnPoint": {
+    "type": "stops",
+    "id": "3"
+   },
+   "stopIds": [
+    "1",
+    "2",
+    "3"
+   ],
+   "memberCount": 0
+  },
+  "links": {
+   "self": "http://localhost:8000/api/v1/itineraries/1"
+  }
+ },
+ "links": {
+  "self": "http://localhost:8000/api/v1/itineraries/1"
+ }
+}

@@ -1,0 +1,41 @@
+{
+ "data": [
+  {
+   "type": "children",
+   "id": "1",
+   "attributes": {
+    "firstName": "Pepito",
+    "lastName": "Pérez",
+    "cardNumber": "15030560011"
+   },
+   "relationships": {
+    "worker": {
+     "data": {
+      "type": "workers",
+      "id": "4"
+     }
+    }
+   },
+   "meta": {
+    "declared": true,
+    "eligible": true,
+    "eligibleUntil": "2031-08-31"
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/children/1"
+   }
+  }
+ ],
+ "links": {
+  "self": "http://localhost:8000/api/v1/children?filter%5Bworker%5D=4&page%5Bnumber%5D=1&page%5Bsize%5D=25",
+  "first": "http://localhost:8000/api/v1/children?filter%5Bworker%5D=4&page%5Bnumber%5D=1&page%5Bsize%5D=25",
+  "prev": null,
+  "next": null,
+  "last": "http://localhost:8000/api/v1/children?filter%5Bworker%5D=4&page%5Bnumber%5D=1&page%5Bsize%5D=25"
+ },
+ "meta": {
+  "total": 1,
+  "page": 1,
+  "size": 25
+ }
+}

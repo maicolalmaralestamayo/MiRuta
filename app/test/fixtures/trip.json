@@ -1,0 +1,192 @@
+{
+ "data": {
+  "type": "trips",
+  "id": "1",
+  "attributes": {
+   "departsAt": "2026-10-30T17:15:03+00:00",
+   "returnsAt": "2026-10-31T05:20:03+00:00",
+   "status": "confirmed",
+   "updatedAt": "2026-10-30T17:20:03+00:00"
+  },
+  "relationships": {
+   "itinerary": {
+    "data": {
+     "type": "itineraries",
+     "id": "1"
+    }
+   },
+   "vehicle": {
+    "data": {
+     "type": "vehicles",
+     "id": "1"
+    }
+   },
+   "driver": {
+    "data": {
+     "type": "drivers",
+     "id": "1"
+    }
+   },
+   "createdBy": {
+    "data": {
+     "type": "workers",
+     "id": "2"
+    }
+   }
+  },
+  "meta": {
+   "expectedPassengers": 1,
+   "expectedChildren": 1,
+   "totalCapacity": 1,
+   "overloaded": false,
+   "needsReassignment": false,
+   "departurePoint": {
+    "type": "stops",
+    "id": "1"
+   },
+   "returnPoint": {
+    "type": "stops",
+    "id": "3"
+   }
+  },
+  "links": {
+   "self": "http://localhost:8000/api/v1/trips/1"
+  }
+ },
+ "links": {
+  "self": "http://localhost:8000/api/v1/trips/1?include=itinerary%2Cvehicle.vehicleType%2Cdriver.worker"
+ },
+ "included": [
+  {
+   "type": "itineraries",
+   "id": "1",
+   "attributes": {
+    "name": "Ruta Este",
+    "description": "Hacia el este",
+    "observation": null
+   },
+   "meta": {
+    "departurePoint": {
+     "type": "stops",
+     "id": "1"
+    },
+    "returnPoint": {
+     "type": "stops",
+     "id": "3"
+    },
+    "stopIds": [
+     "1",
+     "2",
+     "3"
+    ],
+    "memberCount": 2
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/itineraries/1"
+   }
+  },
+  {
+   "type": "vehicles",
+   "id": "1",
+   "attributes": {
+    "plate": "B123456",
+    "seats": 1,
+    "standingCapacity": 0
+   },
+   "relationships": {
+    "vehicleType": {
+     "data": {
+      "type": "vehicle-types",
+      "id": "1"
+     }
+    },
+    "driver": {
+     "data": {
+      "type": "drivers",
+      "id": "1"
+     }
+    }
+   },
+   "meta": {
+    "totalCapacity": 1
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/vehicles/1"
+   }
+  },
+  {
+   "type": "vehicle-types",
+   "id": "1",
+   "attributes": {
+    "name": "Guagua",
+    "description": null,
+    "observation": null
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/vehicle-types/1"
+   }
+  },
+  {
+   "type": "drivers",
+   "id": "1",
+   "attributes": {
+    "createdAt": "2026-10-30T17:20:01+00:00"
+   },
+   "relationships": {
+    "worker": {
+     "data": {
+      "type": "workers",
+      "id": "3"
+     }
+    }
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/drivers/1"
+   }
+  },
+  {
+   "type": "workers",
+   "id": "3",
+   "attributes": {
+    "firstName": "Carlos",
+    "lastName": "Chofer",
+    "sex": "M",
+    "photoUrl": null,
+    "isAdmin": false,
+    "active": true,
+    "createdAt": "2026-10-30T17:20:01+00:00"
+   },
+   "relationships": {
+    "rank": {
+     "data": {
+      "type": "ranks",
+      "id": "17"
+     }
+    },
+    "itinerary": {
+     "data": {
+      "type": "itineraries",
+      "id": "1"
+     }
+    },
+    "stop": {
+     "data": {
+      "type": "stops",
+      "id": "2"
+     }
+    }
+   },
+   "meta": {
+    "childrenCount": 0,
+    "roles": {
+     "isTransportChief": false,
+     "driverId": "1",
+     "chiefOfItineraries": []
+    }
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/workers/3"
+   }
+  }
+ ]
+}

@@ -169,6 +169,7 @@ class CatalogTest extends TestCase
         $this->jsonApiAs($chief, 'POST', '/api/v1/vehicles?include=driver.worker', $document(['plate' => 'B123456', 'seats' => 10, 'standingCapacity' => 5], (string) $driver->driverId()));
         $this->assertResponseStatus(201);
         $this->assertSame(15, $this->responseJson()['data']['meta']['totalCapacity']);
+        $this->assertSame(['drivers', 'workers'], array_column($this->responseJson()['included'], 'type'));
         $vehicleId = $this->responseJson()['data']['id'];
 
         $this->jsonApiAs($chief, 'GET', '/api/v1/vehicles/'.$vehicleId.'?include=driver.worker,vehicleType');

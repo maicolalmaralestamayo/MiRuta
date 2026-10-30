@@ -1,0 +1,87 @@
+{
+ "data": [
+  {
+   "type": "trip-messages",
+   "id": "1",
+   "attributes": {
+    "body": "Voy con mi hijo",
+    "createdAt": "2026-10-30T17:20:04+00:00"
+   },
+   "relationships": {
+    "trip": {
+     "data": {
+      "type": "trips",
+      "id": "1"
+     }
+    },
+    "worker": {
+     "data": {
+      "type": "workers",
+      "id": "4"
+     }
+    }
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/trip-messages/1"
+   }
+  }
+ ],
+ "links": {
+  "self": "http://localhost:8000/api/v1/trips/1/messages?include=worker&page%5Bnumber%5D=1&page%5Bsize%5D=25",
+  "first": "http://localhost:8000/api/v1/trips/1/messages?include=worker&page%5Bnumber%5D=1&page%5Bsize%5D=25",
+  "prev": null,
+  "next": null,
+  "last": "http://localhost:8000/api/v1/trips/1/messages?include=worker&page%5Bnumber%5D=1&page%5Bsize%5D=25"
+ },
+ "meta": {
+  "total": 1,
+  "page": 1,
+  "size": 25
+ },
+ "included": [
+  {
+   "type": "workers",
+   "id": "4",
+   "attributes": {
+    "firstName": "Lucía",
+    "lastName": "Pérez",
+    "sex": "F",
+    "photoUrl": null,
+    "isAdmin": false,
+    "active": true,
+    "createdAt": "2026-10-30T17:20:01+00:00"
+   },
+   "relationships": {
+    "rank": {
+     "data": {
+      "type": "ranks",
+      "id": "17"
+     }
+    },
+    "itinerary": {
+     "data": {
+      "type": "itineraries",
+      "id": "1"
+     }
+    },
+    "stop": {
+     "data": {
+      "type": "stops",
+      "id": "2"
+     }
+    }
+   },
+   "meta": {
+    "childrenCount": 1,
+    "roles": {
+     "isTransportChief": false,
+     "driverId": null,
+     "chiefOfItineraries": []
+    }
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/workers/4"
+   }
+  }
+ ]
+}

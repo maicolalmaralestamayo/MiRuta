@@ -1,0 +1,45 @@
+{
+ "data": {
+  "type": "statistics",
+  "id": "trips-by-status",
+  "attributes": {
+   "columns": [
+    {
+     "key": "status",
+     "label": "Estado",
+     "type": "string"
+    },
+    {
+     "key": "trips",
+     "label": "Viajes",
+     "type": "integer"
+    }
+   ],
+   "rows": [
+    {
+     "status": "unconfirmed",
+     "trips": 0
+    },
+    {
+     "status": "confirmed",
+     "trips": 1
+    },
+    {
+     "status": "completed",
+     "trips": 0
+    },
+    {
+     "status": "cancelled",
+     "trips": 0
+    }
+   ]
+  },
+  "meta": {
+   "period": {
+    "from": "2026-10-24",
+    "to": "2026-10-30",
+    "dates": null
+   }
+  }
+ }
+}

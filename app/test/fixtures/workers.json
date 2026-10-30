@@ -1,0 +1,200 @@
+{
+ "data": [
+  {
+   "type": "workers",
+   "id": "1",
+   "attributes": {
+    "cardNumber": "80010100020",
+    "firstName": "Ana",
+    "lastName": "Administradora",
+    "sex": "M",
+    "photoUrl": null,
+    "isAdmin": true,
+    "active": true,
+    "createdAt": "2026-10-30T17:20:00+00:00"
+   },
+   "relationships": {
+    "rank": {
+     "data": {
+      "type": "ranks",
+      "id": "17"
+     }
+    },
+    "itinerary": {
+     "data": null
+    },
+    "stop": {
+     "data": null
+    }
+   },
+   "meta": {
+    "childrenCount": 0,
+    "roles": {
+     "isTransportChief": false,
+     "driverId": null,
+     "chiefOfItineraries": []
+    }
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/workers/1"
+   }
+  },
+  {
+   "type": "workers",
+   "id": "3",
+   "attributes": {
+    "cardNumber": "80010300020",
+    "firstName": "Carlos",
+    "lastName": "Chofer",
+    "sex": "M",
+    "photoUrl": null,
+    "isAdmin": false,
+    "active": true,
+    "createdAt": "2026-10-30T17:20:01+00:00"
+   },
+   "relationships": {
+    "rank": {
+     "data": {
+      "type": "ranks",
+      "id": "17"
+     }
+    },
+    "itinerary": {
+     "data": {
+      "type": "itineraries",
+      "id": "1"
+     }
+    },
+    "stop": {
+     "data": {
+      "type": "stops",
+      "id": "2"
+     }
+    }
+   },
+   "meta": {
+    "childrenCount": 0,
+    "roles": {
+     "isTransportChief": false,
+     "driverId": "1",
+     "chiefOfItineraries": []
+    }
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/workers/3"
+   }
+  },
+  {
+   "type": "workers",
+   "id": "4",
+   "attributes": {
+    "cardNumber": "80010400010",
+    "firstName": "Lucía",
+    "lastName": "Pérez",
+    "sex": "F",
+    "photoUrl": null,
+    "isAdmin": false,
+    "active": true,
+    "createdAt": "2026-10-30T17:20:01+00:00"
+   },
+   "relationships": {
+    "rank": {
+     "data": {
+      "type": "ranks",
+      "id": "17"
+     }
+    },
+    "itinerary": {
+     "data": {
+      "type": "itineraries",
+      "id": "1"
+     }
+    },
+    "stop": {
+     "data": {
+      "type": "stops",
+      "id": "2"
+     }
+    }
+   },
+   "meta": {
+    "childrenCount": 1,
+    "roles": {
+     "isTransportChief": false,
+     "driverId": null,
+     "chiefOfItineraries": []
+    }
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/workers/4"
+   }
+  },
+  {
+   "type": "workers",
+   "id": "2",
+   "attributes": {
+    "cardNumber": "80010200010",
+    "firstName": "Teresa",
+    "lastName": "Transporte",
+    "sex": "F",
+    "photoUrl": null,
+    "isAdmin": false,
+    "active": true,
+    "createdAt": "2026-10-30T17:20:00+00:00"
+   },
+   "relationships": {
+    "rank": {
+     "data": {
+      "type": "ranks",
+      "id": "17"
+     }
+    },
+    "itinerary": {
+     "data": null
+    },
+    "stop": {
+     "data": null
+    }
+   },
+   "meta": {
+    "childrenCount": 0,
+    "roles": {
+     "isTransportChief": true,
+     "driverId": null,
+     "chiefOfItineraries": []
+    }
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/workers/2"
+   }
+  }
+ ],
+ "links": {
+  "self": "http://localhost:8000/api/v1/workers?include=rank&page%5Bnumber%5D=1&page%5Bsize%5D=25",
+  "first": "http://localhost:8000/api/v1/workers?include=rank&page%5Bnumber%5D=1&page%5Bsize%5D=25",
+  "prev": null,
+  "next": null,
+  "last": "http://localhost:8000/api/v1/workers?include=rank&page%5Bnumber%5D=1&page%5Bsize%5D=25"
+ },
+ "meta": {
+  "total": 4,
+  "page": 1,
+  "size": 25
+ },
+ "included": [
+  {
+   "type": "ranks",
+   "id": "17",
+   "attributes": {
+    "name": "Trabajador civil",
+    "description": null,
+    "observation": null,
+    "precedence": 17,
+    "iconUrl": null
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/ranks/17"
+   }
+  }
+ ]
+}

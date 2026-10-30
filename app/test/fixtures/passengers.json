@@ -1,0 +1,93 @@
+{
+ "data": [
+  {
+   "type": "trip-passengers",
+   "id": "1-4",
+   "attributes": {
+    "boardingOrder": 1,
+    "eligibleChildren": 1,
+    "boarded": true,
+    "boardedChildren": 1,
+    "boardingMethod": "self"
+   },
+   "relationships": {
+    "worker": {
+     "data": {
+      "type": "workers",
+      "id": "4"
+     }
+    },
+    "stop": {
+     "data": {
+      "type": "stops",
+      "id": "2"
+     }
+    }
+   }
+  }
+ ],
+ "meta": {
+  "total": 1,
+  "direction": "return"
+ },
+ "included": [
+  {
+   "type": "workers",
+   "id": "4",
+   "attributes": {
+    "firstName": "Lucía",
+    "lastName": "Pérez",
+    "sex": "F",
+    "photoUrl": null,
+    "isAdmin": false,
+    "active": true,
+    "createdAt": "2026-10-30T17:20:01+00:00"
+   },
+   "relationships": {
+    "rank": {
+     "data": {
+      "type": "ranks",
+      "id": "17"
+     }
+    },
+    "itinerary": {
+     "data": {
+      "type": "itineraries",
+      "id": "1"
+     }
+    },
+    "stop": {
+     "data": {
+      "type": "stops",
+      "id": "2"
+     }
+    }
+   },
+   "meta": {
+    "childrenCount": 1,
+    "roles": {
+     "isTransportChief": false,
+     "driverId": null,
+     "chiefOfItineraries": []
+    }
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/workers/4"
+   }
+  },
+  {
+   "type": "ranks",
+   "id": "17",
+   "attributes": {
+    "name": "Trabajador civil",
+    "description": null,
+    "observation": null,
+    "precedence": 17,
+    "iconUrl": null
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/ranks/17"
+   }
+  }
+ ]
+}

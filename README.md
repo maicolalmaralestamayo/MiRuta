@@ -8,6 +8,12 @@ Gestión del transporte de los trabajadores de la empresa: itinerarios, paradas,
 | API | Lumen 7 (PHP ≥ 7.2.5), JSON:API, JWT (RFC 7519) |
 | Base de datos | MariaDB |
 
-La documentación funcional, técnica y de Scrum está en **[docs/](docs/README.md)**.
+| Carpeta | Contenido |
+|---|---|
+| [`api/`](api/README.md) | API (Lumen 7) |
+| [`app/`](app/README.md) | App Android (Flutter) |
+| [`docs/`](docs/README.md) | Documentación funcional, técnica y Scrum; especificación OpenAPI |
+| `docker/` | PHP 7.2 y MariaDB para ejecutar las pruebas de la API (`docker/test-api.sh`) |
+| `tools/` | Generador de `docs/openapi.yaml` |
 
 > El repositorio todavía se llama `MiGuagua`. El nombre del producto es **MiTransporte**.

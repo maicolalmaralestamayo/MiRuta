@@ -1,0 +1,24 @@
+{
+ "data": {
+  "type": "boarding-passes",
+  "id": "1-4",
+  "attributes": {
+   "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOjQsImxlZyI6MSwidHlwIjoiYm9hcmRpbmciLCJpYXQiOjE3OTMzODA4MDMsImV4cCI6MTc5MzM4MDkyM30.ljfxq5aDFkLBFCk0x-2BHvnrdv1ZA_ckkYwD1ur1Dxg",
+   "expiresAt": "2026-10-30T17:22:03+00:00"
+  },
+  "relationships": {
+   "tripLeg": {
+    "data": {
+     "type": "trip-legs",
+     "id": "1"
+    }
+   },
+   "worker": {
+    "data": {
+     "type": "workers",
+     "id": "4"
+    }
+   }
+  }
+ }
+}

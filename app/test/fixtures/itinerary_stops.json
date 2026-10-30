@@ -1,0 +1,138 @@
+{
+ "data": [
+  {
+   "type": "itinerary-stops",
+   "id": "1",
+   "attributes": {
+    "position": 1
+   },
+   "relationships": {
+    "itinerary": {
+     "data": {
+      "type": "itineraries",
+      "id": "1"
+     }
+    },
+    "stop": {
+     "data": {
+      "type": "stops",
+      "id": "1"
+     }
+    }
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/itinerary-stops/1"
+   }
+  },
+  {
+   "type": "itinerary-stops",
+   "id": "2",
+   "attributes": {
+    "position": 2
+   },
+   "relationships": {
+    "itinerary": {
+     "data": {
+      "type": "itineraries",
+      "id": "1"
+     }
+    },
+    "stop": {
+     "data": {
+      "type": "stops",
+      "id": "2"
+     }
+    }
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/itinerary-stops/2"
+   }
+  },
+  {
+   "type": "itinerary-stops",
+   "id": "3",
+   "attributes": {
+    "position": 3
+   },
+   "relationships": {
+    "itinerary": {
+     "data": {
+      "type": "itineraries",
+      "id": "1"
+     }
+    },
+    "stop": {
+     "data": {
+      "type": "stops",
+      "id": "3"
+     }
+    }
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/itinerary-stops/3"
+   }
+  }
+ ],
+ "links": {
+  "self": "http://localhost:8000/api/v1/itinerary-stops?filter%5Bitinerary%5D=1&include=stop&sort=position&page%5Bnumber%5D=1&page%5Bsize%5D=25",
+  "first": "http://localhost:8000/api/v1/itinerary-stops?filter%5Bitinerary%5D=1&include=stop&sort=position&page%5Bnumber%5D=1&page%5Bsize%5D=25",
+  "prev": null,
+  "next": null,
+  "last": "http://localhost:8000/api/v1/itinerary-stops?filter%5Bitinerary%5D=1&include=stop&sort=position&page%5Bnumber%5D=1&page%5Bsize%5D=25"
+ },
+ "meta": {
+  "total": 3,
+  "page": 1,
+  "size": 25
+ },
+ "included": [
+  {
+   "type": "stops",
+   "id": "1",
+   "attributes": {
+    "landmark": "Empresa",
+    "street": "Calle 1",
+    "crossStreet1": "A",
+    "crossStreet2": "B",
+    "latitude": 23.1,
+    "longitude": -82.3,
+    "address": "Empresa, Calle 1 entre A y B"
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/stops/1"
+   }
+  },
+  {
+   "type": "stops",
+   "id": "2",
+   "attributes": {
+    "landmark": "Parque",
+    "street": "Calle 2",
+    "crossStreet1": "A",
+    "crossStreet2": "B",
+    "latitude": 23.11,
+    "longitude": -82.3,
+    "address": "Parque, Calle 2 entre A y B"
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/stops/2"
+   }
+  },
+  {
+   "type": "stops",
+   "id": "3",
+   "attributes": {
+    "landmark": "Hospital",
+    "street": "Calle 3",
+    "crossStreet1": "A",
+    "crossStreet2": "B",
+    "latitude": 23.12,
+    "longitude": -82.3,
+    "address": "Hospital, Calle 3 entre A y B"
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/stops/3"
+   }
+  }
+ ]
+}

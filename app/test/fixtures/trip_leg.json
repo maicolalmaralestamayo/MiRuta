@@ -1,0 +1,46 @@
+{
+ "data": {
+  "type": "trip-legs",
+  "id": "1",
+  "attributes": {
+   "direction": "return",
+   "startedAt": "2026-10-30T17:20:03+00:00",
+   "endedAt": null,
+   "endReason": null
+  },
+  "relationships": {
+   "trip": {
+    "data": {
+     "type": "trips",
+     "id": "1"
+    }
+   },
+   "startedBy": {
+    "data": {
+     "type": "workers",
+     "id": "3"
+    }
+   }
+  },
+  "meta": {
+   "currentPosition": {
+    "latitude": 23.1199,
+    "longitude": -82.3,
+    "at": "2026-10-30T17:20:03+00:00"
+   },
+   "activeSensors": 1,
+   "stopPasses": [
+    {
+     "stopId": "3",
+     "passedAt": "2026-10-30T17:20:03+00:00"
+    }
+   ]
+  },
+  "links": {
+   "self": "http://localhost:8000/api/v1/trip-legs/1"
+  }
+ },
+ "links": {
+  "self": "http://localhost:8000/api/v1/trip-legs/1"
+ }
+}

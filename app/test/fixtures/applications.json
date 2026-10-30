@@ -1,0 +1,242 @@
+{
+ "data": [
+  {
+   "type": "applications",
+   "id": "5",
+   "attributes": {
+    "type": "child_addition",
+    "status": "approved",
+    "resolutionNote": null,
+    "resolvedAt": "2026-10-30T17:20:02+00:00",
+    "createdAt": "2026-10-30T17:20:02+00:00",
+    "childFirstName": "Pepito",
+    "childLastName": "Pérez"
+   },
+   "relationships": {
+    "worker": {
+     "data": {
+      "type": "workers",
+      "id": "4"
+     }
+    },
+    "resolvedBy": {
+     "data": {
+      "type": "workers",
+      "id": "2"
+     }
+    },
+    "itinerary": {
+     "data": null
+    },
+    "stop": {
+     "data": null
+    },
+    "rank": {
+     "data": null
+    },
+    "child": {
+     "data": {
+      "type": "children",
+      "id": "1"
+     }
+    },
+    "absenceType": {
+     "data": null
+    }
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/applications/5"
+   }
+  },
+  {
+   "type": "applications",
+   "id": "3",
+   "attributes": {
+    "type": "itinerary_membership",
+    "status": "approved",
+    "resolutionNote": null,
+    "resolvedAt": "2026-10-30T17:20:02+00:00",
+    "createdAt": "2026-10-30T17:20:02+00:00"
+   },
+   "relationships": {
+    "worker": {
+     "data": {
+      "type": "workers",
+      "id": "4"
+     }
+    },
+    "resolvedBy": {
+     "data": {
+      "type": "workers",
+      "id": "2"
+     }
+    },
+    "itinerary": {
+     "data": {
+      "type": "itineraries",
+      "id": "1"
+     }
+    },
+    "stop": {
+     "data": {
+      "type": "stops",
+      "id": "2"
+     }
+    },
+    "rank": {
+     "data": null
+    },
+    "child": {
+     "data": null
+    },
+    "absenceType": {
+     "data": null
+    }
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/applications/3"
+   }
+  }
+ ],
+ "links": {
+  "self": "http://localhost:8000/api/v1/applications?filter%5Bmine%5D=true&include=worker%2CresolvedBy%2Citinerary%2Cstop%2Crank%2CabsenceType&page%5Bnumber%5D=1&page%5Bsize%5D=25",
+  "first": "http://localhost:8000/api/v1/applications?filter%5Bmine%5D=true&include=worker%2CresolvedBy%2Citinerary%2Cstop%2Crank%2CabsenceType&page%5Bnumber%5D=1&page%5Bsize%5D=25",
+  "prev": null,
+  "next": null,
+  "last": "http://localhost:8000/api/v1/applications?filter%5Bmine%5D=true&include=worker%2CresolvedBy%2Citinerary%2Cstop%2Crank%2CabsenceType&page%5Bnumber%5D=1&page%5Bsize%5D=25"
+ },
+ "meta": {
+  "total": 2,
+  "page": 1,
+  "size": 25
+ },
+ "included": [
+  {
+   "type": "workers",
+   "id": "4",
+   "attributes": {
+    "cardNumber": "80010400010",
+    "firstName": "Lucía",
+    "lastName": "Pérez",
+    "sex": "F",
+    "photoUrl": null,
+    "isAdmin": false,
+    "active": true,
+    "createdAt": "2026-10-30T17:20:01+00:00"
+   },
+   "relationships": {
+    "rank": {
+     "data": {
+      "type": "ranks",
+      "id": "17"
+     }
+    },
+    "itinerary": {
+     "data": {
+      "type": "itineraries",
+      "id": "1"
+     }
+    },
+    "stop": {
+     "data": {
+      "type": "stops",
+      "id": "2"
+     }
+    }
+   },
+   "meta": {
+    "childrenCount": 1,
+    "roles": {
+     "isTransportChief": false,
+     "driverId": null,
+     "chiefOfItineraries": []
+    }
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/workers/4"
+   }
+  },
+  {
+   "type": "workers",
+   "id": "2",
+   "attributes": {
+    "firstName": "Teresa",
+    "lastName": "Transporte",
+    "sex": "F",
+    "photoUrl": null,
+    "isAdmin": false,
+    "active": true,
+    "createdAt": "2026-10-30T17:20:00+00:00"
+   },
+   "relationships": {
+    "rank": {
+     "data": {
+      "type": "ranks",
+      "id": "17"
+     }
+    },
+    "itinerary": {
+     "data": null
+    },
+    "stop": {
+     "data": null
+    }
+   },
+   "meta": {
+    "childrenCount": 0,
+    "roles": {
+     "isTransportChief": true,
+     "driverId": null,
+     "chiefOfItineraries": []
+    }
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/workers/2"
+   }
+  },
+  {
+   "type": "itineraries",
+   "id": "1",
+   "attributes": {
+    "name": "Ruta Este",
+    "description": "Hacia el este",
+    "observation": null
+   },
+   "meta": {
+    "departurePoint": {
+     "type": "stops",
+     "id": "1"
+    },
+    "returnPoint": {
+     "type": "stops",
+     "id": "3"
+    },
+    "stopIds": [
+     "1",
+     "2",
+     "3"
+    ],
+    "memberCount": 2
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/itineraries/1"
+   }
+  },
+  {
+   "type": "stops",
+   "id": "2",
+   "attributes": {
+    "landmark": "Parque",
+    "street": "Calle 2",
+    "crossStreet1": "A",
+    "crossStreet2": "B",
+    "latitude": 23.11,
+    "longitude": -82.3,
+    "address": "Parque, Calle 2 entre A y B"
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/stops/2"
+   }
+  }
+ ]
+}
