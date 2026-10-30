@@ -1,0 +1,70 @@
+name: API
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  tests:
+    name: Pruebas (PHP 7.2, MariaDB 10.6)
+    runs-on: ubuntu-latest
+
+    services:
+      mariadb:
+        image: mariadb:10.6
+        env:
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: mitransporte_test
+          MARIADB_USER: mitransporte
+          MARIADB_PASSWORD: secret
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mariadb-admin ping -uroot -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    defaults:
+      run:
+        working-directory: api
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '7.2'
+          extensions: pdo_mysql, mbstring
+          coverage: none
+
+      - name: Instalar dependencias
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: PHPUnit
+        run: vendor/bin/phpunit
+        env:
+          DB_HOST: 127.0.0.1
+
+  openapi:
+    name: Especificación OpenAPI
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar herramientas
+        run: pip install pyyaml==6.0.2 openapi-spec-validator==0.7.1
+
+      - name: El YAML está generado a partir de tools/openapi/generate.py
+        run: |
+          python3 tools/openapi/generate.py docs/openapi.yaml
+          git diff --exit-code docs/openapi.yaml
+
+      - name: Validar
+        run: openapi-spec-validator docs/openapi.yaml

@@ -389,11 +389,18 @@ paths:
       tags:
       - Nomencladores
       summary: Listar ranks
+      description: 'Público: la pantalla de registro la necesita antes de iniciar sesión.'
       parameters:
       - $ref: '#/components/parameters/PageNumber'
       - $ref: '#/components/parameters/PageSize'
       - $ref: '#/components/parameters/Sort'
       - $ref: '#/components/parameters/Include'
+      - name: filter[name]
+        in: query
+        required: false
+        description: Texto contenido en la denominación
+        schema:
+          type: string
       responses:
         '200':
           description: Correcto
@@ -407,6 +414,7 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+      security: []
     post:
       tags:
       - Nomencladores

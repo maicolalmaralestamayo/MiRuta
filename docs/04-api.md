@@ -26,16 +26,19 @@ app/
   Models/           Modelos Eloquent (Worker, Trip, …): datos, relaciones, reglas propias de cada entidad
   Http/
     Controllers/    Un controlador por recurso: valida, comprueba permisos y llama al modelo o al servicio
-    Middleware/     JwtAuthenticate, RequireJsonApi (comprueba Content-Type/Accept)
-  Serializers/      Capa de "vista": convierte modelos en documentos JSON:API
+    Middleware/     RequireJsonApi (Content-Type y Accept), JwtAuthenticate (sprint 2)
+  JsonApi/          Documentos (data, included, links, meta), parámetros page/sort/filter/include, errores
+  Serializers/      Capa de "vista": convierte modelos en recursos JSON:API
   Policies/         Permisos por recurso y rol (el Administrador siempre tiene permiso)
-  Services/         Lógica que abarca varios modelos: aprobación de solicitudes, solapamiento,
+  Services/         Lógica que abarca varios modelos: registro, aprobación de solicitudes, solapamiento,
                     combinación de sensores, orden de subida, estadísticas
+  Support/          Objetos de valor (CardNumber)
+  Rules/            Reglas de validación propias
   Console/Commands/ Tareas programadas (ver 02-procesos.md §2.12)
+config/             mitransporte.php, jsonapi.php (modelo → serializador)
 database/
-  migrations/  seeders/  factories/
+  migrations/  seeds/  factories/
 ```
-
 - **Librerías previstas** (compatibles con Lumen 7 y PHP 7.2.5):
   - `firebase/php-jwt` para firmar y verificar JWT;
   - serialización JSON:API propia y ligera.

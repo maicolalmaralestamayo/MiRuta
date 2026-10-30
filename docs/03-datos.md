@@ -68,6 +68,7 @@ erDiagram
     TRIP |o--o{ NOTICE : "origina"
     WORKER ||--o{ REFRESH_TOKEN : "posee"
     SETTING_DEFINITION ||--o{ SETTING_OPTION : "admite"
+    SETTING_DEFINITION |o--o{ SETTING_DEFINITION : "fija el mínimo de"
     SETTING_DEFINITION ||--o| SETTING : "tiene valor global"
     SETTING_DEFINITION ||--o{ USER_SETTING : "tiene valor de usuario"
     WORKER ||--o{ USER_SETTING : "personaliza"
@@ -314,6 +315,7 @@ erDiagram
         varchar default_value "1000"
         int min_value "NULL"
         int max_value "NULL"
+        bigint min_setting_definition_id FK "NULL, ajuste que fija su mínimo"
         enum editable_by "NULL, administrator, transport_chief"
         boolean user_overridable
     }
@@ -383,6 +385,7 @@ erDiagram
     trips |o--o{ notices : trip_id
     workers ||--o{ refresh_tokens : worker_id
     refresh_tokens |o--o| refresh_tokens : replaced_by_id
+    setting_definitions |o--o{ setting_definitions : min_setting_definition_id
     setting_definitions ||--o{ setting_options : setting_definition_id
     setting_definitions ||--o| settings : setting_definition_id
     setting_definitions ||--o{ user_settings : setting_definition_id
@@ -481,6 +484,7 @@ No hay dependencias transitivas entre atributos que no son clave. Las decisiones
 | Paso por parada: itinerario ← trayecto ← viaje | `trip_stop_passes` guarda solo `stop_id`; el itinerario se llega a través del viaje |
 | Datos que solo tienen sentido para algunos tipos de solicitud | Se separan en **tablas de subtipo** (`itinerary_applications`, `rank_applications`, `child_applications`, `absence_applications`), en lugar de columnas vacías en `applications` |
 | Opciones de un ajuste | Tabla `setting_options`, no una lista en una columna |
+| Mínimo de un ajuste de usuario fijado por otro ajuste global | Referencia `min_setting_definition_id` al ajuste global, no una copia de su valor |
 | Viaje "pendiente de reasignar" ← su chofer ya no tiene el rol | No se guarda; se calcula viendo si la fila de `drivers` está borrada |
 | Hijos con derecho ← fecha de nacimiento + `child_max_age` | No se guarda; se calcula |
 | Estado "declarado" de un niño ← su solicitud | No se guarda en `children`; se obtiene de la última solicitud aprobada en `child_applications` |
