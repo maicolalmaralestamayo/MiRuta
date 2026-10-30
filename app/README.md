@@ -22,9 +22,11 @@ Con el emulador de Android y la API en el propio ordenador: `--dart-define=API_U
 ## Compilar el APK
 
 ```bash
-flutter build apk --release --dart-define=API_URL=https://mi-servidor/api/v1
+flutter build apk --release --target-platform android-arm,android-arm64 --dart-define=API_URL=https://mi-servidor/api/v1
 # Resultado: build/app/outputs/flutter-apk/app-release.apk
 ```
+
+`--target-platform android-arm,android-arm64` deja fuera la parte para emuladores (`x86_64`): un solo APK para todos los teléfonos reales, de unos 57 MB en lugar de 86 MB.
 
 ### Firma
 
@@ -47,7 +49,7 @@ Guárdalos en un lugar seguro y con copia de respaldo. Sin `key.properties` se f
 ## Publicar una actualización
 
 1. Sube el número de versión en `pubspec.yaml`, por ejemplo de `1.0.0+1` a `1.1.0+2`. El número después del `+` es el **código de versión** y tiene que ser mayor que el anterior.
-2. Compila el APK firmado: `flutter build apk --release --dart-define=API_URL=…`.
+2. Compila el APK firmado: `flutter build apk --release --target-platform android-arm,android-arm64 --dart-define=API_URL=…`.
 3. En la app, como Administrador: **Más → Gestión → Actualizaciones de la app → Publicar versión**. Elige el APK y escribe la versión, el código, las novedades y si es obligatoria.
 
 Los teléfonos lo detectan al abrir la app o en la siguiente sincronización.

@@ -49,6 +49,7 @@ class Worker {
   final int childrenCount;
   final Roles roles;
   final Rank? rank;
+  final bool mustChangePassword;
 
   Worker({
     required this.id,
@@ -65,6 +66,7 @@ class Worker {
     this.childrenCount = 0,
     this.roles = const Roles(),
     this.rank,
+    this.mustChangePassword = false,
   });
 
   factory Worker.from(Resource r) {
@@ -84,6 +86,7 @@ class Worker {
       childrenCount: (r.meta['childrenCount'] as num?)?.toInt() ?? 0,
       roles: Roles.from(r.meta['roles'] as Map<String, dynamic>?),
       rank: rank == null ? null : Rank.from(rank),
+      mustChangePassword: r.boolean('mustChangePassword'),
     );
   }
 
@@ -618,8 +621,9 @@ class Notice {
   final DateTime createdAt;
   final String? applicationId;
   final String? tripId;
+  final String? passwordResetId;
 
-  Notice({required this.id, required this.type, this.readAt, required this.createdAt, this.applicationId, this.tripId});
+  Notice({required this.id, required this.type, this.readAt, required this.createdAt, this.applicationId, this.tripId, this.passwordResetId});
 
   factory Notice.from(Resource r) => Notice(
         id: r.id,
@@ -628,6 +632,7 @@ class Notice {
         createdAt: r.date('createdAt')!,
         applicationId: r.relId('application')?.id,
         tripId: r.relId('trip')?.id,
+        passwordResetId: r.relId('passwordReset')?.id,
       );
 
   String get title => const {
@@ -637,6 +642,7 @@ class Notice {
         'inactivity_warning': 'Vas a perder tu plaza por inactividad',
         'inactivity_removal': 'Baja automática por inactividad',
         'trip_needs_reassignment': 'Un viaje se quedó sin chofer',
+        'password_reset_requested': 'Un trabajador pidió restablecer su contraseña',
       }[type] ?? type;
 }
 

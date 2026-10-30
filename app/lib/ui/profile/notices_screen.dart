@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/models.dart';
 import '../../services/templates.dart';
+import '../admin/password_resets_screen.dart';
 import '../trips/trip_detail_screen.dart';
 import '../widgets/common.dart';
 
@@ -37,6 +38,8 @@ class NoticesScreen extends StatelessWidget {
                       await runAction(context, () => _read(context, notice));
                       if (notice.tripId != null && context.mounted) {
                         await Navigator.push(context, MaterialPageRoute(builder: (_) => TripDetailScreen(tripId: notice.tripId!)));
+                      } else if (notice.passwordResetId != null && context.mounted) {
+                        await Navigator.push(context, MaterialPageRoute(builder: (_) => const PasswordResetsScreen()));
                       }
                       reload();
                     },

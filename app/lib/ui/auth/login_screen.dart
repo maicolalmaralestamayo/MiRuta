@@ -5,6 +5,7 @@ import '../../core/api_exception.dart';
 import '../../core/card_number.dart';
 import '../../core/storage.dart';
 import '../widgets/common.dart';
+import 'forgot_password_screen.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -95,6 +96,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: _busy ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Entrar'),
                 ),
                 const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ForgotPasswordScreen(initialCard: _card.text))),
+                  child: const Text('¿Olvidaste tu contraseña?'),
+                ),
                 TextButton(
                   onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RegisterScreen())),
                   child: const Text('¿No tienes cuenta? Regístrate'),

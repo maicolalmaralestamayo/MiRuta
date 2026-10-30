@@ -53,6 +53,30 @@ class Session extends ChangeNotifier {
     await _enter();
   }
 
+  /// Entrar con el código de restablecimiento que envió el Administrador.
+  /// Después la app obliga a elegir una contraseña nueva.
+  Future<void> loginWithResetCode(String cardNumber, String code) async {
+    final document = await api.post('/tokens/reset-code', resourceData('tokens', attributes: {
+      'cardNumber': cardNumber,
+      'resetCode': code,
+      'deviceName': 'Android',
+    }), auth: false);
+    final attributes = document.resource.attributes;
+    await Storage.saveTokens(attributes['accessToken'] as String, attributes['refreshToken'] as String);
+    await SyncService.reset();
+    await _enter();
+  }
+
+  /// Contraseña nueva tras entrar con un código (no pide la actual).
+  Future<void> setNewPassword(String password) async {
+    await api.patch('/me', resourceData('workers', attributes: {'password': password}));
+    await reloadMe();
+    settings = await UserSettings.refresh(api);
+    notifyListeners();
+    await scheduleBackgroundSync();
+    SyncService.run(api).catchError((_) {});
+  }
+
   Future<void> register({required String cardNumber, required String firstName, required String lastName, required String rankId, required String password}) async {
     await api.post('/workers', resourceData('workers', attributes: {
       'cardNumber': cardNumber,
@@ -88,6 +112,12 @@ class Session extends ChangeNotifier {
   Future<void> _enter() async {
     try {
       await reloadMe();
+      if (me!.mustChangePassword) {
+        // Hasta cambiar la contraseña, la API solo permite el perfil propio.
+        state = SessionState.ready;
+        notifyListeners();
+        return;
+      }
       settings = await UserSettings.refresh(api);
     } catch (_) {
       settings = await UserSettings.cached();
