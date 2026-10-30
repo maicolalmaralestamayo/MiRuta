@@ -11,7 +11,6 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 
 /**
  * Reglas de los viajes (docs/07-algoritmos.md §7.11 a §7.14 y §7.21).
@@ -323,9 +322,7 @@ class Trips
      */
     private function purgeChat(Trip $trip): void
     {
-        if (Schema::hasTable('trip_messages')) {
-            DB::table('trip_messages')->where('trip_id', $trip->id)->delete();
-        }
+        DB::table('trip_messages')->where('trip_id', $trip->id)->delete();
     }
 
     private function transitionNotAllowed(string $detail): JsonApiException

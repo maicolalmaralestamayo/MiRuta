@@ -14,6 +14,9 @@ class Kernel extends ConsoleKernel
      */
     protected $commands = [
         Commands\AutoCompleteTrips::class,
+        Commands\PurgeTripChats::class,
+        Commands\PurgeExpiredConversations::class,
+        Commands\RemoveInactiveWorkers::class,
     ];
 
     /**
@@ -26,5 +29,8 @@ class Kernel extends ConsoleKernel
     protected function schedule(Schedule $schedule)
     {
         $schedule->command('trips:auto-complete')->everyMinute()->withoutOverlapping();
+        $schedule->command('chats:purge-trips')->everyMinute()->withoutOverlapping();
+        $schedule->command('chats:purge-expired')->dailyAt('02:10');
+        $schedule->command('workers:inactivity')->dailyAt('02:20');
     }
 }

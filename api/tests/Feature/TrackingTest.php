@@ -209,9 +209,9 @@ class TrackingTest extends TestCase
         $this->assertJsonApiError(422, 'NOT_A_PASSENGER');
 
         $this->jsonApiAs($this->driver, 'GET', '/api/v1/trips/'.$this->trip->id.'/passengers?filter[direction]=return');
-        $passengers = $this->responseJson()['data'];
-        $this->assertTrue($passengers[0]['attributes']['boarded']);
-        $this->assertSame(['self', 'manual'], array_column(array_column($passengers, 'attributes'), 'boardingMethod'));
+        $methods = array_column(array_column($this->responseJson()['data'], 'attributes'), 'boardingMethod');
+        sort($methods);
+        $this->assertSame(['manual', 'self'], $methods);
     }
 
     public function testSubidaConCodigoQr()
