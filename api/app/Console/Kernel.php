@@ -20,7 +20,7 @@ class Kernel extends ConsoleKernel
     ];
 
     /**
-     * Tareas programadas (docs/02-procesos.md §2.12). En el servidor hace falta
+     * Tareas programadas (docs/02-procesos.md §2.13). En el servidor hace falta
      * un cron que ejecute cada minuto: php artisan schedule:run
      *
      * @param  \Illuminate\Console\Scheduling\Schedule  $schedule

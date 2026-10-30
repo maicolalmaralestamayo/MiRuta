@@ -17,7 +17,8 @@ Interfaz en **español**. Las opciones de menú solo aparecen si el rol del usua
 | Ubicación | `geolocator` |
 | QR | `qr_flutter` (mostrar) y `mobile_scanner` (escanear) |
 | Voz | `flutter_tts` |
-| Desbloqueo | `local_auth` (huella o PIN del teléfono) |
+| PIN propio | Guardado como huella SHA-256 con sal en `flutter_secure_storage`; no depende de la huella ni del bloqueo del teléfono |
+| Actualizaciones | `ota_update` (descarga con verificación SHA-256 e instalación), `package_info_plus`, `file_picker` (publicar el APK) |
 | Gráficos | `fl_chart` |
 | Exportación | `excel` y `pdf`, y `share_plus` para compartir el archivo |
 
@@ -27,7 +28,8 @@ Interfaz en **español**. Las opciones de menú solo aparecen si el rol del usua
 |---|---|
 | **Bienvenida / inicio de sesión** | Carné (teclado numérico, recordado en el teléfono) y contraseña. Enlace a registro |
 | **Registro** | Carné, nombre, apellidos, jerarquía y contraseña |
-| **Desbloqueo** | Huella o PIN, si el usuario lo activó |
+| **PIN** | PIN propio de la app (4 a 6 dígitos), si el usuario lo activó. Se pide al abrir la app y al volver tras 5 minutos fuera. Tras 5 intentos fallidos, o si se olvida, se cierra la sesión |
+| **Actualización** | Al abrir la app se comprueba si hay una versión nueva. Si es obligatoria, no se puede seguir sin instalarla |
 | **Inicio** | Próximo viaje: tipo, matrícula, chofer, capacidad, salida y regreso. Estado de las solicitudes. Avisos sin leer |
 | **Mis viajes** | Lista de viajes confirmados de su itinerario, con su estado. Indicador de cambios |
 | **Detalle del viaje** | Datos completos, chat del viaje, botón **"Ya subí"**, botón **"Mi QR"**, botón **"Seguir recorrido"** |
@@ -81,6 +83,7 @@ Todo lo anterior y, además:
 - **Trabajadores:** buscar, ver datos privados, activar y desactivar.
 - **Nomencladores:** jerarquías (con su icono) y motivos de conversación.
 - **Todos los ajustes globales**, incluidos los mínimos de frecuencia.
+- **Actualizaciones de la app:** publicar un APK (versión, código, novedades, obligatoria o no), ver cuántos trabajadores tienen cada versión y retirar versiones.
 - **Conversaciones con el desarrollador.**
 
 ## 5.4 Ajustes del usuario
@@ -96,4 +99,4 @@ Los valores por defecto y los límites están en [06-ajustes.md](06-ajustes.md).
 | **Ausencias** | Recibir avisos de viaje durante una ausencia |
 | **Recorrido** | Vista (mapa o línea con hitos), voz (según rol), compartir ubicación, frecuencia de envío |
 | **Frecuencias** | Para cada funcionalidad, con la app abierta y en segundo plano: viajes, recorrido, chat del viaje, conversaciones, solicitudes y avisos. Activar o desactivar la sincronización en segundo plano |
-| **Seguridad** (solo en el teléfono) | Desbloqueo con huella o PIN, recordar el carné |
+| **Seguridad** (solo en el teléfono) | PIN propio de la app, recordar el carné; buscar actualizaciones |

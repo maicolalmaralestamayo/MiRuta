@@ -26,7 +26,31 @@ flutter build apk --release --dart-define=API_URL=https://mi-servidor/api/v1
 # Resultado: build/app/outputs/flutter-apk/app-release.apk
 ```
 
-> El APK de `release` se firma con la clave de depuración. Antes de distribuirlo hay que crear una clave propia y configurarla en `android/app/build.gradle.kts` (`signingConfigs`).
+### Firma
+
+Todas las versiones deben firmarse con **la misma clave**; si cambia, Android no instala la actualización encima de la anterior y habría que desinstalar la app en cada teléfono.
+
+La clave y sus contraseñas **no se suben al repositorio**. Para compilar hacen falta dos archivos en `android/`:
+
+- `keystore/mitransporte-release.jks`: la clave.
+- `key.properties`:
+
+  ```properties
+  storeFile=keystore/mitransporte-release.jks
+  storePassword=…
+  keyAlias=mitransporte
+  keyPassword=…
+  ```
+
+Guárdalos en un lugar seguro y con copia de respaldo. Sin `key.properties` se firma con la clave de depuración (solo sirve para pruebas).
+
+## Publicar una actualización
+
+1. Sube el número de versión en `pubspec.yaml`, por ejemplo de `1.0.0+1` a `1.1.0+2`. El número después del `+` es el **código de versión** y tiene que ser mayor que el anterior.
+2. Compila el APK firmado: `flutter build apk --release --dart-define=API_URL=…`.
+3. En la app, como Administrador: **Más → Gestión → Actualizaciones de la app → Publicar versión**. Elige el APK y escribe la versión, el código, las novedades y si es obligatoria.
+
+Los teléfonos lo detectan al abrir la app o en la siguiente sincronización.
 
 ## Pruebas
 

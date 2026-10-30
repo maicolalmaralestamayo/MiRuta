@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:mitransporte/core/card_number.dart';
 import 'package:mitransporte/core/json_api.dart';
+import 'package:mitransporte/services/app_pin.dart';
 import 'package:mitransporte/services/notifications.dart';
 import 'package:mitransporte/services/templates.dart';
 import 'package:mitransporte/services/user_settings.dart';
@@ -75,5 +76,13 @@ void main() {
     });
     expect(document.resource.string('firstName'), 'Ana');
     expect(document.resource.related('rank')!.string('name'), 'Trabajador civil');
+  });
+
+  test('formato del PIN de la app', () {
+    expect(AppPin.isValidFormat('1234'), isTrue);
+    expect(AppPin.isValidFormat('123456'), isTrue);
+    expect(AppPin.isValidFormat('123'), isFalse);
+    expect(AppPin.isValidFormat('1234567'), isFalse);
+    expect(AppPin.isValidFormat('12a4'), isFalse);
   });
 }

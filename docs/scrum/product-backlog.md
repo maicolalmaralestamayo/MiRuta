@@ -81,8 +81,8 @@
 *Como trabajador quiero cerrar sesión en este teléfono o en todos para proteger mi cuenta.*
 - `DELETE /tokens/current` y `DELETE /tokens` revocan los tokens de renovación que corresponden.
 
-### HU-015 · Desbloqueo rápido · S · 3 pts
-*Como trabajador quiero desbloquear la app con mi huella o PIN, y que recuerde mi carné, para entrar rápido y con seguridad.*
+### HU-015 · PIN de la app · S · 3 pts
+*Como trabajador quiero proteger la app con un PIN propio, y que recuerde mi carné, para entrar rápido y con seguridad en cualquier teléfono.*
 - Se puede activar y desactivar en los ajustes. Funciona sin conexión.
 
 ### HU-016 · Mi perfil · M · 3 pts

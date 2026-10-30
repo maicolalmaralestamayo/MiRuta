@@ -22,8 +22,12 @@ class HomeShell extends StatefulWidget {
 }
 
 class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
+  /// Minutos fuera de la app tras los que se vuelve a pedir el PIN.
+  static const _lockAfter = Duration(minutes: 5);
+
   int _index = 0;
   Timer? _timer;
+  DateTime? _pausedAt;
 
   @override
   void initState() {
@@ -44,10 +48,15 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       final session = context.read<Session>();
+      if (_pausedAt != null && DateTime.now().difference(_pausedAt!) > _lockAfter) {
+        session.lock();
+      }
+      _pausedAt = null;
       SyncService.run(session.api).catchError((_) {});
       session.reloadMe().catchError((_) {});
       _startTimer();
     } else if (state == AppLifecycleState.paused) {
+      _pausedAt = DateTime.now();
       _timer?.cancel();
     }
   }

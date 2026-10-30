@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:local_auth/local_auth.dart';
 
 import '../../core/storage.dart';
 import '../../models/models.dart';
+import '../../services/app_pin.dart';
+import '../../services/app_updates.dart';
 import '../../services/user_settings.dart';
 import '../../services/session.dart';
 import '../widgets/common.dart';
+import '../updates/update_screen.dart';
 import 'global_settings_screen.dart';
 import 'setting_editor.dart';
 
@@ -33,14 +35,16 @@ const _groups = <String, List<String>>{
 
 class _SettingsScreenState extends State<SettingsScreen> {
   final _view = GlobalKey<AsyncViewState<(Map<String, SettingDefinition>, UserSettings)>>();
-  bool _biometric = false;
+  bool _pin = false;
   bool _rememberCard = true;
+  String _version = '';
 
   @override
   void initState() {
     super.initState();
-    Storage.getBool(Session.biometricKey).then((v) => setState(() => _biometric = v));
+    AppPin.isEnabled().then((v) => setState(() => _pin = v));
     Storage.getBool(Session.rememberCardKey, fallback: true).then((v) => setState(() => _rememberCard = v));
+    AppUpdates.currentVersionName().then((v) => setState(() => _version = v));
   }
 
   Future<(Map<String, SettingDefinition>, UserSettings)> _load() async {
@@ -66,17 +70,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  Future<void> _toggleBiometric(bool value) async {
-    if (value) {
-      final auth = LocalAuthentication();
-      if (!await auth.isDeviceSupported()) {
-        if (mounted) showMessage(context, 'Este teléfono no tiene huella ni bloqueo de pantalla configurado.');
-        return;
-      }
-      if (!await auth.authenticate(localizedReason: 'Confirma para activar el desbloqueo')) return;
+  /// Activar o cambiar el PIN de la app (se pide dos veces).
+  Future<void> _setPin() async {
+    final pin = await promptText(context, 'PIN nuevo (${AppPin.minLength} a ${AppPin.maxLength} dígitos)', required: true);
+    if (pin == null || !mounted) return;
+    if (!AppPin.isValidFormat(pin)) {
+      showMessage(context, 'El PIN debe tener entre ${AppPin.minLength} y ${AppPin.maxLength} dígitos.');
+      return;
     }
-    await Storage.setBool(Session.biometricKey, value);
-    setState(() => _biometric = value);
+    final repeated = await promptText(context, 'Repite el PIN', required: true);
+    if (repeated == null || !mounted) return;
+    if (repeated != pin) {
+      showMessage(context, 'Los PIN no coinciden.');
+      return;
+    }
+    await AppPin.set(pin);
+    setState(() => _pin = true);
+    if (mounted) showMessage(context, 'Se pedirá el PIN al abrir la app.');
+  }
+
+  Future<void> _removePin() async {
+    await AppPin.remove();
+    setState(() => _pin = false);
   }
 
   @override
@@ -92,7 +107,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           final (definitions, settings) = data;
           return ListView(padding: const EdgeInsets.only(bottom: 32), children: [
             const SectionTitle('Seguridad (solo en este teléfono)'),
-            SwitchListTile(title: const Text('Desbloquear con huella o PIN'), value: _biometric, onChanged: _toggleBiometric),
+            SwitchListTile(
+              title: const Text('Pedir un PIN al abrir la app'),
+              subtitle: const Text('Un PIN propio de MiTransporte, distinto del bloqueo del teléfono'),
+              value: _pin,
+              onChanged: (value) => value ? _setPin() : _removePin(),
+            ),
+            if (_pin) ListTile(leading: const Icon(Icons.pin_outlined), title: const Text('Cambiar el PIN'), onTap: _setPin),
             SwitchListTile(
               title: const Text('Recordar mi carné'),
               value: _rememberCard,
@@ -119,6 +140,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const Padding(
               padding: EdgeInsets.all(16),
               child: Text('Mantén pulsado un ajuste para volver a su valor general.'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.system_update),
+              title: const Text('Buscar actualizaciones'),
+              subtitle: Text('Versión instalada: $_version'),
+              onTap: () async {
+                try {
+                  final update = await AppUpdates.check(context.api);
+                  if (!context.mounted) return;
+                  if (update == null) {
+                    showMessage(context, 'Tienes la última versión.');
+                  } else {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => UpdateScreen(update: update)));
+                  }
+                } catch (error) {
+                  if (context.mounted) showError(context, error);
+                }
+              },
             ),
             if (me.managesTransport) ...[
               const Divider(),

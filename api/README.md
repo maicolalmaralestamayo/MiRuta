@@ -46,7 +46,7 @@ post_max_size = 200M
 
 ## Tareas programadas
 
-Marcan los viajes como realizados, borran chats y aplican la baja por inactividad (ver `docs/02-procesos.md` §2.12). En el servidor hace falta una línea de `cron` que ejecute el planificador cada minuto:
+Marcan los viajes como realizados, borran chats y aplican la baja por inactividad (ver `docs/02-procesos.md` §2.13). En el servidor hace falta una línea de `cron` que ejecute el planificador cada minuto:
 
 ```cron
 * * * * * cd /ruta/a/api && php artisan schedule:run >> /dev/null 2>&1

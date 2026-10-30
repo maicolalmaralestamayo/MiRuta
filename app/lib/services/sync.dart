@@ -1,6 +1,7 @@
 import '../core/api_client.dart';
 import '../core/storage.dart';
 import '../models/models.dart';
+import 'app_updates.dart';
 import 'notifications.dart';
 import 'templates.dart';
 import 'user_settings.dart';
@@ -68,7 +69,10 @@ class SyncService {
       await _syncStops(api, me['itineraryId'] as String?);
       await _syncTrips(api, me, settings, notifyChanges);
     }
-    if (parts.contains(SyncPart.notices)) await _syncNotices(api);
+    if (parts.contains(SyncPart.notices)) {
+      await _syncNotices(api);
+      await _notifyUpdate(api);
+    }
     if (parts.contains(SyncPart.conversations)) await _syncConversations(api);
     if (parts.contains(SyncPart.tripChats)) await _syncTripChats(api, me['id'] as String);
   }
@@ -200,6 +204,17 @@ class SyncService {
     }
 
     await Storage.setJson(_conversationsKey, seen);
+  }
+
+  /// Avisa una vez de cada versión nueva de la app.
+  static Future<void> _notifyUpdate(ApiClient api) async {
+    final update = await AppUpdates.check(api);
+    if (update != null && await AppUpdates.shouldNotify(update)) {
+      await Notifications.showMessage(
+        'Actualización de MiTransporte',
+        'Hay una versión nueva (${update.versionName})${update.mandatory ? ', obligatoria' : ''}. Abre la app para instalarla.',
+      );
+    }
   }
 
   /// Avisa de mensajes nuevos de otros en el chat de los viajes confirmados en curso o próximos.

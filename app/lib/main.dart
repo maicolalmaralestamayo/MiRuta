@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:workmanager/workmanager.dart';
 
 import 'core/api_client.dart';
+import 'services/app_updates.dart';
 import 'services/notifications.dart';
 import 'services/session.dart';
 import 'services/sync.dart';
@@ -14,6 +15,7 @@ import 'ui/auth/lock_screen.dart';
 import 'ui/auth/login_screen.dart';
 import 'ui/home/home_shell.dart';
 import 'ui/theme.dart';
+import 'ui/updates/update_screen.dart';
 
 /// Tarea en segundo plano: sincroniza viajes, avisos y mensajes.
 @pragma('vm:entry-point')
@@ -66,11 +68,44 @@ class MiTransporteApp extends StatelessWidget {
   }
 }
 
-class _Root extends StatelessWidget {
+/// Raíz: comprueba si hay una versión nueva al abrir la app. Si es
+/// obligatoria, no deja seguir (ni siquiera iniciar sesión) hasta instalarla.
+class _Root extends StatefulWidget {
   const _Root();
 
   @override
+  State<_Root> createState() => _RootState();
+}
+
+class _RootState extends State<_Root> {
+  AppUpdate? _mandatory;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkUpdate();
+  }
+
+  Future<void> _checkUpdate() async {
+    try {
+      final update = await AppUpdates.check(context.read<Session>().api);
+      if (update == null || !mounted) return;
+      if (update.mandatory) {
+        setState(() => _mandatory = update);
+      } else {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) Navigator.push(context, MaterialPageRoute(builder: (_) => UpdateScreen(update: update)));
+        });
+      }
+    } catch (_) {
+      // Sin conexión: se comprobará en otro momento.
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_mandatory != null) return UpdateScreen(update: _mandatory!);
+
     switch (context.watch<Session>().state) {
       case SessionState.loading:
         return const Scaffold(body: Center(child: CircularProgressIndicator()));

@@ -1,11 +1,11 @@
 import 'package:flutter/foundation.dart';
-import 'package:local_auth/local_auth.dart';
 import 'package:workmanager/workmanager.dart';
 
 import '../core/api_client.dart';
 import '../core/json_api.dart';
 import '../core/storage.dart';
 import '../models/models.dart';
+import 'app_pin.dart';
 import 'notifications.dart';
 import 'sync.dart';
 import 'tracking_service.dart';
@@ -15,7 +15,6 @@ enum SessionState { loading, loggedOut, locked, ready }
 
 /// Sesión del usuario: inicio y cierre, desbloqueo y datos propios.
 class Session extends ChangeNotifier {
-  static const biometricKey = 'security.biometric';
   static const rememberCardKey = 'security.remember_card';
 
   final ApiClient api;
@@ -32,7 +31,7 @@ class Session extends ChangeNotifier {
   Future<void> init() async {
     if (await Storage.refreshToken() == null) {
       state = SessionState.loggedOut;
-    } else if (await Storage.getBool(biometricKey)) {
+    } else if (await AppPin.isEnabled()) {
       state = SessionState.locked;
     } else {
       await _enter();
@@ -64,11 +63,26 @@ class Session extends ChangeNotifier {
     await login(cardNumber, password);
   }
 
-  /// Desbloqueo con huella o PIN del teléfono.
-  Future<bool> unlock() async {
-    final ok = await LocalAuthentication().authenticate(localizedReason: 'Desbloquea MiTransporte', persistAcrossBackgrounding: true);
-    if (ok) await _enter();
+  /// Desbloqueo con el PIN de la app.
+  Future<bool> unlock(String pin) async {
+    final ok = await AppPin.verify(pin);
+    if (ok) {
+      if (me == null) {
+        await _enter();
+      } else {
+        state = SessionState.ready;
+        notifyListeners();
+      }
+    }
     return ok;
+  }
+
+  /// Vuelve a pedir el PIN (al volver a la app tras un rato fuera).
+  Future<void> lock() async {
+    if (state == SessionState.ready && await AppPin.isEnabled()) {
+      state = SessionState.locked;
+      notifyListeners();
+    }
   }
 
   Future<void> _enter() async {
@@ -129,6 +143,7 @@ class Session extends ChangeNotifier {
     await TrackingService.stop();
     await Workmanager().cancelAll();
     await Notifications.cancelAll();
+    await AppPin.remove();
     await Storage.clearUserData();
     me = null;
     state = SessionState.loggedOut;

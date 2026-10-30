@@ -34,7 +34,7 @@ app/
                     combinación de sensores, orden de subida, estadísticas
   Support/          Objetos de valor (CardNumber)
   Rules/            Reglas de validación propias
-  Console/Commands/ Tareas programadas (ver 02-procesos.md §2.12)
+  Console/Commands/ Tareas programadas (ver 02-procesos.md §2.13)
 config/             mitransporte.php, jsonapi.php (modelo → serializador)
 database/
   migrations/  seeds/  factories/
@@ -91,6 +91,7 @@ Las demás rutas exigen `Authorization: Bearer <token de acceso>`.
 | `notices` | `GET`, `PATCH` (marcar como leído) | — |
 | `setting-definitions`, `settings` | `GET`, `PATCH /settings/{id}` | `editable_by` decide quién puede cambiar cada ajuste global |
 | `statistics` | `GET /statistics/{name}` | Ver 4.6 |
+| `app-versions` | `GET /app-versions/latest` (público), `GET`, `POST` (multipart), `DELETE /{id}` | Actualizaciones de la app; publica y retira solo el Administrador. La app envía su versión en la cabecera `X-App-Version-Code` |
 | `app-versions` | `GET /app-versions/latest` (público), `GET`, `POST` (multipart), `DELETE /{id}` | Actualizaciones de la app; publica y retira solo el Administrador. La app envía su versión en la cabecera `X-App-Version-Code` |
 | **Lote** | `POST /operations` | Atomic Operations: crear viajes por rango, confirmar o desconfirmar en masa, enviar posiciones acumuladas |
 

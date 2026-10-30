@@ -4,6 +4,7 @@ import '../settings/global_settings_screen.dart';
 import '../widgets/common.dart';
 import 'itineraries_screen.dart';
 import 'nomenclators_screen.dart';
+import 'app_versions_screen.dart';
 import 'planning_screen.dart';
 import 'stops_screen.dart';
 import 'vehicles_screen.dart';
@@ -38,6 +39,7 @@ class AdminMenu extends StatelessWidget {
           const SectionTitle('Administración'),
           ListTile(leading: const Icon(Icons.military_tech_outlined), title: const Text('Jerarquías'), onTap: () => open(NomenclatorsScreen.ranks())),
           ListTile(leading: const Icon(Icons.forum_outlined), title: const Text('Motivos de conversación'), onTap: () => open(NomenclatorsScreen.conversationTopics())),
+          ListTile(leading: const Icon(Icons.system_update_alt), title: const Text('Actualizaciones de la app'), onTap: () => open(const AppVersionsScreen())),
         ],
       ]),
     );

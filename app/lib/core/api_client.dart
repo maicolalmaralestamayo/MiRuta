@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'api_exception.dart';
@@ -31,7 +32,8 @@ class ApiClient {
       baseUrl: await Storage.apiUrl(),
       connectTimeout: const Duration(seconds: 15),
       receiveTimeout: const Duration(seconds: 30),
-      headers: {'Accept': jsonApi},
+      // La versión instalada: así el Administrador ve quién no ha actualizado.
+      headers: {'Accept': jsonApi, 'X-App-Version-Code': (await PackageInfo.fromPlatform()).buildNumber},
       validateStatus: (status) => status != null && status < 400,
     ));
     return ApiClient._(dio);
@@ -87,9 +89,14 @@ class ApiClient {
         .toList();
   }
 
-  /// Subida de un archivo (multipart/form-data).
-  Future<JsonApiDocument> upload(String path, String field, String filePath) async {
-    return _document(await _send(() async => _dio.post(path, data: FormData.fromMap({field: await MultipartFile.fromFile(filePath)}))));
+  /// Subida de un archivo (multipart/form-data), con otros campos opcionales.
+  Future<JsonApiDocument> upload(String path, String field, String filePath, {Map<String, dynamic> fields = const {}, void Function(int sent, int total)? onProgress}) async {
+    return _document(await _send(() async => _dio.post(
+          path,
+          data: FormData.fromMap({...fields, field: await MultipartFile.fromFile(filePath)}),
+          options: Options(sendTimeout: const Duration(minutes: 30), receiveTimeout: const Duration(minutes: 5)),
+          onSendProgress: onProgress,
+        )));
   }
 
   // Envío con renovación de token

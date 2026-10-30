@@ -39,7 +39,7 @@
 - Solo en el teléfono:
   - la app recuerda el último carné usado;
   - el teclado del carné es numérico;
-  - el usuario puede activar el desbloqueo con huella o PIN.
+  - el usuario puede activar un **PIN propio de la app** (4 a 6 dígitos), igual en cualquier teléfono. Si lo olvida, entra de nuevo con carné y contraseña.
 
 ## 2.2 Solicitudes
 
@@ -351,7 +351,16 @@ Al salir de una parada, el chofer y los Jefes de itinerario ven la lista de la s
 | | Hora real de paso por cada parada |
 | | Distancia recorrida por vehículo |
 
-## 2.12 Tareas programadas del servidor
+## 2.12 Actualizaciones de la app
+
+- Solo el **Administrador** publica versiones: sube el APK desde la app con su versión, su código (mayor que el anterior), las novedades y si es **obligatoria**. Los APK se guardan en el servidor (`public/uploads/apk/`).
+- La app comprueba si hay una versión nueva al abrirse, desde Ajustes y en la sincronización en segundo plano (avisa una vez por versión).
+- La descarga se verifica con su huella SHA-256 y después se abre el instalador de Android. La primera vez, Android pide permitir que MiTransporte instale aplicaciones.
+- **Obligatoria:** si hay una versión obligatoria posterior a la instalada, la app no deja seguir (ni iniciar sesión) hasta actualizar.
+- La app envía su versión en cada petición; el Administrador ve cuántos trabajadores tienen cada versión.
+- Todas las versiones se firman con **la misma clave**; si no, Android no instala la actualización encima de la anterior.
+
+## 2.13 Tareas programadas del servidor
 
 Se ejecutan con el *scheduler* de Lumen y un `cron` cada minuto:
 
