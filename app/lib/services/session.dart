@@ -1,0 +1,135 @@
+import 'package:flutter/foundation.dart';
+import 'package:local_auth/local_auth.dart';
+import 'package:workmanager/workmanager.dart';
+
+import '../core/api_client.dart';
+import '../core/json_api.dart';
+import '../core/storage.dart';
+import '../models/models.dart';
+import 'notifications.dart';
+import 'sync.dart';
+import 'tracking_service.dart';
+import 'user_settings.dart';
+
+enum SessionState { loading, loggedOut, locked, ready }
+
+/// Sesión del usuario: inicio y cierre, desbloqueo y datos propios.
+class Session extends ChangeNotifier {
+  static const syncTask = 'sync';
+  static const biometricKey = 'security.biometric';
+  static const rememberCardKey = 'security.remember_card';
+
+  final ApiClient api;
+  SessionState state = SessionState.loading;
+  Worker? me;
+  UserSettings settings = UserSettings({});
+
+  Session(this.api) {
+    api.onSessionExpired = () {
+      if (state == SessionState.ready || state == SessionState.locked) _clear();
+    };
+  }
+
+  Future<void> init() async {
+    if (await Storage.refreshToken() == null) {
+      state = SessionState.loggedOut;
+    } else if (await Storage.getBool(biometricKey)) {
+      state = SessionState.locked;
+    } else {
+      await _enter();
+      return;
+    }
+    notifyListeners();
+  }
+
+  Future<void> login(String cardNumber, String password) async {
+    final document = await api.post('/tokens', resourceData('tokens', attributes: {
+      'cardNumber': cardNumber,
+      'password': password,
+      'deviceName': 'Android',
+    }), auth: false);
+    final attributes = document.resource.attributes;
+    await Storage.saveTokens(attributes['accessToken'] as String, attributes['refreshToken'] as String);
+    await Storage.saveLastCard(await Storage.getBool(rememberCardKey, fallback: true) ? cardNumber : null);
+    await SyncService.reset();
+    await _enter();
+  }
+
+  Future<void> register({required String cardNumber, required String firstName, required String lastName, required String rankId, required String password}) async {
+    await api.post('/workers', resourceData('workers', attributes: {
+      'cardNumber': cardNumber,
+      'firstName': firstName,
+      'lastName': lastName,
+      'password': password,
+    }, relationships: {'rank': ResourceId('ranks', rankId)}), auth: false);
+    await login(cardNumber, password);
+  }
+
+  /// Desbloqueo con huella o PIN del teléfono.
+  Future<bool> unlock() async {
+    final ok = await LocalAuthentication().authenticate(localizedReason: 'Desbloquea MiTransporte', persistAcrossBackgrounding: true);
+    if (ok) await _enter();
+    return ok;
+  }
+
+  Future<void> _enter() async {
+    try {
+      await reloadMe();
+      settings = await UserSettings.refresh(api);
+    } catch (_) {
+      settings = await UserSettings.cached();
+      if (me == null) rethrow;
+    }
+    state = SessionState.ready;
+    notifyListeners();
+    await scheduleBackgroundSync();
+    SyncService.run(api).catchError((_) {});
+  }
+
+  Future<void> reloadMe() async {
+    me = Worker.from((await api.get('/me', query: {'include': 'rank'})).resource);
+    await SyncService.rememberMe(me!);
+    notifyListeners();
+  }
+
+  Future<void> reloadSettings() async {
+    settings = await UserSettings.refresh(api);
+    notifyListeners();
+    await scheduleBackgroundSync();
+  }
+
+  /// Sincronización periódica en segundo plano, con la frecuencia elegida.
+  Future<void> scheduleBackgroundSync() async {
+    if (!settings.boolean('background_sync_enabled', true)) {
+      await Workmanager().cancelByUniqueName(syncTask);
+      return;
+    }
+    final minutes = settings.integer('trips_poll_background_minutes', 30);
+    await Workmanager().registerPeriodicTask(
+      syncTask,
+      syncTask,
+      frequency: Duration(minutes: minutes < 15 ? 15 : minutes),
+      constraints: Constraints(networkType: NetworkType.connected),
+      existingWorkPolicy: ExistingPeriodicWorkPolicy.update,
+    );
+  }
+
+  Future<void> logout({bool everywhere = false}) async {
+    try {
+      await api.delete(everywhere ? '/tokens' : '/tokens/current');
+    } catch (_) {
+      // Aunque falle (sin conexión), se cierra la sesión en el teléfono.
+    }
+    await _clear();
+  }
+
+  Future<void> _clear() async {
+    await TrackingService.stop();
+    await Workmanager().cancelByUniqueName(syncTask);
+    await Notifications.cancelAll();
+    await Storage.clearUserData();
+    me = null;
+    state = SessionState.loggedOut;
+    notifyListeners();
+  }
+}
