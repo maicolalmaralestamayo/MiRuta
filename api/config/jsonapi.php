@@ -24,6 +24,8 @@ return [
         App\Models\Rank::class => App\Serializers\RankSerializer::class,
         App\Models\SettingDefinition::class => App\Serializers\SettingDefinitionSerializer::class,
         App\Models\Stop::class => App\Serializers\StopSerializer::class,
+        App\Models\Trip::class => App\Serializers\TripSerializer::class,
+        App\Models\TripCompletion::class => App\Serializers\TripCompletionSerializer::class,
         App\Models\TransportChief::class => App\Serializers\TransportChiefSerializer::class,
         App\Models\Vehicle::class => App\Serializers\VehicleSerializer::class,
         App\Models\VehicleType::class => App\Serializers\VehicleTypeSerializer::class,

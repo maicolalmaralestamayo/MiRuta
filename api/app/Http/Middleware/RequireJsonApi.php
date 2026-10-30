@@ -30,7 +30,11 @@ class RequireJsonApi
         }
 
         $response = $next($request);
-        $response->headers->set('Content-Type', MediaType::JSON_API);
+
+        // Se respeta un tipo JSON:API con parámetros (p. ej. la extensión atómica).
+        if (stripos((string) $response->headers->get('Content-Type'), MediaType::JSON_API) !== 0) {
+            $response->headers->set('Content-Type', MediaType::JSON_API);
+        }
 
         return $response;
     }

@@ -13,17 +13,18 @@ class Kernel extends ConsoleKernel
      * @var array
      */
     protected $commands = [
-        //
+        Commands\AutoCompleteTrips::class,
     ];
 
     /**
-     * Define the application's command schedule.
+     * Tareas programadas (docs/02-procesos.md §2.12). En el servidor hace falta
+     * un cron que ejecute cada minuto: php artisan schedule:run
      *
      * @param  \Illuminate\Console\Scheduling\Schedule  $schedule
      * @return void
      */
     protected function schedule(Schedule $schedule)
     {
-        //
+        $schedule->command('trips:auto-complete')->everyMinute()->withoutOverlapping();
     }
 }
