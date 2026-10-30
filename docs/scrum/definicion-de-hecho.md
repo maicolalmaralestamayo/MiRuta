@@ -27,6 +27,7 @@ Una historia de usuario está **hecha** solo cuando cumple **todo** lo siguiente
 
 - [ ] `docs/openapi.yaml` está actualizado y es válido.
 - [ ] Los documentos de `docs/` reflejan cualquier cambio de reglas, datos o pantallas.
+- [ ] Si la historia añade o cambia un algoritmo que no es CRUD, su diagrama de flujo en `docs/07-algoritmos.md` está creado o actualizado y coincide con el código.
 
 ## Integración
 

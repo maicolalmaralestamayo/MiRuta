@@ -22,6 +22,8 @@ Todos los ajustes están en `setting_definitions` con su tipo, su valor por defe
 | `stop_detection_radius_m` | Radio para detectar el paso por una parada | entero | 100 | 20–1000 | Administrador |
 | `sensor_outlier_distance_m` | Distancia a partir de la cual se descarta un sensor | entero | 300 | 50–5000 | Administrador |
 | `sensor_stale_seconds` | Segundos sin enviar tras los que un sensor deja de contar como activo | entero | 60 | 10–600 | Administrador |
+| `auto_boarding_distance_m` | Distancia máxima entre el teléfono del trabajador y el vehículo para la subida automática | entero | 50 | 10–500 | Administrador |
+| `auto_boarding_samples` | Posiciones seguidas cerca del vehículo en movimiento necesarias para la subida automática | entero | 3 | 2–20 | Administrador |
 | `boarding_pass_ttl_seconds` | Validez del token del QR de subida | entero | 120 | 30–3600 | Administrador |
 | `access_token_ttl_minutes` | Validez del token de acceso | entero | 30 | 5–240 | Administrador |
 | `refresh_token_ttl_days` | Validez del token de renovación | entero | 90 | 1–365 | Administrador |

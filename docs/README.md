@@ -9,6 +9,7 @@
 | [openapi.yaml](openapi.yaml) | Especificación OpenAPI 3.0.3 para importar en Swagger, Postman o Insomnia |
 | [05-app.md](05-app.md) | App Flutter: arquitectura, pantallas por rol y ajustes del usuario |
 | [06-ajustes.md](06-ajustes.md) | Todos los ajustes, con sus valores por defecto y sus límites |
+| [07-algoritmos.md](07-algoritmos.md) | Diagramas de flujo de los 28 algoritmos que no son CRUD |
 
 ## Scrum
 

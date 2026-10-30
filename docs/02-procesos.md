@@ -34,6 +34,7 @@
 
 - Con **carné + contraseña**. Devuelve un token de acceso (30 min) y uno de renovación (90 días).
 - Cada renovación entrega un token de renovación nuevo y revoca el anterior (**rotación**).
+- Si alguien usa un token de renovación que ya se había usado, se considera robado y se revocan **todos** los tokens del trabajador (ver [07-algoritmos.md §7.4](07-algoritmos.md#74-renovación-de-tokens-con-rotación)).
 - Todos los tokens de renovación de un trabajador se revocan al cerrar sesión, al cambiar la contraseña o al desactivarlo.
 - Solo en el teléfono:
   - la app recuerda el último carné usado;
@@ -289,7 +290,7 @@ Se guardan todas en `trip_boardings`:
 
 | Forma | Cómo funciona |
 |---|---|
-| `automatic` | El teléfono del trabajador se mueve junto con el vehículo |
+| `automatic` | El teléfono del trabajador se mueve junto con el vehículo. Solo funciona si el trabajador comparte su ubicación (ver [07-algoritmos.md §7.23](07-algoritmos.md#723-subida-automática)) |
 | `self` | El trabajador pulsa **"Ya subí"** |
 | `qr` | El trabajador muestra su código QR y el chofer o un Jefe de itinerario lo escanea |
 | `manual` | El chofer o un Jefe de itinerario marca a la persona en la lista |
