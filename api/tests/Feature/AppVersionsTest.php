@@ -1,0 +1,111 @@
+<?php
+
+use App\Models\AppVersion;
+use Illuminate\Http\UploadedFile;
+use Laravel\Lumen\Testing\DatabaseMigrations;
+
+class AppVersionsTest extends TestCase
+{
+    use DatabaseMigrations;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->artisan('db:seed');
+    }
+
+    private function apk(string $content = "PK\x03\x04contenido"): UploadedFile
+    {
+        $path = tempnam(sys_get_temp_dir(), 'apk');
+        file_put_contents($path, $content);
+
+        return new UploadedFile($path, 'mitransporte.apk', 'application/vnd.android.package-archive', null, true);
+    }
+
+    private function publish($user, int $code, bool $mandatory = false, ?UploadedFile $file = null)
+    {
+        $this->call('POST', '/api/v1/app-versions', [
+            'versionName' => "1.{$code}.0", 'versionCode' => (string) $code, 'notes' => 'Novedades', 'mandatory' => $mandatory ? '1' : '0',
+        ], [], ['apk' => $file ?: $this->apk()], [
+            'HTTP_AUTHORIZATION' => 'Bearer '.$this->accessTokenFor($user),
+            'HTTP_ACCEPT' => 'application/vnd.api+json',
+            'CONTENT_TYPE' => 'multipart/form-data; boundary=x',
+        ]);
+
+        return $this;
+    }
+
+    public function testSoloElAdministradorPublica()
+    {
+        $this->publish($this->createTransportChief(), 2);
+        $this->assertJsonApiError(403, 'FORBIDDEN');
+
+        $this->publish($this->createAdmin(), 2);
+        $this->assertResponseStatus(201);
+        $attributes = $this->responseJson()['data']['attributes'];
+        $this->assertSame(2, $attributes['versionCode']);
+        $this->assertSame(hash('sha256', "PK\x03\x04contenido"), $attributes['sha256']);
+        $this->assertStringEndsWith('.apk', $attributes['downloadUrl']);
+        $this->assertFileExists(base_path('public/'.AppVersion::first()->apk_path));
+    }
+
+    public function testValidaciones()
+    {
+        $admin = $this->createAdmin();
+
+        $this->publish($admin, 2, false, $this->apk('no es un apk'));
+        $this->assertJsonApiError(422, 'APK_INVALID');
+
+        $this->publish($admin, 5);
+        $this->publish($admin, 5);
+        $this->assertJsonApiError(422, 'VERSION_CODE_TOO_LOW');
+    }
+
+    public function testUltimaVersionPublicaYObligatoriedad()
+    {
+        $admin = $this->createAdmin();
+
+        $this->jsonApi('GET', '/api/v1/app-versions/latest?filter[currentVersionCode]=1');
+        $this->assertResponseOk();
+        $this->assertNull($this->responseJson()['data']);
+        $this->assertFalse($this->responseJson()['meta']['updateAvailable']);
+
+        $this->publish($admin, 2, true);
+        $this->publish($admin, 3, false);
+
+        $this->jsonApi('GET', '/api/v1/app-versions/latest?filter[currentVersionCode]=1');
+        $this->assertSame(3, $this->responseJson()['data']['attributes']['versionCode']);
+        $this->assertSame(['updateAvailable' => true, 'mandatory' => true], $this->responseJson()['meta']);
+
+        $this->jsonApi('GET', '/api/v1/app-versions/latest?filter[currentVersionCode]=2');
+        $this->assertSame(['updateAvailable' => true, 'mandatory' => false], $this->responseJson()['meta']);
+
+        $this->jsonApi('GET', '/api/v1/app-versions/latest?filter[currentVersionCode]=3');
+        $this->assertSame(['updateAvailable' => false, 'mandatory' => false], $this->responseJson()['meta']);
+    }
+
+    public function testVersionInstaladaPorTrabajadorYRetirada()
+    {
+        $admin = $this->createAdmin();
+        $worker = $this->createWorker();
+        $this->publish($admin, 2);
+        $id = $this->responseJson()['data']['id'];
+
+        $this->jsonApiAs($worker, 'GET', '/api/v1/me', null, ['X-App-Version-Code' => '2']);
+        $this->assertSame(2, (int) $worker->fresh()->app_version_code);
+
+        $this->jsonApiAs($admin, 'GET', '/api/v1/app-versions');
+        $this->assertSame(1, $this->responseJson()['data'][0]['meta']['installedCount']);
+
+        $this->jsonApiAs($worker, 'GET', '/api/v1/app-versions');
+        $this->assertJsonApiError(403, 'FORBIDDEN');
+
+        $path = AppVersion::first()->apk_path;
+        $this->jsonApiAs($admin, 'DELETE', '/api/v1/app-versions/'.$id);
+        $this->assertResponseStatus(204);
+        $this->assertFileNotExists(base_path('public/'.$path));
+
+        $this->jsonApi('GET', '/api/v1/app-versions/latest');
+        $this->assertNull($this->responseJson()['data']);
+    }
+}

@@ -15,6 +15,7 @@ $router->group(['prefix' => 'api/v1', 'middleware' => 'jsonapi'], function () us
     $router->get('ranks/{id}', 'RankController@show');
     $router->post('tokens', 'TokenController@store');
     $router->post('tokens/refresh', 'TokenController@refresh');
+    $router->get('app-versions/latest', 'AppVersionController@latest');
 
     // Con sesión
     $router->group(['middleware' => 'auth'], function () use ($router) {
@@ -79,6 +80,8 @@ $router->group(['prefix' => 'api/v1', 'middleware' => 'jsonapi'], function () us
         $router->get('conversations/{id}/messages', 'ConversationController@messages');
         $router->post('conversation-messages', 'ConversationController@storeMessage');
         $router->get('statistics/{name}', 'StatisticController@show');
+        $router->get('app-versions', 'AppVersionController@index');
+        $router->delete('app-versions/{id}', 'AppVersionController@destroy');
     });
 });
 
@@ -91,6 +94,7 @@ $router->group(['prefix' => 'api/v1', 'middleware' => 'jsonapi'], function () us
 $router->group(['prefix' => 'api/v1', 'middleware' => ['jsonapi:multipart', 'auth']], function () use ($router) {
     $router->post('me/photo', 'MeController@uploadPhoto');
     $router->post('ranks/{id}/icon', 'RankController@uploadIcon');
+    $router->post('app-versions', 'AppVersionController@store');
 });
 
 /*

@@ -37,11 +37,26 @@ class Authenticate
         }
 
         $worker->setCurrentSessionId(isset($claims['sid']) ? (int) $claims['sid'] : null);
+        $this->rememberAppVersion($worker, $request);
         app('auth')->guard()->setUser($worker);
         $request->setUserResolver(function () use ($worker) {
             return $worker;
         });
 
         return $next($request);
+    }
+
+    /**
+     * La app envía su versión en cada petición (X-App-Version-Code); se guarda
+     * para que el Administrador vea quién no ha actualizado.
+     */
+    private function rememberAppVersion(Worker $worker, Request $request): void
+    {
+        $code = $request->header('X-App-Version-Code');
+
+        if ($code !== null && ctype_digit($code) && (int) $code !== (int) $worker->app_version_code) {
+            $worker->app_version_code = (int) $code;
+            $worker->save();
+        }
     }
 }

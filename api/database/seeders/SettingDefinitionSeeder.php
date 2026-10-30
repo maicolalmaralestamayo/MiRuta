@@ -51,6 +51,7 @@ class SettingDefinitionSeeder extends Seeder
             $this->integer('refresh_token_ttl_days', 'Validez del token de renovación (días)', 90, 1, 365, self::ADMIN),
             $this->integer('photo_max_kb', 'Tamaño máximo de la foto de perfil (KB)', 2048, 100, 10240, self::ADMIN),
             $this->integer('rank_icon_max_kb', 'Tamaño máximo del icono de jerarquía (KB)', 512, 50, 2048, self::ADMIN),
+            $this->integer('app_max_mb', 'Tamaño máximo del APK de una actualización (MB)', 150, 10, 500, self::ADMIN),
             $this->integer('message_max_length', 'Longitud máxima de un mensaje de chat', 1000, 50, 5000, self::ADMIN),
             $this->integer('min_foreground_poll_seconds', 'Frecuencia mínima de consulta con la app abierta (s)', 5, 1, 60, self::ADMIN),
             $this->integer('min_background_poll_minutes', 'Frecuencia mínima de sincronización en segundo plano (min)', 30, 15, 1440, self::ADMIN),

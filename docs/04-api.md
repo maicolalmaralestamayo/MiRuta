@@ -91,6 +91,7 @@ Las demás rutas exigen `Authorization: Bearer <token de acceso>`.
 | `notices` | `GET`, `PATCH` (marcar como leído) | — |
 | `setting-definitions`, `settings` | `GET`, `PATCH /settings/{id}` | `editable_by` decide quién puede cambiar cada ajuste global |
 | `statistics` | `GET /statistics/{name}` | Ver 4.6 |
+| `app-versions` | `GET /app-versions/latest` (público), `GET`, `POST` (multipart), `DELETE /{id}` | Actualizaciones de la app; publica y retira solo el Administrador. La app envía su versión en la cabecera `X-App-Version-Code` |
 | **Lote** | `POST /operations` | Atomic Operations: crear viajes por rango, confirmar o desconfirmar en masa, enviar posiciones acumuladas |
 
 ### Solicitudes: ejemplo
@@ -240,6 +241,8 @@ Siempre con el formato `errors[]` de JSON:API: `status`, `code`, `title`, `detai
 | `BOARDING_PASS_INVALID` | 422 | QR caducado, manipulado o de otro trayecto |
 | `CHILDREN_COUNT_EXCEEDED` | 422 | Suben más niños de los que tiene con derecho |
 | `NO_ITINERARY` | 422 | Escribir a los Jefes de itinerario sin ser miembro de ninguno |
+| `APK_INVALID` | 422 | El archivo publicado no es un APK |
+| `VERSION_CODE_TOO_LOW` | 422 | El versionCode no es mayor que el de la última versión publicada |
 | `SETTING_OUT_OF_RANGE` | 422 | Valor fuera de los límites del ajuste |
 | `OPERATION_NOT_SUPPORTED` | 400 | Operación atómica no admitida |
 | `SERVER_ERROR` | 500 | Error interno (el detalle solo aparece con `APP_DEBUG=true`) |

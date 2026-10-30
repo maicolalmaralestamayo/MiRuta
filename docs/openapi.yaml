@@ -34,6 +34,7 @@ tags:
 - name: Avisos
 - name: Ajustes
 - name: Estadísticas
+- name: Actualizaciones
 - name: Lote
 paths:
   /tokens:
@@ -2923,6 +2924,104 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+  /app-versions/latest:
+    get:
+      tags:
+      - Actualizaciones
+      summary: Última versión de la app
+      description: Público. `data` es null si no hay ninguna. Con `filter[currentVersionCode]`, `meta.updateAvailable` y `meta.mandatory`.
+      parameters:
+      - name: filter[currentVersionCode]
+        in: query
+        required: false
+        description: versionCode instalado
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/AppVersionDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+      security: []
+  /app-versions:
+    get:
+      tags:
+      - Actualizaciones
+      summary: Versiones publicadas
+      description: Solo el Administrador. `meta.workersWithoutVersion`.
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/AppVersionCollection'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags:
+      - Actualizaciones
+      summary: Publicar una versión
+      description: Solo el Administrador. `multipart/form-data`. El versionCode debe ser mayor que el de cualquier versión
+        anterior.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+              - apk
+              - versionName
+              - versionCode
+              properties:
+                apk:
+                  type: string
+                  format: binary
+                versionName:
+                  type: string
+                versionCode:
+                  type: integer
+                notes:
+                  type: string
+                mandatory:
+                  type: boolean
+      responses:
+        '201':
+          description: Creado
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/AppVersionDocument'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /app-versions/{id}:
+    delete:
+      tags:
+      - Actualizaciones
+      summary: Retirar una versión
+      description: Solo el Administrador. Borra también el archivo.
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      responses:
+        '204':
+          description: Sin contenido
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /operations:
     post:
       tags:
@@ -5597,6 +5696,79 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Statistic'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
+    AppVersion:
+      type: object
+      description: Versión de la app publicada por el Administrador.
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - app-versions
+        id:
+          type: string
+        attributes:
+          type: object
+          properties:
+            versionName:
+              type: string
+            versionCode:
+              type: integer
+            notes:
+              type: string
+              nullable: true
+            mandatory:
+              type: boolean
+            downloadUrl:
+              type: string
+              format: uri
+            sizeBytes:
+              type: integer
+            sha256:
+              type: string
+            publishedAt:
+              type: string
+              format: date-time
+        meta:
+          type: object
+          readOnly: true
+          properties:
+            installedCount:
+              type: integer
+              description: Solo para el Administrador
+        links:
+          $ref: '#/components/schemas/Links'
+    AppVersionDocument:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/AppVersion'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    AppVersionCollection:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AppVersion'
         included:
           type: array
           items:

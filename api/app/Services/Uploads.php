@@ -14,10 +14,13 @@ class Uploads
     /**
      * Guarda el archivo y devuelve su ruta relativa a public/.
      */
-    public function store(UploadedFile $file, string $folder): string
+    /**
+     * @param string|null $extension extensión a usar (si no, la que se deduce del contenido)
+     */
+    public function store(UploadedFile $file, string $folder, ?string $extension = null): string
     {
         $relativeFolder = config('mitransporte.uploads_directory').'/'.$folder;
-        $name = Str::random(32).'.'.strtolower($file->guessExtension() ?: $file->getClientOriginalExtension());
+        $name = Str::random(32).'.'.strtolower($extension ?: ($file->guessExtension() ?: $file->getClientOriginalExtension()));
 
         $file->move($this->publicPath($relativeFolder), $name);
 

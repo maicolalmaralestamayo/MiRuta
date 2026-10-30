@@ -153,6 +153,10 @@ res("statistics", "Statistic", "Estadísticas", "Resultado de una estadística."
     "columns": S("array", items={"type": "object", "properties": {"key": STR(), "label": STR(), "type": STR(enum=["string", "integer", "number", "date", "datetime", "percent"])}}),
     "rows": S("array", items={"type": "object", "additionalProperties": True}),
 })
+res("app-versions", "AppVersion", "Actualizaciones", "Versión de la app publicada por el Administrador.", {
+    "versionName": STR(), "versionCode": INT(), "notes": STR(nullable=True), "mandatory": BOOL(),
+    "downloadUrl": STR(format="uri"), "sizeBytes": INT(), "sha256": STR(), "publishedAt": DT(),
+}, meta={"installedCount": INT(description="Solo para el Administrador")})
 res("tokens", "Token", "Autenticación", "Par de tokens JWT.", {
     "cardNumber": STR(pattern=r"^\d{11}$", writeOnly=True),
     "password": STR(format="password", writeOnly=True),
@@ -412,6 +416,20 @@ paths["/statistics/{name}"] = {"get": op("Estadísticas", "Obtener una estadíst
                                           filt("by", "Agrupación: itinerary, vehicle, driver (punctuality, occupancy) o itinerary, stop, rank, sex (workers-distribution)")],
                                          errs=("400", "401", "403", "404"))}
 
+# Actualizaciones de la app
+paths["/app-versions/latest"] = {"get": op("Actualizaciones", "Última versión de la app", resp(200, "AppVersionDocument"),
+    "Público. `data` es null si no hay ninguna. Con `filter[currentVersionCode]`, `meta.updateAvailable` y `meta.mandatory`.",
+    [filt("currentVersionCode", "versionCode instalado", INT())], public=True, errs=("400",))}
+paths["/app-versions"] = {
+    "get": op("Actualizaciones", "Versiones publicadas", resp(200, "AppVersionCollection"), "Solo el Administrador. `meta.workersWithoutVersion`.", errs=("401", "403")),
+    "post": {"tags": ["Actualizaciones"], "summary": "Publicar una versión",
+             "description": "Solo el Administrador. `multipart/form-data`. El versionCode debe ser mayor que el de cualquier versión anterior.",
+             "requestBody": {"required": True, "content": {"multipart/form-data": {"schema": {"type": "object", "required": ["apk", "versionName", "versionCode"], "properties": {
+                 "apk": STR(format="binary"), "versionName": STR(), "versionCode": INT(), "notes": STR(), "mandatory": BOOL()}}}}},
+             "responses": {**resp(201, "AppVersionDocument"), "401": ERR["401"], "403": ERR["403"], "422": ERR["422"]}},
+}
+paths["/app-versions/{id}"] = {"delete": op("Actualizaciones", "Retirar una versión", resp(204), "Solo el Administrador. Borra también el archivo.", [ID], errs=("401", "403", "404"))}
+
 # Atomic
 paths["/operations"] = {"post": {"tags": ["Lote"], "summary": "Operaciones atómicas (JSON:API Atomic Operations)",
                                  "description": "Crear viajes por rango, confirmar o desconfirmar en masa, enviar posiciones acumuladas. O se aplican todas o ninguna.",
@@ -434,7 +452,7 @@ spec = {
     "servers": [{"url": "https://{host}/api/v1", "variables": {"host": {"default": "localhost"}}}],
     "security": [{"bearerAuth": []}],
     "tags": [{"name": t} for t in ["Autenticación", "Trabajadores", "Perfil", "Nomencladores", "Itinerarios y paradas", "Roles", "Vehículos", "Viajes",
-                                   "Recorrido", "Subida", "Hijos", "Solicitudes", "Chats", "Avisos", "Ajustes", "Estadísticas", "Lote"]],
+                                   "Recorrido", "Subida", "Hijos", "Solicitudes", "Chats", "Avisos", "Ajustes", "Estadísticas", "Actualizaciones", "Lote"]],
     "paths": paths,
     "components": {
         "securitySchemes": {"bearerAuth": {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"}},

@@ -35,6 +35,15 @@ php -S localhost:8000 -t public
 
 Con `DOCS_ENABLED=true`, Swagger UI está en <http://localhost:8000/docs>.
 
+## Actualizaciones de la app
+
+El Administrador publica los APK desde la app; se guardan en `public/uploads/apk/`. Como pesan decenas de MB, en `php.ini` hay que permitir subidas grandes (y el ajuste `app_max_mb` limita el tamaño, 150 MB por defecto):
+
+```ini
+upload_max_filesize = 200M
+post_max_size = 200M
+```
+
 ## Tareas programadas
 
 Marcan los viajes como realizados, borran chats y aplican la baja por inactividad (ver `docs/02-procesos.md` §2.12). En el servidor hace falta una línea de `cron` que ejecute el planificador cada minuto:

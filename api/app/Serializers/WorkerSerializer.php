@@ -30,6 +30,10 @@ class WorkerSerializer extends Serializer
             'createdAt' => $this->date($worker->created_at),
         ];
 
+        if ($request->user() && $request->user()->isAdmin()) {
+            $attributes['appVersionCode'] = $worker->app_version_code;
+        }
+
         if (self::canSeePrivateData($worker, $request)) {
             $attributes = ['cardNumber' => Crypt::decryptString($worker->card_number_encrypted)] + $attributes;
         }

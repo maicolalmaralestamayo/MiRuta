@@ -12,6 +12,7 @@ return [
     */
 
     'serializers' => [
+        App\Models\AppVersion::class => App\Serializers\AppVersionSerializer::class,
         App\Models\Application::class => App\Serializers\ApplicationSerializer::class,
         App\Models\Child::class => App\Serializers\ChildSerializer::class,
         App\Models\Notice::class => App\Serializers\NoticeSerializer::class,
