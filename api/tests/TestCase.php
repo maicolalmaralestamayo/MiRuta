@@ -102,6 +102,59 @@ abstract class TestCase extends BaseTestCase
         return $birth->format('ymd').'000'.$sexDigit.'0';
     }
 
+    protected function createTransportChief(array $attributes = []): Worker
+    {
+        $worker = $this->createWorker($attributes);
+        \App\Models\TransportChief::create(['worker_id' => $worker->id]);
+
+        return $worker->refreshRoles();
+    }
+
+    protected function createDriver(array $attributes = []): Worker
+    {
+        $worker = $this->createWorker($attributes);
+        \App\Models\Driver::create(['worker_id' => $worker->id]);
+
+        return $worker->refreshRoles();
+    }
+
+    protected function createAdmin(): Worker
+    {
+        return $this->createWorker(['is_admin' => true]);
+    }
+
+    /**
+     * Crea un itinerario con paradas en orden (latitudes 23.10, 23.11, …).
+     */
+    protected function createItinerary(string $name = 'Ruta Este', int $stops = 3): \App\Models\Itinerary
+    {
+        $itinerary = \App\Models\Itinerary::create(['name' => $name]);
+
+        for ($i = 1; $i <= $stops; $i++) {
+            $stop = \App\Models\Stop::create([
+                'landmark' => "{$name} parada {$i}",
+                'street' => 'Calle '.$i,
+                'latitude' => 23.1 + ($i - 1) / 100,
+                'longitude' => -82.3,
+            ]);
+            \App\Models\ItineraryStop::create(['itinerary_id' => $itinerary->id, 'stop_id' => $stop->id, 'position' => $i]);
+        }
+
+        return $itinerary->fresh();
+    }
+
+    /**
+     * Pone al trabajador como miembro del itinerario, en la parada indicada (1 = la primera).
+     */
+    protected function joinItinerary(Worker $worker, \App\Models\Itinerary $itinerary, int $position = 1): Worker
+    {
+        $worker->itinerary_id = $itinerary->id;
+        $worker->stop_id = $itinerary->itineraryStops()->where('position', $position)->value('stop_id');
+        $worker->save();
+
+        return $worker;
+    }
+
     protected function responseJson(): array
     {
         return json_decode($this->response->getContent(), true);

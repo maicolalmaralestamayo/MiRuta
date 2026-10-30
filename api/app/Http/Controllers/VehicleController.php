@@ -1,0 +1,70 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\JsonApi\QueryParameters;
+use App\Models\Vehicle;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Http\Request;
+
+class VehicleController extends ResourceController
+{
+    protected $model = Vehicle::class;
+
+    protected $type = 'vehicles';
+
+    protected $attributes = [
+        'plate' => 'plate',
+        'seats' => 'seats',
+        'standingCapacity' => 'standing_capacity',
+    ];
+
+    protected $relationships = [
+        'vehicleType' => ['vehicle-types', 'vehicle_type_id'],
+        'driver' => ['drivers', 'driver_id'],
+    ];
+
+    protected $sortable = ['id' => 'id', 'plate' => 'plate'];
+
+    protected $filterable = ['vehicleType', 'driver', 'search'];
+
+    protected $includable = ['vehicleType', 'driver', 'driver.worker'];
+
+    protected $defaultSort = 'plate';
+
+    protected function rules(Request $request, ?Model $model): array
+    {
+        $presence = $model ? 'sometimes' : 'required';
+        $unique = 'unique:vehicles,plate'.($model ? ",{$model->id}" : ',NULL').',id,deleted_at,NULL';
+
+        return array_merge([
+            'attributes.plate' => [$presence, 'string', 'max:20', $unique],
+            'attributes.seats' => [$presence, 'integer', 'min:0', 'max:500'],
+            'attributes.standingCapacity' => [$presence, 'integer', 'min:0', 'max:500'],
+        ],
+            $this->relationshipRules('vehicleType', 'vehicle-types', 'vehicle_types', ! $model),
+            $this->relationshipRules('driver', 'drivers', 'drivers', false, true)
+        );
+    }
+
+    protected function applyFilters(Builder $query, QueryParameters $parameters, Request $request): void
+    {
+        if ($type = $parameters->filter('vehicleType')) {
+            $query->where('vehicle_type_id', $type);
+        }
+
+        if ($driver = $parameters->filter('driver')) {
+            $query->where('driver_id', $driver);
+        }
+
+        if ($search = $parameters->filter('search')) {
+            $query->where('plate', 'like', '%'.$search.'%');
+        }
+    }
+
+    protected function restorable(array $data): ?Model
+    {
+        return Vehicle::onlyTrashed()->where('plate', trim($data['attributes']['plate']))->first();
+    }
+}

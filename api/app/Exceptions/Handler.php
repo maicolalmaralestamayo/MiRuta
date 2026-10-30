@@ -7,6 +7,7 @@ use App\JsonApi\JsonApiResponse;
 use App\Rules\CardNumberRule;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Database\QueryException;
 use Illuminate\Validation\ValidationException;
 use Laravel\Lumen\Exceptions\Handler as ExceptionHandler;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -80,6 +81,10 @@ class Handler extends ExceptionHandler
 
         if ($exception instanceof MethodNotAllowedHttpException) {
             return new JsonApiException(405, 'METHOD_NOT_ALLOWED', 'Método no permitido', 'Este recurso no admite el método '.request()->getMethod().'.');
+        }
+
+        if ($exception instanceof QueryException && isset($exception->errorInfo[1]) && (int) $exception->errorInfo[1] === 1062) {
+            return JsonApiException::conflict('DUPLICATE', 'Ya existe un registro con esos datos.');
         }
 
         if ($exception instanceof AuthorizationException) {

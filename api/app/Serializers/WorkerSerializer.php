@@ -47,6 +47,8 @@ class WorkerSerializer extends Serializer
     {
         return [
             'rank' => ['ranks', 'rank_id', 'rank'],
+            'itinerary' => ['itineraries', 'itinerary_id', 'itinerary'],
+            'stop' => ['stops', 'stop_id', 'stop'],
         ];
     }
 }

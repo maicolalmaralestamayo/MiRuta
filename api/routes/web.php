@@ -12,6 +12,7 @@ $router->group(['prefix' => 'api/v1', 'middleware' => 'jsonapi'], function () us
     // Públicas
     $router->post('workers', 'WorkerController@store');
     $router->get('ranks', 'RankController@index');
+    $router->get('ranks/{id}', 'RankController@show');
     $router->post('tokens', 'TokenController@store');
     $router->post('tokens/refresh', 'TokenController@refresh');
 
@@ -29,6 +30,37 @@ $router->group(['prefix' => 'api/v1', 'middleware' => 'jsonapi'], function () us
 
         $router->get('setting-definitions', 'SettingDefinitionController@index');
         $router->get('setting-definitions/{id}', 'SettingDefinitionController@show');
+        $router->get('settings', 'SettingController@index');
+        $router->get('settings/{id}', 'SettingController@show');
+        $router->patch('settings/{id}', 'SettingController@update');
+
+        $resource = function (string $uri, string $controller, array $only = ['index', 'show', 'store', 'update', 'destroy']) use ($router) {
+            $routes = [
+                'index' => ['get', $uri],
+                'store' => ['post', $uri],
+                'show' => ['get', $uri.'/{id}'],
+                'update' => ['patch', $uri.'/{id}'],
+                'destroy' => ['delete', $uri.'/{id}'],
+            ];
+
+            foreach ($only as $action) {
+                list($method, $path) = $routes[$action];
+                $router->{$method}($path, $controller.'@'.$action);
+            }
+        };
+
+        $resource('ranks', 'RankController', ['store', 'update', 'destroy']);
+        $resource('vehicle-types', 'VehicleTypeController');
+        $resource('absence-types', 'AbsenceTypeController');
+        $resource('conversation-topics', 'ConversationTopicController');
+        $resource('itineraries', 'ItineraryController');
+        $resource('stops', 'StopController');
+        $resource('itinerary-stops', 'ItineraryStopController');
+        $resource('vehicles', 'VehicleController');
+        $resource('workers', 'WorkerController', ['index', 'show', 'update']);
+        $resource('itinerary-chiefs', 'ItineraryChiefController', ['index', 'show']);
+        $resource('drivers', 'DriverController', ['index', 'show']);
+        $resource('transport-chiefs', 'TransportChiefController', ['index', 'show']);
     });
 });
 
@@ -40,6 +72,7 @@ $router->group(['prefix' => 'api/v1', 'middleware' => 'jsonapi'], function () us
 
 $router->group(['prefix' => 'api/v1', 'middleware' => ['jsonapi:multipart', 'auth']], function () use ($router) {
     $router->post('me/photo', 'MeController@uploadPhoto');
+    $router->post('ranks/{id}/icon', 'RankController@uploadIcon');
 });
 
 /*

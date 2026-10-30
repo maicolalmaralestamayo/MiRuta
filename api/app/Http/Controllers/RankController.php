@@ -4,35 +4,56 @@ namespace App\Http\Controllers;
 
 use App\JsonApi\Document;
 use App\JsonApi\JsonApiResponse;
-use App\JsonApi\QueryParameters;
 use App\Models\Rank;
+use App\Services\Settings;
+use App\Services\Uploads;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 
-class RankController extends Controller
+/**
+ * Jerarquías. El listado y el detalle son públicos (la pantalla de registro
+ * los necesita); solo el Administrador las gestiona.
+ */
+class RankController extends NomenclatorController
 {
-    const SORTABLE = [
+    protected $model = Rank::class;
+
+    protected $type = 'ranks';
+
+    protected $attributes = [
         'name' => 'name',
+        'description' => 'description',
+        'observation' => 'observation',
         'precedence' => 'precedence',
     ];
 
-    const FILTERABLE = ['name'];
+    protected $sortable = ['id' => 'id', 'name' => 'name', 'precedence' => 'precedence'];
 
-    /**
-     * Lista pública: la pantalla de registro la necesita antes de iniciar sesión.
-     */
-    public function index(Request $request)
+    protected $defaultSort = 'precedence';
+
+    protected function rules(Request $request, ?Model $model): array
     {
-        $parameters = QueryParameters::fromRequest($request, self::SORTABLE, self::FILTERABLE, [], 'precedence');
+        $unique = 'unique:ranks,precedence'.($model ? ",{$model->id}" : ',NULL').',id,deleted_at,NULL';
 
-        $query = Rank::query();
+        return parent::rules($request, $model) + [
+            'attributes.precedence' => [$model ? 'sometimes' : 'required', 'integer', 'min:1', 'max:65535', $unique],
+        ];
+    }
 
-        if ($name = $parameters->filter('name')) {
-            $query->where('name', 'like', '%'.$name.'%');
-        }
+    public function uploadIcon(Request $request, Settings $settings, Uploads $uploads, $id)
+    {
+        $rank = Rank::findOrFail($id);
+        $this->authorize('update', $rank);
 
-        $paginator = $parameters->applySort($query, self::SORTABLE)
-            ->paginate($parameters->pageSize(), ['*'], 'page', $parameters->pageNumber());
+        $this->validate($request, [
+            'icon' => ['required', 'file', 'mimes:png,svg', 'max:'.$settings->int('rank_icon_max_kb')],
+        ]);
 
-        return JsonApiResponse::make((new Document($request))->collection($paginator, $parameters->includes()));
+        $previous = $rank->icon_path;
+        $rank->icon_path = $uploads->store($request->file('icon'), 'ranks');
+        $rank->save();
+        $uploads->delete($previous);
+
+        return JsonApiResponse::make((new Document($request))->resource($rank));
     }
 }

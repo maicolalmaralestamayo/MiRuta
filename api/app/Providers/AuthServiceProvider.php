@@ -13,7 +13,20 @@ class AuthServiceProvider extends ServiceProvider
      *
      * @var array
      */
-    protected $policies = [];
+    protected $policies = [
+        \App\Models\Rank::class => \App\Policies\AdminManagedPolicy::class,
+        \App\Models\ConversationTopic::class => \App\Policies\AdminManagedPolicy::class,
+        \App\Models\VehicleType::class => \App\Policies\TransportManagedPolicy::class,
+        \App\Models\AbsenceType::class => \App\Policies\TransportManagedPolicy::class,
+        \App\Models\Itinerary::class => \App\Policies\TransportManagedPolicy::class,
+        \App\Models\Stop::class => \App\Policies\TransportManagedPolicy::class,
+        \App\Models\ItineraryStop::class => \App\Policies\TransportManagedPolicy::class,
+        \App\Models\Vehicle::class => \App\Policies\TransportManagedPolicy::class,
+        \App\Models\Worker::class => \App\Policies\ReadOnlyPolicy::class,
+        \App\Models\ItineraryChief::class => \App\Policies\ReadOnlyPolicy::class,
+        \App\Models\Driver::class => \App\Policies\ReadOnlyPolicy::class,
+        \App\Models\TransportChief::class => \App\Policies\ReadOnlyPolicy::class,
+    ];
 
     /**
      * Boot the authentication services for the application.

@@ -33,7 +33,10 @@ class Controller extends BaseController
         $prefixed = [];
 
         foreach ($rules as $key => $keyRules) {
-            $prefixed['data.'.$key] = $keyRules;
+            $prefixed['data.'.$key] = array_map(function ($rule) {
+                // Las referencias a otros campos también llevan el prefijo "data."
+                return is_string($rule) ? preg_replace('/^(required_with|required_without):(?!data\.)/', '$1:data.', $rule) : $rule;
+            }, (array) $keyRules);
         }
 
         $this->validate($request, $prefixed);

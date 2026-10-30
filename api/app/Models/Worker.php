@@ -47,9 +47,103 @@ class Worker extends Model implements AuthenticatableContract, AuthorizableContr
         return $this->currentSessionId;
     }
 
+    /** @var array|null Roles leídos (se calculan una vez por instancia) */
+    private $roleCache;
+
     public function rank()
     {
         return $this->belongsTo(Rank::class);
+    }
+
+    public function itinerary()
+    {
+        return $this->belongsTo(Itinerary::class);
+    }
+
+    public function stop()
+    {
+        return $this->belongsTo(Stop::class);
+    }
+
+    public function driver()
+    {
+        return $this->hasOne(Driver::class);
+    }
+
+    public function transportChief()
+    {
+        return $this->hasOne(TransportChief::class);
+    }
+
+    public function itineraryChiefs()
+    {
+        return $this->hasMany(ItineraryChief::class);
+    }
+
+    public function isAdmin(): bool
+    {
+        return (bool) $this->is_admin;
+    }
+
+    public function isTransportChief(): bool
+    {
+        return $this->roles()['transport_chief'];
+    }
+
+    /**
+     * Administrador o Jefe de Transporte: gestiona vehículos, itinerarios y viajes.
+     */
+    public function managesTransport(): bool
+    {
+        return $this->isAdmin() || $this->isTransportChief();
+    }
+
+    public function isDriver(): bool
+    {
+        return $this->roles()['driver_id'] !== null;
+    }
+
+    public function driverId(): ?int
+    {
+        return $this->roles()['driver_id'];
+    }
+
+    /**
+     * Ids de los itinerarios de los que es jefe.
+     *
+     * @return int[]
+     */
+    public function chiefItineraryIds(): array
+    {
+        return $this->roles()['itinerary_ids'];
+    }
+
+    public function isChiefOf(?int $itineraryId): bool
+    {
+        return $itineraryId !== null && in_array($itineraryId, $this->chiefItineraryIds(), true);
+    }
+
+    /**
+     * Olvida los roles leídos (tras cambiarlos).
+     */
+    public function refreshRoles(): self
+    {
+        $this->roleCache = null;
+
+        return $this;
+    }
+
+    private function roles(): array
+    {
+        if ($this->roleCache === null) {
+            $this->roleCache = [
+                'transport_chief' => TransportChief::where('worker_id', $this->id)->exists(),
+                'driver_id' => ($id = Driver::where('worker_id', $this->id)->value('id')) ? (int) $id : null,
+                'itinerary_ids' => array_map('intval', ItineraryChief::where('worker_id', $this->id)->pluck('itinerary_id')->all()),
+            ];
+        }
+
+        return $this->roleCache;
     }
 
     public function settings()
