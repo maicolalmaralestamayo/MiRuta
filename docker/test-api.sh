@@ -18,7 +18,8 @@ if ! docker ps --format '{{.Names}}' | grep -qx "$DB"; then
         mariadb:10.6 >/dev/null
 fi
 
-until docker exec "$DB" mariadb-admin ping -uroot -proot --silent >/dev/null 2>&1; do sleep 1; done
+# Esperar a que termine la inicialización (el usuario de pruebas ya puede conectarse)
+until docker exec "$DB" mariadb -umitransporte -psecret -e "SELECT 1" mitransporte_test >/dev/null 2>&1; do sleep 1; done
 
 docker run --rm --network "$NETWORK" -v "$ROOT:/repo" -w /repo/api \
     -e DB_HOST="$DB" mitransporte-php72 vendor/bin/phpunit "$@"

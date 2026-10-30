@@ -1,5 +1,7 @@
 <?php
 
+namespace Database\Seeders;
+
 use App\Models\Rank;
 use Illuminate\Database\Seeder;
 

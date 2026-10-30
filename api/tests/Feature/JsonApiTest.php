@@ -10,7 +10,7 @@ class JsonApiTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->artisan('db:seed', ['--class' => 'RankSeeder']);
+        $this->artisan('db:seed', ['--class' => \Database\Seeders\RankSeeder::class]);
     }
 
     public function testColeccionOrdenadaPorPrioridadPorDefecto()

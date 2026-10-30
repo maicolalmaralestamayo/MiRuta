@@ -1,5 +1,7 @@
 <?php
 
+namespace Database\Seeders;
+
 use App\Models\AbsenceType;
 use Illuminate\Database\Seeder;
 

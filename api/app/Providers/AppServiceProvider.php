@@ -13,6 +13,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register()
     {
-        //
+        // Lumen 7 busca el seeder "DatabaseSeeder" sin espacio de nombres; los
+        // seeders usan ya el de Laravel 8+ (Database\Seeders).
+        $this->app->bind('DatabaseSeeder', \Database\Seeders\DatabaseSeeder::class);
     }
 }

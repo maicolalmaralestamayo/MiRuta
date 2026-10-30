@@ -18,7 +18,7 @@ abstract class TestCase extends BaseTestCase
     /**
      * Petición con las cabeceras de JSON:API.
      */
-    protected function jsonApi(string $method, string $uri, array $document = null, array $headers = [])
+    protected function jsonApi(string $method, string $uri, ?array $document = null, array $headers = [])
     {
         $server = [
             'HTTP_ACCEPT' => MediaType::JSON_API,

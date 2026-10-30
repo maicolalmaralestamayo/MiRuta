@@ -14,7 +14,7 @@ class WorkerRegistrationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->artisan('db:seed', ['--class' => 'RankSeeder']);
+        $this->artisan('db:seed', ['--class' => \Database\Seeders\RankSeeder::class]);
     }
 
     private function registration(array $attributes = [], $rankId = null): array
