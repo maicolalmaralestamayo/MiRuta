@@ -1,0 +1,5586 @@
+openapi: 3.0.3
+info:
+  title: MiTransporte API
+  version: 1.0.0
+  description: 'API de MiTransporte: gestión del transporte de trabajadores.
+
+
+    - Formato [JSON:API 1.1](https://jsonapi.org/format/) (`application/vnd.api+json`).
+
+    - Autenticación JWT (RFC 7519): token de acceso de 30 min y de renovación de 90 días con rotación.
+
+    - Documentación funcional en `docs/`.'
+servers:
+- url: https://{host}/api/v1
+  variables:
+    host:
+      default: localhost
+security:
+- bearerAuth: []
+tags:
+- name: Autenticación
+- name: Trabajadores
+- name: Perfil
+- name: Nomencladores
+- name: Itinerarios y paradas
+- name: Roles
+- name: Vehículos
+- name: Viajes
+- name: Recorrido
+- name: Subida
+- name: Hijos
+- name: Solicitudes
+- name: Chats
+- name: Avisos
+- name: Ajustes
+- name: Estadísticas
+- name: Lote
+paths:
+  /tokens:
+    post:
+      tags:
+      - Autenticación
+      summary: Iniciar sesión
+      description: Carné + contraseña. Devuelve token de acceso (30 min) y de renovación (90 días).
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/TokenDocument'
+      responses:
+        '201':
+          description: Creado
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/TokenDocument'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+      security: []
+    delete:
+      tags:
+      - Autenticación
+      summary: Cerrar sesión en todos los dispositivos
+      description: Revoca todos los tokens de renovación del usuario.
+      responses:
+        '204':
+          description: Sin contenido
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /tokens/refresh:
+    post:
+      tags:
+      - Autenticación
+      summary: Renovar tokens
+      description: Envía `attributes.refreshToken`. Devuelve un par nuevo y revoca el token de renovación usado (rotación).
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/TokenDocument'
+      responses:
+        '201':
+          description: Creado
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/TokenDocument'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+      security: []
+  /tokens/current:
+    delete:
+      tags:
+      - Autenticación
+      summary: Cerrar sesión en este dispositivo
+      responses:
+        '204':
+          description: Sin contenido
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /workers:
+    post:
+      tags:
+      - Trabajadores
+      summary: Registrarse
+      description: Público. Carné, nombre, apellidos, jerarquía (relación `rank`) y contraseña. El primer usuario registrado
+        pasa a ser Administrador.
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/WorkerDocument'
+      responses:
+        '201':
+          description: Creado
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/WorkerDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+      security: []
+    get:
+      tags:
+      - Trabajadores
+      summary: Listar trabajadores
+      description: Solo datos públicos, salvo para el Administrador.
+      parameters:
+      - $ref: '#/components/parameters/PageNumber'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/Sort'
+      - $ref: '#/components/parameters/Include'
+      - name: filter[itinerary]
+        in: query
+        required: false
+        description: Id de itinerario
+        schema:
+          type: string
+      - name: filter[stop]
+        in: query
+        required: false
+        description: Id de parada
+        schema:
+          type: string
+      - name: filter[rank]
+        in: query
+        required: false
+        description: Id de jerarquía
+        schema:
+          type: string
+      - name: filter[active]
+        in: query
+        required: false
+        description: true/false (solo Administrador)
+        schema:
+          type: boolean
+      - name: filter[search]
+        in: query
+        required: false
+        description: Texto en nombre o apellidos
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/WorkerCollection'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /workers/{id}:
+    get:
+      tags:
+      - Trabajadores
+      summary: Obtener trabajador
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      - $ref: '#/components/parameters/Include'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/WorkerDocument'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags:
+      - Trabajadores
+      summary: Activar o desactivar trabajador
+      description: Solo el Administrador. Atributo `active`.
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/WorkerDocument'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/WorkerDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /me:
+    get:
+      tags:
+      - Perfil
+      summary: Mi perfil
+      description: Incluye `cardNumber`.
+      parameters:
+      - $ref: '#/components/parameters/Include'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/WorkerDocument'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    patch:
+      tags:
+      - Perfil
+      summary: Modificar mi perfil
+      description: Nombre, apellidos o contraseña. Para cambiar la contraseña hay que enviar también `meta.currentPassword`;
+        al cambiarla se revocan todos los tokens de renovación.
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/WorkerDocument'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/WorkerDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /me/photo:
+    post:
+      tags:
+      - Perfil
+      summary: Subir foto de perfil
+      description: 'Excepción al formato JSON:API: `multipart/form-data`. JPG o PNG, tamaño máximo según el ajuste `photo_max_kb`.'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+              - photo
+              properties:
+                photo:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/WorkerDocument'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+    delete:
+      tags:
+      - Perfil
+      summary: Quitar foto de perfil
+      responses:
+        '204':
+          description: Sin contenido
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /me/settings:
+    get:
+      tags:
+      - Ajustes
+      summary: Mis ajustes
+      description: Valor efectivo de cada ajuste que el usuario puede personalizar.
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/UserSettingCollection'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /me/settings/{id}:
+    patch:
+      tags:
+      - Ajustes
+      summary: Cambiar un ajuste propio
+      description: '`id` = clave del ajuste.'
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/UserSettingDocument'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/UserSettingDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+    delete:
+      tags:
+      - Ajustes
+      summary: Volver al valor global
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      responses:
+        '204':
+          description: Sin contenido
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /ranks:
+    get:
+      tags:
+      - Nomencladores
+      summary: Listar ranks
+      parameters:
+      - $ref: '#/components/parameters/PageNumber'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/Sort'
+      - $ref: '#/components/parameters/Include'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/RankCollection'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags:
+      - Nomencladores
+      summary: Crear ranks
+      description: Solo el Administrador.
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/RankDocument'
+      responses:
+        '201':
+          description: Creado
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/RankDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /ranks/{id}:
+    get:
+      tags:
+      - Nomencladores
+      summary: Obtener ranks
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      - $ref: '#/components/parameters/Include'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/RankDocument'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags:
+      - Nomencladores
+      summary: Modificar ranks
+      description: Solo el Administrador.
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/RankDocument'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/RankDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+    delete:
+      tags:
+      - Nomencladores
+      summary: Eliminar ranks (borrado lógico)
+      description: Solo el Administrador.
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      responses:
+        '204':
+          description: Sin contenido
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /ranks/{id}/icon:
+    post:
+      tags:
+      - Nomencladores
+      summary: Subir icono de jerarquía
+      description: Solo el Administrador. `multipart/form-data` (PNG o SVG).
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+              - icon
+              properties:
+                icon:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/RankDocument'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /vehicle-types:
+    get:
+      tags:
+      - Nomencladores
+      summary: Listar vehicle-types
+      parameters:
+      - $ref: '#/components/parameters/PageNumber'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/Sort'
+      - $ref: '#/components/parameters/Include'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/VehicleTypeCollection'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags:
+      - Nomencladores
+      summary: Crear vehicle-types
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/VehicleTypeDocument'
+      responses:
+        '201':
+          description: Creado
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/VehicleTypeDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /vehicle-types/{id}:
+    get:
+      tags:
+      - Nomencladores
+      summary: Obtener vehicle-types
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      - $ref: '#/components/parameters/Include'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/VehicleTypeDocument'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags:
+      - Nomencladores
+      summary: Modificar vehicle-types
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/VehicleTypeDocument'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/VehicleTypeDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+    delete:
+      tags:
+      - Nomencladores
+      summary: Eliminar vehicle-types (borrado lógico)
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      responses:
+        '204':
+          description: Sin contenido
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /absence-types:
+    get:
+      tags:
+      - Nomencladores
+      summary: Listar absence-types
+      parameters:
+      - $ref: '#/components/parameters/PageNumber'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/Sort'
+      - $ref: '#/components/parameters/Include'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/AbsenceTypeCollection'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags:
+      - Nomencladores
+      summary: Crear absence-types
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/AbsenceTypeDocument'
+      responses:
+        '201':
+          description: Creado
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/AbsenceTypeDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /absence-types/{id}:
+    get:
+      tags:
+      - Nomencladores
+      summary: Obtener absence-types
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      - $ref: '#/components/parameters/Include'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/AbsenceTypeDocument'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags:
+      - Nomencladores
+      summary: Modificar absence-types
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/AbsenceTypeDocument'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/AbsenceTypeDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+    delete:
+      tags:
+      - Nomencladores
+      summary: Eliminar absence-types (borrado lógico)
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      responses:
+        '204':
+          description: Sin contenido
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /conversation-topics:
+    get:
+      tags:
+      - Nomencladores
+      summary: Listar conversation-topics
+      parameters:
+      - $ref: '#/components/parameters/PageNumber'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/Sort'
+      - $ref: '#/components/parameters/Include'
+      - name: filter[recipient]
+        in: query
+        required: false
+        description: itinerary_chiefs, transport_chiefs o developer
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/ConversationTopicCollection'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags:
+      - Nomencladores
+      summary: Crear conversation-topics
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/ConversationTopicDocument'
+      responses:
+        '201':
+          description: Creado
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/ConversationTopicDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /conversation-topics/{id}:
+    get:
+      tags:
+      - Nomencladores
+      summary: Obtener conversation-topics
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      - $ref: '#/components/parameters/Include'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/ConversationTopicDocument'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags:
+      - Nomencladores
+      summary: Modificar conversation-topics
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/ConversationTopicDocument'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/ConversationTopicDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+    delete:
+      tags:
+      - Nomencladores
+      summary: Eliminar conversation-topics (borrado lógico)
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      responses:
+        '204':
+          description: Sin contenido
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /itineraries:
+    get:
+      tags:
+      - Itinerarios y paradas
+      summary: Listar itineraries
+      parameters:
+      - $ref: '#/components/parameters/PageNumber'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/Sort'
+      - $ref: '#/components/parameters/Include'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/ItineraryCollection'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags:
+      - Itinerarios y paradas
+      summary: Crear itineraries
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/ItineraryDocument'
+      responses:
+        '201':
+          description: Creado
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/ItineraryDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /itineraries/{id}:
+    get:
+      tags:
+      - Itinerarios y paradas
+      summary: Obtener itineraries
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      - $ref: '#/components/parameters/Include'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/ItineraryDocument'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags:
+      - Itinerarios y paradas
+      summary: Modificar itineraries
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/ItineraryDocument'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/ItineraryDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+    delete:
+      tags:
+      - Itinerarios y paradas
+      summary: Eliminar itineraries (borrado lógico)
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      responses:
+        '204':
+          description: Sin contenido
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /stops:
+    get:
+      tags:
+      - Itinerarios y paradas
+      summary: Listar stops
+      parameters:
+      - $ref: '#/components/parameters/PageNumber'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/Sort'
+      - $ref: '#/components/parameters/Include'
+      - name: filter[itinerary]
+        in: query
+        required: false
+        description: Paradas de un itinerario
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/StopCollection'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags:
+      - Itinerarios y paradas
+      summary: Crear stops
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/StopDocument'
+      responses:
+        '201':
+          description: Creado
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/StopDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /stops/{id}:
+    get:
+      tags:
+      - Itinerarios y paradas
+      summary: Obtener stops
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      - $ref: '#/components/parameters/Include'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/StopDocument'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags:
+      - Itinerarios y paradas
+      summary: Modificar stops
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/StopDocument'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/StopDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+    delete:
+      tags:
+      - Itinerarios y paradas
+      summary: Eliminar stops (borrado lógico)
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      responses:
+        '204':
+          description: Sin contenido
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /itinerary-stops:
+    get:
+      tags:
+      - Itinerarios y paradas
+      summary: Listar itinerary-stops
+      parameters:
+      - $ref: '#/components/parameters/PageNumber'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/Sort'
+      - $ref: '#/components/parameters/Include'
+      - name: filter[itinerary]
+        in: query
+        required: false
+        description: Id de itinerario
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/ItineraryStopCollection'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags:
+      - Itinerarios y paradas
+      summary: Crear itinerary-stops
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/ItineraryStopDocument'
+      responses:
+        '201':
+          description: Creado
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/ItineraryStopDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /itinerary-stops/{id}:
+    get:
+      tags:
+      - Itinerarios y paradas
+      summary: Obtener itinerary-stops
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      - $ref: '#/components/parameters/Include'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/ItineraryStopDocument'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags:
+      - Itinerarios y paradas
+      summary: Modificar itinerary-stops
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/ItineraryStopDocument'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/ItineraryStopDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+    delete:
+      tags:
+      - Itinerarios y paradas
+      summary: Eliminar itinerary-stops (borrado lógico)
+      description: Falla con STOP_HAS_MEMBERS si hay miembros en esa parada.
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      responses:
+        '204':
+          description: Sin contenido
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /itinerary-chiefs:
+    get:
+      tags:
+      - Roles
+      summary: Listar itinerary-chiefs
+      parameters:
+      - $ref: '#/components/parameters/PageNumber'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/Sort'
+      - $ref: '#/components/parameters/Include'
+      - name: filter[itinerary]
+        in: query
+        required: false
+        description: Id de itinerario
+        schema:
+          type: string
+      - name: filter[worker]
+        in: query
+        required: false
+        description: Id de trabajador
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/ItineraryChiefCollection'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /itinerary-chiefs/{id}:
+    get:
+      tags:
+      - Roles
+      summary: Obtener itinerary-chiefs
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      - $ref: '#/components/parameters/Include'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/ItineraryChiefDocument'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags:
+      - Roles
+      summary: Eliminar itinerary-chiefs (borrado lógico)
+      description: Si lo hace el propio jefe, se registra la solicitud `itinerary_chief_leave` y se avisa a los Jefes de Transporte.
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      responses:
+        '204':
+          description: Sin contenido
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /drivers:
+    get:
+      tags:
+      - Roles
+      summary: Listar drivers
+      parameters:
+      - $ref: '#/components/parameters/PageNumber'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/Sort'
+      - $ref: '#/components/parameters/Include'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/DriverCollection'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /drivers/{id}:
+    get:
+      tags:
+      - Roles
+      summary: Obtener drivers
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      - $ref: '#/components/parameters/Include'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/DriverDocument'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags:
+      - Roles
+      summary: Eliminar drivers (borrado lógico)
+      description: 'Si lo hace el propio chofer, se registra `driver_leave`: se le quita el vehículo y sus viajes futuros
+        quedan para reasignar.'
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      responses:
+        '204':
+          description: Sin contenido
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /transport-chiefs:
+    get:
+      tags:
+      - Roles
+      summary: Listar transport-chiefs
+      parameters:
+      - $ref: '#/components/parameters/PageNumber'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/Sort'
+      - $ref: '#/components/parameters/Include'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/TransportChiefCollection'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /transport-chiefs/{id}:
+    get:
+      tags:
+      - Roles
+      summary: Obtener transport-chiefs
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      - $ref: '#/components/parameters/Include'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/TransportChiefDocument'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags:
+      - Roles
+      summary: Eliminar transport-chiefs (borrado lógico)
+      description: Si lo hace el propio jefe, se registra `transport_chief_leave` y se avisa al Administrador.
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      responses:
+        '204':
+          description: Sin contenido
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /vehicles:
+    get:
+      tags:
+      - Vehículos
+      summary: Listar vehicles
+      parameters:
+      - $ref: '#/components/parameters/PageNumber'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/Sort'
+      - $ref: '#/components/parameters/Include'
+      - name: filter[vehicleType]
+        in: query
+        required: false
+        description: Id de tipo
+        schema:
+          type: string
+      - name: filter[driver]
+        in: query
+        required: false
+        description: Id de chofer
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/VehicleCollection'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags:
+      - Vehículos
+      summary: Crear vehicles
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/VehicleDocument'
+      responses:
+        '201':
+          description: Creado
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/VehicleDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /vehicles/{id}:
+    get:
+      tags:
+      - Vehículos
+      summary: Obtener vehicles
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      - $ref: '#/components/parameters/Include'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/VehicleDocument'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags:
+      - Vehículos
+      summary: Modificar vehicles
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/VehicleDocument'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/VehicleDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+    delete:
+      tags:
+      - Vehículos
+      summary: Eliminar vehicles (borrado lógico)
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      responses:
+        '204':
+          description: Sin contenido
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /trips:
+    get:
+      tags:
+      - Viajes
+      summary: Listar trips
+      parameters:
+      - $ref: '#/components/parameters/PageNumber'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/Sort'
+      - $ref: '#/components/parameters/Include'
+      - name: filter[itinerary]
+        in: query
+        required: false
+        description: Id de itinerario
+        schema:
+          type: string
+      - name: filter[vehicle]
+        in: query
+        required: false
+        description: Id de vehículo
+        schema:
+          type: string
+      - name: filter[driver]
+        in: query
+        required: false
+        description: Id de chofer
+        schema:
+          type: string
+      - name: filter[status]
+        in: query
+        required: false
+        description: Uno o varios estados separados por comas
+        schema:
+          type: string
+      - name: filter[from]
+        in: query
+        required: false
+        description: Salida desde (fecha)
+        schema:
+          type: string
+          format: date
+      - name: filter[to]
+        in: query
+        required: false
+        description: Salida hasta (fecha)
+        schema:
+          type: string
+          format: date
+      - name: filter[updatedSince]
+        in: query
+        required: false
+        description: 'Para sincronizar: modificados después de esta fecha'
+        schema:
+          type: string
+          format: date-time
+      - name: filter[overloaded]
+        in: query
+        required: false
+        description: Solo sobresaturados
+        schema:
+          type: boolean
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/TripCollection'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags:
+      - Viajes
+      summary: Crear trips
+      description: Al crear como `confirmed` se comprueba el solapamiento de vehículo y chofer (TRIP_OVERLAP). Para crear
+        un rango, usar /operations.
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/TripDocument'
+      responses:
+        '201':
+          description: Creado
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/TripDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /trips/{id}:
+    get:
+      tags:
+      - Viajes
+      summary: Obtener trips
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      - $ref: '#/components/parameters/Include'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/TripDocument'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags:
+      - Viajes
+      summary: Modificar trips
+      description: 'Cambios de estado: no se puede cancelar un viaje realizado ni marcar como realizado uno cancelado (TRIP_TRANSITION_NOT_ALLOWED).
+        Al pasar a `confirmed` se comprueba el solapamiento.'
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/TripDocument'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/TripDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /trips/{id}/passengers:
+    get:
+      tags:
+      - Subida
+      summary: Pasajeros en orden de subida
+      description: Primero los que suben con niños; luego mujeres y después hombres; dentro de cada grupo, por jerarquía y
+        alfabético.
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      - name: filter[stop]
+        in: query
+        required: false
+        description: Solo los de una parada
+        schema:
+          type: string
+      - name: filter[direction]
+        in: query
+        required: false
+        description: outbound o return
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/TripPassengerCollection'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /trips/{id}/messages:
+    get:
+      tags:
+      - Chats
+      summary: Mensajes del chat del viaje
+      description: Solo mientras el viaje está confirmado.
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      - name: filter[since]
+        in: query
+        required: false
+        description: Mensajes posteriores a
+        schema:
+          type: string
+          format: date-time
+      - $ref: '#/components/parameters/PageNumber'
+      - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/TripMessageCollection'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /trip-completions:
+    get:
+      tags:
+      - Viajes
+      summary: Listar trip-completions
+      parameters:
+      - $ref: '#/components/parameters/PageNumber'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/Sort'
+      - $ref: '#/components/parameters/Include'
+      - name: filter[trip]
+        in: query
+        required: false
+        description: Id de viaje
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/TripCompletionCollection'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags:
+      - Viajes
+      summary: Crear trip-completions
+      description: Marca el viaje como realizado. Chofer del viaje, Jefes de su itinerario, Jefes de Transporte o Administrador.
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/TripCompletionDocument'
+      responses:
+        '201':
+          description: Creado
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/TripCompletionDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /trip-legs:
+    get:
+      tags:
+      - Recorrido
+      summary: Listar trip-legs
+      parameters:
+      - $ref: '#/components/parameters/PageNumber'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/Sort'
+      - $ref: '#/components/parameters/Include'
+      - name: filter[trip]
+        in: query
+        required: false
+        description: Id de viaje
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/TripLegCollection'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags:
+      - Recorrido
+      summary: Crear trip-legs
+      description: Iniciar recorrido.
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/TripLegDocument'
+      responses:
+        '201':
+          description: Creado
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/TripLegDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /trip-legs/{id}:
+    get:
+      tags:
+      - Recorrido
+      summary: Obtener trip-legs
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      - $ref: '#/components/parameters/Include'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/TripLegDocument'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags:
+      - Recorrido
+      summary: Modificar trip-legs
+      description: Finalizar recorrido (`endedAt`).
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/TripLegDocument'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/TripLegDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /trip-positions:
+    get:
+      tags:
+      - Recorrido
+      summary: Listar trip-positions
+      parameters:
+      - $ref: '#/components/parameters/PageNumber'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/Sort'
+      - $ref: '#/components/parameters/Include'
+      - name: filter[tripLeg]
+        in: query
+        required: false
+        description: Id de trayecto
+        schema:
+          type: string
+      - name: filter[since]
+        in: query
+        required: false
+        description: Posiciones posteriores a
+        schema:
+          type: string
+          format: date-time
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/TripPositionCollection'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags:
+      - Recorrido
+      summary: Crear trip-positions
+      description: Envía una posición como sensor. Para enviar varias acumuladas sin conexión, usar /operations.
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/TripPositionDocument'
+      responses:
+        '201':
+          description: Creado
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/TripPositionDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /trip-stop-passes:
+    get:
+      tags:
+      - Recorrido
+      summary: Listar trip-stop-passes
+      parameters:
+      - $ref: '#/components/parameters/PageNumber'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/Sort'
+      - $ref: '#/components/parameters/Include'
+      - name: filter[tripLeg]
+        in: query
+        required: false
+        description: Id de trayecto
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/TripStopPassCollection'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /trip-boardings:
+    get:
+      tags:
+      - Subida
+      summary: Listar trip-boardings
+      parameters:
+      - $ref: '#/components/parameters/PageNumber'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/Sort'
+      - $ref: '#/components/parameters/Include'
+      - name: filter[tripLeg]
+        in: query
+        required: false
+        description: Id de trayecto
+        schema:
+          type: string
+      - name: filter[worker]
+        in: query
+        required: false
+        description: Id de trabajador
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/TripBoardingCollection'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags:
+      - Subida
+      summary: Crear trip-boardings
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/TripBoardingDocument'
+      responses:
+        '201':
+          description: Creado
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/TripBoardingDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /boarding-passes:
+    post:
+      tags:
+      - Subida
+      summary: Crear boarding-passes
+      description: Genera el token para el QR del trabajador autenticado en el trayecto indicado (relación `tripLeg`).
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/BoardingPassDocument'
+      responses:
+        '201':
+          description: Creado
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/BoardingPassDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /trip-messages:
+    post:
+      tags:
+      - Chats
+      summary: Crear trip-messages
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/TripMessageDocument'
+      responses:
+        '201':
+          description: Creado
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/TripMessageDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /children:
+    get:
+      tags:
+      - Hijos
+      summary: Listar children
+      parameters:
+      - $ref: '#/components/parameters/PageNumber'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/Sort'
+      - $ref: '#/components/parameters/Include'
+      - name: filter[worker]
+        in: query
+        required: false
+        description: Id de trabajador
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/ChildCollection'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /children/{id}:
+    get:
+      tags:
+      - Hijos
+      summary: Obtener children
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      - $ref: '#/components/parameters/Include'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/ChildDocument'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /applications:
+    get:
+      tags:
+      - Solicitudes
+      summary: Listar applications
+      parameters:
+      - $ref: '#/components/parameters/PageNumber'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/Sort'
+      - $ref: '#/components/parameters/Include'
+      - name: filter[status]
+        in: query
+        required: false
+        description: Estado
+        schema:
+          type: string
+      - name: filter[type]
+        in: query
+        required: false
+        description: Tipo
+        schema:
+          type: string
+      - name: filter[mine]
+        in: query
+        required: false
+        description: Solo las propias
+        schema:
+          type: boolean
+      - name: filter[toResolve]
+        in: query
+        required: false
+        description: Solo las que puedo resolver
+        schema:
+          type: boolean
+      - name: filter[worker]
+        in: query
+        required: false
+        description: Id de trabajador
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/ApplicationCollection'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags:
+      - Solicitudes
+      summary: Crear applications
+      description: Los tipos `*_leave` se aprueban automáticamente. `itinerary_removal` solo lo genera el sistema.
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/ApplicationDocument'
+      responses:
+        '201':
+          description: Creado
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/ApplicationDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /applications/{id}:
+    get:
+      tags:
+      - Solicitudes
+      summary: Obtener applications
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      - $ref: '#/components/parameters/Include'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/ApplicationDocument'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags:
+      - Solicitudes
+      summary: Modificar applications
+      description: 'Enviar `status`: `approved` o `rejected` (quien puede resolver; nunca el propio solicitante) o `cancelled`
+        (solo el solicitante, mientras esté pendiente).'
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/ApplicationDocument'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/ApplicationDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /conversations:
+    get:
+      tags:
+      - Chats
+      summary: Listar conversations
+      parameters:
+      - $ref: '#/components/parameters/PageNumber'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/Sort'
+      - $ref: '#/components/parameters/Include'
+      - name: filter[topic]
+        in: query
+        required: false
+        description: Id de motivo
+        schema:
+          type: string
+      - name: filter[recipient]
+        in: query
+        required: false
+        description: itinerary_chiefs, transport_chiefs o developer
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/ConversationCollection'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags:
+      - Chats
+      summary: Crear conversations
+      description: Elegir `topic`. Si el motivo es para los Jefes de itinerario, la conversación se asocia al itinerario del
+        trabajador.
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/ConversationDocument'
+      responses:
+        '201':
+          description: Creado
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/ConversationDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /conversations/{id}:
+    get:
+      tags:
+      - Chats
+      summary: Obtener conversations
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      - $ref: '#/components/parameters/Include'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/ConversationDocument'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /conversations/{id}/messages:
+    get:
+      tags:
+      - Chats
+      summary: Mensajes de una conversación
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      - name: filter[since]
+        in: query
+        required: false
+        description: Mensajes posteriores a
+        schema:
+          type: string
+          format: date-time
+      - $ref: '#/components/parameters/PageNumber'
+      - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/ConversationMessageCollection'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /conversation-messages:
+    post:
+      tags:
+      - Chats
+      summary: Crear conversation-messages
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/ConversationMessageDocument'
+      responses:
+        '201':
+          description: Creado
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/ConversationMessageDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /notices:
+    get:
+      tags:
+      - Avisos
+      summary: Listar notices
+      parameters:
+      - $ref: '#/components/parameters/PageNumber'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/Sort'
+      - $ref: '#/components/parameters/Include'
+      - name: filter[unread]
+        in: query
+        required: false
+        description: Solo no leídos
+        schema:
+          type: boolean
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/NoticeCollection'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /notices/{id}:
+    patch:
+      tags:
+      - Avisos
+      summary: Modificar notices
+      description: Marcar como leído (`readAt`).
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/NoticeDocument'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/NoticeDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /setting-definitions:
+    get:
+      tags:
+      - Ajustes
+      summary: Listar setting-definitions
+      parameters:
+      - $ref: '#/components/parameters/PageNumber'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/Sort'
+      - $ref: '#/components/parameters/Include'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/SettingDefinitionCollection'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /setting-definitions/{id}:
+    get:
+      tags:
+      - Ajustes
+      summary: Obtener setting-definitions
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      - $ref: '#/components/parameters/Include'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/SettingDefinitionDocument'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /settings:
+    get:
+      tags:
+      - Ajustes
+      summary: Listar settings
+      parameters:
+      - $ref: '#/components/parameters/PageNumber'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/Sort'
+      - $ref: '#/components/parameters/Include'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/SettingCollection'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /settings/{id}:
+    get:
+      tags:
+      - Ajustes
+      summary: Obtener settings
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      - $ref: '#/components/parameters/Include'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/SettingDocument'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags:
+      - Ajustes
+      summary: Modificar settings
+      description: Solo quien indique `editableBy` en la definición (y siempre el Administrador). Se valida contra min, max
+        y opciones.
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/SettingDocument'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/SettingDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /statistics/{name}:
+    get:
+      tags:
+      - Estadísticas
+      summary: Obtener una estadística
+      description: 'Un solo tipo de periodo: `from`+`to`, `dates` o `last`. Los filtros se restringen según el rol.'
+      parameters:
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+          enum:
+          - trips-by-status
+          - punctuality
+          - duration
+          - trips-by-driver
+          - trips-by-vehicle
+          - overloaded-trips
+          - occupancy
+          - attendance
+          - children-transported
+          - workers-distribution
+          - worker-trips
+          - applications-summary
+          - stop-activity
+          - stop-pass-times
+          - distance
+          - live-trip
+      - name: filter[from]
+        in: query
+        required: false
+        description: Desde
+        schema:
+          type: string
+          format: date
+      - name: filter[to]
+        in: query
+        required: false
+        description: Hasta
+        schema:
+          type: string
+          format: date
+      - name: filter[dates]
+        in: query
+        required: false
+        description: Fechas explícitas separadas por comas
+        schema:
+          type: string
+      - name: filter[last]
+        in: query
+        required: false
+        description: 'Relativo: número + d/w/m/y (p. ej. 7d, 3m)'
+        schema:
+          type: string
+          pattern: ^\d+[dwmy]$
+      - name: filter[itinerary]
+        in: query
+        required: false
+        description: Id de itinerario
+        schema:
+          type: string
+      - name: filter[vehicle]
+        in: query
+        required: false
+        description: Id de vehículo
+        schema:
+          type: string
+      - name: filter[driver]
+        in: query
+        required: false
+        description: Id de chofer
+        schema:
+          type: string
+      - name: filter[stop]
+        in: query
+        required: false
+        description: Id de parada
+        schema:
+          type: string
+      - name: filter[worker]
+        in: query
+        required: false
+        description: Id de trabajador
+        schema:
+          type: string
+      - name: filter[trip]
+        in: query
+        required: false
+        description: Id de viaje (live-trip)
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/StatisticDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /operations:
+    post:
+      tags:
+      - Lote
+      summary: Operaciones atómicas (JSON:API Atomic Operations)
+      description: Crear viajes por rango, confirmar o desconfirmar en masa, enviar posiciones acumuladas. O se aplican todas
+        o ninguna.
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json; ext="https://jsonapi.org/ext/atomic":
+            schema:
+              $ref: '#/components/schemas/AtomicRequest'
+      responses:
+        '200':
+          description: Todas aplicadas
+          content:
+            application/vnd.api+json; ext="https://jsonapi.org/ext/atomic":
+              schema:
+                $ref: '#/components/schemas/AtomicResponse'
+        '204':
+          description: Todas aplicadas, sin resultados
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+    PageNumber:
+      name: page[number]
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    PageSize:
+      name: page[size]
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 25
+    Sort:
+      name: sort
+      in: query
+      description: Campos separados por comas; `-` delante para orden descendente
+      schema:
+        type: string
+    Include:
+      name: include
+      in: query
+      description: Relaciones a incluir, separadas por comas
+      schema:
+        type: string
+  responses:
+    BadRequest:
+      description: Petición mal formada
+      content:
+        application/vnd.api+json:
+          schema:
+            $ref: '#/components/schemas/ErrorDocument'
+    Unauthorized:
+      description: No autenticado o token inválido
+      content:
+        application/vnd.api+json:
+          schema:
+            $ref: '#/components/schemas/ErrorDocument'
+    Forbidden:
+      description: Sin permiso
+      content:
+        application/vnd.api+json:
+          schema:
+            $ref: '#/components/schemas/ErrorDocument'
+    NotFound:
+      description: No encontrado
+      content:
+        application/vnd.api+json:
+          schema:
+            $ref: '#/components/schemas/ErrorDocument'
+    Conflict:
+      description: Conflicto (duplicado, solapamiento, transición no permitida…)
+      content:
+        application/vnd.api+json:
+          schema:
+            $ref: '#/components/schemas/ErrorDocument'
+    UnsupportedMediaType:
+      description: Falta el tipo de contenido JSON:API
+      content:
+        application/vnd.api+json:
+          schema:
+            $ref: '#/components/schemas/ErrorDocument'
+    Unprocessable:
+      description: Error de validación
+      content:
+        application/vnd.api+json:
+          schema:
+            $ref: '#/components/schemas/ErrorDocument'
+  schemas:
+    ResourceIdentifier:
+      type: object
+      required:
+      - type
+      - id
+      properties:
+        type:
+          type: string
+        id:
+          type: string
+    Links:
+      type: object
+      properties:
+        self:
+          type: string
+          format: uri
+          nullable: true
+        first:
+          type: string
+          format: uri
+          nullable: true
+        prev:
+          type: string
+          format: uri
+          nullable: true
+        next:
+          type: string
+          format: uri
+          nullable: true
+        last:
+          type: string
+          format: uri
+          nullable: true
+    PageMeta:
+      type: object
+      properties:
+        total:
+          type: integer
+        page:
+          type: integer
+        size:
+          type: integer
+    Position:
+      type: object
+      nullable: true
+      properties:
+        latitude:
+          type: number
+        longitude:
+          type: number
+        at:
+          type: string
+          format: date-time
+    Error:
+      type: object
+      properties:
+        status:
+          type: string
+        code:
+          type: string
+        title:
+          type: string
+        detail:
+          type: string
+        source:
+          type: object
+          properties:
+            pointer:
+              type: string
+            parameter:
+              type: string
+        meta:
+          type: object
+          additionalProperties: true
+    ErrorDocument:
+      type: object
+      required:
+      - errors
+      properties:
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/Error'
+    AtomicOperation:
+      type: object
+      required:
+      - op
+      properties:
+        op:
+          type: string
+          enum:
+          - add
+          - update
+          - remove
+        ref:
+          type: object
+          properties:
+            type:
+              type: string
+            id:
+              type: string
+            relationship:
+              type: string
+        data:
+          type: object
+          additionalProperties: true
+    AtomicRequest:
+      type: object
+      required:
+      - atomic:operations
+      properties:
+        atomic:operations:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/AtomicOperation'
+    AtomicResponse:
+      type: object
+      properties:
+        atomic:results:
+          type: array
+          items:
+            type: object
+            properties:
+              data:
+                type: object
+                additionalProperties: true
+    Worker:
+      type: object
+      description: Trabajador y usuario de la app.
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - workers
+        id:
+          type: string
+        attributes:
+          type: object
+          properties:
+            cardNumber:
+              type: string
+              pattern: ^\d{11}$
+              writeOnly: true
+              description: Carné de identidad. Solo se envía al registrarse; se devuelve únicamente en /me o al Administrador.
+            firstName:
+              type: string
+              maxLength: 100
+            lastName:
+              type: string
+              maxLength: 150
+              description: Apellidos
+            password:
+              type: string
+              format: password
+              minLength: 8
+              writeOnly: true
+            sex:
+              type: string
+              enum:
+              - F
+              - M
+              readOnly: true
+              description: Calculado a partir del carné
+            photoUrl:
+              type: string
+              format: uri
+              nullable: true
+              readOnly: true
+            isAdmin:
+              type: boolean
+              readOnly: true
+            active:
+              type: boolean
+              description: Falso = borrado lógico. Solo el Administrador puede cambiarlo.
+            createdAt:
+              type: string
+              format: date-time
+              readOnly: true
+          required:
+          - cardNumber
+          - firstName
+          - lastName
+          - password
+        relationships:
+          type: object
+          properties:
+            rank:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+            itinerary:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+            stop:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+        meta:
+          type: object
+          readOnly: true
+          properties:
+            childrenCount:
+              type: integer
+              description: Hijos con derecho a viajar hoy
+        links:
+          $ref: '#/components/schemas/Links'
+    WorkerDocument:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/Worker'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    WorkerCollection:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Worker'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
+    Rank:
+      type: object
+      description: Jerarquía.
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - ranks
+        id:
+          type: string
+        attributes:
+          type: object
+          properties:
+            name:
+              type: string
+              maxLength: 100
+              description: Denominación
+            description:
+              type: string
+              nullable: true
+              description: Descripción
+            observation:
+              type: string
+              nullable: true
+              description: Observación
+            precedence:
+              type: integer
+              minimum: 1
+              description: 1 = la más alta
+            iconUrl:
+              type: string
+              format: uri
+              nullable: true
+              readOnly: true
+          required:
+          - name
+          - precedence
+        links:
+          $ref: '#/components/schemas/Links'
+    RankDocument:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/Rank'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    RankCollection:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Rank'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
+    VehicleType:
+      type: object
+      description: Tipo de vehículo.
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - vehicle-types
+        id:
+          type: string
+        attributes:
+          type: object
+          properties:
+            name:
+              type: string
+              maxLength: 100
+              description: Denominación
+            description:
+              type: string
+              nullable: true
+              description: Descripción
+            observation:
+              type: string
+              nullable: true
+              description: Observación
+          required:
+          - name
+        links:
+          $ref: '#/components/schemas/Links'
+    VehicleTypeDocument:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/VehicleType'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    VehicleTypeCollection:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/VehicleType'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
+    AbsenceType:
+      type: object
+      description: Tipo de ausencia.
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - absence-types
+        id:
+          type: string
+        attributes:
+          type: object
+          properties:
+            name:
+              type: string
+              maxLength: 100
+              description: Denominación
+            description:
+              type: string
+              nullable: true
+              description: Descripción
+            observation:
+              type: string
+              nullable: true
+              description: Observación
+          required:
+          - name
+        links:
+          $ref: '#/components/schemas/Links'
+    AbsenceTypeDocument:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/AbsenceType'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    AbsenceTypeCollection:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AbsenceType'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
+    ConversationTopic:
+      type: object
+      description: Motivo de conversación.
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - conversation-topics
+        id:
+          type: string
+        attributes:
+          type: object
+          properties:
+            name:
+              type: string
+              maxLength: 100
+              description: Denominación
+            description:
+              type: string
+              nullable: true
+              description: Descripción
+            observation:
+              type: string
+              nullable: true
+              description: Observación
+            recipient:
+              type: string
+              enum:
+              - itinerary_chiefs
+              - transport_chiefs
+              - developer
+          required:
+          - name
+          - recipient
+        links:
+          $ref: '#/components/schemas/Links'
+    ConversationTopicDocument:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/ConversationTopic'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    ConversationTopicCollection:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConversationTopic'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
+    Itinerary:
+      type: object
+      description: Itinerario.
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - itineraries
+        id:
+          type: string
+        attributes:
+          type: object
+          properties:
+            name:
+              type: string
+              maxLength: 100
+              description: Denominación
+            description:
+              type: string
+              nullable: true
+              description: Descripción
+            observation:
+              type: string
+              nullable: true
+              description: Observación
+          required:
+          - name
+        relationships:
+          type: object
+          properties:
+            itineraryStops:
+              type: object
+              properties:
+                data:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/ResourceIdentifier'
+            chiefs:
+              type: object
+              properties:
+                data:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/ResourceIdentifier'
+        meta:
+          type: object
+          readOnly: true
+          properties:
+            departurePoint:
+              $ref: '#/components/schemas/ResourceIdentifier'
+            returnPoint:
+              $ref: '#/components/schemas/ResourceIdentifier'
+            memberCount:
+              type: integer
+        links:
+          $ref: '#/components/schemas/Links'
+    ItineraryDocument:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/Itinerary'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    ItineraryCollection:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Itinerary'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
+    Stop:
+      type: object
+      description: Parada.
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - stops
+        id:
+          type: string
+        attributes:
+          type: object
+          properties:
+            landmark:
+              type: string
+              maxLength: 255
+              description: Punto de referencia
+            street:
+              type: string
+              maxLength: 255
+            crossStreet1:
+              type: string
+              maxLength: 255
+              nullable: true
+            crossStreet2:
+              type: string
+              maxLength: 255
+              nullable: true
+            latitude:
+              type: number
+              minimum: -90
+              maximum: 90
+            longitude:
+              type: number
+              minimum: -180
+              maximum: 180
+          required:
+          - landmark
+          - street
+          - latitude
+          - longitude
+        links:
+          $ref: '#/components/schemas/Links'
+    StopDocument:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/Stop'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    StopCollection:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Stop'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
+    ItineraryStop:
+      type: object
+      description: Posición de una parada dentro de un itinerario.
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - itinerary-stops
+        id:
+          type: string
+        attributes:
+          type: object
+          properties:
+            position:
+              type: integer
+              minimum: 1
+          required:
+          - position
+        relationships:
+          type: object
+          properties:
+            itinerary:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+            stop:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+        links:
+          $ref: '#/components/schemas/Links'
+    ItineraryStopDocument:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/ItineraryStop'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    ItineraryStopCollection:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ItineraryStop'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
+    ItineraryChief:
+      type: object
+      description: Jefe de un itinerario.
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - itinerary-chiefs
+        id:
+          type: string
+        attributes:
+          type: object
+          properties:
+            createdAt:
+              type: string
+              format: date-time
+              readOnly: true
+        relationships:
+          type: object
+          properties:
+            itinerary:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+            worker:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+        links:
+          $ref: '#/components/schemas/Links'
+    ItineraryChiefDocument:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/ItineraryChief'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    ItineraryChiefCollection:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ItineraryChief'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
+    Driver:
+      type: object
+      description: Chofer.
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - drivers
+        id:
+          type: string
+        attributes:
+          type: object
+          properties:
+            createdAt:
+              type: string
+              format: date-time
+              readOnly: true
+        relationships:
+          type: object
+          properties:
+            worker:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+        links:
+          $ref: '#/components/schemas/Links'
+    DriverDocument:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/Driver'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    DriverCollection:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Driver'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
+    TransportChief:
+      type: object
+      description: Jefe de Transporte.
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - transport-chiefs
+        id:
+          type: string
+        attributes:
+          type: object
+          properties:
+            createdAt:
+              type: string
+              format: date-time
+              readOnly: true
+        relationships:
+          type: object
+          properties:
+            worker:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+        links:
+          $ref: '#/components/schemas/Links'
+    TransportChiefDocument:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/TransportChief'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    TransportChiefCollection:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/TransportChief'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
+    Vehicle:
+      type: object
+      description: Vehículo.
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - vehicles
+        id:
+          type: string
+        attributes:
+          type: object
+          properties:
+            plate:
+              type: string
+              maxLength: 20
+              description: Matrícula
+            seats:
+              type: integer
+              minimum: 0
+              description: Asientos sin contar el del chofer
+            standingCapacity:
+              type: integer
+              minimum: 0
+          required:
+          - plate
+          - seats
+          - standingCapacity
+        relationships:
+          type: object
+          properties:
+            vehicleType:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+            driver:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+        meta:
+          type: object
+          readOnly: true
+          properties:
+            totalCapacity:
+              type: integer
+        links:
+          $ref: '#/components/schemas/Links'
+    VehicleDocument:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/Vehicle'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    VehicleCollection:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Vehicle'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
+    Trip:
+      type: object
+      description: Viaje planificado.
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - trips
+        id:
+          type: string
+        attributes:
+          type: object
+          properties:
+            departsAt:
+              type: string
+              format: date-time
+            returnsAt:
+              type: string
+              format: date-time
+              description: Debe ser posterior a departsAt
+            status:
+              type: string
+              enum:
+              - unconfirmed
+              - confirmed
+              - completed
+              - cancelled
+            updatedAt:
+              type: string
+              format: date-time
+              readOnly: true
+          required:
+          - departsAt
+          - returnsAt
+          - status
+        relationships:
+          type: object
+          properties:
+            itinerary:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+            vehicle:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+            driver:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+            completions:
+              type: object
+              properties:
+                data:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/ResourceIdentifier'
+            legs:
+              type: object
+              properties:
+                data:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/ResourceIdentifier'
+        meta:
+          type: object
+          readOnly: true
+          properties:
+            expectedPassengers:
+              type: integer
+            expectedChildren:
+              type: integer
+            overloaded:
+              type: boolean
+            needsReassignment:
+              type: boolean
+            departurePoint:
+              $ref: '#/components/schemas/ResourceIdentifier'
+            returnPoint:
+              $ref: '#/components/schemas/ResourceIdentifier'
+        links:
+          $ref: '#/components/schemas/Links'
+    TripDocument:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/Trip'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    TripCollection:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Trip'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
+    TripCompletion:
+      type: object
+      description: Marca de viaje realizado.
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - trip-completions
+        id:
+          type: string
+        attributes:
+          type: object
+          properties:
+            role:
+              type: string
+              enum:
+              - driver
+              - itinerary_chief
+              - transport_chief
+              - administrator
+              - system
+              readOnly: true
+            createdAt:
+              type: string
+              format: date-time
+              readOnly: true
+        relationships:
+          type: object
+          properties:
+            trip:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+            worker:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+        links:
+          $ref: '#/components/schemas/Links'
+    TripCompletionDocument:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/TripCompletion'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    TripCompletionCollection:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/TripCompletion'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
+    TripLeg:
+      type: object
+      description: Trayecto de un viaje (salida o regreso).
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - trip-legs
+        id:
+          type: string
+        attributes:
+          type: object
+          properties:
+            direction:
+              type: string
+              enum:
+              - outbound
+              - return
+            startedAt:
+              type: string
+              format: date-time
+              readOnly: true
+            endedAt:
+              type: string
+              format: date-time
+              nullable: true
+              description: Enviar en PATCH para finalizar el recorrido
+            endReason:
+              type: string
+              enum:
+              - last_stop
+              - manual
+              nullable: true
+              readOnly: true
+          required:
+          - direction
+        relationships:
+          type: object
+          properties:
+            trip:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+        meta:
+          type: object
+          readOnly: true
+          properties:
+            currentPosition:
+              $ref: '#/components/schemas/Position'
+            activeSensors:
+              type: integer
+        links:
+          $ref: '#/components/schemas/Links'
+    TripLegDocument:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/TripLeg'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    TripLegCollection:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/TripLeg'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
+    TripPosition:
+      type: object
+      description: Posición enviada por un sensor.
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - trip-positions
+        id:
+          type: string
+        attributes:
+          type: object
+          properties:
+            latitude:
+              type: number
+            longitude:
+              type: number
+            accuracyM:
+              type: number
+              nullable: true
+            recordedAt:
+              type: string
+              format: date-time
+          required:
+          - latitude
+          - longitude
+          - recordedAt
+        relationships:
+          type: object
+          properties:
+            tripLeg:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+            worker:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+        links:
+          $ref: '#/components/schemas/Links'
+    TripPositionDocument:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/TripPosition'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    TripPositionCollection:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/TripPosition'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
+    TripStopPass:
+      type: object
+      description: Paso del vehículo por una parada (lo genera el servidor).
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - trip-stop-passes
+        id:
+          type: string
+        attributes:
+          type: object
+          properties:
+            passedAt:
+              type: string
+              format: date-time
+              readOnly: true
+        relationships:
+          type: object
+          properties:
+            tripLeg:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+            stop:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+        links:
+          $ref: '#/components/schemas/Links'
+    TripStopPassDocument:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/TripStopPass'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    TripStopPassCollection:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/TripStopPass'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
+    TripBoarding:
+      type: object
+      description: Registro de subida al vehículo.
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - trip-boardings
+        id:
+          type: string
+        attributes:
+          type: object
+          properties:
+            method:
+              type: string
+              enum:
+              - automatic
+              - self
+              - qr
+              - manual
+            childrenCount:
+              type: integer
+              minimum: 0
+            boardingPassToken:
+              type: string
+              writeOnly: true
+              description: Obligatorio si method = qr
+            boardedAt:
+              type: string
+              format: date-time
+          required:
+          - method
+          - childrenCount
+        relationships:
+          type: object
+          properties:
+            tripLeg:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+            worker:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+            markedBy:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+        links:
+          $ref: '#/components/schemas/Links'
+    TripBoardingDocument:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/TripBoarding'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    TripBoardingCollection:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/TripBoarding'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
+    BoardingPass:
+      type: object
+      description: Token temporal para el código QR del trabajador.
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - boarding-passes
+        id:
+          type: string
+        attributes:
+          type: object
+          properties:
+            token:
+              type: string
+              readOnly: true
+            expiresAt:
+              type: string
+              format: date-time
+              readOnly: true
+        relationships:
+          type: object
+          properties:
+            tripLeg:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+        links:
+          $ref: '#/components/schemas/Links'
+    BoardingPassDocument:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/BoardingPass'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    BoardingPassCollection:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/BoardingPass'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
+    TripPassenger:
+      type: object
+      description: Pasajero esperado en un viaje, en orden de subida.
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - trip-passengers
+        id:
+          type: string
+        attributes:
+          type: object
+          properties:
+            boardingOrder:
+              type: integer
+              readOnly: true
+            eligibleChildren:
+              type: integer
+              readOnly: true
+            boarded:
+              type: boolean
+              readOnly: true
+            boardedChildren:
+              type: integer
+              nullable: true
+              readOnly: true
+        relationships:
+          type: object
+          properties:
+            worker:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+            stop:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+        links:
+          $ref: '#/components/schemas/Links'
+    TripPassengerDocument:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/TripPassenger'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    TripPassengerCollection:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/TripPassenger'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
+    TripMessage:
+      type: object
+      description: Mensaje del chat de un viaje.
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - trip-messages
+        id:
+          type: string
+        attributes:
+          type: object
+          properties:
+            body:
+              type: string
+              maxLength: 1000
+            createdAt:
+              type: string
+              format: date-time
+              readOnly: true
+          required:
+          - body
+        relationships:
+          type: object
+          properties:
+            trip:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+            worker:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+        links:
+          $ref: '#/components/schemas/Links'
+    TripMessageDocument:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/TripMessage'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    TripMessageCollection:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/TripMessage'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
+    Child:
+      type: object
+      description: Hijo declarado.
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - children
+        id:
+          type: string
+        attributes:
+          type: object
+          properties:
+            firstName:
+              type: string
+            lastName:
+              type: string
+            cardNumber:
+              type: string
+              pattern: ^\d{11}$
+              readOnly: true
+              description: Solo para el padre o madre y el Administrador
+        relationships:
+          type: object
+          properties:
+            worker:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+        meta:
+          type: object
+          readOnly: true
+          properties:
+            eligibleUntil:
+              type: string
+              format: date
+              description: Solo para el padre o madre y el Administrador
+            eligible:
+              type: boolean
+        links:
+          $ref: '#/components/schemas/Links'
+    ChildDocument:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/Child'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    ChildCollection:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Child'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
+    Application:
+      type: object
+      description: Solicitud. Los atributos y relaciones extra dependen de `type`.
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - applications
+        id:
+          type: string
+        attributes:
+          type: object
+          properties:
+            type:
+              type: string
+              enum:
+              - itinerary_membership
+              - itinerary_chief
+              - driver
+              - transport_chief
+              - rank_change
+              - child_addition
+              - child_removal
+              - absence
+              - itinerary_leave
+              - itinerary_chief_leave
+              - driver_leave
+              - transport_chief_leave
+              - itinerary_removal
+            status:
+              type: string
+              enum:
+              - pending
+              - approved
+              - rejected
+              - cancelled
+              description: 'En PATCH: approved, rejected o cancelled'
+            resolutionNote:
+              type: string
+              nullable: true
+            resolvedAt:
+              type: string
+              format: date-time
+              nullable: true
+              readOnly: true
+            childFirstName:
+              type: string
+              description: Solo child_addition
+            childLastName:
+              type: string
+              description: Solo child_addition
+            childCardNumber:
+              type: string
+              pattern: ^\d{11}$
+              writeOnly: true
+              description: Solo child_addition
+            startsOn:
+              type: string
+              format: date
+              description: Solo absence
+            endsOn:
+              type: string
+              format: date
+              description: Solo absence
+            observation:
+              type: string
+              nullable: true
+              description: Solo absence
+            createdAt:
+              type: string
+              format: date-time
+              readOnly: true
+          required:
+          - type
+        relationships:
+          type: object
+          properties:
+            worker:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+            resolvedBy:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+            itinerary:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+            stop:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+            rank:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+            child:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+            absenceType:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+        links:
+          $ref: '#/components/schemas/Links'
+    ApplicationDocument:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/Application'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    ApplicationCollection:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Application'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
+    Conversation:
+      type: object
+      description: Conversación con los jefes o con el desarrollador.
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - conversations
+        id:
+          type: string
+        attributes:
+          type: object
+          properties:
+            createdAt:
+              type: string
+              format: date-time
+              readOnly: true
+            lastMessageAt:
+              type: string
+              format: date-time
+              nullable: true
+              readOnly: true
+        relationships:
+          type: object
+          properties:
+            topic:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+            openedBy:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+            itinerary:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+        links:
+          $ref: '#/components/schemas/Links'
+    ConversationDocument:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/Conversation'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    ConversationCollection:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Conversation'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
+    ConversationMessage:
+      type: object
+      description: Mensaje de una conversación.
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - conversation-messages
+        id:
+          type: string
+        attributes:
+          type: object
+          properties:
+            body:
+              type: string
+              maxLength: 1000
+            createdAt:
+              type: string
+              format: date-time
+              readOnly: true
+          required:
+          - body
+        relationships:
+          type: object
+          properties:
+            conversation:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+            worker:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+        links:
+          $ref: '#/components/schemas/Links'
+    ConversationMessageDocument:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/ConversationMessage'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    ConversationMessageCollection:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConversationMessage'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
+    Notice:
+      type: object
+      description: Aviso del servidor.
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - notices
+        id:
+          type: string
+        attributes:
+          type: object
+          properties:
+            type:
+              type: string
+              enum:
+              - application_received
+              - application_resolved
+              - resignation
+              - inactivity_warning
+              - inactivity_removal
+              - trip_needs_reassignment
+              readOnly: true
+            readAt:
+              type: string
+              format: date-time
+              nullable: true
+            createdAt:
+              type: string
+              format: date-time
+              readOnly: true
+        relationships:
+          type: object
+          properties:
+            application:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+            trip:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+        links:
+          $ref: '#/components/schemas/Links'
+    NoticeDocument:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/Notice'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    NoticeCollection:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Notice'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
+    SettingDefinition:
+      type: object
+      description: Definición de un ajuste.
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - setting-definitions
+        id:
+          type: string
+        attributes:
+          type: object
+          properties:
+            key:
+              type: string
+            name:
+              type: string
+            description:
+              type: string
+              nullable: true
+            valueType:
+              type: string
+              enum:
+              - integer
+              - boolean
+              - string
+              - time
+              - option
+            defaultValue:
+              type: string
+            minValue:
+              type: integer
+              nullable: true
+            maxValue:
+              type: integer
+              nullable: true
+            editableBy:
+              type: string
+              enum:
+              - administrator
+              - transport_chief
+              nullable: true
+            userOverridable:
+              type: boolean
+            options:
+              type: array
+              items:
+                type: object
+                properties:
+                  value:
+                    type: string
+                  name:
+                    type: string
+        links:
+          $ref: '#/components/schemas/Links'
+    SettingDefinitionDocument:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/SettingDefinition'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    SettingDefinitionCollection:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/SettingDefinition'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
+    Setting:
+      type: object
+      description: Valor global de un ajuste.
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - settings
+        id:
+          type: string
+        attributes:
+          type: object
+          properties:
+            value:
+              type: string
+          required:
+          - value
+        relationships:
+          type: object
+          properties:
+            definition:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+        links:
+          $ref: '#/components/schemas/Links'
+    SettingDocument:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/Setting'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    SettingCollection:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Setting'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
+    UserSetting:
+      type: object
+      description: Valor de un ajuste para el usuario autenticado.
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - user-settings
+        id:
+          type: string
+        attributes:
+          type: object
+          properties:
+            value:
+              type: string
+          required:
+          - value
+        relationships:
+          type: object
+          properties:
+            definition:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+        links:
+          $ref: '#/components/schemas/Links'
+    UserSettingDocument:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/UserSetting'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    UserSettingCollection:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserSetting'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
+    Statistic:
+      type: object
+      description: Resultado de una estadística.
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - statistics
+        id:
+          type: string
+        attributes:
+          type: object
+          properties:
+            columns:
+              type: array
+              items:
+                type: object
+                properties:
+                  key:
+                    type: string
+                  label:
+                    type: string
+                  type:
+                    type: string
+                    enum:
+                    - string
+                    - integer
+                    - number
+                    - date
+                    - datetime
+                    - percent
+            rows:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+    StatisticDocument:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/Statistic'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    StatisticCollection:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Statistic'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
+    Token:
+      type: object
+      description: Par de tokens JWT.
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - tokens
+        id:
+          type: string
+        attributes:
+          type: object
+          properties:
+            cardNumber:
+              type: string
+              pattern: ^\d{11}$
+              writeOnly: true
+            password:
+              type: string
+              format: password
+              writeOnly: true
+            deviceName:
+              type: string
+              nullable: true
+            refreshToken:
+              type: string
+              description: En /tokens/refresh se envía; en las respuestas se devuelve el nuevo
+            accessToken:
+              type: string
+              readOnly: true
+            tokenType:
+              type: string
+              enum:
+              - Bearer
+              readOnly: true
+            expiresIn:
+              type: integer
+              description: Segundos de validez del token de acceso (1800)
+              readOnly: true
+            refreshExpiresIn:
+              type: integer
+              description: Segundos de validez del token de renovación (7776000)
+              readOnly: true
+        links:
+          $ref: '#/components/schemas/Links'
+    TokenDocument:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/Token'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    TokenCollection:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Token'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
