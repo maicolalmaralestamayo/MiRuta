@@ -35,6 +35,16 @@ php -S localhost:8000 -t public
 
 Con `DOCS_ENABLED=true`, Swagger UI está en <http://localhost:8000/docs>.
 
+## Tareas programadas
+
+Marcan los viajes como realizados, borran chats y aplican la baja por inactividad (ver `docs/02-procesos.md` §2.12). En el servidor hace falta una línea de `cron` que ejecute el planificador cada minuto:
+
+```cron
+* * * * * cd /ruta/a/api && php artisan schedule:run >> /dev/null 2>&1
+```
+
+Se pueden lanzar a mano: `php artisan trips:auto-complete`, `chats:purge-trips`, `chats:purge-expired` y `workers:inactivity`.
+
 ## Pruebas
 
 Con Docker, usando PHP 7.2 y MariaDB 10.6 (las versiones mínimas):
