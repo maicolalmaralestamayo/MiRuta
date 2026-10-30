@@ -466,6 +466,7 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+      security: []
     patch:
       tags:
       - Nomencladores
@@ -1944,6 +1945,12 @@ paths:
         description: Id de viaje
         schema:
           type: string
+      - name: filter[active]
+        in: query
+        required: false
+        description: Solo los que están en curso
+        schema:
+          type: boolean
       responses:
         '200':
           description: Correcto
@@ -1961,7 +1968,7 @@ paths:
       tags:
       - Recorrido
       summary: Crear trip-legs
-      description: Iniciar recorrido.
+      description: Iniciar recorrido (chofer del viaje, Jefes de su itinerario o Jefes de Transporte; viaje confirmado).
       requestBody:
         required: true
         content:
@@ -2012,7 +2019,7 @@ paths:
       tags:
       - Recorrido
       summary: Modificar trip-legs
-      description: Finalizar recorrido (`endedAt`).
+      description: 'Finalizar recorrido: enviar `endedAt` (se usa la hora del servidor).'
       parameters:
       - $ref: '#/components/parameters/Id'
       requestBody:
@@ -2055,7 +2062,7 @@ paths:
       - name: filter[tripLeg]
         in: query
         required: false
-        description: Id de trayecto
+        description: Id de trayecto (obligatorio)
         schema:
           type: string
       - name: filter[since]
@@ -2065,6 +2072,12 @@ paths:
         schema:
           type: string
           format: date-time
+      - name: filter[worker]
+        in: query
+        required: false
+        description: Id del sensor
+        schema:
+          type: string
       responses:
         '200':
           description: Correcto
@@ -2473,6 +2486,12 @@ paths:
         description: itinerary_chiefs, transport_chiefs o developer
         schema:
           type: string
+      - name: filter[mine]
+        in: query
+        required: false
+        description: Solo las que abrí
+        schema:
+          type: boolean
       responses:
         '200':
           description: Correcto
@@ -2613,6 +2632,13 @@ paths:
         description: Solo no leídos
         schema:
           type: boolean
+      - name: filter[since]
+        in: query
+        required: false
+        description: Creados después de
+        schema:
+          type: string
+          format: date-time
       responses:
         '200':
           description: Correcto
@@ -2631,7 +2657,7 @@ paths:
       tags:
       - Avisos
       summary: Modificar notices
-      description: Marcar como leído (`readAt`).
+      description: Marcar como leído (`readAt` con fecha) o como no leído (`null`).
       parameters:
       - $ref: '#/components/parameters/Id'
       requestBody:
@@ -2874,6 +2900,12 @@ paths:
         in: query
         required: false
         description: Id de viaje (live-trip)
+        schema:
+          type: string
+      - name: filter[by]
+        in: query
+        required: false
+        description: 'Agrupación: itinerary, vehicle, driver (punctuality, occupancy) o itinerary, stop, rank, sex (workers-distribution)'
         schema:
           type: string
       responses:
@@ -3154,8 +3186,7 @@ components:
             cardNumber:
               type: string
               pattern: ^\d{11}$
-              writeOnly: true
-              description: Carné de identidad. Solo se envía al registrarse; se devuelve únicamente en /me o al Administrador.
+              description: Carné de identidad. Se envía al registrarse; solo se devuelve al propio trabajador y al Administrador.
             firstName:
               type: string
               maxLength: 100
@@ -3226,6 +3257,18 @@ components:
             childrenCount:
               type: integer
               description: Hijos con derecho a viajar hoy
+            roles:
+              type: object
+              properties:
+                isTransportChief:
+                  type: boolean
+                driverId:
+                  type: string
+                  nullable: true
+                chiefOfItineraries:
+                  type: array
+                  items:
+                    type: string
         links:
           $ref: '#/components/schemas/Links'
     WorkerDocument:
@@ -4109,6 +4152,8 @@ components:
               type: integer
             expectedChildren:
               type: integer
+            totalCapacity:
+              type: integer
             overloaded:
               type: boolean
             needsReassignment:
@@ -4274,6 +4319,13 @@ components:
                   allOf:
                   - $ref: '#/components/schemas/ResourceIdentifier'
                   nullable: true
+            startedBy:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
         meta:
           type: object
           readOnly: true
@@ -4282,6 +4334,16 @@ components:
               $ref: '#/components/schemas/Position'
             activeSensors:
               type: integer
+            stopPasses:
+              type: array
+              items:
+                type: object
+                properties:
+                  stopId:
+                    type: string
+                  passedAt:
+                    type: string
+                    format: date-time
         links:
           $ref: '#/components/schemas/Links'
     TripLegDocument:
@@ -4643,6 +4705,15 @@ components:
               type: integer
               nullable: true
               readOnly: true
+            boardingMethod:
+              type: string
+              enum:
+              - automatic
+              - self
+              - qr
+              - manual
+              nullable: true
+              readOnly: true
         relationships:
           type: object
           properties:
@@ -4809,6 +4880,9 @@ components:
               description: Solo para el padre o madre y el Administrador
             eligible:
               type: boolean
+            declared:
+              type: boolean
+              description: Falso mientras la solicitud está pendiente
         links:
           $ref: '#/components/schemas/Links'
     ChildDocument:
@@ -5016,6 +5090,13 @@ components:
         attributes:
           type: object
           properties:
+            recipient:
+              type: string
+              enum:
+              - itinerary_chiefs
+              - transport_chiefs
+              - developer
+              readOnly: true
             createdAt:
               type: string
               format: date-time
@@ -5274,6 +5355,10 @@ components:
             maxValue:
               type: integer
               nullable: true
+            minSetting:
+              type: string
+              nullable: true
+              description: Clave del ajuste global que fija el mínimo
             editableBy:
               type: string
               enum:
@@ -5325,7 +5410,7 @@ components:
           $ref: '#/components/schemas/PageMeta'
     Setting:
       type: object
-      description: Valor global de un ajuste.
+      description: Valor global de un ajuste. El id es la clave.
       required:
       - type
       properties:
@@ -5340,6 +5425,9 @@ components:
           properties:
             value:
               type: string
+            editable:
+              type: boolean
+              readOnly: true
           required:
           - value
         relationships:
@@ -5386,7 +5474,7 @@ components:
           $ref: '#/components/schemas/PageMeta'
     UserSetting:
       type: object
-      description: Valor de un ajuste para el usuario autenticado.
+      description: Valor efectivo de un ajuste para el usuario autenticado. El id es la clave.
       required:
       - type
       properties:
@@ -5401,6 +5489,9 @@ components:
           properties:
             value:
               type: string
+            isCustom:
+              type: boolean
+              readOnly: true
           required:
           - value
         relationships:

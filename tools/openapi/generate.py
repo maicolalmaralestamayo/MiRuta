@@ -31,7 +31,7 @@ def res(rtype, name, tag, desc, attrs, rels=None, meta=None, required=None):
 
 
 res("workers", "Worker", "Trabajadores", "Trabajador y usuario de la app.", {
-    "cardNumber": STR(pattern=r"^\d{11}$", writeOnly=True, description="Carné de identidad. Solo se envía al registrarse; se devuelve únicamente en /me o al Administrador."),
+    "cardNumber": STR(pattern=r"^\d{11}$", description="Carné de identidad. Se envía al registrarse; solo se devuelve al propio trabajador y al Administrador."),
     "firstName": STR(maxLength=100),
     "lastName": STR(maxLength=150, description="Apellidos"),
     "password": STR(format="password", minLength=8, writeOnly=True),
@@ -41,7 +41,9 @@ res("workers", "Worker", "Trabajadores", "Trabajador y usuario de la app.", {
     "active": BOOL(description="Falso = borrado lógico. Solo el Administrador puede cambiarlo."),
     "createdAt": DT(**RO),
 }, {"rank": ("ranks", False), "itinerary": ("itineraries", False), "stop": ("stops", False)},
-    {"childrenCount": INT(description="Hijos con derecho a viajar hoy")},
+    {"childrenCount": INT(description="Hijos con derecho a viajar hoy"),
+     "roles": {"type": "object", "properties": {"isTransportChief": BOOL(), "driverId": STR(nullable=True),
+                                                "chiefOfItineraries": S("array", items=STR())}}},
     ["cardNumber", "firstName", "lastName", "password"])
 res("ranks", "Rank", "Nomencladores", "Jerarquía.", {**NOMEN, "precedence": INT(minimum=1, description="1 = la más alta"), "iconUrl": STR(format="uri", nullable=True, readOnly=True)}, required=["name", "precedence"])
 res("vehicle-types", "VehicleType", "Nomencladores", "Tipo de vehículo.", dict(NOMEN), required=["name"])
@@ -73,7 +75,7 @@ res("trips", "Trip", "Viajes", "Viaje planificado.", {
     "status": STR(enum=["unconfirmed", "confirmed", "completed", "cancelled"]),
     "updatedAt": DT(**RO),
 }, {"itinerary": ("itineraries", False), "vehicle": ("vehicles", False), "driver": ("drivers", False), "completions": ("trip-completions", True), "legs": ("trip-legs", True)},
-    {"expectedPassengers": INT(), "expectedChildren": INT(), "overloaded": BOOL(), "needsReassignment": BOOL(),
+    {"expectedPassengers": INT(), "expectedChildren": INT(), "totalCapacity": INT(), "overloaded": BOOL(), "needsReassignment": BOOL(),
      "departurePoint": {"$ref": "#/components/schemas/ResourceIdentifier"}, "returnPoint": {"$ref": "#/components/schemas/ResourceIdentifier"}},
     ["departsAt", "returnsAt", "status"])
 res("trip-completions", "TripCompletion", "Viajes", "Marca de viaje realizado.", {
@@ -85,7 +87,9 @@ res("trip-legs", "TripLeg", "Recorrido", "Trayecto de un viaje (salida o regreso
     "startedAt": DT(**RO),
     "endedAt": DT(nullable=True, description="Enviar en PATCH para finalizar el recorrido"),
     "endReason": STR(enum=["last_stop", "manual"], nullable=True, readOnly=True),
-}, {"trip": ("trips", False)}, {"currentPosition": {"$ref": "#/components/schemas/Position"}, "activeSensors": INT()}, ["direction"])
+}, {"trip": ("trips", False), "startedBy": ("workers", False)},
+    {"currentPosition": {"$ref": "#/components/schemas/Position"}, "activeSensors": INT(),
+     "stopPasses": S("array", items={"type": "object", "properties": {"stopId": STR(), "passedAt": DT()}})}, ["direction"])
 res("trip-positions", "TripPosition", "Recorrido", "Posición enviada por un sensor.", {
     "latitude": NUM(), "longitude": NUM(), "accuracyM": NUM(nullable=True), "recordedAt": DT(),
 }, {"tripLeg": ("trip-legs", False), "worker": ("workers", False)}, required=["latitude", "longitude", "recordedAt"])
@@ -102,13 +106,15 @@ res("boarding-passes", "BoardingPass", "Subida", "Token temporal para el código
 }, {"tripLeg": ("trip-legs", False)})
 res("trip-passengers", "TripPassenger", "Subida", "Pasajero esperado en un viaje, en orden de subida.", {
     "boardingOrder": INT(**RO), "eligibleChildren": INT(**RO), "boarded": BOOL(**RO), "boardedChildren": INT(nullable=True, **RO),
+    "boardingMethod": STR(enum=["automatic", "self", "qr", "manual"], nullable=True, **RO),
 }, {"worker": ("workers", False), "stop": ("stops", False)})
 res("trip-messages", "TripMessage", "Chats", "Mensaje del chat de un viaje.", {"body": STR(maxLength=1000), "createdAt": DT(**RO)},
     {"trip": ("trips", False), "worker": ("workers", False)}, required=["body"])
 res("children", "Child", "Hijos", "Hijo declarado.", {
     "firstName": STR(), "lastName": STR(),
     "cardNumber": STR(pattern=r"^\d{11}$", readOnly=True, description="Solo para el padre o madre y el Administrador"),
-}, {"worker": ("workers", False)}, {"eligibleUntil": DATE(description="Solo para el padre o madre y el Administrador"), "eligible": BOOL()})
+}, {"worker": ("workers", False)}, {"eligibleUntil": DATE(description="Solo para el padre o madre y el Administrador"), "eligible": BOOL(),
+                                   "declared": BOOL(description="Falso mientras la solicitud está pendiente")})
 res("applications", "Application", "Solicitudes", "Solicitud. Los atributos y relaciones extra dependen de `type`.", {
     "type": STR(enum=["itinerary_membership", "itinerary_chief", "driver", "transport_chief", "rank_change", "child_addition", "child_removal", "absence",
                       "itinerary_leave", "itinerary_chief_leave", "driver_leave", "transport_chief_leave", "itinerary_removal"]),
@@ -124,7 +130,8 @@ res("applications", "Application", "Solicitudes", "Solicitud. Los atributos y re
     "createdAt": DT(**RO),
 }, {"worker": ("workers", False), "resolvedBy": ("workers", False), "itinerary": ("itineraries", False), "stop": ("stops", False),
     "rank": ("ranks", False), "child": ("children", False), "absenceType": ("absence-types", False)}, required=["type"])
-res("conversations", "Conversation", "Chats", "Conversación con los jefes o con el desarrollador.", {"createdAt": DT(**RO), "lastMessageAt": DT(nullable=True, **RO)},
+res("conversations", "Conversation", "Chats", "Conversación con los jefes o con el desarrollador.",
+    {"recipient": STR(enum=["itinerary_chiefs", "transport_chiefs", "developer"], **RO), "createdAt": DT(**RO), "lastMessageAt": DT(nullable=True, **RO)},
     {"topic": ("conversation-topics", False), "openedBy": ("workers", False), "itinerary": ("itineraries", False)})
 res("conversation-messages", "ConversationMessage", "Chats", "Mensaje de una conversación.", {"body": STR(maxLength=1000), "createdAt": DT(**RO)},
     {"conversation": ("conversations", False), "worker": ("workers", False)}, required=["body"])
@@ -136,11 +143,12 @@ res("setting-definitions", "SettingDefinition", "Ajustes", "Definición de un aj
     "key": STR(), "name": STR(), "description": STR(nullable=True),
     "valueType": STR(enum=["integer", "boolean", "string", "time", "option"]),
     "defaultValue": STR(), "minValue": INT(nullable=True), "maxValue": INT(nullable=True),
+    "minSetting": STR(nullable=True, description="Clave del ajuste global que fija el mínimo"),
     "editableBy": STR(enum=["administrator", "transport_chief"], nullable=True), "userOverridable": BOOL(),
     "options": S("array", items={"type": "object", "properties": {"value": STR(), "name": STR()}}),
 })
-res("settings", "Setting", "Ajustes", "Valor global de un ajuste.", {"value": STR()}, {"definition": ("setting-definitions", False)}, required=["value"])
-res("user-settings", "UserSetting", "Ajustes", "Valor de un ajuste para el usuario autenticado.", {"value": STR()}, {"definition": ("setting-definitions", False)}, required=["value"])
+res("settings", "Setting", "Ajustes", "Valor global de un ajuste. El id es la clave.", {"value": STR(), "editable": BOOL(**RO)}, {"definition": ("setting-definitions", False)}, required=["value"])
+res("user-settings", "UserSetting", "Ajustes", "Valor efectivo de un ajuste para el usuario autenticado. El id es la clave.", {"value": STR(), "isCustom": BOOL(**RO)}, {"definition": ("setting-definitions", False)}, required=["value"])
 res("statistics", "Statistic", "Estadísticas", "Resultado de una estadística.", {
     "columns": S("array", items={"type": "object", "properties": {"key": STR(), "label": STR(), "type": STR(enum=["string", "integer", "number", "date", "datetime", "percent"])}}),
     "rows": S("array", items={"type": "object", "additionalProperties": True}),
@@ -328,6 +336,7 @@ paths["/me/settings/{id}"] = {
 crud("ranks", notes={"L": "Público: la pantalla de registro la necesita antes de iniciar sesión.", "C": "Solo el Administrador.", "U": "Solo el Administrador.", "D": "Solo el Administrador."},
      list_filters=[filt("name", "Texto contenido en la denominación")])
 paths["/ranks"]["get"]["security"] = []
+paths["/ranks/{id}"]["get"]["security"] = []
 paths["/ranks/{id}/icon"] = {"post": {"tags": ["Nomencladores"], "summary": "Subir icono de jerarquía",
                                       "description": "Solo el Administrador. `multipart/form-data` (PNG o SVG).", "parameters": [ID],
                                       "requestBody": {"required": True, "content": {"multipart/form-data": {"schema": {"type": "object", "required": ["icon"], "properties": {"icon": STR(format="binary")}}}}},
@@ -359,8 +368,10 @@ paths["/trips/{id}/passengers"] = {"get": op("Subida", "Pasajeros en orden de su
 paths["/trips/{id}/messages"] = {"get": op("Chats", "Mensajes del chat del viaje", resp(200, "TripMessageCollection"),
                                            "Solo mientras el viaje está confirmado.", [ID, filt("since", "Mensajes posteriores a", DT())] + LIST_PARAMS[:2], errs=("401", "403", "404"))}
 crud("trip-completions", "LC", [filt("trip", "Id de viaje")], {"C": "Marca el viaje como realizado. Chofer del viaje, Jefes de su itinerario, Jefes de Transporte o Administrador."})
-crud("trip-legs", "LCRU", [filt("trip", "Id de viaje")], {"C": "Iniciar recorrido.", "U": "Finalizar recorrido (`endedAt`)."})
-crud("trip-positions", "LC", [filt("tripLeg", "Id de trayecto"), filt("since", "Posiciones posteriores a", DT())],
+crud("trip-legs", "LCRU", [filt("trip", "Id de viaje"), filt("active", "Solo los que están en curso", BOOL())],
+     {"C": "Iniciar recorrido (chofer del viaje, Jefes de su itinerario o Jefes de Transporte; viaje confirmado).",
+      "U": "Finalizar recorrido: enviar `endedAt` (se usa la hora del servidor)."})
+crud("trip-positions", "LC", [filt("tripLeg", "Id de trayecto (obligatorio)"), filt("since", "Posiciones posteriores a", DT()), filt("worker", "Id del sensor")],
      {"C": "Envía una posición como sensor. Para enviar varias acumuladas sin conexión, usar /operations."})
 crud("trip-stop-passes", "L", [filt("tripLeg", "Id de trayecto")])
 crud("trip-boardings", "LC", [filt("tripLeg", "Id de trayecto"), filt("worker", "Id de trabajador")])
@@ -375,14 +386,14 @@ crud("applications", "LCRU", [filt("status", "Estado"), filt("type", "Tipo"), fi
       "U": "Enviar `status`: `approved` o `rejected` (quien puede resolver; nunca el propio solicitante) o `cancelled` (solo el solicitante, mientras esté pendiente)."})
 
 # Chats
-crud("conversations", "LCR", [filt("topic", "Id de motivo"), filt("recipient", "itinerary_chiefs, transport_chiefs o developer")],
+crud("conversations", "LCR", [filt("topic", "Id de motivo"), filt("recipient", "itinerary_chiefs, transport_chiefs o developer"), filt("mine", "Solo las que abrí", BOOL())],
      {"C": "Elegir `topic`. Si el motivo es para los Jefes de itinerario, la conversación se asocia al itinerario del trabajador."})
 paths["/conversations/{id}/messages"] = {"get": op("Chats", "Mensajes de una conversación", resp(200, "ConversationMessageCollection"),
                                                    params=[ID, filt("since", "Mensajes posteriores a", DT())] + LIST_PARAMS[:2], errs=("401", "403", "404"))}
 crud("conversation-messages", "C")
 
 # Avisos y ajustes
-crud("notices", "LU", [filt("unread", "Solo no leídos", BOOL())], {"U": "Marcar como leído (`readAt`)."})
+crud("notices", "LU", [filt("unread", "Solo no leídos", BOOL()), filt("since", "Creados después de", DT())], {"U": "Marcar como leído (`readAt` con fecha) o como no leído (`null`)."})
 crud("setting-definitions", "LR")
 crud("settings", "LRU", notes={"U": "Solo quien indique `editableBy` en la definición (y siempre el Administrador). Se valida contra min, max y opciones."})
 
@@ -397,7 +408,8 @@ paths["/statistics/{name}"] = {"get": op("Estadísticas", "Obtener una estadíst
                                           filt("dates", "Fechas explícitas separadas por comas"),
                                           filt("last", "Relativo: número + d/w/m/y (p. ej. 7d, 3m)", STR(pattern=r"^\d+[dwmy]$")),
                                           filt("itinerary", "Id de itinerario"), filt("vehicle", "Id de vehículo"), filt("driver", "Id de chofer"),
-                                          filt("stop", "Id de parada"), filt("worker", "Id de trabajador"), filt("trip", "Id de viaje (live-trip)")],
+                                          filt("stop", "Id de parada"), filt("worker", "Id de trabajador"), filt("trip", "Id de viaje (live-trip)"),
+                                          filt("by", "Agrupación: itinerary, vehicle, driver (punctuality, occupancy) o itinerary, stop, rank, sex (workers-distribution)")],
                                          errs=("400", "401", "403", "404"))}
 
 # Atomic

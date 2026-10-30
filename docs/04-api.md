@@ -199,21 +199,47 @@ Siempre con el formato `errors[]` de JSON:API: `status`, `code`, `title`, `detai
 
 | `code` | HTTP | Cuándo |
 |---|---|---|
-| `CARD_NUMBER_INVALID` | 422 | El carné no tiene 11 dígitos, la fecha no es válida o el siglo no corresponde |
-| `CARD_NUMBER_TAKEN` | 409 | El carné ya está registrado |
+| `BAD_REQUEST` | 400 | Documento o parámetro de consulta mal formado (`source.parameter` indica cuál) |
+| `UNAUTHENTICATED` | 401 | Falta la cabecera `Authorization: Bearer` |
 | `INVALID_CREDENTIALS` | 401 | Carné o contraseña incorrectos |
-| `TOKEN_EXPIRED`, `TOKEN_REVOKED` | 401 | Token de acceso caducado, o token de renovación revocado o ya usado |
+| `TOKEN_INVALID` | 401 | Token mal formado, con firma no válida o de otro tipo |
+| `TOKEN_EXPIRED` | 401 | Token caducado |
+| `TOKEN_REVOKED` | 401 | Token de renovación revocado o reutilizado, o cuenta desactivada |
 | `FORBIDDEN` | 403 | El rol no permite la acción |
 | `SELF_APPROVAL` | 403 | Intento de resolver una solicitud propia |
+| `NOT_FOUND` | 404 | No existe o el usuario no puede verlo |
+| `METHOD_NOT_ALLOWED` | 405 | Método HTTP no admitido en esa ruta |
+| `NOT_ACCEPTABLE` | 406 | La cabecera `Accept` solo admite JSON:API con parámetros no permitidos |
+| `TYPE_MISMATCH` | 409 | `data.type` no corresponde al recurso |
+| `ID_MISMATCH` | 409 | `data.id` no coincide con el de la URL |
+| `DUPLICATE` | 409 | Ya existe un registro con esos datos (clave única) |
+| `CARD_NUMBER_TAKEN` | 409 | El carné ya está registrado |
 | `APPLICATION_NOT_PENDING` | 409 | Resolver o cancelar una solicitud que ya no está pendiente |
-| `STOP_NOT_IN_ITINERARY` | 422 | La parada no pertenece al itinerario |
+| `APPLICATION_ALREADY_PENDING` | 409 | Ya hay una solicitud pendiente de ese tipo |
+| `ALREADY_MEMBER` | 409 | Ya viaja en ese itinerario y esa parada |
+| `ALREADY_HAS_ROLE` | 409 | Ya tiene el rol que pide |
+| `STOP_ALREADY_IN_ITINERARY` | 409 | La parada ya está en el itinerario |
 | `STOP_HAS_MEMBERS` | 409 | Quitar del itinerario una parada en la que hay miembros |
-| `CHILD_NOT_ELIGIBLE` | 422 | El niño ya no tiene derecho a viajar |
-| `CHILD_ALREADY_DECLARED` | 409 | Ese niño ya está declarado |
-| `TRIP_OVERLAP` | 409 | Solapamiento de vehículo o chofer al confirmar. `meta.conflictingTripId` indica con qué viaje |
+| `STOP_IN_USE` | 409 | Borrar una parada que está en algún itinerario |
+| `ITINERARY_HAS_MEMBERS` | 409 | Borrar un itinerario con miembros |
+| `CHILD_ALREADY_DECLARED` | 409 | Ese niño ya está declarado o pendiente |
+| `TRIP_OVERLAP` | 409 | Solapamiento de vehículo o chofer al confirmar. `meta.conflictingTripId` y `meta.reason` (`vehicle` o `driver`) |
 | `TRIP_TRANSITION_NOT_ALLOWED` | 409 | Cancelar un viaje realizado, o marcar como realizado uno cancelado |
+| `TRIP_NOT_CONFIRMED` | 409 | Iniciar el recorrido de un viaje no confirmado |
+| `LEG_ALREADY_STARTED` | 409 | Ese trayecto ya se inició |
+| `LEG_NOT_ACTIVE` | 409 | El trayecto no está en curso |
+| `CHAT_NOT_AVAILABLE` | 409 | El chat de un viaje no confirmado |
+| `UNSUPPORTED_MEDIA_TYPE` | 415 | Falta el tipo de contenido JSON:API (o la extensión atómica en `/operations`) |
+| `VALIDATION_ERROR` | 422 | Error de validación de un campo (`source.pointer` indica cuál) |
+| `CARD_NUMBER_INVALID` | 422 | El carné no tiene 11 dígitos, la fecha no es válida o el siglo no corresponde |
+| `CURRENT_PASSWORD_INVALID` | 422 | Falta la contraseña actual o no es correcta |
+| `STOP_NOT_IN_ITINERARY` | 422 | La parada no pertenece al itinerario |
+| `CHILD_NOT_ELIGIBLE` | 422 | El niño ya no tiene derecho a viajar |
 | `TRIP_DATES_INVALID` | 422 | El regreso no es posterior a la salida |
-| `BOARDING_PASS_INVALID` | 422 | QR caducado o de otro trayecto |
+| `NOT_A_PASSENGER` | 422 | El trabajador no es pasajero esperado del viaje |
+| `BOARDING_PASS_INVALID` | 422 | QR caducado, manipulado o de otro trayecto |
 | `CHILDREN_COUNT_EXCEEDED` | 422 | Suben más niños de los que tiene con derecho |
+| `NO_ITINERARY` | 422 | Escribir a los Jefes de itinerario sin ser miembro de ninguno |
 | `SETTING_OUT_OF_RANGE` | 422 | Valor fuera de los límites del ajuste |
-| `UNSUPPORTED_MEDIA_TYPE` | 415 | Falta el tipo de contenido JSON:API |
+| `OPERATION_NOT_SUPPORTED` | 400 | Operación atómica no admitida |
+| `SERVER_ERROR` | 500 | Error interno (el detalle solo aparece con `APP_DEBUG=true`) |
