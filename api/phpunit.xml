@@ -22,6 +22,7 @@
         <env name="APP_KEY" value="base64:2fl+Ktvkfl+Fuz4Qp/A75G2RTiWVA/ZoKZvp6fiiM10="/>
         <env name="APP_LOCALE" value="es"/>
         <env name="CARD_HASH_KEY" value="clave-de-pruebas"/>
+        <env name="JWT_SECRET" value="secreto-jwt-de-pruebas-0123456789abcdef"/>
         <env name="DOCS_ENABLED" value="true"/>
         <env name="CACHE_DRIVER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>

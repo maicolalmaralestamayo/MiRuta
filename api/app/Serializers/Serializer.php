@@ -17,6 +17,14 @@ abstract class Serializer
     abstract public function type(): string;
 
     /**
+     * Identificador del recurso (por defecto, la clave primaria).
+     */
+    public function id(Model $model): string
+    {
+        return (string) $model->getKey();
+    }
+
+    /**
      * Atributos públicos del recurso, en camelCase.
      */
     abstract public function attributes(Model $model, Request $request): array;
@@ -39,7 +47,7 @@ abstract class Serializer
 
     public function selfLink(Model $model): string
     {
-        return url('api/v1/'.$this->type().'/'.$model->getKey());
+        return url('api/v1/'.$this->type().'/'.$this->id($model));
     }
 
     /**

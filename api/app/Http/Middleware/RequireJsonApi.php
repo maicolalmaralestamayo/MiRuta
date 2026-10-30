@@ -13,13 +13,19 @@ use Illuminate\Http\Request;
  */
 class RequireJsonApi
 {
-    public function handle(Request $request, Closure $next)
+    /**
+     * @param string|null $mode "multipart" para las rutas de subida de archivos,
+     *                          que aceptan multipart/form-data
+     */
+    public function handle(Request $request, Closure $next, ?string $mode = null)
     {
         if (! MediaType::isAcceptable($request->header('Accept'))) {
             throw new JsonApiException(406, 'NOT_ACCEPTABLE', 'Tipo no aceptable', 'La cabecera Accept debe admitir '.MediaType::JSON_API.'.');
         }
 
-        if ($this->hasBody($request) && ! MediaType::isValidContentType($request->header('Content-Type'))) {
+        $isMultipart = $mode === 'multipart' && stripos((string) $request->header('Content-Type'), 'multipart/form-data') === 0;
+
+        if ($this->hasBody($request) && ! $isMultipart && ! MediaType::isValidContentType($request->header('Content-Type'))) {
             throw new JsonApiException(415, 'UNSUPPORTED_MEDIA_TYPE', 'Tipo de contenido no admitido', 'La petición debe enviarse con Content-Type: '.MediaType::JSON_API.'.');
         }
 

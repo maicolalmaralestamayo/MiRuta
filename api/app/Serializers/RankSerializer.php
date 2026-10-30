@@ -19,7 +19,7 @@ class RankSerializer extends Serializer
             'description' => $rank->description,
             'observation' => $rank->observation,
             'precedence' => $rank->precedence,
-            'iconUrl' => $rank->icon_path ? url('storage/'.$rank->icon_path) : null,
+            'iconUrl' => $rank->icon_path ? url($rank->icon_path) : null,
         ];
     }
 }

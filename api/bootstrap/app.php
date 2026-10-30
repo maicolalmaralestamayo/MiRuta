@@ -56,6 +56,7 @@ $app->configure('jsonapi');
 
 $app->routeMiddleware([
     'jsonapi' => App\Http\Middleware\RequireJsonApi::class,
+    'auth' => App\Http\Middleware\Authenticate::class,
 ]);
 
 /*
@@ -65,6 +66,7 @@ $app->routeMiddleware([
 */
 
 $app->register(App\Providers\AppServiceProvider::class);
+$app->register(App\Providers\AuthServiceProvider::class);
 
 /*
 |--------------------------------------------------------------------------

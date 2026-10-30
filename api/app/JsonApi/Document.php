@@ -46,6 +46,46 @@ class Document
     }
 
     /**
+     * Documento con recursos ya construidos como arrays (para recursos que
+     * no corresponden a un único modelo, como los tokens).
+     */
+    public static function fromArray($data, array $meta = []): array
+    {
+        $document = ['data' => $data];
+
+        if ($meta) {
+            $document['meta'] = $meta;
+        }
+
+        return $document;
+    }
+
+    /**
+     * Documento con una colección sin paginar.
+     *
+     * @param iterable $models
+     */
+    public function list($models, array $includes = []): array
+    {
+        $data = [];
+
+        foreach ($models as $model) {
+            $data[] = $this->resourceObject($model);
+            $this->collectIncluded($model, $includes);
+        }
+
+        return $this->withIncluded(['data' => $data, 'links' => ['self' => $this->request->fullUrl()]]);
+    }
+
+    /**
+     * Objeto de recurso de un modelo, sin documento alrededor.
+     */
+    public function resourceObjectFor(Model $model): array
+    {
+        return $this->resourceObject($model);
+    }
+
+    /**
      * Documento con una colección paginada.
      *
      * @param string[] $includes
@@ -76,7 +116,7 @@ class Document
 
         $resource = [
             'type' => $serializer->type(),
-            'id' => (string) $model->getKey(),
+            'id' => $serializer->id($model),
             'attributes' => $serializer->attributes($model, $this->request),
         ];
 
@@ -131,7 +171,8 @@ class Document
             return;
         }
 
-        $key = $this->serializerFor($related)->type().':'.$related->getKey();
+        $relatedSerializer = $this->serializerFor($related);
+        $key = $relatedSerializer->type().':'.$relatedSerializer->id($related);
 
         if (! isset($this->included[$key])) {
             $this->included[$key] = $this->resourceObject($related);

@@ -22,4 +22,4 @@ fi
 until docker exec "$DB" mariadb -umitransporte -psecret -e "SELECT 1" mitransporte_test >/dev/null 2>&1; do sleep 1; done
 
 docker run --rm --network "$NETWORK" -v "$ROOT:/repo" -w /repo/api \
-    -e DB_HOST="$DB" mitransporte-php72 vendor/bin/phpunit "$@"
+    -e DB_HOST="$DB" -e APP_DEBUG="${APP_DEBUG:-false}" mitransporte-php72 vendor/bin/phpunit "$@"
