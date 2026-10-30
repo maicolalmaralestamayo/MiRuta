@@ -136,9 +136,9 @@ res("conversations", "Conversation", "Chats", "Conversación con los jefes o con
 res("conversation-messages", "ConversationMessage", "Chats", "Mensaje de una conversación.", {"body": STR(maxLength=1000), "createdAt": DT(**RO)},
     {"conversation": ("conversations", False), "worker": ("workers", False)}, required=["body"])
 res("notices", "Notice", "Avisos", "Aviso del servidor.", {
-    "type": STR(enum=["application_received", "application_resolved", "resignation", "inactivity_warning", "inactivity_removal", "trip_needs_reassignment"], readOnly=True),
+    "type": STR(enum=["application_received", "application_resolved", "resignation", "inactivity_warning", "inactivity_removal", "trip_needs_reassignment", "password_reset_requested"], readOnly=True),
     "readAt": DT(nullable=True), "createdAt": DT(**RO),
-}, {"application": ("applications", False), "trip": ("trips", False)})
+}, {"application": ("applications", False), "trip": ("trips", False), "passwordReset": ("password-resets", False)})
 res("setting-definitions", "SettingDefinition", "Ajustes", "Definición de un ajuste.", {
     "key": STR(), "name": STR(), "description": STR(nullable=True),
     "valueType": STR(enum=["integer", "boolean", "string", "time", "option"]),
@@ -157,11 +157,19 @@ res("app-versions", "AppVersion", "Actualizaciones", "Versión de la app publica
     "versionName": STR(), "versionCode": INT(), "notes": STR(nullable=True), "mandatory": BOOL(),
     "downloadUrl": STR(format="uri"), "sizeBytes": INT(), "sha256": STR(), "publishedAt": DT(),
 }, meta={"installedCount": INT(description="Solo para el Administrador")})
+res("password-resets", "PasswordReset", "Autenticación", "Solicitud de restablecimiento de contraseña. El teléfono y el código solo los ve el Administrador.", {
+    "cardNumber": STR(pattern=r"^\d{11}$", writeOnly=True, description="Solo al solicitarlo"),
+    "phone": STR(description="Teléfono para enviar el código por WhatsApp"),
+    "code": STR(readOnly=True), "status": STR(enum=["pending", "sent", "used", "expired", "cancelled"]),
+    "failedAttempts": INT(**RO), "expiresAt": DT(**RO), "sentAt": DT(nullable=True, **RO), "usedAt": DT(nullable=True, **RO), "createdAt": DT(**RO),
+}, {"worker": ("workers", False)})
 res("tokens", "Token", "Autenticación", "Par de tokens JWT.", {
     "cardNumber": STR(pattern=r"^\d{11}$", writeOnly=True),
     "password": STR(format="password", writeOnly=True),
     "deviceName": STR(nullable=True),
     "refreshToken": STR(description="En /tokens/refresh se envía; en las respuestas se devuelve el nuevo"),
+    "resetCode": STR(writeOnly=True, description="Solo en /tokens/reset-code"),
+    "mustChangePassword": BOOL(**RO),
     "accessToken": STR(**RO),
     "tokenType": STR(enum=["Bearer"], **RO),
     "expiresIn": INT(description="Segundos de validez del token de acceso (1800)", **RO),
@@ -299,6 +307,19 @@ paths["/tokens"] = {
 paths["/tokens/refresh"] = {"post": op("Autenticación", "Renovar tokens", resp(201, "TokenDocument"),
                                        "Envía `attributes.refreshToken`. Devuelve un par nuevo y revoca el token de renovación usado (rotación).",
                                        reqbody=body("TokenDocument"), public=True, errs=("400", "415", "422")) | {"responses": {**resp(201, "TokenDocument"), "401": {"$ref": "#/components/responses/Unauthorized"}, "415": ERR["415"], "422": ERR["422"]}}}
+paths["/tokens/reset-code"] = {"post": op("Autenticación", "Entrar con un código de restablecimiento", resp(201, "TokenDocument"),
+    "Público. Carné + `resetCode`. El código sirve una vez, caduca (`password_reset_ttl_hours`) y admite 5 intentos. "
+    "Cierra las demás sesiones y obliga a cambiar la contraseña: hasta entonces la API responde 403 PASSWORD_CHANGE_REQUIRED salvo en /me.",
+    reqbody=body("TokenDocument"), public=True, errs=("400", "415", "422")) | {"responses": {**resp(201, "TokenDocument"), "401": {"$ref": "#/components/responses/Unauthorized"}, "415": ERR["415"], "422": ERR["422"]}}}
+paths["/password-resets"] = {
+    "post": op("Autenticación", "Pedir restablecer la contraseña", {"202": {"description": "Recibida (la misma respuesta exista o no el carné)"}},
+               "Público. Carné y teléfono. Se genera un código y se avisa al Administrador, que lo envía por WhatsApp.",
+               reqbody=body("PasswordResetDocument"), public=True, errs=("400", "415", "422")),
+    "get": op("Autenticación", "Solicitudes de restablecimiento", resp(200, "PasswordResetCollection"), "Solo el Administrador. Por defecto, las abiertas.",
+              LIST_PARAMS + [filt("status", "Estados separados por comas (por defecto pending,sent)")], errs=("400", "401", "403")),
+}
+paths["/password-resets/{id}"] = {"patch": op("Autenticación", "Marcar como enviado o cancelar", resp(200, "PasswordResetDocument"),
+    "Solo el Administrador. `status`: sent o cancelled.", [ID], body("PasswordResetDocument"), errs=("400", "401", "403", "404", "409", "415", "422"))}
 paths["/tokens/current"] = {"delete": op("Autenticación", "Cerrar sesión en este dispositivo", resp(204), errs=("401",))}
 
 # Trabajadores

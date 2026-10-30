@@ -60,6 +60,9 @@ database/
 | `POST` | `/tokens/refresh` | Renovación con rotación | Con token de renovación |
 | `DELETE` | `/tokens/current` | Cerrar sesión en este dispositivo | Autenticado |
 | `DELETE` | `/tokens` | Cerrar sesión en todos los dispositivos | Autenticado |
+| `POST` | `/password-resets` | Pedir restablecer la contraseña (carné y teléfono) | Público |
+| `POST` | `/tokens/reset-code` | Entrar con el código de restablecimiento; obliga a cambiar la contraseña | Público |
+| `GET`, `PATCH` | `/password-resets`, `/password-resets/{id}` | Ver las solicitudes (teléfono y código) y marcarlas como enviadas o canceladas | Administrador |
 
 Las demás rutas exigen `Authorization: Bearer <token de acceso>`.
 
@@ -242,6 +245,9 @@ Siempre con el formato `errors[]` de JSON:API: `status`, `code`, `title`, `detai
 | `BOARDING_PASS_INVALID` | 422 | QR caducado, manipulado o de otro trayecto |
 | `CHILDREN_COUNT_EXCEEDED` | 422 | Suben más niños de los que tiene con derecho |
 | `NO_ITINERARY` | 422 | Escribir a los Jefes de itinerario sin ser miembro de ninguno |
+| `RESET_CODE_INVALID` | 401 | Código de restablecimiento incorrecto, usado, caducado o con demasiados intentos |
+| `PASSWORD_CHANGE_REQUIRED` | 403 | Entró con un código de restablecimiento y aún no cambió la contraseña |
+| `RESET_NOT_OPEN` | 409 | Marcar como enviada una solicitud ya cerrada |
 | `APK_INVALID` | 422 | El archivo publicado no es un APK |
 | `VERSION_CODE_TOO_LOW` | 422 | El versionCode no es mayor que el de la última versión publicada |
 | `SETTING_OUT_OF_RANGE` | 422 | Valor fuera de los límites del ajuste |

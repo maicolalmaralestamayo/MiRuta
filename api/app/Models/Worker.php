@@ -28,6 +28,7 @@ class Worker extends Model implements AuthenticatableContract, AuthorizableContr
 
     protected $casts = [
         'is_admin' => 'boolean',
+        'must_change_password' => 'boolean',
     ];
 
     /**

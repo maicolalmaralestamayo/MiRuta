@@ -16,6 +16,8 @@ $router->group(['prefix' => 'api/v1', 'middleware' => 'jsonapi'], function () us
     $router->post('tokens', 'TokenController@store');
     $router->post('tokens/refresh', 'TokenController@refresh');
     $router->get('app-versions/latest', 'AppVersionController@latest');
+    $router->post('password-resets', 'PasswordResetController@store');
+    $router->post('tokens/reset-code', 'PasswordResetController@redeem');
 
     // Con sesión
     $router->group(['middleware' => 'auth'], function () use ($router) {
@@ -81,6 +83,8 @@ $router->group(['prefix' => 'api/v1', 'middleware' => 'jsonapi'], function () us
         $router->post('conversation-messages', 'ConversationController@storeMessage');
         $router->get('statistics/{name}', 'StatisticController@show');
         $router->get('app-versions', 'AppVersionController@index');
+        $router->get('password-resets', 'PasswordResetController@index');
+        $router->patch('password-resets/{id}', 'PasswordResetController@update');
         $router->delete('app-versions/{id}', 'AppVersionController@destroy');
     });
 });

@@ -99,6 +99,120 @@ paths:
         '422':
           $ref: '#/components/responses/Unprocessable'
       security: []
+  /tokens/reset-code:
+    post:
+      tags:
+      - Autenticación
+      summary: Entrar con un código de restablecimiento
+      description: 'Público. Carné + `resetCode`. El código sirve una vez, caduca (`password_reset_ttl_hours`) y admite 5
+        intentos. Cierra las demás sesiones y obliga a cambiar la contraseña: hasta entonces la API responde 403 PASSWORD_CHANGE_REQUIRED
+        salvo en /me.'
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/TokenDocument'
+      responses:
+        '201':
+          description: Creado
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/TokenDocument'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+      security: []
+  /password-resets:
+    post:
+      tags:
+      - Autenticación
+      summary: Pedir restablecer la contraseña
+      description: Público. Carné y teléfono. Se genera un código y se avisa al Administrador, que lo envía por WhatsApp.
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetDocument'
+      responses:
+        '202':
+          description: Recibida (la misma respuesta exista o no el carné)
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+      security: []
+    get:
+      tags:
+      - Autenticación
+      summary: Solicitudes de restablecimiento
+      description: Solo el Administrador. Por defecto, las abiertas.
+      parameters:
+      - $ref: '#/components/parameters/PageNumber'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/Sort'
+      - $ref: '#/components/parameters/Include'
+      - name: filter[status]
+        in: query
+        required: false
+        description: Estados separados por comas (por defecto pending,sent)
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/PasswordResetCollection'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /password-resets/{id}:
+    patch:
+      tags:
+      - Autenticación
+      summary: Marcar como enviado o cancelar
+      description: 'Solo el Administrador. `status`: sent o cancelled.'
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetDocument'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/PasswordResetDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
   /tokens/current:
     delete:
       tags:
@@ -5358,6 +5472,7 @@ components:
               - inactivity_warning
               - inactivity_removal
               - trip_needs_reassignment
+              - password_reset_requested
               readOnly: true
             readAt:
               type: string
@@ -5378,6 +5493,13 @@ components:
                   - $ref: '#/components/schemas/ResourceIdentifier'
                   nullable: true
             trip:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+            passwordReset:
               type: object
               properties:
                 data:
@@ -5778,6 +5900,103 @@ components:
           $ref: '#/components/schemas/Links'
         meta:
           $ref: '#/components/schemas/PageMeta'
+    PasswordReset:
+      type: object
+      description: Solicitud de restablecimiento de contraseña. El teléfono y el código solo los ve el Administrador.
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - password-resets
+        id:
+          type: string
+        attributes:
+          type: object
+          properties:
+            cardNumber:
+              type: string
+              pattern: ^\d{11}$
+              writeOnly: true
+              description: Solo al solicitarlo
+            phone:
+              type: string
+              description: Teléfono para enviar el código por WhatsApp
+            code:
+              type: string
+              readOnly: true
+            status:
+              type: string
+              enum:
+              - pending
+              - sent
+              - used
+              - expired
+              - cancelled
+            failedAttempts:
+              type: integer
+              readOnly: true
+            expiresAt:
+              type: string
+              format: date-time
+              readOnly: true
+            sentAt:
+              type: string
+              format: date-time
+              nullable: true
+              readOnly: true
+            usedAt:
+              type: string
+              format: date-time
+              nullable: true
+              readOnly: true
+            createdAt:
+              type: string
+              format: date-time
+              readOnly: true
+        relationships:
+          type: object
+          properties:
+            worker:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+        links:
+          $ref: '#/components/schemas/Links'
+    PasswordResetDocument:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/PasswordReset'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    PasswordResetCollection:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/PasswordReset'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
     Token:
       type: object
       description: Par de tokens JWT.
@@ -5807,6 +6026,13 @@ components:
             refreshToken:
               type: string
               description: En /tokens/refresh se envía; en las respuestas se devuelve el nuevo
+            resetCode:
+              type: string
+              writeOnly: true
+              description: Solo en /tokens/reset-code
+            mustChangePassword:
+              type: boolean
+              readOnly: true
             accessToken:
               type: string
               readOnly: true

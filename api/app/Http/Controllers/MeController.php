@@ -47,13 +47,20 @@ class MeController extends Controller
         if (array_key_exists('password', $attributes)) {
             $current = $request->json('meta.currentPassword');
 
-            if (! is_string($current) || ! Hash::check($current, $worker->password)) {
+            // Tras entrar con un código de restablecimiento no se conoce la actual.
+            if (! $worker->must_change_password && (! is_string($current) || ! Hash::check($current, $worker->password))) {
                 throw new JsonApiException(422, 'CURRENT_PASSWORD_INVALID', 'Contraseña actual incorrecta',
                     'Para cambiar la contraseña hay que enviar la actual en meta.currentPassword.', ['pointer' => '/meta/currentPassword']);
             }
 
             $worker->password = Hash::make($attributes['password']);
-            $tokens->revokeAll($worker->id);
+
+            if ($worker->must_change_password) {
+                // La sesión actual sigue abierta; las demás ya se cerraron al usar el código.
+                $worker->must_change_password = false;
+            } else {
+                $tokens->revokeAll($worker->id);
+            }
         }
 
         $worker->save();

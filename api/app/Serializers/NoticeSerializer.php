@@ -26,6 +26,7 @@ class NoticeSerializer extends Serializer
         return [
             'application' => ['applications', 'application_id', 'application'],
             'trip' => ['trips', 'trip_id', 'trip'],
+            'passwordReset' => ['password-resets', 'password_reset_id', 'passwordReset'],
         ];
     }
 }

@@ -19,6 +19,18 @@
 5. **Foto de perfil** opcional. Si no hay foto, se muestra un icono por defecto.
 6. **Activo e inactivo:** un trabajador está inactivo cuando tiene borrado lógico (`deleted_at`). Reactivarlo es restaurar su fila.
 
+### Contraseña olvidada
+
+Sin correo ni SMS: el código lo envía el Administrador por WhatsApp.
+
+1. En la pantalla de inicio de sesión, el trabajador pulsa **"¿Olvidaste tu contraseña?"** y escribe su **carné** y un **número de teléfono** con WhatsApp. La respuesta es la misma exista o no el carné.
+2. El servidor genera un **código** de 8 caracteres y avisa a los Administradores.
+3. El Administrador comprueba la solicitud y pulsa **Enviar por WhatsApp**: se abre WhatsApp con el mensaje y el código ya escritos.
+4. El trabajador entra con su carné y el código. El código sirve **una sola vez**, caduca a las `password_reset_ttl_hours` horas (24 por defecto) y admite **5 intentos**.
+5. Al entrar se cierran sus demás sesiones y la app le **obliga a elegir una contraseña nueva** antes de hacer cualquier otra cosa.
+
+Una solicitud nueva cancela la anterior. El teléfono y el código se guardan cifrados, solo los ve el Administrador y **se borran** en cuanto la solicitud termina (usada, caducada o cancelada).
+
 ### Privacidad
 
 | Dato | Quién lo ve |
@@ -371,3 +383,4 @@ Se ejecutan con el *scheduler* de Lumen y un `cron` cada minuto:
 | `chats:purge-expired` | Diaria | Borra las conversaciones caducadas |
 | `workers:inactivity` | Diaria | Avisa de la baja por inactividad y la aplica |
 | `tokens:purge` | Diaria | Elimina los tokens de renovación caducados o revocados |
+| `password-resets:expire` | Cada hora | Cierra las solicitudes de restablecimiento caducadas y borra su teléfono y código |

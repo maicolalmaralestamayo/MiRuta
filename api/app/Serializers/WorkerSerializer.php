@@ -35,6 +35,7 @@ class WorkerSerializer extends Serializer
         }
 
         if (self::canSeePrivateData($worker, $request)) {
+            $attributes['mustChangePassword'] = (bool) $worker->must_change_password;
             $attributes = ['cardNumber' => Crypt::decryptString($worker->card_number_encrypted)] + $attributes;
         }
 

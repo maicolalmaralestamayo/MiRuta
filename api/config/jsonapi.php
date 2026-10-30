@@ -25,6 +25,7 @@ return [
         App\Models\Itinerary::class => App\Serializers\ItinerarySerializer::class,
         App\Models\ItineraryChief::class => App\Serializers\ItineraryChiefSerializer::class,
         App\Models\ItineraryStop::class => App\Serializers\ItineraryStopSerializer::class,
+        App\Models\PasswordReset::class => App\Serializers\PasswordResetSerializer::class,
         App\Models\Rank::class => App\Serializers\RankSerializer::class,
         App\Models\SettingDefinition::class => App\Serializers\SettingDefinitionSerializer::class,
         App\Models\Stop::class => App\Serializers\StopSerializer::class,

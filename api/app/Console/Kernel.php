@@ -17,6 +17,7 @@ class Kernel extends ConsoleKernel
         Commands\PurgeTripChats::class,
         Commands\PurgeExpiredConversations::class,
         Commands\RemoveInactiveWorkers::class,
+        Commands\ExpirePasswordResets::class,
     ];
 
     /**
@@ -32,5 +33,6 @@ class Kernel extends ConsoleKernel
         $schedule->command('chats:purge-trips')->everyMinute()->withoutOverlapping();
         $schedule->command('chats:purge-expired')->dailyAt('02:10');
         $schedule->command('workers:inactivity')->dailyAt('02:20');
+        $schedule->command('password-resets:expire')->hourly();
     }
 }

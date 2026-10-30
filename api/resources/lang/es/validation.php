@@ -64,6 +64,8 @@ return [
         'photo' => 'foto',
         'icon' => 'icono',
         'apk' => 'APK',
+        'data.attributes.phone' => 'teléfono',
+        'data.attributes.resetCode' => 'código',
         'versionName' => 'nombre de la versión',
         'versionCode' => 'código de la versión',
         'notes' => 'novedades',
