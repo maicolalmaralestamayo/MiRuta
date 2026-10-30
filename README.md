@@ -15,5 +15,3 @@ Gestión del transporte de los trabajadores de la empresa: itinerarios, paradas,
 | [`docs/`](docs/README.md) | Documentación funcional, técnica y Scrum; especificación OpenAPI |
 | `docker/` | PHP 7.2 y MariaDB para ejecutar las pruebas de la API (`docker/test-api.sh`) |
 | `tools/` | Generador de `docs/openapi.yaml` |
-
-> El repositorio todavía se llama `MiGuagua`. El nombre del producto es **MiTransporte**.
