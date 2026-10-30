@@ -2,6 +2,7 @@
 
 namespace App\Serializers;
 
+use App\Services\ChildEligibility;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
@@ -34,6 +35,22 @@ class WorkerSerializer extends Serializer
         }
 
         return $attributes;
+    }
+
+    public function meta(Model $worker, Request $request): array
+    {
+        if ($worker->trashed()) {
+            return [];
+        }
+
+        return [
+            'childrenCount' => app(ChildEligibility::class)->eligibleCount($worker),
+            'roles' => [
+                'isTransportChief' => $worker->isTransportChief(),
+                'driverId' => $worker->driverId() ? (string) $worker->driverId() : null,
+                'chiefOfItineraries' => array_map('strval', $worker->chiefItineraryIds()),
+            ],
+        ];
     }
 
     public static function canSeePrivateData(Model $worker, Request $request): bool

@@ -80,6 +80,16 @@ class Worker extends Model implements AuthenticatableContract, AuthorizableContr
         return $this->hasMany(ItineraryChief::class);
     }
 
+    public function children()
+    {
+        return $this->hasMany(Child::class);
+    }
+
+    public function applications()
+    {
+        return $this->hasMany(Application::class);
+    }
+
     public function isAdmin(): bool
     {
         return (bool) $this->is_admin;

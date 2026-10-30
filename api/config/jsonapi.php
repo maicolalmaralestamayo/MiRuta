@@ -12,6 +12,9 @@ return [
     */
 
     'serializers' => [
+        App\Models\Application::class => App\Serializers\ApplicationSerializer::class,
+        App\Models\Child::class => App\Serializers\ChildSerializer::class,
+        App\Models\Notice::class => App\Serializers\NoticeSerializer::class,
         App\Models\AbsenceType::class => App\Serializers\AbsenceTypeSerializer::class,
         App\Models\ConversationTopic::class => App\Serializers\ConversationTopicSerializer::class,
         App\Models\Driver::class => App\Serializers\DriverSerializer::class,

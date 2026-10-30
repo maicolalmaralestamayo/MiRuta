@@ -58,9 +58,12 @@ $router->group(['prefix' => 'api/v1', 'middleware' => 'jsonapi'], function () us
         $resource('itinerary-stops', 'ItineraryStopController');
         $resource('vehicles', 'VehicleController');
         $resource('workers', 'WorkerController', ['index', 'show', 'update']);
-        $resource('itinerary-chiefs', 'ItineraryChiefController', ['index', 'show']);
-        $resource('drivers', 'DriverController', ['index', 'show']);
-        $resource('transport-chiefs', 'TransportChiefController', ['index', 'show']);
+        $resource('itinerary-chiefs', 'ItineraryChiefController', ['index', 'show', 'destroy']);
+        $resource('drivers', 'DriverController', ['index', 'show', 'destroy']);
+        $resource('transport-chiefs', 'TransportChiefController', ['index', 'show', 'destroy']);
+        $resource('applications', 'ApplicationController', ['index', 'show', 'store', 'update']);
+        $resource('children', 'ChildController', ['index', 'show']);
+        $resource('notices', 'NoticeController', ['index', 'update']);
     });
 });
 

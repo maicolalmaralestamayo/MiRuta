@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\JsonApi\QueryParameters;
+use App\Models\Application;
 use App\Models\ItineraryChief;
+use App\Models\Worker;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 
@@ -24,5 +26,15 @@ class ItineraryChiefController extends RoleController
         if ($itinerary = $parameters->filter('itinerary')) {
             $query->where('itinerary_id', $itinerary);
         }
+    }
+
+    protected function leaveType(): string
+    {
+        return Application::TYPE_ITINERARY_CHIEF_LEAVE;
+    }
+
+    protected function canRemoveOthers(Worker $user): bool
+    {
+        return $user->isTransportChief();
     }
 }

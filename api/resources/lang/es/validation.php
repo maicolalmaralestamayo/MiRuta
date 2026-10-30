@@ -8,6 +8,7 @@ return [
     |--------------------------------------------------------------------------
     */
 
+    'after_or_equal' => 'El campo :attribute debe ser una fecha igual o posterior a :date.',
     'array' => 'El campo :attribute debe ser una lista.',
     'between' => [
         'numeric' => 'El campo :attribute debe estar entre :min y :max.',
@@ -26,12 +27,14 @@ return [
         'file' => 'El campo :attribute no puede pesar más de :max kilobytes.',
         'numeric' => 'El campo :attribute no puede ser mayor que :max.',
         'string' => 'El campo :attribute no puede tener más de :max caracteres.',
-        'array' => 'El campo :attribute no puede tener más de :max elementos.',
+        'after_or_equal' => 'El campo :attribute debe ser una fecha igual o posterior a :date.',
+    'array' => 'El campo :attribute no puede tener más de :max elementos.',
     ],
     'min' => [
         'numeric' => 'El campo :attribute debe ser al menos :min.',
         'string' => 'El campo :attribute debe tener al menos :min caracteres.',
-        'array' => 'El campo :attribute debe tener al menos :min elementos.',
+        'after_or_equal' => 'El campo :attribute debe ser una fecha igual o posterior a :date.',
+    'array' => 'El campo :attribute debe tener al menos :min elementos.',
     ],
     'numeric' => 'El campo :attribute debe ser un número.',
     'present' => 'El campo :attribute debe estar presente.',
@@ -58,6 +61,14 @@ return [
         'data.attributes.refreshToken' => 'token de renovación',
         'data.attributes.deviceName' => 'nombre del dispositivo',
         'photo' => 'foto',
+        'icon' => 'icono',
+        'data.attributes.childFirstName' => 'nombre del niño',
+        'data.attributes.childLastName' => 'apellidos del niño',
+        'data.attributes.childCardNumber' => 'carné del niño',
+        'data.attributes.startsOn' => 'fecha de inicio',
+        'data.attributes.endsOn' => 'fecha de fin',
+        'data.attributes.status' => 'estado',
+        'data.attributes.type' => 'tipo',
     ],
 
 ];
