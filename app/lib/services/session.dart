@@ -15,7 +15,6 @@ enum SessionState { loading, loggedOut, locked, ready }
 
 /// Sesión del usuario: inicio y cierre, desbloqueo y datos propios.
 class Session extends ChangeNotifier {
-  static const syncTask = 'sync';
   static const biometricKey = 'security.biometric';
   static const rememberCardKey = 'security.remember_card';
 
@@ -98,20 +97,23 @@ class Session extends ChangeNotifier {
     await scheduleBackgroundSync();
   }
 
-  /// Sincronización periódica en segundo plano, con la frecuencia elegida.
+  /// Una tarea periódica por funcionalidad, cada una con la frecuencia que
+  /// eligió el usuario (Android no permite menos de 15 minutos).
   Future<void> scheduleBackgroundSync() async {
-    if (!settings.boolean('background_sync_enabled', true)) {
-      await Workmanager().cancelByUniqueName(syncTask);
-      return;
+    for (final part in SyncPart.values) {
+      if (!settings.boolean('background_sync_enabled', true)) {
+        await Workmanager().cancelByUniqueName(part.task);
+        continue;
+      }
+      final minutes = settings.integer(part.setting, 30);
+      await Workmanager().registerPeriodicTask(
+        part.task,
+        part.task,
+        frequency: Duration(minutes: minutes < 15 ? 15 : minutes),
+        constraints: Constraints(networkType: NetworkType.connected),
+        existingWorkPolicy: ExistingPeriodicWorkPolicy.update,
+      );
     }
-    final minutes = settings.integer('trips_poll_background_minutes', 30);
-    await Workmanager().registerPeriodicTask(
-      syncTask,
-      syncTask,
-      frequency: Duration(minutes: minutes < 15 ? 15 : minutes),
-      constraints: Constraints(networkType: NetworkType.connected),
-      existingWorkPolicy: ExistingPeriodicWorkPolicy.update,
-    );
   }
 
   Future<void> logout({bool everywhere = false}) async {
@@ -125,7 +127,7 @@ class Session extends ChangeNotifier {
 
   Future<void> _clear() async {
     await TrackingService.stop();
-    await Workmanager().cancelByUniqueName(syncTask);
+    await Workmanager().cancelAll();
     await Notifications.cancelAll();
     await Storage.clearUserData();
     me = null;

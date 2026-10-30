@@ -5,6 +5,22 @@ import 'notifications.dart';
 import 'templates.dart';
 import 'user_settings.dart';
 
+/// Partes de la sincronización. Cada una tiene su frecuencia en segundo plano.
+enum SyncPart {
+  trips('trips_poll_background_minutes'),
+  notices('notices_poll_background_minutes'),
+  conversations('conversations_poll_background_minutes'),
+  tripChats('trip_chat_poll_background_minutes');
+
+  final String setting;
+
+  const SyncPart(this.setting);
+
+  String get task => 'sync-$name';
+
+  static SyncPart? fromTask(String task) => values.where((part) => part.task == task).firstOrNull;
+}
+
 /// Sincronización de viajes, avisos y mensajes, con detección de cambios
 /// (docs/07-algoritmos.md §7.15). Se usa con la app abierta y en segundo plano.
 class SyncService {
@@ -13,6 +29,7 @@ class SyncService {
   static const _lastSyncKey = 'user.last_sync';
   static const _lastNoticeKey = 'user.last_notice';
   static const _conversationsKey = 'user.conversations_seen';
+  static const _tripChatsKey = 'user.trip_chats_seen';
   static const meKey = 'user.me';
 
   static const tripInclude = 'itinerary,vehicle.vehicleType,driver.worker';
@@ -40,15 +57,20 @@ class SyncService {
     return json.map((key, value) => MapEntry(key, Stop.fromJson(Map<String, dynamic>.from(value as Map))));
   }
 
-  static Future<void> run(ApiClient api, {bool notifyChanges = true}) async {
+  /// Sincroniza las partes indicadas (todas si no se indica ninguna). En
+  /// segundo plano cada parte tiene su propia tarea con su frecuencia.
+  static Future<void> run(ApiClient api, {Set<SyncPart> parts = const {...SyncPart.values}, bool notifyChanges = true}) async {
     final me = await cachedMe();
     if (me['id'] == null) return;
 
-    final settings = await UserSettings.refresh(api).catchError((_) => UserSettings.cached());
-    await _syncStops(api, me['itineraryId'] as String?);
-    await _syncTrips(api, me, settings, notifyChanges);
-    await _syncNotices(api);
-    await _syncConversations(api);
+    if (parts.contains(SyncPart.trips)) {
+      final settings = await UserSettings.refresh(api).catchError((_) => UserSettings.cached());
+      await _syncStops(api, me['itineraryId'] as String?);
+      await _syncTrips(api, me, settings, notifyChanges);
+    }
+    if (parts.contains(SyncPart.notices)) await _syncNotices(api);
+    if (parts.contains(SyncPart.conversations)) await _syncConversations(api);
+    if (parts.contains(SyncPart.tripChats)) await _syncTripChats(api, me['id'] as String);
   }
 
   static Future<void> _syncStops(ApiClient api, String? itineraryId) async {
@@ -180,6 +202,33 @@ class SyncService {
     await Storage.setJson(_conversationsKey, seen);
   }
 
+  /// Avisa de mensajes nuevos de otros en el chat de los viajes confirmados en curso o próximos.
+  static Future<void> _syncTripChats(ApiClient api, String meId) async {
+    final seen = await Storage.getJson(_tripChatsKey);
+    final now = DateTime.now();
+    final trips = (await cachedTrips()).where((t) => t.isConfirmed && t.returnsAt.isAfter(now) && t.departsAt.isBefore(now.add(const Duration(days: 1))));
+
+    for (final trip in trips) {
+      final since = seen[trip.id] as String?;
+      final messages = (await api.getAll('/trips/${trip.id}/messages', query: {'include': 'worker', 'filter[since]': ?since})).map(Message.from).toList();
+      if (messages.isEmpty) continue;
+      if (since != null) {
+        for (final message in messages.where((m) => m.workerId != meId)) {
+          await Notifications.showMessage('${message.worker?.firstName ?? 'Mensaje'} · ${trip.itineraryName ?? 'Viaje'}', message.body, payload: 'trip:${trip.id}');
+        }
+      }
+      seen[trip.id] = messages.last.createdAt.toUtc().toIso8601String();
+    }
+
+    await Storage.setJson(_tripChatsKey, seen);
+  }
+
+  static Future<void> markTripChatSeen(String tripId, DateTime at) async {
+    final seen = await Storage.getJson(_tripChatsKey);
+    seen[tripId] = at.toUtc().toIso8601String();
+    await Storage.setJson(_tripChatsKey, seen);
+  }
+
   /// Marca una conversación como vista hasta ahora (al abrirla).
   static Future<void> markConversationSeen(String id, DateTime at) async {
     final seen = await Storage.getJson(_conversationsKey);
@@ -188,7 +237,7 @@ class SyncService {
   }
 
   static Future<void> reset() async {
-    for (final key in [_tripsKey, _stopsKey, _lastSyncKey, _lastNoticeKey, _conversationsKey]) {
+    for (final key in [_tripsKey, _stopsKey, _lastSyncKey, _lastNoticeKey, _conversationsKey, _tripChatsKey]) {
       await Storage.setString(key, null);
     }
   }

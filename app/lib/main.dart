@@ -22,7 +22,8 @@ void callbackDispatcher() {
     try {
       await Notifications.init();
       await initializeDateFormatting('es');
-      await SyncService.run(await ApiClient.create());
+      final part = SyncPart.fromTask(task);
+      await SyncService.run(await ApiClient.create(), parts: part == null ? {...SyncPart.values} : {part});
     } catch (_) {
       // Sin conexión o sesión cerrada: se intenta en la siguiente ejecución.
     }

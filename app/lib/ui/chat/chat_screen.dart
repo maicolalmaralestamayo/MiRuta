@@ -19,6 +19,7 @@ class ChatScreen extends StatefulWidget {
   final String parentId;
   final String pollSetting;
   final String? conversationId;
+  final String? tripId;
 
   const ChatScreen._({
     required this.title,
@@ -29,6 +30,7 @@ class ChatScreen extends StatefulWidget {
     required this.parentId,
     required this.pollSetting,
     this.conversationId,
+    this.tripId,
   });
 
   factory ChatScreen.trip({required String tripId, required String title}) => ChatScreen._(
@@ -39,6 +41,7 @@ class ChatScreen extends StatefulWidget {
         relationshipType: 'trips',
         parentId: tripId,
         pollSetting: 'trip_chat_poll_foreground_seconds',
+        tripId: tripId,
       );
 
   factory ChatScreen.conversation({required Conversation conversation}) => ChatScreen._(
@@ -85,6 +88,7 @@ class _ChatScreenState extends State<ChatScreen> {
       if (fresh.isNotEmpty) {
         _scrollDown();
         if (widget.conversationId != null) await SyncService.markConversationSeen(widget.conversationId!, _messages.last.createdAt);
+        if (widget.tripId != null) await SyncService.markTripChatSeen(widget.tripId!, _messages.last.createdAt);
       }
     } on ApiException catch (error) {
       if (mounted) setState(() => _error = error.message);
