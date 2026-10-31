@@ -2,13 +2,13 @@
 
 ## 1.1 Visión
 
-**MiTransporte** es una aplicación para gestionar el transporte que la empresa pone a disposición de sus trabajadores: los itinerarios, sus paradas, los vehículos, los choferes y los viajes de salida y regreso. Además permite seguir los recorridos en tiempo real.
+**MiTransporte** es una aplicación para gestionar el transporte que las empresas (**Entidades**) ponen a disposición de sus trabajadores. La usan varias Entidades a la vez, cada una con sus datos separados. Gestiona los itinerarios, sus paradas, los vehículos, los choferes y los viajes de salida y regreso. Además permite seguir los recorridos en tiempo real.
 
 Sustituye la coordinación manual (listas, llamadas, mensajes sueltos) por un sistema único donde:
 
 - cada trabajador sabe qué transporte le toca, a qué hora, desde dónde y quién lo conduce;
-- el Jefe de Transporte planifica los viajes y ve de inmediato cuándo un vehículo está sobresaturado;
-- los Jefes de itinerario controlan quién sube, en qué orden y en qué parada;
+- el Jefe de Transporte planifica los viajes y ve de inmediato cuándo un vehículo va saturado (de pie) o sobresaturado (no caben);
+- los Jefes de itinerario controlan quién sube y en qué parada;
 - todo cambio queda registrado como historial.
 
 ## 1.2 Stack tecnológico
@@ -35,16 +35,18 @@ Sustituye la coordinación manual (listas, llamadas, mensajes sueltos) por un si
 
 **Incluido:**
 
-- Cuentas de usuario, roles y solicitudes con aprobación jerárquica.
+- Varias **Entidades**, con los datos de cada una separados; el Administrador las gestiona todas.
+- Cuentas de usuario (registro en dos pasos), roles por solicitud o asignados por un superior, y trabajadores sin teléfono registrados por sus jefes.
+- Política de contraseñas con caducidad anual, recuperación del acceso aprobada por el Administrador y conversaciones con el desarrollador sin cuenta.
 - Itinerarios, paradas (con coordenadas), vehículos y choferes.
 - Planificación de viajes (individual y por rango de fechas), confirmación, cancelación y marca de realizado.
-- Detección de sobresaturación.
+- Ocupación en tres niveles: normal, saturado (van de pie) y sobresaturado (no caben). Los niños van cargados y no cuentan.
 - Hijos menores que viajan con sus padres.
 - Notificaciones de salida, regreso, cambios y paso por paradas, con texto configurable.
 - Seguimiento del recorrido en tiempo real, con varios teléfonos como sensores, mapa o línea de hitos, y voz.
-- Registro de subida al transporte (automático, "Ya subí", QR o manual) y orden de subida.
+- Registro de subida al transporte (automático, "Ya subí", QR o manual).
 - Chats: del viaje, con los Jefes de itinerario, con los Jefes de Transporte y con el desarrollador.
-- Estadísticas con gráficos y tablas, exportables a PDF.
+- Estadísticas con gráficos y tablas (solo se ven en la app; no se exportan).
 - Baja automática por inactividad y ausencias temporales.
 
 **Fuera de alcance (por ahora):**
@@ -55,15 +57,15 @@ Sustituye la coordinación manual (listas, llamadas, mensajes sueltos) por un si
 
 ## 1.4 Roles de la aplicación
 
-Todos los usuarios son **trabajadores**. **Una persona puede tener varios roles a la vez** (por ejemplo, chofer y Jefe de itinerario); cada uno se solicita por separado. El **Administrador** tiene, además, todos los permisos de Jefe de Transporte y de Jefe de todos los itinerarios. Los roles solo añaden permisos para aprobar y planificar. Quien tiene un rol sigue viajando en su itinerario y pide los cambios como cualquier otro trabajador.
+Cada persona tiene una **cuenta**. Salvo el **Administrador**, que está fuera del sistema y no es trabajador, cada cuenta tiene un **trabajador** en una sola **Entidad**, identificado por su **Pase**. **Una persona puede tener varios roles a la vez** (por ejemplo, chofer y Jefe de itinerario); cada uno se solicita por separado o lo asigna un superior. Los roles son de la Entidad del trabajador. El **Administrador** ve y hace todo, en todas las Entidades: cuenta como Jefe de Transporte y Jefe de todos los itinerarios. Los roles solo añaden permisos para aprobar y planificar. Quien tiene un rol sigue viajando en su itinerario y pide los cambios como cualquier otro trabajador.
 
 | Rol | Cómo se obtiene | Qué puede hacer |
 |---|---|---|
-| **Administrador** | Es el primer usuario que se registra | Todo. Además es el **desarrollador**: recibe las conversaciones de ideas, errores y consultas sobre la app |
-| **Jefe de Transporte** | Solicitud aprobada por el Administrador | Gestiona vehículos, choferes, itinerarios, paradas y viajes. Aprueba a Jefes de itinerario y a choferes. Hace todo lo que hace un Jefe de itinerario, en cualquier itinerario. Ve todo |
-| **Jefe de itinerario** | Solicitud aprobada por un Jefe de Transporte | En **su** itinerario: **planifica sus viajes**, aprueba solicitudes de miembros, controla la subida y marca viajes como realizados. Puede haber cualquier cantidad por itinerario, pero **cada persona solo puede ser Jefe de un itinerario** |
-| **Chofer** | Solicitud aprobada por un Jefe de Transporte | Ve sus viajes, comparte ubicación, controla la subida y marca sus viajes como realizados. El Jefe de Transporte le asigna un vehículo |
-| **Trabajador** | Registrándose | Pide su itinerario y su parada, ve sus viajes, recibe avisos y sigue el recorrido |
+| **Administrador** | Es la primera cuenta que se crea (no es trabajador) | Todo, en todas las Entidades: crea las Entidades, los nomencladores y los ajustes de la app, y atiende "No puedo entrar". Además es el **desarrollador**: recibe las conversaciones de ideas, errores y consultas, también de quien aún no tiene cuenta |
+| **Jefe de Transporte** | Solicitud aprobada por el Administrador, o asignado por él | En **su Entidad**: gestiona vehículos, choferes, itinerarios, paradas, viajes y los ajustes de la Entidad. Aprueba, asigna y retira Jefes de itinerario y choferes. Registra trabajadores sin teléfono. Hace todo lo que hace un Jefe de itinerario, en cualquier itinerario de su Entidad |
+| **Jefe de itinerario** | Solicitud aprobada por un Jefe de Transporte, o asignado por él | En **su** itinerario: **planifica sus viajes**, aprueba o asigna miembros, registra trabajadores sin teléfono, controla la subida y marca viajes como realizados. Puede haber cualquier cantidad por itinerario, pero **cada persona solo puede ser Jefe de un itinerario** |
+| **Chofer** | Solicitud aprobada por un Jefe de Transporte, o asignado por él | Ve sus viajes, comparte ubicación, controla la subida y marca sus viajes como realizados. El Jefe de Transporte le asigna un vehículo |
+| **Trabajador** | Creando su cuenta y uniéndose a su Entidad, o registrado por un superior | Pide su itinerario y su parada, ve sus viajes, recibe avisos y sigue el recorrido |
 
 ## 1.5 Roles Scrum
 
@@ -77,6 +79,9 @@ Todos los usuarios son **trabajadores**. **Una persona puede tener varios roles 
 
 | Término | Significado |
 |---|---|
+| **Entidad** | Empresa que usa la app. Se muestra por su **abreviatura**. Tiene sus propios itinerarios, paradas, vehículos y trabajadores |
+| **Pase** | Número del trabajador dentro de su Entidad. Único en ella |
+| **Cuenta** | Usuario y contraseña de una persona. El Administrador tiene cuenta pero no es trabajador |
 | **Itinerario** | Recorrido fijo, formado por una lista ordenada de paradas |
 | **Parada** | Lugar donde se suben o se bajan trabajadores. Tiene punto de referencia, calle, entrecalles y coordenadas. Puede estar en varios itinerarios |
 | **Vehículo** (transporte) | Guagua, carro u otro tipo. Tiene matrícula, asientos y capacidad de pie |
@@ -84,8 +89,9 @@ Todos los usuarios son **trabajadores**. **Una persona puede tener varios roles 
 | **Viaje** | Planificación de un itinerario con un vehículo y un chofer, con fecha y hora de salida y de regreso |
 | **Trayecto** | Cada una de las dos partes de un viaje: **salida** (en el orden de las paradas) y **regreso** (en orden inverso) |
 | **Punto de salida / regreso** | La primera y la última parada del itinerario. Se calculan, no se guardan en el viaje |
-| **Sobresaturación** | Situación en que los pasajeros esperados superan la capacidad total del vehículo |
+| **Saturación** | Los trabajadores esperados superan los asientos, pero caben de pie |
+| **Sobresaturación** | Los trabajadores esperados superan la capacidad total (asientos + de pie). Los niños no cuentan |
 | **Sensor** | Teléfono que envía su ubicación durante un trayecto |
-| **Jerarquía** | Categoría del trabajador que determina su prioridad al subir. Es solo un orden, sin ningún otro significado |
+| **Jerarquía** | Categoría del trabajador, común a todas las Entidades. Solo sirve para las estadísticas; cada uno la cambia en su perfil |
 | **Solicitud** | Petición de un trabajador que otro con autoridad aprueba o rechaza. Las solicitudes forman el historial |
-| **Nomenclador** | Tabla de valores editables (jerarquías, tipos de vehículo, tipos de ausencia, motivos de conversación) |
+| **Nomenclador** | Tabla de valores editables, común a todas las Entidades (jerarquías, tipos de vehículo, tipos de ausencia, motivos de conversación, palabras no permitidas en los usuarios) |

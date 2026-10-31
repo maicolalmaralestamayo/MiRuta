@@ -84,7 +84,7 @@ flutter test
 
 ```
 lib/
-  core/        Cliente JSON:API (renovación de tokens), almacenamiento, carné de identidad
+  core/        Cliente JSON:API (renovación de tokens), almacenamiento, reglas de usuario y contraseña
   models/      Modelos construidos a partir de los recursos JSON:API
   services/    Sesión, ajustes, notificaciones, sincronización, recorrido en segundo plano, voz
   ui/          Pantallas por área (auth, home, trips, tracking, applications, chat, profile, stats, settings, admin)

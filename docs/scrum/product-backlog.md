@@ -5,6 +5,7 @@
 - **Estimación:** puntos de historia en escala Fibonacci (1, 2, 3, 5, 8, 13). Los estima el equipo de desarrollo y se revisan en cada refinamiento.
 - **Formato de las historias:** *Como [rol] quiero [acción] para [beneficio]*, con sus criterios de aceptación.
 - **Detalle funcional:** está en [`docs/02-procesos.md`](../02-procesos.md). Las historias hacen referencia a él.
+- **Versión 2:** las historias de las épicas anteriores describen la versión 1 tal como se entregó. Los cambios de la versión 2 (varias Entidades, cuentas separadas de los trabajadores, sin carné, sin orden de subida, sin PDF, etc.) están en [`docs/08-version-2.md`](../08-version-2.md) y prevalecen sobre ellas.
 
 ## Resumen por épica
 

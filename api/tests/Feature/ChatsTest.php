@@ -169,4 +169,29 @@ class ChatsTest extends TestCase
         $this->assertSame(0, ConversationMessage::where('conversation_id', $old->id)->count());
         $this->assertFalse($active->fresh()->trashed());
     }
+
+    public function testCaducidadPropiaDeLasConversacionesSinCuentaYDeLosAvisosLeidos()
+    {
+        $member = $this->createWorker();
+        $topic = ConversationTopic::where('recipient', 'developer')->first();
+        $installation = \App\Models\Installation::create(['secret_hash' => str_repeat('a', 64)]);
+        \App\Models\Setting::create(['setting_definition_id' => \App\Models\SettingDefinition::where('key', 'guest_conversation_retention_days')->value('id'), 'value' => '60']);
+
+        Carbon::setTestNow(Carbon::create(2026, 10, 1, 10));
+        $guest = Conversation::create(['conversation_topic_id' => $topic->id, 'installation_id' => $installation->id, 'guest_name' => 'Ana']);
+        $own = Conversation::create(['conversation_topic_id' => $topic->id, 'opened_by' => $member->user_id]);
+        $read = \App\Models\Notice::create(['user_id' => $member->user_id, 'type' => 'application_resolved', 'read_at' => Carbon::now()]);
+        $unread = \App\Models\Notice::create(['user_id' => $member->user_id, 'type' => 'application_resolved']);
+
+        Carbon::setTestNow(Carbon::create(2026, 11, 2, 10));
+        $this->artisan('chats:purge-expired');
+        $this->assertFalse($guest->fresh()->trashed(), 'sin cuenta caduca a los 60 días');
+        $this->assertTrue(Conversation::withTrashed()->find($own->id)->trashed(), 'con cuenta, a los 30');
+
+        Carbon::setTestNow(Carbon::create(2027, 1, 5, 10));
+        $this->artisan('chats:purge-expired');
+        $this->assertTrue(Conversation::withTrashed()->find($guest->id)->trashed());
+        $this->assertTrue(\App\Models\Notice::withTrashed()->find($read->id)->trashed(), 'leído hace más de 90 días');
+        $this->assertFalse($unread->fresh()->trashed(), 'los no leídos no se borran');
+    }
 }
