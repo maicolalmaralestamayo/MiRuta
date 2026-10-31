@@ -31,6 +31,7 @@ def res(rtype, name, tag, desc, attrs, rels=None, meta=None, required=None):
 
 
 res("workers", "Worker", "Trabajadores", "Trabajador y usuario de la app.", {
+    "username": STR(pattern=r"^[a-z][a-z0-9._]{2,29}$", description="Usuario para iniciar sesión, en minúsculas y único (también entre inactivos). Solo se devuelve al propio trabajador y al Administrador."),
     "cardNumber": STR(pattern=r"^\d{11}$", description="Carné de identidad. Se envía al registrarse; solo se devuelve al propio trabajador y al Administrador."),
     "firstName": STR(maxLength=100),
     "lastName": STR(maxLength=150, description="Apellidos"),
@@ -44,7 +45,7 @@ res("workers", "Worker", "Trabajadores", "Trabajador y usuario de la app.", {
     {"childrenCount": INT(description="Hijos con derecho a viajar hoy"),
      "roles": {"type": "object", "properties": {"isTransportChief": BOOL(), "driverId": STR(nullable=True),
                                                 "chiefOfItineraries": S("array", items=STR())}}},
-    ["cardNumber", "firstName", "lastName", "password"])
+    ["username", "cardNumber", "firstName", "lastName", "password"])
 res("ranks", "Rank", "Nomencladores", "Jerarquía.", {**NOMEN, "precedence": INT(minimum=1, description="1 = la más alta"), "iconUrl": STR(format="uri", nullable=True, readOnly=True)}, required=["name", "precedence"])
 res("vehicle-types", "VehicleType", "Nomencladores", "Tipo de vehículo.", dict(NOMEN), required=["name"])
 res("absence-types", "AbsenceType", "Nomencladores", "Tipo de ausencia.", dict(NOMEN), required=["name"])
@@ -158,13 +159,15 @@ res("app-versions", "AppVersion", "Actualizaciones", "Versión de la app publica
     "downloadUrl": STR(format="uri"), "sizeBytes": INT(), "sha256": STR(), "publishedAt": DT(),
 }, meta={"installedCount": INT(description="Solo para el Administrador")})
 res("password-resets", "PasswordReset", "Autenticación", "Solicitud de restablecimiento de contraseña. El teléfono y el código solo los ve el Administrador.", {
-    "cardNumber": STR(pattern=r"^\d{11}$", writeOnly=True, description="Solo al solicitarlo"),
+    "username": STR(writeOnly=True, description="Solo al solicitarlo. Usuario o carné"),
+    "cardNumber": STR(pattern=r"^\d{11}$", writeOnly=True, description="Obsoleto: usar `username`. Lo envían las versiones de la app anteriores al usuario"),
     "phone": STR(description="Teléfono para enviar el código por WhatsApp"),
     "code": STR(readOnly=True), "status": STR(enum=["pending", "sent", "used", "expired", "cancelled"]),
     "failedAttempts": INT(**RO), "expiresAt": DT(**RO), "sentAt": DT(nullable=True, **RO), "usedAt": DT(nullable=True, **RO), "createdAt": DT(**RO),
 }, {"worker": ("workers", False)})
 res("tokens", "Token", "Autenticación", "Par de tokens JWT.", {
-    "cardNumber": STR(pattern=r"^\d{11}$", writeOnly=True),
+    "username": STR(writeOnly=True, description="Usuario o, como alternativa, carné (11 dígitos)"),
+    "cardNumber": STR(pattern=r"^\d{11}$", writeOnly=True, description="Obsoleto: usar `username`. Lo envían las versiones de la app anteriores al usuario"),
     "password": STR(format="password", writeOnly=True),
     "deviceName": STR(nullable=True),
     "refreshToken": STR(description="En /tokens/refresh se envía; en las respuestas se devuelve el nuevo"),
@@ -300,7 +303,7 @@ def crud(rtype, ops="LCRUD", list_filters=None, notes=None):
 
 # Autenticación
 paths["/tokens"] = {
-    "post": op("Autenticación", "Iniciar sesión", resp(201, "TokenDocument"), "Carné + contraseña. Devuelve token de acceso (30 min) y de renovación (90 días).",
+    "post": op("Autenticación", "Iniciar sesión", resp(201, "TokenDocument"), "Usuario (o carné) + contraseña. Devuelve token de acceso (30 min) y de renovación (90 días).",
                reqbody=body("TokenDocument"), public=True, errs=("400", "415", "422")) | {"responses": {**resp(201, "TokenDocument"), "401": {"$ref": "#/components/responses/Unauthorized"}, "415": ERR["415"], "422": ERR["422"]}},
     "delete": op("Autenticación", "Cerrar sesión en todos los dispositivos", resp(204), "Revoca todos los tokens de renovación del usuario.", errs=("401",)),
 }
@@ -308,12 +311,12 @@ paths["/tokens/refresh"] = {"post": op("Autenticación", "Renovar tokens", resp(
                                        "Envía `attributes.refreshToken`. Devuelve un par nuevo y revoca el token de renovación usado (rotación).",
                                        reqbody=body("TokenDocument"), public=True, errs=("400", "415", "422")) | {"responses": {**resp(201, "TokenDocument"), "401": {"$ref": "#/components/responses/Unauthorized"}, "415": ERR["415"], "422": ERR["422"]}}}
 paths["/tokens/reset-code"] = {"post": op("Autenticación", "Entrar con un código de restablecimiento", resp(201, "TokenDocument"),
-    "Público. Carné + `resetCode`. El código sirve una vez, caduca (`password_reset_ttl_hours`) y admite 5 intentos. "
+    "Público. Usuario (o carné) + `resetCode`. El código sirve una vez, caduca (`password_reset_ttl_hours`) y admite 5 intentos. "
     "Cierra las demás sesiones y obliga a cambiar la contraseña: hasta entonces la API responde 403 PASSWORD_CHANGE_REQUIRED salvo en /me.",
     reqbody=body("TokenDocument"), public=True, errs=("400", "415", "422")) | {"responses": {**resp(201, "TokenDocument"), "401": {"$ref": "#/components/responses/Unauthorized"}, "415": ERR["415"], "422": ERR["422"]}}}
 paths["/password-resets"] = {
-    "post": op("Autenticación", "Pedir restablecer la contraseña", {"202": {"description": "Recibida (la misma respuesta exista o no el carné)"}},
-               "Público. Carné y teléfono. Se genera un código y se avisa al Administrador, que lo envía por WhatsApp.",
+    "post": op("Autenticación", "Pedir restablecer la contraseña", {"202": {"description": "Recibida (la misma respuesta exista o no el usuario)"}},
+               "Público. Usuario (o carné) y teléfono. Se genera un código y se avisa al Administrador, que lo envía por WhatsApp.",
                reqbody=body("PasswordResetDocument"), public=True, errs=("400", "415", "422")),
     "get": op("Autenticación", "Solicitudes de restablecimiento", resp(200, "PasswordResetCollection"), "Solo el Administrador. Por defecto, las abiertas.",
               LIST_PARAMS + [filt("status", "Estados separados por comas (por defecto pending,sent)")], errs=("400", "401", "403")),
@@ -325,11 +328,11 @@ paths["/tokens/current"] = {"delete": op("Autenticación", "Cerrar sesión en es
 # Trabajadores
 paths["/workers"] = {
     "post": op("Trabajadores", "Registrarse", resp(201, "WorkerDocument"),
-               "Público. Carné, nombre, apellidos, jerarquía (relación `rank`) y contraseña. El primer usuario registrado pasa a ser Administrador.",
+               "Público. Carné, usuario, nombre, apellidos, jerarquía (relación `rank`) y contraseña. El primer usuario registrado pasa a ser Administrador.",
                reqbody=body("WorkerDocument"), public=True, errs=("400", "409", "415", "422")),
     "get": op("Trabajadores", "Listar trabajadores", resp(200, "WorkerCollection"), "Solo datos públicos, salvo para el Administrador.",
               LIST_PARAMS + [filt("itinerary", "Id de itinerario"), filt("stop", "Id de parada"), filt("rank", "Id de jerarquía"),
-                             filt("active", "true/false (solo Administrador)", BOOL()), filt("search", "Texto en nombre o apellidos")], errs=("400", "401", "403")),
+                             filt("active", "true/false (solo Administrador)", BOOL()), filt("search", "Texto en nombre, apellidos o usuario")], errs=("400", "401", "403")),
 }
 paths["/workers/{id}"] = {
     "get": op("Trabajadores", "Obtener trabajador", resp(200, "WorkerDocument"), params=[ID, {"$ref": "#/components/parameters/Include"}], errs=("401", "403", "404")),
@@ -337,10 +340,10 @@ paths["/workers/{id}"] = {
                 errs=("400", "401", "403", "404", "415", "422")),
 }
 paths["/me"] = {
-    "get": op("Perfil", "Mi perfil", resp(200, "WorkerDocument"), "Incluye `cardNumber`.", [{"$ref": "#/components/parameters/Include"}], errs=("401",)),
+    "get": op("Perfil", "Mi perfil", resp(200, "WorkerDocument"), "Incluye `username` y `cardNumber`.", [{"$ref": "#/components/parameters/Include"}], errs=("401",)),
     "patch": op("Perfil", "Modificar mi perfil", resp(200, "WorkerDocument"),
-                "Nombre, apellidos o contraseña. Para cambiar la contraseña hay que enviar también `meta.currentPassword`; al cambiarla se revocan todos los tokens de renovación.",
-                reqbody=body("WorkerDocument"), errs=("400", "401", "415", "422")),
+                "Usuario, nombre, apellidos o contraseña. El usuario tiene que estar libre (409 USERNAME_TAKEN). Para cambiar la contraseña hay que enviar también `meta.currentPassword`; al cambiarla se revocan todos los tokens de renovación.",
+                reqbody=body("WorkerDocument"), errs=("400", "401", "409", "415", "422")),
 }
 paths["/me/photo"] = {
     "post": {"tags": ["Perfil"], "summary": "Subir foto de perfil",

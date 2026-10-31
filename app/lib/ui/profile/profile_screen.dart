@@ -8,6 +8,7 @@ import '../../services/session.dart';
 import '../applications/application_forms.dart';
 import '../widgets/common.dart';
 import 'children_screen.dart';
+import 'username_dialog.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -60,8 +61,8 @@ class ProfileScreen extends StatelessWidget {
     final ok = await runAction(context, () => context.api.patch('/me', body), success: 'Contraseña cambiada. Se cerró la sesión en los demás dispositivos.');
     if (ok && context.mounted) {
       // El servidor revocó todas las sesiones: se vuelve a entrar con la nueva contraseña.
-      final card = context.me.cardNumber;
-      if (card != null) await context.session.login(card, next);
+      final login = context.me.username ?? context.me.cardNumber;
+      if (login != null) await context.session.login(login, next);
     }
   }
 
@@ -95,6 +96,13 @@ class ProfileScreen extends StatelessWidget {
           Center(child: Text(me.fullName, style: Theme.of(context).textTheme.titleLarge)),
           Center(child: RankBadge(me.rank)),
           const SectionTitle('Mis datos'),
+          ListTile(
+            leading: const Icon(Icons.person_outline),
+            title: Text(me.username ?? ''),
+            subtitle: const Text('Usuario para entrar a la app'),
+            trailing: const Icon(Icons.edit_outlined),
+            onTap: () => editUsername(context),
+          ),
           ListTile(leading: const Icon(Icons.badge_outlined), title: Text(me.cardNumber ?? ''), subtitle: const Text('Carné (solo lo ves tú y el Administrador)')),
           ListTile(leading: const Icon(Icons.edit_outlined), title: const Text('Cambiar nombre y apellidos'), onTap: () => _editName(context, me)),
           ListTile(leading: const Icon(Icons.password), title: const Text('Cambiar contraseña'), onTap: () => _changePassword(context)),

@@ -129,6 +129,7 @@ erDiagram
     }
     workers {
         bigint id PK
+        varchar username UK "30, minúsculas"
         text card_number_encrypted "cifrado"
         char card_number_hash UK "64, HMAC-SHA256"
         varchar first_name "100"

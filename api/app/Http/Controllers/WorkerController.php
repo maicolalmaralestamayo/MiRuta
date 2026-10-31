@@ -7,6 +7,7 @@ use App\JsonApi\JsonApiResponse;
 use App\JsonApi\QueryParameters;
 use App\Models\Worker;
 use App\Rules\CardNumberRule;
+use App\Rules\UsernameRule;
 use App\Services\TokenService;
 use App\Services\WorkerRegistration;
 use App\Support\CardNumber;
@@ -46,6 +47,7 @@ class WorkerController extends ResourceController
     {
         $data = $this->validateResource($request, 'workers', [
             'attributes.cardNumber' => ['required', 'string', new CardNumberRule()],
+            'attributes.username' => ['required', 'string', new UsernameRule()],
             'attributes.firstName' => ['required', 'string', 'max:100'],
             'attributes.lastName' => ['required', 'string', 'max:150'],
             'attributes.password' => ['required', 'string', 'min:8', 'max:72'],
@@ -57,6 +59,7 @@ class WorkerController extends ResourceController
 
         $worker = app(WorkerRegistration::class)->register(
             CardNumber::tryParse($attributes['cardNumber']),
+            $attributes['username'],
             trim($attributes['firstName']),
             trim($attributes['lastName']),
             (int) $data['relationships']['rank']['data']['id'],
@@ -118,7 +121,8 @@ class WorkerController extends ResourceController
 
         if ($search = $parameters->filter('search')) {
             $query->where(function ($query) use ($search) {
-                $query->where('first_name', 'like', '%'.$search.'%')->orWhere('last_name', 'like', '%'.$search.'%');
+                $query->where('first_name', 'like', '%'.$search.'%')->orWhere('last_name', 'like', '%'.$search.'%')
+                    ->orWhere('username', 'like', '%'.mb_strtolower($search, 'UTF-8').'%');
             });
         }
     }

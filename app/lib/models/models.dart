@@ -42,6 +42,7 @@ class Worker {
   final String? photoUrl;
   final bool isAdmin;
   final bool active;
+  final String? username;
   final String? cardNumber;
   final String? rankId;
   final String? itineraryId;
@@ -59,6 +60,7 @@ class Worker {
     this.photoUrl,
     this.isAdmin = false,
     this.active = true,
+    this.username,
     this.cardNumber,
     this.rankId,
     this.itineraryId,
@@ -79,6 +81,7 @@ class Worker {
       photoUrl: r.string('photoUrl'),
       isAdmin: r.boolean('isAdmin'),
       active: r.attributes['active'] != false,
+      username: r.string('username'),
       cardNumber: r.string('cardNumber'),
       rankId: r.relId('rank')?.id,
       itineraryId: r.relId('itinerary')?.id,

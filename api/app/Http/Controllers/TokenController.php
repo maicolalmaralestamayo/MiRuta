@@ -7,7 +7,6 @@ use App\JsonApi\JsonApiException;
 use App\JsonApi\JsonApiResponse;
 use App\Models\Worker;
 use App\Services\TokenService;
-use App\Support\CardNumber;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 
@@ -28,23 +27,25 @@ class TokenController extends Controller
     }
 
     /**
-     * Inicio de sesión con carné y contraseña.
+     * Inicio de sesión con usuario (o carné) y contraseña.
+     *
+     * attributes.username admite también el carné. attributes.cardNumber se
+     * mantiene para las versiones de la app anteriores al usuario.
      */
     public function store(Request $request)
     {
         $data = $this->validateResource($request, 'tokens', [
-            'attributes.cardNumber' => ['required', 'string'],
+            'attributes.username' => ['required_without:attributes.cardNumber', 'string'],
+            'attributes.cardNumber' => ['required_without:attributes.username', 'string'],
             'attributes.password' => ['required', 'string'],
             'attributes.deviceName' => ['nullable', 'string', 'max:100'],
         ]);
         $attributes = $data['attributes'];
 
-        $worker = preg_match('/^\d{11}$/', $attributes['cardNumber'])
-            ? Worker::where('card_number_hash', CardNumber::hashOf($attributes['cardNumber']))->first()
-            : null;
+        $worker = Worker::findByLogin(self::login($attributes));
 
         if (! Hash::check($attributes['password'], $worker ? $worker->password : self::DUMMY_HASH) || ! $worker) {
-            throw new JsonApiException(401, 'INVALID_CREDENTIALS', 'Credenciales incorrectas', 'El carné o la contraseña no son correctos.');
+            throw new JsonApiException(401, 'INVALID_CREDENTIALS', 'Credenciales incorrectas', 'El usuario o la contraseña no son correctos.');
         }
 
         $deviceName = isset($attributes['deviceName']) ? $attributes['deviceName'] : null;
@@ -90,6 +91,14 @@ class TokenController extends Controller
         $this->tokens->revokeAll($request->user()->id);
 
         return response('', 204);
+    }
+
+    /**
+     * Usuario o carné con el que se identifica el trabajador.
+     */
+    public static function login(array $attributes): string
+    {
+        return isset($attributes['username']) ? (string) $attributes['username'] : (string) $attributes['cardNumber'];
     }
 
     private function respond(array $pair)

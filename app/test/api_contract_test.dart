@@ -16,6 +16,7 @@ void main() {
     final me = Worker.from(fixture('me').resource);
     expect(me.fullName, 'Lucía Pérez');
     expect(me.cardNumber, '80010400010');
+    expect(me.username, 'nombre1.apellido1');
     expect(me.rank?.name, 'Trabajador civil');
     expect(me.itineraryId, isNotNull);
     expect(me.stopId, isNotNull);

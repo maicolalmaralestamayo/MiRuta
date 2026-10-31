@@ -6,6 +6,8 @@ use Illuminate\Auth\Authenticatable;
 use Illuminate\Contracts\Auth\Access\Authorizable as AuthorizableContract;
 use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
 use Illuminate\Database\Eloquent\Model;
+use App\Support\CardNumber;
+use App\Support\Username;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Laravel\Lumen\Auth\Authorizable;
 
@@ -20,7 +22,7 @@ class Worker extends Model implements AuthenticatableContract, AuthorizableContr
     const SEX_MALE = 'M';
 
     protected $fillable = [
-        'card_number_encrypted', 'card_number_hash', 'first_name', 'last_name',
+        'username', 'card_number_encrypted', 'card_number_hash', 'first_name', 'last_name',
         'sex', 'password', 'rank_id', 'photo_path', 'is_admin',
     ];
 
@@ -30,6 +32,25 @@ class Worker extends Model implements AuthenticatableContract, AuthorizableContr
         'is_admin' => 'boolean',
         'must_change_password' => 'boolean',
     ];
+
+    /**
+     * Trabajador activo que inicia sesión con su usuario o, como alternativa,
+     * con su carné (11 dígitos). Un usuario nunca son 11 dígitos: empieza por letra.
+     */
+    public static function findByLogin($login): ?self
+    {
+        if (! is_string($login)) {
+            return null;
+        }
+
+        $login = trim($login);
+
+        if (preg_match('/^\d{11}$/', $login)) {
+            return static::where('card_number_hash', CardNumber::hashOf($login))->first();
+        }
+
+        return Username::isValid($login) ? static::where('username', Username::normalize($login))->first() : null;
+    }
 
     /**
      * Id del token de renovación de la sesión que hace la petición (claim "sid").

@@ -10,6 +10,7 @@ class Storage {
 
   static const _accessToken = 'access_token';
   static const _refreshToken = 'refresh_token';
+  static const _lastLogin = 'last_login';
   static const _lastCard = 'last_card';
 
   static const defaultApiUrl = String.fromEnvironment('API_URL', defaultValue: 'http://10.0.2.2:8000/api/v1');
@@ -32,12 +33,15 @@ class Storage {
     await _secure.delete(key: _refreshToken);
   }
 
-  // Carné recordado (solo en este teléfono)
+  // Usuario recordado (solo en este teléfono). Las versiones anteriores
+  // recordaban el carné: se usa hasta el siguiente inicio de sesión.
 
-  static Future<String?> lastCard() => _secure.read(key: _lastCard);
+  static Future<String?> lastLogin() async => await _secure.read(key: _lastLogin) ?? await _secure.read(key: _lastCard);
 
-  static Future<void> saveLastCard(String? card) =>
-      card == null ? _secure.delete(key: _lastCard) : _secure.write(key: _lastCard, value: card);
+  static Future<void> saveLastLogin(String? login) async {
+    await _secure.delete(key: _lastCard);
+    login == null ? await _secure.delete(key: _lastLogin) : await _secure.write(key: _lastLogin, value: login);
+  }
 
   // Preferencias
 

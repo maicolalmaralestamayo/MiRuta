@@ -4,6 +4,7 @@
 
 1. Cualquiera puede registrarse con:
    - **carné de identidad** (11 dígitos);
+   - **usuario** para iniciar sesión (ver más abajo);
    - **nombre** y **apellidos**;
    - **jerarquía** (del nomenclador);
    - **contraseña**.
@@ -17,16 +18,22 @@
    - **Fecha de nacimiento.** No se guarda.
 4. **El primer usuario** que se registra se convierte en **Administrador**. Los demás empiezan sin itinerario y sin roles.
 5. **Foto de perfil** opcional. Si no hay foto, se muestra un icono por defecto.
-6. **Activo e inactivo:** un trabajador está inactivo cuando tiene borrado lógico (`deleted_at`). Reactivarlo es restaurar su fila.
+6. **Usuario:**
+   - De 3 a 30 caracteres: letras sin tilde, números, punto (`.`) y guion bajo (`_`). Empieza por una letra, así nunca se confunde con un carné.
+   - Se guarda en minúsculas: al entrar da igual escribir `Maria.Perez` o `maria.perez`.
+   - Es único, también entre los trabajadores inactivos.
+   - La app propone uno a partir del nombre y el primer apellido (`maria.perez`); se puede cambiar al registrarse y después en **Mi perfil**.
+   - A los trabajadores que ya existían se les generó uno igual. Si entran con el carné, la app les dice cuál es.
+7. **Activo e inactivo:** un trabajador está inactivo cuando tiene borrado lógico (`deleted_at`). Reactivarlo es restaurar su fila.
 
 ### Contraseña olvidada
 
 Sin correo ni SMS: el código lo envía el Administrador por WhatsApp.
 
-1. En la pantalla de inicio de sesión, el trabajador pulsa **"¿Olvidaste tu contraseña?"** y escribe su **carné** y un **número de teléfono** con WhatsApp. La respuesta es la misma exista o no el carné.
+1. En la pantalla de inicio de sesión, el trabajador pulsa **"¿Olvidaste tu contraseña?"** y escribe su **usuario** (o su carné) y un **número de teléfono** con WhatsApp. La respuesta es la misma exista o no el usuario.
 2. El servidor genera un **código** de 8 caracteres y avisa a los Administradores.
 3. El Administrador comprueba la solicitud y pulsa **Enviar por WhatsApp**: se abre WhatsApp con el mensaje y el código ya escritos.
-4. El trabajador entra con su carné y el código. El código sirve **una sola vez**, caduca a las `password_reset_ttl_hours` horas (24 por defecto) y admite **5 intentos**.
+4. El trabajador entra con su usuario (o su carné) y el código. El código sirve **una sola vez**, caduca a las `password_reset_ttl_hours` horas (24 por defecto) y admite **5 intentos**.
 5. Al entrar se cierran sus demás sesiones y la app le **obliga a elegir una contraseña nueva** antes de hacer cualquier otra cosa.
 
 Una solicitud nueva cancela la anterior. El teléfono y el código se guardan cifrados, solo los ve el Administrador y **se borran** en cuanto la solicitud termina (usada, caducada o cancelada).
@@ -36,22 +43,21 @@ Una solicitud nueva cancela la anterior. El teléfono y el código se guardan ci
 | Dato | Quién lo ve |
 |---|---|
 | Nombre, apellidos, foto, jerarquía (con su icono), cantidad de hijos | Todos |
-| Carné del trabajador | Solo el propio trabajador y el Administrador |
+| Carné y usuario del trabajador | Solo el propio trabajador y el Administrador |
 | Carné y fecha de nacimiento de sus hijos | Solo el propio trabajador y el Administrador |
 
 - El carné se guarda **cifrado** (`card_number_encrypted`). Para iniciar sesión y comprobar que no se repite se usa su **huella** (`card_number_hash`, HMAC-SHA256 con una clave del servidor).
-- La API solo devuelve el carné en `/me`, o al Administrador.
+- La API solo devuelve el carné y el usuario en `/me`, o al Administrador.
 
 ### Inicio de sesión
 
-- Con **carné + contraseña**. Devuelve un token de acceso (30 min) y uno de renovación (90 días).
+- Con **usuario + contraseña**. Como alternativa, en el campo del usuario se puede escribir el **carné** (por si no se recuerda el usuario). Devuelve un token de acceso (30 min) y uno de renovación (90 días).
 - Cada renovación entrega un token de renovación nuevo y revoca el anterior (**rotación**).
 - Si alguien usa un token de renovación que ya se había usado, se considera robado y se revocan **todos** los tokens del trabajador (ver [07-algoritmos.md §7.4](07-algoritmos.md#74-renovación-de-tokens-con-rotación)).
 - Todos los tokens de renovación de un trabajador se revocan al cerrar sesión, al cambiar la contraseña o al desactivarlo.
 - Solo en el teléfono:
-  - la app recuerda el último carné usado;
-  - el teclado del carné es numérico;
-  - el usuario puede activar un **PIN propio de la app** (4 a 6 dígitos), igual en cualquier teléfono. Si lo olvida, entra de nuevo con carné y contraseña.
+  - la app recuerda el último usuario (se puede desactivar en los ajustes);
+  - el usuario puede activar un **PIN propio de la app** (4 a 6 dígitos), igual en cualquier teléfono. Si lo olvida, entra de nuevo con usuario y contraseña.
 
 ## 2.2 Solicitudes
 

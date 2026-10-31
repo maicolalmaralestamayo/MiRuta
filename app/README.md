@@ -24,7 +24,7 @@ Con el emulador de Android y la API en el propio ordenador: `--dart-define=API_U
 ```bash
 flutter build apk --release \
   --target-platform android-arm,android-arm64 \
-  --obfuscate --split-debug-info=build/symbols/1.1.1+3 \
+  --obfuscate --split-debug-info=build/symbols/1.2.0+4 \
   --dart-define=API_URL=https://mi-servidor/api/v1
 # Resultado: build/app/outputs/flutter-apk/app-release.apk
 ```

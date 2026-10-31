@@ -78,6 +78,7 @@ abstract class TestCase extends BaseTestCase
         $worker->forceFill(array_merge([
             'card_number_encrypted' => $card->encrypt(),
             'card_number_hash' => $card->hash(),
+            'username' => 'usuario'.self::$cardSequence,
             'first_name' => 'Nombre'.self::$cardSequence,
             'last_name' => 'Apellido'.self::$cardSequence,
             'sex' => $card->sex(),

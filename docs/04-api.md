@@ -56,11 +56,11 @@ database/
 | Método | Ruta | Descripción | Acceso |
 |---|---|---|---|
 | `POST` | `/workers` | Registro (el primer usuario pasa a ser Administrador) | Público |
-| `POST` | `/tokens` | Inicio de sesión con carné y contraseña | Público |
+| `POST` | `/tokens` | Inicio de sesión con usuario (o carné) y contraseña | Público |
 | `POST` | `/tokens/refresh` | Renovación con rotación | Con token de renovación |
 | `DELETE` | `/tokens/current` | Cerrar sesión en este dispositivo | Autenticado |
 | `DELETE` | `/tokens` | Cerrar sesión en todos los dispositivos | Autenticado |
-| `POST` | `/password-resets` | Pedir restablecer la contraseña (carné y teléfono) | Público |
+| `POST` | `/password-resets` | Pedir restablecer la contraseña (usuario o carné, y teléfono) | Público |
 | `POST` | `/tokens/reset-code` | Entrar con el código de restablecimiento; obliga a cambiar la contraseña | Público |
 | `GET`, `PATCH` | `/password-resets`, `/password-resets/{id}` | Ver las solicitudes (teléfono y código) y marcarlas como enviadas o canceladas | Administrador |
 
@@ -70,7 +70,7 @@ Las demás rutas exigen `Authorization: Bearer <token de acceso>`.
 
 | Recurso | Rutas | Notas |
 |---|---|---|
-| **Perfil propio** | `GET/PATCH /me`, `POST/DELETE /me/photo`, `GET/PATCH /me/settings` | Único lugar, junto con el acceso del Administrador, donde aparece el carné |
+| **Perfil propio** | `GET/PATCH /me`, `POST/DELETE /me/photo`, `GET/PATCH /me/settings` | Único lugar, junto con el acceso del Administrador, donde aparecen el carné y el usuario. `PATCH /me` permite cambiar el usuario |
 | `workers` | `GET /workers`, `GET /workers/{id}`, `PATCH /workers/{id}` | Desactivar o reactivar con el atributo `active` (Administrador). `meta`: `childrenCount` |
 | `ranks` | CRUD + `POST /ranks/{id}/icon` | Gestión: Administrador |
 | `vehicle-types`, `absence-types`, `conversation-topics` | CRUD | Gestión: Administrador y Jefes de Transporte |
@@ -207,7 +207,7 @@ Siempre con el formato `errors[]` de JSON:API: `status`, `code`, `title`, `detai
 |---|---|---|
 | `BAD_REQUEST` | 400 | Documento o parámetro de consulta mal formado (`source.parameter` indica cuál) |
 | `UNAUTHENTICATED` | 401 | Falta la cabecera `Authorization: Bearer` |
-| `INVALID_CREDENTIALS` | 401 | Carné o contraseña incorrectos |
+| `INVALID_CREDENTIALS` | 401 | Usuario (o carné) o contraseña incorrectos |
 | `TOKEN_INVALID` | 401 | Token mal formado, con firma no válida o de otro tipo |
 | `TOKEN_EXPIRED` | 401 | Token caducado |
 | `TOKEN_REVOKED` | 401 | Token de renovación revocado o reutilizado, o cuenta desactivada |
@@ -220,6 +220,7 @@ Siempre con el formato `errors[]` de JSON:API: `status`, `code`, `title`, `detai
 | `ID_MISMATCH` | 409 | `data.id` no coincide con el de la URL |
 | `DUPLICATE` | 409 | Ya existe un registro con esos datos (clave única) |
 | `CARD_NUMBER_TAKEN` | 409 | El carné ya está registrado |
+| `USERNAME_TAKEN` | 409 | El usuario ya existe (también si es de un trabajador inactivo) |
 | `APPLICATION_NOT_PENDING` | 409 | Resolver o cancelar una solicitud que ya no está pendiente |
 | `APPLICATION_ALREADY_PENDING` | 409 | Ya hay una solicitud pendiente de ese tipo |
 | `ALREADY_MEMBER` | 409 | Ya viaja en ese itinerario y esa parada |

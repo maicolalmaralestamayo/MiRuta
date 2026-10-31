@@ -4,6 +4,7 @@ import 'package:workmanager/workmanager.dart';
 import '../core/api_client.dart';
 import '../core/json_api.dart';
 import '../core/storage.dart';
+import '../core/username.dart';
 import '../models/models.dart';
 import 'app_pin.dart';
 import 'notifications.dart';
@@ -15,7 +16,11 @@ enum SessionState { loading, loggedOut, locked, ready }
 
 /// Sesión del usuario: inicio y cierre, desbloqueo y datos propios.
 class Session extends ChangeNotifier {
-  static const rememberCardKey = 'security.remember_card';
+  /// Recordar el usuario en este teléfono (la clave conserva su nombre antiguo).
+  static const rememberLoginKey = 'security.remember_card';
+
+  /// Entró con el carné: hay que decirle cuál es su usuario.
+  bool showUsernameHint = false;
 
   final ApiClient api;
   SessionState state = SessionState.loading;
@@ -40,24 +45,39 @@ class Session extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> login(String cardNumber, String password) async {
+  /// Inicio de sesión con el usuario o, como alternativa, con el carné.
+  Future<void> login(String login, String password) async {
     final document = await api.post('/tokens', resourceData('tokens', attributes: {
-      'cardNumber': cardNumber,
+      'username': login.trim(),
       'password': password,
       'deviceName': 'Android',
     }), auth: false);
     final attributes = document.resource.attributes;
     await Storage.saveTokens(attributes['accessToken'] as String, attributes['refreshToken'] as String);
-    await Storage.saveLastCard(await Storage.getBool(rememberCardKey, fallback: true) ? cardNumber : null);
+    showUsernameHint = Username.isCardNumber(login);
     await SyncService.reset();
     await _enter();
+    await _rememberLogin();
+  }
+
+  /// Se recuerda el usuario, aunque haya entrado con el carné.
+  Future<void> _rememberLogin() async {
+    final remember = await Storage.getBool(rememberLoginKey, fallback: true);
+    await Storage.saveLastLogin(remember ? me?.username : null);
+  }
+
+  Future<void> changeUsername(String username) async {
+    await api.patch('/me', resourceData('workers', attributes: {'username': Username.normalize(username)}));
+    await reloadMe();
+    await _rememberLogin();
+    notifyListeners();
   }
 
   /// Entrar con el código de restablecimiento que envió el Administrador.
   /// Después la app obliga a elegir una contraseña nueva.
-  Future<void> loginWithResetCode(String cardNumber, String code) async {
+  Future<void> loginWithResetCode(String login, String code) async {
     final document = await api.post('/tokens/reset-code', resourceData('tokens', attributes: {
-      'cardNumber': cardNumber,
+      'username': login.trim(),
       'resetCode': code,
       'deviceName': 'Android',
     }), auth: false);
@@ -77,14 +97,15 @@ class Session extends ChangeNotifier {
     SyncService.run(api).catchError((_) {});
   }
 
-  Future<void> register({required String cardNumber, required String firstName, required String lastName, required String rankId, required String password}) async {
+  Future<void> register({required String cardNumber, required String username, required String firstName, required String lastName, required String rankId, required String password}) async {
     await api.post('/workers', resourceData('workers', attributes: {
       'cardNumber': cardNumber,
+      'username': Username.normalize(username),
       'firstName': firstName,
       'lastName': lastName,
       'password': password,
     }, relationships: {'rank': ResourceId('ranks', rankId)}), auth: false);
-    await login(cardNumber, password);
+    await login(username, password);
   }
 
   /// Desbloqueo con el PIN de la app.

@@ -1,17 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../../core/api_exception.dart';
-import '../../core/card_number.dart';
 import '../../core/json_api.dart';
 import '../widgets/common.dart';
 
-/// Contraseña olvidada: 1) pedir el código con el carné y un teléfono con
+/// Contraseña olvidada: 1) pedir el código con el usuario (o el carné) y un teléfono con
 /// WhatsApp; 2) entrar con el código que envía el Administrador.
 class ForgotPasswordScreen extends StatefulWidget {
-  final String initialCard;
+  final String initialLogin;
 
-  const ForgotPasswordScreen({super.key, this.initialCard = ''});
+  const ForgotPasswordScreen({super.key, this.initialLogin = ''});
 
   @override
   State<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
@@ -20,7 +18,7 @@ class ForgotPasswordScreen extends StatefulWidget {
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final _requestForm = GlobalKey<FormState>();
   final _codeForm = GlobalKey<FormState>();
-  late final _card = TextEditingController(text: widget.initialCard);
+  late final _login = TextEditingController(text: widget.initialLogin);
   final _phone = TextEditingController();
   final _code = TextEditingController();
   bool _busy = false;
@@ -35,7 +33,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     });
     try {
       await context.api.post('/password-resets', resourceData('password-resets', attributes: {
-        'cardNumber': _card.text.trim(),
+        'username': _login.text.trim(),
         'phone': _phone.text.trim(),
       }), auth: false);
       setState(() => _requested = true);
@@ -53,7 +51,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       _error = null;
     });
     try {
-      await context.session.loginWithResetCode(_card.text.trim(), _code.text.trim());
+      await context.session.loginWithResetCode(_login.text.trim(), _code.text.trim());
       if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
     } on ApiException catch (error) {
       setState(() => _error = error.message);
@@ -64,12 +62,13 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final cardField = TextFormField(
-      controller: _card,
-      decoration: const InputDecoration(labelText: 'Carné de identidad'),
-      keyboardType: TextInputType.number,
-      inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(11)],
-      validator: validateCard,
+    final loginField = TextFormField(
+      controller: _login,
+      decoration: const InputDecoration(labelText: 'Usuario', helperText: 'O tu carné, si no recuerdas el usuario'),
+      keyboardType: TextInputType.visiblePassword,
+      autocorrect: false,
+      enableSuggestions: false,
+      validator: (value) => value == null || value.trim().isEmpty ? 'Escribe tu usuario' : null,
     );
 
     return Scaffold(
@@ -82,7 +81,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         Form(
           key: _requestForm,
           child: Column(children: [
-            cardField,
+            loginField,
             const SizedBox(height: 12),
             TextFormField(
               controller: _phone,
@@ -113,7 +112,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         Form(
           key: _codeForm,
           child: Column(children: [
-            if (!_requested) ...[cardField, const SizedBox(height: 12)],
+            if (!_requested) ...[loginField, const SizedBox(height: 12)],
             TextFormField(
               controller: _code,
               decoration: const InputDecoration(labelText: 'Código', hintText: 'XXXX-XXXX'),

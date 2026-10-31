@@ -56,10 +56,11 @@
 ## E02 · Cuentas y acceso
 
 ### HU-010 · Registro · M · 5 pts
-*Como persona de la empresa quiero registrarme con mi carné, nombre, apellidos, jerarquía y contraseña para usar la app.*
+*Como persona de la empresa quiero registrarme con mi carné, un usuario, nombre, apellidos, jerarquía y contraseña para usar la app.*
 - Se valida el carné: 11 dígitos, fecha válida y siglo según el 7.º dígito.
 - Un carné repetido devuelve `CARD_NUMBER_TAKEN`.
 - El sexo se calcula a partir del penúltimo dígito del carné.
+- El usuario es único (sin distinguir mayúsculas). Uno repetido devuelve `USERNAME_TAKEN`. La app propone uno a partir del nombre.
 - El registro se hace en la app y en la API (`POST /workers`).
 
 ### HU-011 · Primer usuario Administrador · M · 1 pt
@@ -67,13 +68,14 @@
 - El primer registro tiene `isAdmin = true`. Los siguientes, no.
 
 ### HU-012 · Inicio de sesión · M · 5 pts
-*Como trabajador quiero iniciar sesión con mi carné y mi contraseña para acceder a mis datos.*
+*Como trabajador quiero iniciar sesión con mi usuario y mi contraseña para acceder a mis datos sin escribir el carné.*
 - `POST /tokens` devuelve un token de acceso (30 min) y uno de renovación (90 días).
 - Con credenciales incorrectas devuelve `INVALID_CREDENTIALS`, sin indicar cuál de los dos datos falló.
-- El teclado del carné es numérico.
+- Como alternativa se acepta el carné en lugar del usuario; quien entra así ve cuál es su usuario.
+- El usuario se puede cambiar en Mi perfil.
 
 ### HU-013 · Sesión duradera · M · 3 pts
-*Como trabajador quiero que la app no me pida el carné cada vez para no perder tiempo.*
+*Como trabajador quiero que la app no me pida la contraseña cada vez para no perder tiempo.*
 - La app renueva el token de acceso sin intervención del usuario.
 - Cada renovación entrega un token de renovación nuevo. Reutilizar uno viejo devuelve `TOKEN_REVOKED`.
 
@@ -82,7 +84,7 @@
 - `DELETE /tokens/current` y `DELETE /tokens` revocan los tokens de renovación que corresponden.
 
 ### HU-015 · PIN de la app · S · 3 pts
-*Como trabajador quiero proteger la app con un PIN propio, y que recuerde mi carné, para entrar rápido y con seguridad en cualquier teléfono.*
+*Como trabajador quiero proteger la app con un PIN propio, y que recuerde mi usuario, para entrar rápido y con seguridad en cualquier teléfono.*
 - Se puede activar y desactivar en los ajustes. Funciona sin conexión.
 
 ### HU-016 · Mi perfil · M · 3 pts

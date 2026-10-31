@@ -3,6 +3,7 @@
   "type": "workers",
   "id": "4",
   "attributes": {
+   "username": "nombre1.apellido1",
    "cardNumber": "80010400010",
    "firstName": "Lucía",
    "lastName": "Pérez",

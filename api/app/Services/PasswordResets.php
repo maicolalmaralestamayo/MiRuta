@@ -6,7 +6,6 @@ use App\JsonApi\JsonApiException;
 use App\Models\Notice;
 use App\Models\PasswordReset;
 use App\Models\Worker;
-use App\Support\CardNumber;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
@@ -38,12 +37,12 @@ class PasswordResets
     }
 
     /**
-     * Crea la solicitud y avisa a los Administradores. Si el carné no existe
-     * no hace nada (la respuesta es la misma, para no revelar quién está registrado).
+     * Crea la solicitud y avisa a los Administradores. Si el usuario (o carné)
+     * no existe no hace nada (la respuesta es la misma, para no revelar quién está registrado).
      */
-    public function request(string $cardNumber, string $phone): void
+    public function request(string $login, string $phone): void
     {
-        $worker = Worker::where('card_number_hash', CardNumber::hashOf($cardNumber))->first();
+        $worker = Worker::findByLogin($login);
 
         if (! $worker) {
             return;
@@ -75,14 +74,12 @@ class PasswordResets
      * Comprueba el código. Si es correcto, lo marca como usado y obliga a
      * cambiar la contraseña; devuelve el trabajador para iniciar su sesión.
      */
-    public function redeem(string $cardNumber, string $code): Worker
+    public function redeem(string $login, string $code): Worker
     {
         $invalid = new JsonApiException(401, 'RESET_CODE_INVALID', 'Código no válido',
             'El código no es correcto o ya no es válido. Pide al Administrador uno nuevo.');
 
-        $worker = preg_match('/^\d{11}$/', $cardNumber)
-            ? Worker::where('card_number_hash', CardNumber::hashOf($cardNumber))->first()
-            : null;
+        $worker = Worker::findByLogin($login);
         $reset = $worker
             ? PasswordReset::where('worker_id', $worker->id)->whereIn('status', [PasswordReset::STATUS_PENDING, PasswordReset::STATUS_SENT])->latest('id')->first()
             : null;

@@ -70,19 +70,23 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    A(["Inicio: carné, nombre, apellidos, jerarquía, contraseña"]) --> B["Validar carné (7.1)"]
+    A(["Inicio: carné, usuario, nombre, apellidos, jerarquía, contraseña"]) --> B["Validar carné (7.1)"]
     B --> C{"¿Válido?"}
     C -->|No| X1["422 CARD_NUMBER_INVALID"]
-    C -->|Sí| D["huella = HMAC-SHA256(carné, clave del servidor)"]
+    C -->|Sí| U{"¿El usuario cumple el formato?"}
+    U -->|No| X4["422 usuario inválido"]
+    U -->|Sí| D["huella = HMAC-SHA256(carné, clave del servidor)"]
     D --> E{"¿Existe un trabajador con esa huella, aunque esté inactivo?"}
     E -->|Sí| X2["409 CARD_NUMBER_TAKEN"]
-    E -->|No| F{"¿La jerarquía existe y está activa?"}
+    E -->|No| V{"¿Existe el usuario en minúsculas, aunque esté inactivo?"}
+    V -->|Sí| X5["409 USERNAME_TAKEN"]
+    V -->|No| F{"¿La jerarquía existe y está activa?"}
     F -->|No| X3["422 jerarquía inválida"]
     F -->|Sí| G["Abrir transacción y bloquear la tabla workers para lectura de conteo"]
     G --> H{"¿Hay algún trabajador registrado?"}
     H -->|No| I["is_admin = verdadero"]
     H -->|Sí| J["is_admin = falso"]
-    I --> K["Guardar: carné cifrado, huella, sexo, contraseña con bcrypt"]
+    I --> K["Guardar: usuario en minúsculas, carné cifrado, huella, sexo, contraseña con bcrypt"]
     J --> K
     K --> L["Confirmar transacción"]
     L --> Z(["Fin: 201 con el trabajador"])
@@ -94,8 +98,11 @@ El bloqueo garantiza que, si dos personas se registran a la vez en un sistema va
 
 ```mermaid
 flowchart TD
-    A(["Inicio: carné, contraseña, nombre del dispositivo"]) --> B["huella = HMAC-SHA256(carné)"]
-    B --> C{"¿Existe un trabajador activo con esa huella?"}
+    A(["Inicio: usuario o carné, contraseña, nombre del dispositivo"]) --> B{"¿Son 11 dígitos?"}
+    B -->|Sí, es un carné| B1["Buscar por huella = HMAC-SHA256(carné)"]
+    B -->|No| B2["Buscar por usuario en minúsculas"]
+    B1 --> C{"¿Existe un trabajador activo?"}
+    B2 --> C
     C -->|No| D["Verificar la contraseña contra un hash ficticio, para igualar el tiempo de respuesta"]
     D --> X["401 INVALID_CREDENTIALS"]
     C -->|Sí| E{"¿La contraseña coincide con bcrypt?"}

@@ -24,6 +24,7 @@ class WorkerRegistrationTest extends TestCase
                 'type' => 'workers',
                 'attributes' => array_merge([
                     'cardNumber' => '92071648863',
+                    'username' => 'maicol',
                     'firstName' => 'Maicol',
                     'lastName' => 'Almarales Tamayo',
                     'password' => 'secreto123',
@@ -60,7 +61,7 @@ class WorkerRegistrationTest extends TestCase
     public function testLosSiguientesNoSonAdministradores()
     {
         $this->jsonApi('POST', '/api/v1/workers', $this->registration());
-        $this->jsonApi('POST', '/api/v1/workers', $this->registration(['cardNumber' => '85010100022']));
+        $this->jsonApi('POST', '/api/v1/workers', $this->registration(['cardNumber' => '85010100022', 'username' => 'otro']));
 
         $this->assertResponseStatus(201);
         $this->seeJson(['isAdmin' => false, 'sex' => 'M']);

@@ -28,11 +28,12 @@ class PasswordResetController extends Controller
     public function store(Request $request)
     {
         $data = $this->validateResource($request, 'password-resets', [
-            'attributes.cardNumber' => ['required', 'string', 'regex:/^\d{11}$/'],
+            'attributes.username' => ['required_without:attributes.cardNumber', 'string', 'max:30'],
+            'attributes.cardNumber' => ['required_without:attributes.username', 'string', 'regex:/^\d{11}$/'],
             'attributes.phone' => ['required', 'string', 'regex:/^\+?[0-9 ()\-]{7,20}$/'],
         ]);
 
-        $this->resets->request($data['attributes']['cardNumber'], trim($data['attributes']['phone']));
+        $this->resets->request(TokenController::login($data['attributes']), trim($data['attributes']['phone']));
 
         return JsonApiResponse::make(['meta' => [
             'message' => 'Solicitud enviada. El Administrador te enviará un código por WhatsApp.',
@@ -46,13 +47,14 @@ class PasswordResetController extends Controller
     public function redeem(Request $request, TokenService $tokens)
     {
         $data = $this->validateResource($request, 'tokens', [
-            'attributes.cardNumber' => ['required', 'string'],
+            'attributes.username' => ['required_without:attributes.cardNumber', 'string'],
+            'attributes.cardNumber' => ['required_without:attributes.username', 'string'],
             'attributes.resetCode' => ['required', 'string', 'max:20'],
             'attributes.deviceName' => ['nullable', 'string', 'max:100'],
         ]);
         $attributes = $data['attributes'];
 
-        $worker = $this->resets->redeem($attributes['cardNumber'], $attributes['resetCode']);
+        $worker = $this->resets->redeem(TokenController::login($attributes), $attributes['resetCode']);
         $pair = $tokens->issue($worker, isset($attributes['deviceName']) ? $attributes['deviceName'] : null);
 
         return JsonApiResponse::make(['data' => [

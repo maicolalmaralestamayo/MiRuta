@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../../core/api_exception.dart';
-import '../../core/card_number.dart';
 import '../../core/storage.dart';
 import '../widgets/common.dart';
 import 'forgot_password_screen.dart';
@@ -17,7 +15,7 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _form = GlobalKey<FormState>();
-  final _card = TextEditingController();
+  final _user = TextEditingController();
   final _password = TextEditingController();
   bool _busy = false;
   bool _hidden = true;
@@ -26,8 +24,8 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    Storage.lastCard().then((card) {
-      if (card != null && mounted) setState(() => _card.text = card);
+    Storage.lastLogin().then((login) {
+      if (login != null && mounted) setState(() => _user.text = login);
     });
   }
 
@@ -38,7 +36,7 @@ class _LoginScreenState extends State<LoginScreen> {
       _error = null;
     });
     try {
-      await context.session.login(_card.text.trim(), _password.text);
+      await context.session.login(_user.text.trim(), _password.text);
     } on ApiException catch (error) {
       setState(() => _error = error.message);
     } finally {
@@ -68,11 +66,17 @@ class _LoginScreenState extends State<LoginScreen> {
                 Text('MiTransporte', textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineMedium),
                 const SizedBox(height: 32),
                 TextFormField(
-                  controller: _card,
-                  decoration: const InputDecoration(labelText: 'Carné de identidad', prefixIcon: Icon(Icons.badge_outlined)),
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(11)],
-                  validator: validateCard,
+                  controller: _user,
+                  decoration: const InputDecoration(
+                    labelText: 'Usuario',
+                    prefixIcon: Icon(Icons.person_outline),
+                    helperText: 'Si no lo recuerdas, también puedes entrar con tu carné',
+                  ),
+                  keyboardType: TextInputType.visiblePassword,
+                  autocorrect: false,
+                  enableSuggestions: false,
+                  textInputAction: TextInputAction.next,
+                  validator: (value) => value == null || value.trim().isEmpty ? 'Escribe tu usuario' : null,
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
@@ -97,7 +101,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 8),
                 TextButton(
-                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ForgotPasswordScreen(initialCard: _card.text))),
+                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ForgotPasswordScreen(initialLogin: _user.text))),
                   child: const Text('¿Olvidaste tu contraseña?'),
                 ),
                 TextButton(

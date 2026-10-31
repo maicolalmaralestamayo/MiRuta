@@ -36,14 +36,14 @@ const _groups = <String, List<String>>{
 class _SettingsScreenState extends State<SettingsScreen> {
   final _view = GlobalKey<AsyncViewState<(Map<String, SettingDefinition>, UserSettings)>>();
   bool _pin = false;
-  bool _rememberCard = true;
+  bool _rememberLogin = true;
   String _version = '';
 
   @override
   void initState() {
     super.initState();
     AppPin.isEnabled().then((v) => setState(() => _pin = v));
-    Storage.getBool(Session.rememberCardKey, fallback: true).then((v) => setState(() => _rememberCard = v));
+    Storage.getBool(Session.rememberLoginKey, fallback: true).then((v) => setState(() => _rememberLogin = v));
     AppUpdates.currentVersionName().then((v) => setState(() => _version = v));
   }
 
@@ -115,12 +115,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             if (_pin) ListTile(leading: const Icon(Icons.pin_outlined), title: const Text('Cambiar el PIN'), onTap: _setPin),
             SwitchListTile(
-              title: const Text('Recordar mi carné'),
-              value: _rememberCard,
+              title: const Text('Recordar mi usuario'),
+              subtitle: const Text('Aparece ya escrito al iniciar sesión'),
+              value: _rememberLogin,
               onChanged: (value) async {
-                await Storage.setBool(Session.rememberCardKey, value);
-                if (!value) await Storage.saveLastCard(null);
-                setState(() => _rememberCard = value);
+                await Storage.setBool(Session.rememberLoginKey, value);
+                if (!value) await Storage.saveLastLogin(null);
+                setState(() => _rememberLogin = value);
               },
             ),
             for (final group in _groups.entries) ...[

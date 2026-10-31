@@ -42,7 +42,7 @@ paths:
       tags:
       - Autenticación
       summary: Iniciar sesión
-      description: Carné + contraseña. Devuelve token de acceso (30 min) y de renovación (90 días).
+      description: Usuario (o carné) + contraseña. Devuelve token de acceso (30 min) y de renovación (90 días).
       requestBody:
         required: true
         content:
@@ -104,9 +104,9 @@ paths:
       tags:
       - Autenticación
       summary: Entrar con un código de restablecimiento
-      description: 'Público. Carné + `resetCode`. El código sirve una vez, caduca (`password_reset_ttl_hours`) y admite 5
-        intentos. Cierra las demás sesiones y obliga a cambiar la contraseña: hasta entonces la API responde 403 PASSWORD_CHANGE_REQUIRED
-        salvo en /me.'
+      description: 'Público. Usuario (o carné) + `resetCode`. El código sirve una vez, caduca (`password_reset_ttl_hours`)
+        y admite 5 intentos. Cierra las demás sesiones y obliga a cambiar la contraseña: hasta entonces la API responde 403
+        PASSWORD_CHANGE_REQUIRED salvo en /me.'
       requestBody:
         required: true
         content:
@@ -132,7 +132,8 @@ paths:
       tags:
       - Autenticación
       summary: Pedir restablecer la contraseña
-      description: Público. Carné y teléfono. Se genera un código y se avisa al Administrador, que lo envía por WhatsApp.
+      description: Público. Usuario (o carné) y teléfono. Se genera un código y se avisa al Administrador, que lo envía por
+        WhatsApp.
       requestBody:
         required: true
         content:
@@ -141,7 +142,7 @@ paths:
               $ref: '#/components/schemas/PasswordResetDocument'
       responses:
         '202':
-          description: Recibida (la misma respuesta exista o no el carné)
+          description: Recibida (la misma respuesta exista o no el usuario)
         '400':
           $ref: '#/components/responses/BadRequest'
         '415':
@@ -228,8 +229,8 @@ paths:
       tags:
       - Trabajadores
       summary: Registrarse
-      description: Público. Carné, nombre, apellidos, jerarquía (relación `rank`) y contraseña. El primer usuario registrado
-        pasa a ser Administrador.
+      description: Público. Carné, usuario, nombre, apellidos, jerarquía (relación `rank`) y contraseña. El primer usuario
+        registrado pasa a ser Administrador.
       requestBody:
         required: true
         content:
@@ -289,7 +290,7 @@ paths:
       - name: filter[search]
         in: query
         required: false
-        description: Texto en nombre o apellidos
+        description: Texto en nombre, apellidos o usuario
         schema:
           type: string
       responses:
@@ -363,7 +364,7 @@ paths:
       tags:
       - Perfil
       summary: Mi perfil
-      description: Incluye `cardNumber`.
+      description: Incluye `username` y `cardNumber`.
       parameters:
       - $ref: '#/components/parameters/Include'
       responses:
@@ -379,8 +380,8 @@ paths:
       tags:
       - Perfil
       summary: Modificar mi perfil
-      description: Nombre, apellidos o contraseña. Para cambiar la contraseña hay que enviar también `meta.currentPassword`;
-        al cambiarla se revocan todos los tokens de renovación.
+      description: Usuario, nombre, apellidos o contraseña. El usuario tiene que estar libre (409 USERNAME_TAKEN). Para cambiar
+        la contraseña hay que enviar también `meta.currentPassword`; al cambiarla se revocan todos los tokens de renovación.
       requestBody:
         required: true
         content:
@@ -398,6 +399,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
         '415':
           $ref: '#/components/responses/UnsupportedMediaType'
         '422':
@@ -3396,6 +3399,11 @@ components:
         attributes:
           type: object
           properties:
+            username:
+              type: string
+              pattern: ^[a-z][a-z0-9._]{2,29}$
+              description: Usuario para iniciar sesión, en minúsculas y único (también entre inactivos). Solo se devuelve
+                al propio trabajador y al Administrador.
             cardNumber:
               type: string
               pattern: ^\d{11}$
@@ -3435,6 +3443,7 @@ components:
               format: date-time
               readOnly: true
           required:
+          - username
           - cardNumber
           - firstName
           - lastName
@@ -5915,11 +5924,15 @@ components:
         attributes:
           type: object
           properties:
+            username:
+              type: string
+              writeOnly: true
+              description: Solo al solicitarlo. Usuario o carné
             cardNumber:
               type: string
               pattern: ^\d{11}$
               writeOnly: true
-              description: Solo al solicitarlo
+              description: 'Obsoleto: usar `username`. Lo envían las versiones de la app anteriores al usuario'
             phone:
               type: string
               description: Teléfono para enviar el código por WhatsApp
@@ -6012,10 +6025,15 @@ components:
         attributes:
           type: object
           properties:
+            username:
+              type: string
+              writeOnly: true
+              description: Usuario o, como alternativa, carné (11 dígitos)
             cardNumber:
               type: string
               pattern: ^\d{11}$
               writeOnly: true
+              description: 'Obsoleto: usar `username`. Lo envían las versiones de la app anteriores al usuario'
             password:
               type: string
               format: password

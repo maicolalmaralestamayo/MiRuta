@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../core/api_exception.dart';
 import '../../core/card_number.dart';
+import '../../core/username.dart';
 import '../../models/models.dart';
 import '../widgets/common.dart';
 
@@ -18,6 +19,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _card = TextEditingController();
   final _firstName = TextEditingController();
   final _lastName = TextEditingController();
+  final _username = TextEditingController();
+
+  /// Mientras no lo toque, el usuario se propone a partir del nombre.
+  bool _usernameEdited = false;
   final _password = TextEditingController();
   final _confirmation = TextEditingController();
   List<Rank> _ranks = [];
@@ -49,6 +54,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     try {
       await context.session.register(
         cardNumber: _card.text.trim(),
+        username: _username.text.trim(),
         firstName: _firstName.text.trim(),
         lastName: _lastName.text.trim(),
         rankId: _rankId!,
@@ -60,6 +66,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  void _suggestUsername() {
+    if (_usernameEdited) return;
+    _username.text = _firstName.text.trim().isEmpty && _lastName.text.trim().isEmpty
+        ? ''
+        : Username.suggest(_firstName.text, _lastName.text);
   }
 
   @override
@@ -88,6 +101,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             decoration: const InputDecoration(labelText: 'Nombre'),
             textCapitalization: TextCapitalization.words,
             validator: (v) => v == null || v.trim().isEmpty ? 'Escribe tu nombre' : null,
+            onChanged: (_) => _suggestUsername(),
           ),
           const SizedBox(height: 12),
           TextFormField(
@@ -95,6 +109,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
             decoration: const InputDecoration(labelText: 'Apellidos'),
             textCapitalization: TextCapitalization.words,
             validator: (v) => v == null || v.trim().isEmpty ? 'Escribe tus apellidos' : null,
+            onChanged: (_) => _suggestUsername(),
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _username,
+            decoration: InputDecoration(
+              labelText: 'Usuario',
+              prefixIcon: const Icon(Icons.person_outline),
+              helperText: 'Con él entrarás a la app. Puedes cambiarlo luego en Mi perfil',
+              helperMaxLines: 2,
+              errorText: _error?.fieldError('/username'),
+            ),
+            keyboardType: TextInputType.visiblePassword,
+            autocorrect: false,
+            enableSuggestions: false,
+            inputFormatters: [LengthLimitingTextInputFormatter(30)],
+            validator: validateUsername,
+            onChanged: (_) => _usernameEdited = true,
           ),
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(

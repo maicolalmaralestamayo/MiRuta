@@ -8,7 +8,10 @@ use App\JsonApi\JsonApiResponse;
 use App\JsonApi\QueryParameters;
 use App\Services\Settings;
 use App\Services\TokenService;
+use App\Rules\UsernameRule;
 use App\Services\Uploads;
+use App\Services\WorkerRegistration;
+use App\Support\Username;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 
@@ -24,12 +27,13 @@ class MeController extends Controller
     }
 
     /**
-     * Nombre, apellidos o contraseña. Cambiar la contraseña exige la actual
+     * Usuario, nombre, apellidos o contraseña. Cambiar la contraseña exige la actual
      * (meta.currentPassword) y cierra las demás sesiones.
      */
     public function update(Request $request, TokenService $tokens)
     {
         $data = $this->validateResource($request, 'workers', [
+            'attributes.username' => ['sometimes', 'required', 'string', new UsernameRule()],
             'attributes.firstName' => ['sometimes', 'required', 'string', 'max:100'],
             'attributes.lastName' => ['sometimes', 'required', 'string', 'max:150'],
             'attributes.password' => ['sometimes', 'required', 'string', 'min:8', 'max:72'],
@@ -42,6 +46,12 @@ class MeController extends Controller
             if (array_key_exists($field, $attributes)) {
                 $worker->{$column} = trim($attributes[$field]);
             }
+        }
+
+        if (array_key_exists('username', $attributes)) {
+            $username = Username::normalize($attributes['username']);
+            WorkerRegistration::ensureUsernameFree($username, $worker);
+            $worker->username = $username;
         }
 
         if (array_key_exists('password', $attributes)) {
