@@ -7,31 +7,35 @@
     "type": "child_addition",
     "status": "approved",
     "resolutionNote": null,
-    "resolvedAt": "2026-10-30T17:20:02+00:00",
-    "createdAt": "2026-10-30T17:20:02+00:00",
-    "childFirstName": "Pepito",
-    "childLastName": "Pérez"
+    "resolvedAt": "2026-10-31T15:51:04+00:00",
+    "assigned": false,
+    "createdAt": "2026-10-31T15:51:04+00:00",
+    "childFullName": "Pepito Juan Pérez García",
+    "possibleDuplicate": false
    },
    "relationships": {
     "worker": {
      "data": {
       "type": "workers",
-      "id": "4"
+      "id": "1"
+     }
+    },
+    "createdBy": {
+     "data": {
+      "type": "users",
+      "id": "2"
      }
     },
     "resolvedBy": {
      "data": {
-      "type": "workers",
-      "id": "2"
+      "type": "users",
+      "id": "4"
      }
     },
     "itinerary": {
      "data": null
     },
     "stop": {
-     "data": null
-    },
-    "rank": {
      "data": null
     },
     "child": {
@@ -50,25 +54,32 @@
   },
   {
    "type": "applications",
-   "id": "3",
+   "id": "4",
    "attributes": {
     "type": "itinerary_membership",
     "status": "approved",
     "resolutionNote": null,
-    "resolvedAt": "2026-10-30T17:20:02+00:00",
-    "createdAt": "2026-10-30T17:20:02+00:00"
+    "resolvedAt": "2026-10-31T15:51:03+00:00",
+    "assigned": false,
+    "createdAt": "2026-10-31T15:51:03+00:00"
    },
    "relationships": {
     "worker": {
      "data": {
       "type": "workers",
-      "id": "4"
+      "id": "1"
+     }
+    },
+    "createdBy": {
+     "data": {
+      "type": "users",
+      "id": "2"
      }
     },
     "resolvedBy": {
      "data": {
-      "type": "workers",
-      "id": "2"
+      "type": "users",
+      "id": "4"
      }
     },
     "itinerary": {
@@ -83,9 +94,6 @@
       "id": "2"
      }
     },
-    "rank": {
-     "data": null
-    },
     "child": {
      "data": null
     },
@@ -94,16 +102,16 @@
     }
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/applications/3"
+    "self": "http://localhost:8000/api/v1/applications/4"
    }
   }
  ],
  "links": {
-  "self": "http://localhost:8000/api/v1/applications?filter%5Bmine%5D=true&include=worker%2CresolvedBy%2Citinerary%2Cstop%2Crank%2CabsenceType&page%5Bnumber%5D=1&page%5Bsize%5D=25",
-  "first": "http://localhost:8000/api/v1/applications?filter%5Bmine%5D=true&include=worker%2CresolvedBy%2Citinerary%2Cstop%2Crank%2CabsenceType&page%5Bnumber%5D=1&page%5Bsize%5D=25",
+  "self": "http://localhost:8000/api/v1/applications?filter%5Bmine%5D=true&include=worker%2CresolvedBy%2Citinerary%2Cstop%2CabsenceType&page%5Bnumber%5D=1&page%5Bsize%5D=25",
+  "first": "http://localhost:8000/api/v1/applications?filter%5Bmine%5D=true&include=worker%2CresolvedBy%2Citinerary%2Cstop%2CabsenceType&page%5Bnumber%5D=1&page%5Bsize%5D=25",
   "prev": null,
   "next": null,
-  "last": "http://localhost:8000/api/v1/applications?filter%5Bmine%5D=true&include=worker%2CresolvedBy%2Citinerary%2Cstop%2Crank%2CabsenceType&page%5Bnumber%5D=1&page%5Bsize%5D=25"
+  "last": "http://localhost:8000/api/v1/applications?filter%5Bmine%5D=true&include=worker%2CresolvedBy%2Citinerary%2Cstop%2CabsenceType&page%5Bnumber%5D=1&page%5Bsize%5D=25"
  },
  "meta": {
   "total": 2,
@@ -113,18 +121,33 @@
  "included": [
   {
    "type": "workers",
-   "id": "4",
+   "id": "1",
    "attributes": {
-    "cardNumber": "80010400010",
+    "pass": 101,
     "firstName": "Lucía",
-    "lastName": "Pérez",
-    "sex": "F",
+    "middleName": "María",
+    "firstSurname": "Pérez",
+    "secondSurname": "García",
+    "fullName": "Lucía María Pérez García",
     "photoUrl": null,
-    "isAdmin": false,
+    "sex": "F",
     "active": true,
-    "createdAt": "2026-10-30T17:20:01+00:00"
+    "createdAt": "2026-10-31T15:51:02+00:00",
+    "activated": true
    },
    "relationships": {
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
+     }
+    },
+    "entity": {
+     "data": {
+      "type": "entities",
+      "id": "1"
+     }
+    },
     "rank": {
      "data": {
       "type": "ranks",
@@ -153,45 +176,32 @@
     }
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/workers/4"
+    "self": "http://localhost:8000/api/v1/workers/1"
    }
   },
   {
-   "type": "workers",
-   "id": "2",
+   "type": "users",
+   "id": "4",
    "attributes": {
     "firstName": "Teresa",
-    "lastName": "Transporte",
-    "sex": "F",
+    "middleName": "Ana",
+    "firstSurname": "Jefa",
+    "secondSurname": "López",
+    "fullName": "Teresa Ana Jefa López",
     "photoUrl": null,
     "isAdmin": false,
-    "active": true,
-    "createdAt": "2026-10-30T17:20:00+00:00"
+    "active": true
    },
    "relationships": {
-    "rank": {
+    "worker": {
      "data": {
-      "type": "ranks",
-      "id": "17"
+      "type": "workers",
+      "id": "3"
      }
-    },
-    "itinerary": {
-     "data": null
-    },
-    "stop": {
-     "data": null
-    }
-   },
-   "meta": {
-    "childrenCount": 0,
-    "roles": {
-     "isTransportChief": true,
-     "driverId": null,
-     "chiefOfItineraries": []
     }
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/workers/2"
+    "self": "http://localhost:8000/api/v1/users/4"
    }
   },
   {
@@ -199,8 +209,16 @@
    "id": "1",
    "attributes": {
     "name": "Ruta Este",
-    "description": "Hacia el este",
+    "description": null,
     "observation": null
+   },
+   "relationships": {
+    "entity": {
+     "data": {
+      "type": "entities",
+      "id": "1"
+     }
+    }
    },
    "meta": {
     "departurePoint": {
@@ -228,11 +246,19 @@
    "attributes": {
     "landmark": "Parque",
     "street": "Calle 2",
-    "crossStreet1": "A",
-    "crossStreet2": "B",
+    "crossStreet1": null,
+    "crossStreet2": null,
     "latitude": 23.11,
     "longitude": -82.3,
-    "address": "Parque, Calle 2 entre A y B"
+    "address": "Parque, Calle 2"
+   },
+   "relationships": {
+    "entity": {
+     "data": {
+      "type": "entities",
+      "id": "1"
+     }
+    }
    },
    "links": {
     "self": "http://localhost:8000/api/v1/stops/2"

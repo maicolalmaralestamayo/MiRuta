@@ -145,7 +145,7 @@ class _StopFormState extends State<_StopForm> {
             },
           ),
           const SizedBox(height: 20),
-          FilledButton(onPressed: _save, child: const Text('Guardar')),
+          BusyButton(onPressed: _save, child: const Text('Guardar')),
         ]),
       ),
     );

@@ -2,6 +2,46 @@
  "data": [
   {
    "type": "setting-definitions",
+   "id": "access_recovery_max_per_hour",
+   "attributes": {
+    "key": "access_recovery_max_per_hour",
+    "name": "Solicitudes \"No puedo entrar\" por hora desde un teléfono",
+    "description": null,
+    "valueType": "integer",
+    "defaultValue": "3",
+    "minValue": 1,
+    "maxValue": 20,
+    "minSetting": null,
+    "level": "app",
+    "userOverridable": false,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/access_recovery_max_per_hour"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "access_recovery_ttl_hours",
+   "attributes": {
+    "key": "access_recovery_ttl_hours",
+    "name": "Validez de una solicitud \"No puedo entrar\" (horas)",
+    "description": null,
+    "valueType": "integer",
+    "defaultValue": "72",
+    "minValue": 1,
+    "maxValue": 720,
+    "minSetting": null,
+    "level": "app",
+    "userOverridable": false,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/access_recovery_ttl_hours"
+   }
+  },
+  {
+   "type": "setting-definitions",
    "id": "access_token_ttl_minutes",
    "attributes": {
     "key": "access_token_ttl_minutes",
@@ -12,12 +52,52 @@
     "minValue": 5,
     "maxValue": 240,
     "minSetting": null,
-    "editableBy": "administrator",
+    "level": "app",
     "userOverridable": false,
     "options": []
    },
    "links": {
     "self": "http://localhost:8000/api/v1/setting-definitions/access_token_ttl_minutes"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "activation_code_ttl_days",
+   "attributes": {
+    "key": "activation_code_ttl_days",
+    "name": "Validez del código de activación (días)",
+    "description": null,
+    "valueType": "integer",
+    "defaultValue": "7",
+    "minValue": 1,
+    "maxValue": 90,
+    "minSetting": null,
+    "level": "app",
+    "userOverridable": false,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/activation_code_ttl_days"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "app_max_mb",
+   "attributes": {
+    "key": "app_max_mb",
+    "name": "Tamaño máximo del APK de una actualización (MB)",
+    "description": null,
+    "valueType": "integer",
+    "defaultValue": "150",
+    "minValue": 10,
+    "maxValue": 500,
+    "minSetting": null,
+    "level": "app",
+    "userOverridable": false,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/app_max_mb"
    }
   },
   {
@@ -32,7 +112,7 @@
     "minValue": 10,
     "maxValue": 500,
     "minSetting": null,
-    "editableBy": "administrator",
+    "level": "app",
     "userOverridable": false,
     "options": []
    },
@@ -52,7 +132,7 @@
     "minValue": 2,
     "maxValue": 20,
     "minSetting": null,
-    "editableBy": "administrator",
+    "level": "app",
     "userOverridable": false,
     "options": []
    },
@@ -72,7 +152,7 @@
     "minValue": null,
     "maxValue": null,
     "minSetting": null,
-    "editableBy": "administrator",
+    "level": "entity",
     "userOverridable": true,
     "options": []
    },
@@ -92,7 +172,7 @@
     "minValue": 30,
     "maxValue": 3600,
     "minSetting": null,
-    "editableBy": "administrator",
+    "level": "app",
     "userOverridable": false,
     "options": []
    },
@@ -112,7 +192,7 @@
     "minValue": 1,
     "maxValue": 500,
     "minSetting": null,
-    "editableBy": "administrator",
+    "level": "entity",
     "userOverridable": true,
     "options": []
    },
@@ -132,7 +212,7 @@
     "minValue": 1,
     "maxValue": 500,
     "minSetting": null,
-    "editableBy": "administrator",
+    "level": "entity",
     "userOverridable": true,
     "options": []
    },
@@ -152,7 +232,7 @@
     "minValue": 0,
     "maxValue": 25,
     "minSetting": null,
-    "editableBy": "transport_chief",
+    "level": "entity",
     "userOverridable": false,
     "options": []
    },
@@ -172,7 +252,7 @@
     "minValue": 1,
     "maxValue": 365,
     "minSetting": null,
-    "editableBy": "administrator",
+    "level": "app",
     "userOverridable": false,
     "options": []
    },
@@ -192,7 +272,7 @@
     "minValue": null,
     "maxValue": 1440,
     "minSetting": "min_background_poll_minutes",
-    "editableBy": null,
+    "level": "entity",
     "userOverridable": true,
     "options": []
    },
@@ -212,7 +292,7 @@
     "minValue": null,
     "maxValue": 600,
     "minSetting": "min_foreground_poll_seconds",
-    "editableBy": null,
+    "level": "entity",
     "userOverridable": true,
     "options": []
    },
@@ -232,7 +312,7 @@
     "minValue": null,
     "maxValue": null,
     "minSetting": null,
-    "editableBy": "administrator",
+    "level": "entity",
     "userOverridable": true,
     "options": [
      {
@@ -261,7 +341,7 @@
     "minValue": 0,
     "maxValue": 7,
     "minSetting": null,
-    "editableBy": null,
+    "level": "entity",
     "userOverridable": true,
     "options": []
    },
@@ -281,7 +361,7 @@
     "minValue": null,
     "maxValue": null,
     "minSetting": null,
-    "editableBy": "administrator",
+    "level": "entity",
     "userOverridable": true,
     "options": []
    },
@@ -301,7 +381,7 @@
     "minValue": 0,
     "maxValue": 1440,
     "minSetting": null,
-    "editableBy": null,
+    "level": "entity",
     "userOverridable": true,
     "options": []
    },
@@ -321,7 +401,7 @@
     "minValue": null,
     "maxValue": null,
     "minSetting": null,
-    "editableBy": "administrator",
+    "level": "entity",
     "userOverridable": true,
     "options": [
      {
@@ -350,12 +430,52 @@
     "minValue": 1,
     "maxValue": 500,
     "minSetting": null,
-    "editableBy": "administrator",
+    "level": "entity",
     "userOverridable": true,
     "options": []
    },
    "links": {
     "self": "http://localhost:8000/api/v1/setting-definitions/departure_notice_template"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "guest_conversation_retention_days",
+   "attributes": {
+    "key": "guest_conversation_retention_days",
+    "name": "Días de conservación de las conversaciones sin cuenta",
+    "description": "Se cuentan desde el último mensaje.",
+    "valueType": "integer",
+    "defaultValue": "30",
+    "minValue": 1,
+    "maxValue": 365,
+    "minSetting": null,
+    "level": "app",
+    "userOverridable": false,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/guest_conversation_retention_days"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "guest_messages_max_per_hour",
+   "attributes": {
+    "key": "guest_messages_max_per_hour",
+    "name": "Mensajes por hora sin cuenta desde un teléfono",
+    "description": null,
+    "valueType": "integer",
+    "defaultValue": "10",
+    "minValue": 1,
+    "maxValue": 100,
+    "minSetting": null,
+    "level": "app",
+    "userOverridable": false,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/guest_messages_max_per_hour"
    }
   },
   {
@@ -370,7 +490,7 @@
     "minValue": 1,
     "maxValue": 365,
     "minSetting": null,
-    "editableBy": "transport_chief",
+    "level": "entity",
     "userOverridable": false,
     "options": []
    },
@@ -390,7 +510,7 @@
     "minValue": 0,
     "maxValue": 30,
     "minSetting": null,
-    "editableBy": "transport_chief",
+    "level": "entity",
     "userOverridable": false,
     "options": []
    },
@@ -410,7 +530,7 @@
     "minValue": null,
     "maxValue": 600,
     "minSetting": "min_location_interval_seconds",
-    "editableBy": null,
+    "level": "entity",
     "userOverridable": true,
     "options": []
    },
@@ -430,7 +550,7 @@
     "minValue": 50,
     "maxValue": 5000,
     "minSetting": null,
-    "editableBy": "administrator",
+    "level": "app",
     "userOverridable": false,
     "options": []
    },
@@ -450,7 +570,7 @@
     "minValue": 15,
     "maxValue": 1440,
     "minSetting": null,
-    "editableBy": "administrator",
+    "level": "app",
     "userOverridable": false,
     "options": []
    },
@@ -470,7 +590,7 @@
     "minValue": 1,
     "maxValue": 60,
     "minSetting": null,
-    "editableBy": "administrator",
+    "level": "app",
     "userOverridable": false,
     "options": []
    },
@@ -490,7 +610,7 @@
     "minValue": 10,
     "maxValue": 600,
     "minSetting": null,
-    "editableBy": "administrator",
+    "level": "app",
     "userOverridable": false,
     "options": []
    },
@@ -510,7 +630,7 @@
     "minValue": 1,
     "maxValue": 60,
     "minSetting": null,
-    "editableBy": "administrator",
+    "level": "app",
     "userOverridable": false,
     "options": []
    },
@@ -530,7 +650,7 @@
     "minValue": null,
     "maxValue": 1440,
     "minSetting": "min_background_poll_minutes",
-    "editableBy": null,
+    "level": "entity",
     "userOverridable": true,
     "options": []
    },
@@ -550,7 +670,7 @@
     "minValue": null,
     "maxValue": 3600,
     "minSetting": "min_foreground_poll_seconds",
-    "editableBy": null,
+    "level": "entity",
     "userOverridable": true,
     "options": []
    },
@@ -570,12 +690,152 @@
     "minValue": null,
     "maxValue": null,
     "minSetting": null,
-    "editableBy": "administrator",
+    "level": "entity",
     "userOverridable": true,
     "options": []
    },
    "links": {
     "self": "http://localhost:8000/api/v1/setting-definitions/notify_during_absence"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "password_expiry_days",
+   "attributes": {
+    "key": "password_expiry_days",
+    "name": "Caducidad de la contraseña (días)",
+    "description": null,
+    "valueType": "integer",
+    "defaultValue": "365",
+    "minValue": 30,
+    "maxValue": 1095,
+    "minSetting": null,
+    "level": "app",
+    "userOverridable": false,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/password_expiry_days"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "password_expiry_warning_days",
+   "attributes": {
+    "key": "password_expiry_warning_days",
+    "name": "Aviso antes de que caduque la contraseña (días)",
+    "description": null,
+    "valueType": "integer",
+    "defaultValue": "15",
+    "minValue": 0,
+    "maxValue": 60,
+    "minSetting": null,
+    "level": "app",
+    "userOverridable": false,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/password_expiry_warning_days"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "password_forbid_common",
+   "attributes": {
+    "key": "password_forbid_common",
+    "name": "La contraseña no puede ser una de las más comunes",
+    "description": null,
+    "valueType": "boolean",
+    "defaultValue": "1",
+    "minValue": null,
+    "maxValue": null,
+    "minSetting": null,
+    "level": "app",
+    "userOverridable": false,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/password_forbid_common"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "password_forbid_personal_data",
+   "attributes": {
+    "key": "password_forbid_personal_data",
+    "name": "La contraseña no puede contener el usuario ni los nombres",
+    "description": null,
+    "valueType": "boolean",
+    "defaultValue": "1",
+    "minValue": null,
+    "maxValue": null,
+    "minSetting": null,
+    "level": "app",
+    "userOverridable": false,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/password_forbid_personal_data"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "password_history_count",
+   "attributes": {
+    "key": "password_history_count",
+    "name": "Contraseñas anteriores que no se pueden repetir",
+    "description": null,
+    "valueType": "integer",
+    "defaultValue": "5",
+    "minValue": 0,
+    "maxValue": 24,
+    "minSetting": null,
+    "level": "app",
+    "userOverridable": false,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/password_history_count"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "password_min_length",
+   "attributes": {
+    "key": "password_min_length",
+    "name": "Longitud mínima de la contraseña",
+    "description": null,
+    "valueType": "integer",
+    "defaultValue": "8",
+    "minValue": 6,
+    "maxValue": 64,
+    "minSetting": null,
+    "level": "app",
+    "userOverridable": false,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/password_min_length"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "password_required_classes",
+   "attributes": {
+    "key": "password_required_classes",
+    "name": "Tipos de carácter exigidos en la contraseña (de mayúscula, minúscula, número y símbolo)",
+    "description": null,
+    "valueType": "integer",
+    "defaultValue": "3",
+    "minValue": 1,
+    "maxValue": 4,
+    "minSetting": null,
+    "level": "app",
+    "userOverridable": false,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/password_required_classes"
    }
   },
   {
@@ -590,7 +850,7 @@
     "minValue": 100,
     "maxValue": 10240,
     "minSetting": null,
-    "editableBy": "administrator",
+    "level": "app",
     "userOverridable": false,
     "options": []
    },
@@ -610,12 +870,32 @@
     "minValue": 50,
     "maxValue": 2048,
     "minSetting": null,
-    "editableBy": "administrator",
+    "level": "app",
     "userOverridable": false,
     "options": []
    },
    "links": {
     "self": "http://localhost:8000/api/v1/setting-definitions/rank_icon_max_kb"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "read_notice_retention_days",
+   "attributes": {
+    "key": "read_notice_retention_days",
+    "name": "Días de conservación de los avisos leídos",
+    "description": null,
+    "valueType": "integer",
+    "defaultValue": "90",
+    "minValue": 1,
+    "maxValue": 3650,
+    "minSetting": null,
+    "level": "app",
+    "userOverridable": false,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/read_notice_retention_days"
    }
   },
   {
@@ -630,7 +910,7 @@
     "minValue": 1,
     "maxValue": 365,
     "minSetting": null,
-    "editableBy": "administrator",
+    "level": "app",
     "userOverridable": false,
     "options": []
    },
@@ -650,7 +930,7 @@
     "minValue": null,
     "maxValue": null,
     "minSetting": null,
-    "editableBy": "administrator",
+    "level": "entity",
     "userOverridable": true,
     "options": [
      {
@@ -679,7 +959,7 @@
     "minValue": 0,
     "maxValue": 7,
     "minSetting": null,
-    "editableBy": null,
+    "level": "entity",
     "userOverridable": true,
     "options": []
    },
@@ -699,7 +979,7 @@
     "minValue": null,
     "maxValue": null,
     "minSetting": null,
-    "editableBy": "administrator",
+    "level": "entity",
     "userOverridable": true,
     "options": []
    },
@@ -719,7 +999,7 @@
     "minValue": 0,
     "maxValue": 1440,
     "minSetting": null,
-    "editableBy": null,
+    "level": "entity",
     "userOverridable": true,
     "options": []
    },
@@ -739,7 +1019,7 @@
     "minValue": null,
     "maxValue": null,
     "minSetting": null,
-    "editableBy": "administrator",
+    "level": "entity",
     "userOverridable": true,
     "options": [
      {
@@ -768,12 +1048,143 @@
     "minValue": 1,
     "maxValue": 500,
     "minSetting": null,
-    "editableBy": "administrator",
+    "level": "entity",
     "userOverridable": true,
     "options": []
    },
    "links": {
     "self": "http://localhost:8000/api/v1/setting-definitions/return_notice_template"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "saturation_notice_enabled",
+   "attributes": {
+    "key": "saturation_notice_enabled",
+    "name": "Avisos de saturación del transporte",
+    "description": null,
+    "valueType": "boolean",
+    "defaultValue": "1",
+    "minValue": null,
+    "maxValue": null,
+    "minSetting": null,
+    "level": "entity",
+    "userOverridable": true,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/saturation_notice_enabled"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "saturation_notice_level",
+   "attributes": {
+    "key": "saturation_notice_level",
+    "name": "Avisar cuando el transporte esté",
+    "description": null,
+    "valueType": "option",
+    "defaultValue": "overloaded",
+    "minValue": null,
+    "maxValue": null,
+    "minSetting": null,
+    "level": "entity",
+    "userOverridable": true,
+    "options": [
+     {
+      "value": "overloaded",
+      "name": "Sobresaturado (no caben)"
+     },
+     {
+      "value": "saturated",
+      "name": "Saturado (van de pie) o sobresaturado"
+     }
+    ]
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/saturation_notice_level"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "saturation_notice_minutes_before",
+   "attributes": {
+    "key": "saturation_notice_minutes_before",
+    "name": "Minutos antes de la salida para el aviso de saturación",
+    "description": null,
+    "valueType": "integer",
+    "defaultValue": "120",
+    "minValue": 0,
+    "maxValue": 1440,
+    "minSetting": null,
+    "level": "entity",
+    "userOverridable": true,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/saturation_notice_minutes_before"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "saturation_notice_scope",
+   "attributes": {
+    "key": "saturation_notice_scope",
+    "name": "Avisos de saturación de",
+    "description": null,
+    "valueType": "option",
+    "defaultValue": "managed",
+    "minValue": null,
+    "maxValue": null,
+    "minSetting": null,
+    "level": "entity",
+    "userOverridable": true,
+    "options": [
+     {
+      "value": "own",
+      "name": "Mis viajes"
+     },
+     {
+      "value": "managed",
+      "name": "Los viajes que gestiono (mi itinerario o mi Entidad)"
+     }
+    ]
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/saturation_notice_scope"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "saturation_notice_when",
+   "attributes": {
+    "key": "saturation_notice_when",
+    "name": "Cuándo avisar de la saturación",
+    "description": null,
+    "valueType": "option",
+    "defaultValue": "change",
+    "minValue": null,
+    "maxValue": null,
+    "minSetting": null,
+    "level": "entity",
+    "userOverridable": true,
+    "options": [
+     {
+      "value": "change",
+      "name": "Cuando cambia"
+     },
+     {
+      "value": "before",
+      "name": "Antes de la salida"
+     },
+     {
+      "value": "both",
+      "name": "Las dos"
+     }
+    ]
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/saturation_notice_when"
    }
   },
   {
@@ -788,7 +1199,7 @@
     "minValue": 50,
     "maxValue": 5000,
     "minSetting": null,
-    "editableBy": "administrator",
+    "level": "app",
     "userOverridable": false,
     "options": []
    },
@@ -808,7 +1219,7 @@
     "minValue": 10,
     "maxValue": 600,
     "minSetting": null,
-    "editableBy": "administrator",
+    "level": "app",
     "userOverridable": false,
     "options": []
    },
@@ -828,7 +1239,7 @@
     "minValue": null,
     "maxValue": null,
     "minSetting": null,
-    "editableBy": "administrator",
+    "level": "entity",
     "userOverridable": true,
     "options": []
    },
@@ -848,7 +1259,7 @@
     "minValue": 20,
     "maxValue": 1000,
     "minSetting": null,
-    "editableBy": "administrator",
+    "level": "app",
     "userOverridable": false,
     "options": []
    },
@@ -868,7 +1279,7 @@
     "minValue": null,
     "maxValue": null,
     "minSetting": null,
-    "editableBy": "administrator",
+    "level": "entity",
     "userOverridable": true,
     "options": []
    },
@@ -888,7 +1299,7 @@
     "minValue": null,
     "maxValue": null,
     "minSetting": null,
-    "editableBy": "administrator",
+    "level": "entity",
     "userOverridable": true,
     "options": [
      {
@@ -921,7 +1332,7 @@
     "minValue": 1,
     "maxValue": 500,
     "minSetting": null,
-    "editableBy": "administrator",
+    "level": "entity",
     "userOverridable": true,
     "options": []
    },
@@ -941,7 +1352,7 @@
     "minValue": null,
     "maxValue": 3600,
     "minSetting": "min_in_trip_background_poll_seconds",
-    "editableBy": null,
+    "level": "entity",
     "userOverridable": true,
     "options": []
    },
@@ -961,7 +1372,7 @@
     "minValue": null,
     "maxValue": 600,
     "minSetting": "min_foreground_poll_seconds",
-    "editableBy": null,
+    "level": "entity",
     "userOverridable": true,
     "options": []
    },
@@ -981,7 +1392,7 @@
     "minValue": 0,
     "maxValue": 1440,
     "minSetting": null,
-    "editableBy": "administrator",
+    "level": "app",
     "userOverridable": false,
     "options": []
    },
@@ -1001,7 +1412,7 @@
     "minValue": null,
     "maxValue": 1440,
     "minSetting": "min_background_poll_minutes",
-    "editableBy": null,
+    "level": "entity",
     "userOverridable": true,
     "options": []
    },
@@ -1021,12 +1432,32 @@
     "minValue": null,
     "maxValue": 600,
     "minSetting": "min_foreground_poll_seconds",
-    "editableBy": null,
+    "level": "entity",
     "userOverridable": true,
     "options": []
    },
    "links": {
     "self": "http://localhost:8000/api/v1/setting-definitions/trip_chat_poll_foreground_seconds"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "trip_chat_retention_days",
+   "attributes": {
+    "key": "trip_chat_retention_days",
+    "name": "Días de conservación del chat de un viaje tras su regreso",
+    "description": "0 = se borra en cuanto el viaje deja de estar confirmado.",
+    "valueType": "integer",
+    "defaultValue": "0",
+    "minValue": 0,
+    "maxValue": 365,
+    "minSetting": null,
+    "level": "app",
+    "userOverridable": false,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/trip_chat_retention_days"
    }
   },
   {
@@ -1041,7 +1472,7 @@
     "minValue": null,
     "maxValue": null,
     "minSetting": null,
-    "editableBy": "administrator",
+    "level": "entity",
     "userOverridable": true,
     "options": [
      {
@@ -1070,7 +1501,7 @@
     "minValue": null,
     "maxValue": 1440,
     "minSetting": "min_background_poll_minutes",
-    "editableBy": null,
+    "level": "entity",
     "userOverridable": true,
     "options": []
    },
@@ -1090,7 +1521,7 @@
     "minValue": null,
     "maxValue": 3600,
     "minSetting": "min_foreground_poll_seconds",
-    "editableBy": null,
+    "level": "entity",
     "userOverridable": true,
     "options": []
    },
@@ -1110,12 +1541,32 @@
     "minValue": null,
     "maxValue": null,
     "minSetting": null,
-    "editableBy": "administrator",
+    "level": "entity",
     "userOverridable": true,
     "options": []
    },
    "links": {
     "self": "http://localhost:8000/api/v1/setting-definitions/tts_enabled"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "username_reuse_block_days",
+   "attributes": {
+    "key": "username_reuse_block_days",
+    "name": "Días que un usuario abandonado queda bloqueado para los demás",
+    "description": null,
+    "valueType": "integer",
+    "defaultValue": "30",
+    "minValue": 0,
+    "maxValue": 365,
+    "minSetting": null,
+    "level": "app",
+    "userOverridable": false,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/setting-definitions/username_reuse_block_days"
    }
   }
  ],

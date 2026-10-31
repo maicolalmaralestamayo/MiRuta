@@ -59,10 +59,10 @@ class _ApplicationFormScreenState extends State<ApplicationFormScreen> {
 
   Future<void> _load() async {
     final api = context.api;
+    final me = context.me;
     try {
       if (_needsItinerary) {
         final resources = await api.getAll('/itineraries', query: {'sort': 'name', 'filter[entity]': ?widget.worker?.entityId});
-        final me = context.me;
         // Un Jefe de itinerario solo asigna en el suyo.
         final itineraries = resources.map(Itinerary.from).where((i) => !_assigning || me.isChiefOf(i.id)).toList();
         setState(() {

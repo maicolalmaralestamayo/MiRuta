@@ -12,11 +12,17 @@ JsonApiDocument fixture(String name) =>
     JsonApiDocument.fromJson(jsonDecode(File('test/fixtures/$name.json').readAsStringSync()) as Map<String, dynamic>);
 
 void main() {
-  test('perfil propio con jerarquía, roles e hijos', () {
-    final me = Worker.from(fixture('me').resource);
-    expect(me.fullName, 'Lucía Pérez');
-    expect(me.cardNumber, '80010400010');
-    expect(me.username, 'nombre1.apellido1');
+  test('mi cuenta con su trabajador, Entidad, jerarquía, roles e hijos', () {
+    final me = Me.from(fixture('me').resource);
+    expect(me.fullName, 'Lucía María Pérez García');
+    expect(me.username, 'lucia.perez');
+    expect(me.isAdmin, isFalse);
+    expect(me.needsEntity, isFalse);
+    expect(me.mustChangePassword, isFalse);
+    expect(me.account.passwordExpiresAt, isNotNull);
+    expect(me.entity?.abbreviation, 'PRUEBA');
+    expect(me.pass, 101);
+    expect(me.sex, 'F');
     expect(me.rank?.name, 'Trabajador civil');
     expect(me.itineraryId, isNotNull);
     expect(me.stopId, isNotNull);
@@ -32,7 +38,10 @@ void main() {
     expect(trip.vehicleTypeName, 'Guagua');
     expect(trip.driverName, 'Carlos Chofer');
     expect(trip.totalCapacity, 1);
+    expect(trip.seats, 1);
     expect(trip.expectedPassengers, 1, reason: 'el chofer es miembro y no cuenta');
+    expect(trip.expectedChildren, 1);
+    expect(trip.occupancyLevel, 'normal', reason: 'los niños van cargados y no ocupan plaza');
     expect(trip.departureStopId, isNotNull);
     expect(Trip.fromJson(trip.toJson()).departsAt, trip.departsAt);
   });
@@ -54,32 +63,40 @@ void main() {
     expect(leg.stopPasses, hasLength(1));
   });
 
-  test('pasajeros en orden de subida', () {
+  test('pasajeros por parada', () {
     final passengers = fixture('passengers').resources.map(Passenger.from).toList();
     expect(passengers, hasLength(1));
     expect(passengers.first.boarded, isTrue);
     expect(passengers.first.boardingMethod, 'self');
     expect(passengers.first.boardedChildren, 1);
     expect(passengers.first.worker.rank?.name, 'Trabajador civil');
+    expect(passengers.first.worker.fullName, 'Lucía María Pérez García');
+    expect(passengers.first.position, 1);
   });
 
   test('solicitudes, hijos, avisos, mensajes y conversaciones', () {
     final applications = fixture('applications').resources.map(Application.from).toList();
     expect(applications.map((a) => a.type), containsAll(['itinerary_membership', 'child_addition']));
-    expect(applications.firstWhere((a) => a.type == 'child_addition').childName, 'Pepito Pérez');
+    expect(applications.firstWhere((a) => a.type == 'child_addition').childName, 'Pepito Juan Pérez García');
+    expect(applications.firstWhere((a) => a.type == 'itinerary_membership').resolverName, 'Teresa Jefa');
     expect(applications.firstWhere((a) => a.type == 'itinerary_membership').itineraryName, 'Ruta Este');
 
     final child = Child.from(fixture('children').resource);
     expect(child.declared, isTrue);
-    expect(child.cardNumber, '15030560011');
+    expect(child.birthDate, '2015-03-05');
+    expect(child.fullName, 'Pepito Juan Pérez García');
     expect(child.eligibleUntil, '2031-08-31');
 
     expect(fixture('notices').resources.map(Notice.from).first.title, isNotEmpty);
-    expect(Message.from(fixture('trip_messages').resource).worker?.firstName, 'Lucía');
+    final message = Message.from(fixture('trip_messages').resource);
+    expect(message.authorName, 'Lucía Pérez');
+    expect(message.authorId, isNotNull);
     final conversation = Conversation.from(fixture('conversations').resource);
     expect(conversation.recipient, 'itinerary_chiefs');
     expect(conversation.topicName, 'Reportar un problema');
     expect(conversation.messageCount, 1);
+    expect(conversation.guest, isFalse);
+    expect(conversation.openedByName, 'Lucía María Pérez García');
   });
 
   test('ajustes y definiciones', () {
@@ -104,8 +121,11 @@ void main() {
     expect(vehicle.totalCapacity, 1);
     expect(vehicle.vehicleType?.name, 'Guagua');
     final workers = fixture('workers').resources.map(Worker.from).toList();
-    expect(workers, hasLength(4));
-    expect(workers.where((w) => w.isAdmin), hasLength(1));
+    expect(workers, hasLength(3), reason: 'el Administrador no es trabajador');
+    expect(workers.every((w) => w.entity?.abbreviation == 'PRUEBA'), isTrue);
     expect(workers.firstWhere((w) => w.firstName == 'Teresa').roles.isTransportChief, isTrue);
+    expect(workers.firstWhere((w) => w.firstName == 'Carlos').roles.isDriver, isTrue);
+    expect(workers.map((w) => w.pass), containsAll([101, 102, 103]));
+    expect(Entity.from(fixture('entity_lookup').resource).name, 'Empresa de prueba');
   });
 }

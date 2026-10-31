@@ -295,8 +295,9 @@ class _RegisterWorkerScreenState extends State<RegisterWorkerScreen> {
     try {
       final api = context.api;
       final me = context.me;
+      final entityFilter = context.entityFilter;
       final ranks = (await api.getAll('/ranks', query: {'sort': 'sortOrder,name'})).map(Rank.from).toList();
-      final itineraries = (await api.getAll('/itineraries', query: {'sort': 'name', ...context.entityFilter}))
+      final itineraries = (await api.getAll('/itineraries', query: {'sort': 'name', ...entityFilter}))
           .map(Itinerary.from)
           .where((i) => me.isChiefOf(i.id))
           .toList();

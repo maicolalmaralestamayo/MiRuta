@@ -29,7 +29,7 @@ class TrackingTest extends TestCase
         // Paradas en latitud 23.10, 23.11 y 23.12 (≈ 1,1 km entre ellas)
         $this->itinerary = $this->createItinerary('Ruta Este', 3);
         $this->driver = $this->createDriver();
-        $vehicle = Vehicle::create(['vehicle_type_id' => VehicleType::first()->id, 'plate' => 'B1', 'seats' => 10, 'standing_capacity' => 5]);
+        $vehicle = Vehicle::create(['entity_id' => $this->defaultEntity()->id, 'vehicle_type_id' => VehicleType::first()->id, 'plate' => 'B1', 'seats' => 10, 'standing_capacity' => 5]);
         $this->trip = Trip::create([
             'itinerary_id' => $this->itinerary->id, 'vehicle_id' => $vehicle->id, 'driver_id' => $this->driver->driverId(),
             'departs_at' => Carbon::create(2026, 11, 3, 17), 'returns_at' => Carbon::create(2026, 11, 4, 6, 30),
@@ -223,7 +223,10 @@ class TrackingTest extends TestCase
         ]]]);
         $this->assertResponseStatus(201);
         $token = $this->responseJson()['data']['attributes']['token'];
-        $this->assertStringNotContainsString(\Illuminate\Support\Facades\Crypt::decryptString($this->member->card_number_encrypted), base64_decode(explode('.', $token)[1]));
+        // El QR no lleva datos personales (ni el usuario ni el Pase).
+        $payload = base64_decode(strtr(explode('.', $token)[1], '-_', '+/'));
+        $this->assertStringNotContainsString((string) $this->member->user->username, $payload);
+        $this->assertStringNotContainsString('"pass"', $payload);
 
         $this->board($this->driver, $legId, 'qr', ['boardingPassToken' => 'basura']);
         $this->assertJsonApiError(422, 'BOARDING_PASS_INVALID');

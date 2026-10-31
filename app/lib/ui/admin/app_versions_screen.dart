@@ -71,7 +71,7 @@ class _AppVersionsScreenState extends State<AppVersionsScreen> {
                 if (v.string('notes') != null) v.string('notes')!,
               ].join('\n')),
               isThreeLine: true,
-              trailing: IconButton(icon: const Icon(Icons.delete_outline), onPressed: () => _withdraw(v)),
+              trailing: BusyIconButton(icon: const Icon(Icons.delete_outline), onPressed: () => _withdraw(v)),
             ),
         ]),
       ),

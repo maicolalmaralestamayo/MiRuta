@@ -2,9 +2,9 @@
  "data": [
   {
    "type": "trip-passengers",
-   "id": "1-4",
+   "id": "1-1",
    "attributes": {
-    "boardingOrder": 1,
+    "position": 1,
     "eligibleChildren": 1,
     "boarded": true,
     "boardedChildren": 1,
@@ -14,7 +14,7 @@
     "worker": {
      "data": {
       "type": "workers",
-      "id": "4"
+      "id": "1"
      }
     },
     "stop": {
@@ -33,17 +33,31 @@
  "included": [
   {
    "type": "workers",
-   "id": "4",
+   "id": "1",
    "attributes": {
     "firstName": "Lucía",
-    "lastName": "Pérez",
-    "sex": "F",
+    "middleName": "María",
+    "firstSurname": "Pérez",
+    "secondSurname": "García",
+    "fullName": "Lucía María Pérez García",
     "photoUrl": null,
-    "isAdmin": false,
+    "sex": "F",
     "active": true,
-    "createdAt": "2026-10-30T17:20:01+00:00"
+    "createdAt": "2026-10-31T15:51:02+00:00"
    },
    "relationships": {
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
+     }
+    },
+    "entity": {
+     "data": {
+      "type": "entities",
+      "id": "1"
+     }
+    },
     "rank": {
      "data": {
       "type": "ranks",
@@ -72,7 +86,32 @@
     }
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/workers/4"
+    "self": "http://localhost:8000/api/v1/workers/1"
+   }
+  },
+  {
+   "type": "users",
+   "id": "2",
+   "attributes": {
+    "firstName": "Lucía",
+    "middleName": "María",
+    "firstSurname": "Pérez",
+    "secondSurname": "García",
+    "fullName": "Lucía María Pérez García",
+    "photoUrl": null,
+    "isAdmin": false,
+    "active": true
+   },
+   "relationships": {
+    "worker": {
+     "data": {
+      "type": "workers",
+      "id": "1"
+     }
+    }
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/users/2"
    }
   },
   {
@@ -82,7 +121,7 @@
     "name": "Trabajador civil",
     "description": null,
     "observation": null,
-    "precedence": 17,
+    "sortOrder": 17,
     "iconUrl": null
    },
    "links": {

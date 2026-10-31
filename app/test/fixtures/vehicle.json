@@ -8,6 +8,12 @@
    "standingCapacity": 0
   },
   "relationships": {
+   "entity": {
+    "data": {
+     "type": "entities",
+     "id": "1"
+    }
+   },
    "vehicleType": {
     "data": {
      "type": "vehicle-types",
@@ -29,7 +35,7 @@
   }
  },
  "links": {
-  "self": "http://localhost:8000/api/v1/vehicles?include=vehicleType"
+  "self": "http://localhost:8000/api/v1/vehicles/1?include=vehicleType"
  },
  "included": [
   {

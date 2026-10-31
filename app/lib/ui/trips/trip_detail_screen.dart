@@ -123,10 +123,10 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Wrap(spacing: 8, runSpacing: 8, children: [
-                  FilledButton.icon(
+                  BusyButton(
                     onPressed: () => selfBoarding(context, active, me.childrenCount),
                     icon: const Icon(Icons.how_to_reg),
-                    label: const Text('Ya subí'),
+                    child: const Text('Ya subí'),
                   ),
                   OutlinedButton.icon(
                     onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => BoardingPassScreen(leg: active))),
@@ -139,17 +139,17 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
             if (operate) ...[
               const SectionTitle('Control del viaje'),
               if (trip.isConfirmed && data.leg('outbound') == null)
-                ListTile(leading: const Icon(Icons.play_arrow), title: const Text('Iniciar recorrido de salida'), onTap: () => _startLeg(data, 'outbound')),
+                BusyListTile(leading: const Icon(Icons.play_arrow), title: const Text('Iniciar recorrido de salida'), onTap: () => _startLeg(data, 'outbound')),
               if (trip.isConfirmed && data.leg('return') == null)
-                ListTile(leading: const Icon(Icons.play_arrow), title: const Text('Iniciar recorrido de regreso'), onTap: () => _startLeg(data, 'return')),
+                BusyListTile(leading: const Icon(Icons.play_arrow), title: const Text('Iniciar recorrido de regreso'), onTap: () => _startLeg(data, 'return')),
               ListTile(
                 leading: const Icon(Icons.format_list_numbered),
-                title: const Text('Pasajeros en orden de subida'),
+                title: const Text('Pasajeros por parada'),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => PassengersScreen(context: data))),
               ),
               if (trip.status != TripStatus.cancelled && trip.status != TripStatus.completed)
-                ListTile(leading: const Icon(Icons.task_alt), title: const Text('Marcar como realizado'), onTap: () => _markCompleted(data)),
+                BusyListTile(leading: const Icon(Icons.task_alt), title: const Text('Marcar como realizado'), onTap: () => _markCompleted(data)),
             ],
             if (me.canPlan(trip.itineraryId))
               ListTile(

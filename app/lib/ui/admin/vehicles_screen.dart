@@ -17,8 +17,9 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
 
   Future<(List<Vehicle>, Map<String, String>)> _load() async {
     final api = context.api;
-    final vehicles = (await api.getAll('/vehicles', query: {'include': 'vehicleType', ...context.entityFilter})).map(Vehicle.from).toList();
+    final entityFilter = context.entityFilter;
     final entityId = context.session.adminEntity?.id;
+    final vehicles = (await api.getAll('/vehicles', query: {'include': 'vehicleType', ...entityFilter})).map(Vehicle.from).toList();
     final drivers = {
       for (final r in await api.getAll('/drivers', query: {'include': 'worker'}))
         if (entityId == null || r.related('worker')?.relId('entity')?.id == entityId) r.id: PersonName.from(r.related('worker')).full,
@@ -168,7 +169,7 @@ class _VehicleFormState extends State<_VehicleForm> {
             onChanged: (value) => setState(() => _driverId = value),
           ),
           const SizedBox(height: 20),
-          FilledButton(onPressed: _save, child: const Text('Guardar')),
+          BusyButton(onPressed: _save, child: const Text('Guardar')),
         ]),
       ),
     );

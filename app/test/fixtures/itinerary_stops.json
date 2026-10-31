@@ -98,6 +98,14 @@
     "longitude": -82.3,
     "address": "Empresa, Calle 1 entre A y B"
    },
+   "relationships": {
+    "entity": {
+     "data": {
+      "type": "entities",
+      "id": "1"
+     }
+    }
+   },
    "links": {
     "self": "http://localhost:8000/api/v1/stops/1"
    }
@@ -108,11 +116,19 @@
    "attributes": {
     "landmark": "Parque",
     "street": "Calle 2",
-    "crossStreet1": "A",
-    "crossStreet2": "B",
+    "crossStreet1": null,
+    "crossStreet2": null,
     "latitude": 23.11,
     "longitude": -82.3,
-    "address": "Parque, Calle 2 entre A y B"
+    "address": "Parque, Calle 2"
+   },
+   "relationships": {
+    "entity": {
+     "data": {
+      "type": "entities",
+      "id": "1"
+     }
+    }
    },
    "links": {
     "self": "http://localhost:8000/api/v1/stops/2"
@@ -124,11 +140,19 @@
    "attributes": {
     "landmark": "Hospital",
     "street": "Calle 3",
-    "crossStreet1": "A",
-    "crossStreet2": "B",
+    "crossStreet1": null,
+    "crossStreet2": null,
     "latitude": 23.12,
     "longitude": -82.3,
-    "address": "Hospital, Calle 3 entre A y B"
+    "address": "Hospital, Calle 3"
+   },
+   "relationships": {
+    "entity": {
+     "data": {
+      "type": "entities",
+      "id": "1"
+     }
+    }
    },
    "links": {
     "self": "http://localhost:8000/api/v1/stops/3"

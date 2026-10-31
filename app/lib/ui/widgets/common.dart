@@ -391,7 +391,7 @@ class _BusyIconButtonState extends State<BusyIconButton> {
               try {
                 await widget.onPressed!();
               } catch (error) {
-                if (mounted) showError(context, error);
+                if (context.mounted) showError(context, error);
               } finally {
                 if (mounted) setState(() => _busy = false);
               }
@@ -433,7 +433,7 @@ class _BusyListTileState extends State<BusyListTile> {
               try {
                 await widget.onTap!();
               } catch (error) {
-                if (mounted) showError(context, error);
+                if (context.mounted) showError(context, error);
               } finally {
                 if (mounted) setState(() => _busy = false);
               }
@@ -474,7 +474,7 @@ class _BusySwitchListTileState extends State<BusySwitchListTile> {
               try {
                 await widget.onChanged!(value);
               } catch (error) {
-                if (mounted) showError(context, error);
+                if (context.mounted) showError(context, error);
               } finally {
                 if (mounted) setState(() => _busy = false);
               }

@@ -1,13 +1,17 @@
 openapi: 3.0.3
 info:
   title: MiTransporte API
-  version: 1.0.0
+  version: 2.0.0
   description: 'API de MiTransporte: gestión del transporte de trabajadores.
 
 
     - Formato [JSON:API 1.1](https://jsonapi.org/format/) (`application/vnd.api+json`).
 
     - Autenticación JWT (RFC 7519): token de acceso de 30 min y de renovación de 90 días con rotación.
+
+    - Varias Entidades: cada usuario ve y actúa solo sobre la suya; el Administrador, sobre todas. Lo ajeno responde 404.
+
+    - Sin cuenta, la app se identifica con la cabecera X-Installation (POST /installations).
 
     - Documentación funcional en `docs/`.'
 servers:
@@ -19,6 +23,9 @@ security:
 - bearerAuth: []
 tags:
 - name: Autenticación
+- name: Cuentas
+- name: Sin cuenta
+- name: Entidades
 - name: Trabajadores
 - name: Perfil
 - name: Nomencladores
@@ -42,7 +49,8 @@ paths:
       tags:
       - Autenticación
       summary: Iniciar sesión
-      description: Usuario (o carné) + contraseña. Devuelve token de acceso (30 min) y de renovación (90 días).
+      description: Usuario + contraseña. Devuelve token de acceso (30 min) y de renovación (90 días). Con X-Installation,
+        la instalación y sus conversaciones sin cuenta pasan a la cuenta.
       requestBody:
         required: true
         content:
@@ -67,7 +75,7 @@ paths:
       tags:
       - Autenticación
       summary: Cerrar sesión en todos los dispositivos
-      description: Revoca todos los tokens de renovación del usuario.
+      description: Revoca todos los tokens de renovación de la cuenta.
       responses:
         '204':
           description: Sin contenido
@@ -99,52 +107,54 @@ paths:
         '422':
           $ref: '#/components/responses/Unprocessable'
       security: []
-  /tokens/reset-code:
-    post:
+  /tokens/current:
+    delete:
       tags:
       - Autenticación
-      summary: Entrar con un código de restablecimiento
-      description: 'Público. Usuario (o carné) + `resetCode`. El código sirve una vez, caduca (`password_reset_ttl_hours`)
-        y admite 5 intentos. Cierra las demás sesiones y obliga a cambiar la contraseña: hasta entonces la API responde 403
-        PASSWORD_CHANGE_REQUIRED salvo en /me.'
+      summary: Cerrar sesión en este dispositivo
+      responses:
+        '204':
+          description: Sin contenido
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /password-policy:
+    get:
+      tags:
+      - Cuentas
+      summary: Requisitos de la contraseña y del usuario
+      description: Público.
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/PasswordPolicyDocument'
+      security: []
+  /users:
+    post:
+      tags:
+      - Cuentas
+      summary: Crear la cuenta (paso 1 del registro)
+      description: 'Público. Cuatro nombres (obligatorios), usuario y contraseña. La primera cuenta es la del Administrador
+        (sin trabajador). Errores: USERNAME_INVALID, USERNAME_TAKEN, PASSWORD_POLICY.'
       requestBody:
         required: true
         content:
           application/vnd.api+json:
             schema:
-              $ref: '#/components/schemas/TokenDocument'
+              $ref: '#/components/schemas/UserDocument'
       responses:
         '201':
           description: Creado
           content:
             application/vnd.api+json:
               schema:
-                $ref: '#/components/schemas/TokenDocument'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '415':
-          $ref: '#/components/responses/UnsupportedMediaType'
-        '422':
-          $ref: '#/components/responses/Unprocessable'
-      security: []
-  /password-resets:
-    post:
-      tags:
-      - Autenticación
-      summary: Pedir restablecer la contraseña
-      description: Público. Usuario (o carné) y teléfono. Se genera un código y se avisa al Administrador, que lo envía por
-        WhatsApp.
-      requestBody:
-        required: true
-        content:
-          application/vnd.api+json:
-            schema:
-              $ref: '#/components/schemas/PasswordResetDocument'
-      responses:
-        '202':
-          description: Recibida (la misma respuesta exista o no el usuario)
+                $ref: '#/components/schemas/UserDocument'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
         '415':
           $ref: '#/components/responses/UnsupportedMediaType'
         '422':
@@ -152,18 +162,30 @@ paths:
       security: []
     get:
       tags:
-      - Autenticación
-      summary: Solicitudes de restablecimiento
-      description: Solo el Administrador. Por defecto, las abiertas.
+      - Cuentas
+      summary: Listar cuentas
+      description: Solo el Administrador; incluye las que no se unieron a ninguna Entidad.
       parameters:
       - $ref: '#/components/parameters/PageNumber'
       - $ref: '#/components/parameters/PageSize'
       - $ref: '#/components/parameters/Sort'
       - $ref: '#/components/parameters/Include'
-      - name: filter[status]
+      - name: filter[search]
         in: query
         required: false
-        description: Estados separados por comas (por defecto pending,sent)
+        description: Usuario o nombres
+        schema:
+          type: string
+      - name: filter[hasWorker]
+        in: query
+        required: false
+        description: true/false
+        schema:
+          type: boolean
+      - name: filter[active]
+        in: query
+        required: false
+        description: true, false o all
         schema:
           type: string
       responses:
@@ -172,19 +194,39 @@ paths:
           content:
             application/vnd.api+json:
               schema:
-                $ref: '#/components/schemas/PasswordResetCollection'
+                $ref: '#/components/schemas/UserCollection'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-  /password-resets/{id}:
+  /users/{id}:
+    get:
+      tags:
+      - Cuentas
+      summary: Obtener cuenta
+      description: Solo el Administrador.
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/UserDocument'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
     patch:
       tags:
-      - Autenticación
-      summary: Marcar como enviado o cancelar
-      description: 'Solo el Administrador. `status`: sent o cancelled.'
+      - Cuentas
+      summary: Activar o desactivar cuenta
+      description: Solo el Administrador. Atributo `active`.
       parameters:
       - $ref: '#/components/parameters/Id'
       requestBody:
@@ -192,14 +234,303 @@ paths:
         content:
           application/vnd.api+json:
             schema:
-              $ref: '#/components/schemas/PasswordResetDocument'
+              $ref: '#/components/schemas/UserDocument'
       responses:
         '200':
           description: Correcto
           content:
             application/vnd.api+json:
               schema:
-                $ref: '#/components/schemas/PasswordResetDocument'
+                $ref: '#/components/schemas/UserDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /activations:
+    post:
+      tags:
+      - Cuentas
+      summary: Activar una cuenta creada por un superior
+      description: 'Público. "Ya me registró un superior": abreviatura de la Entidad, Pase, código, usuario y contraseña.
+        Devuelve los tokens. Datos o código incorrectos: 422 ACTIVATION_INVALID (5 intentos por código).'
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/ActivationDocument'
+      responses:
+        '201':
+          description: Creado
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/TokenDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+      security: []
+  /installations:
+    post:
+      tags:
+      - Sin cuenta
+      summary: Registrar la instalación de la app
+      description: Público. Devuelve en meta.header el valor de X-Installation (solo esta vez).
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/InstallationDocument'
+      responses:
+        '201':
+          description: Creado
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/InstallationDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+      security: []
+  /installations/{id}:
+    get:
+      tags:
+      - Sin cuenta
+      summary: Obtener instalación
+      description: Solo el Administrador.
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/InstallationDocument'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags:
+      - Sin cuenta
+      summary: Bloquear o desbloquear una instalación
+      description: Solo el Administrador. Atributo `blocked`.
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/InstallationDocument'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/InstallationDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /guest/access-recoveries:
+    post:
+      tags:
+      - Sin cuenta
+      summary: 'No puedo entrar: pedir ayuda'
+      description: Con X-Installation. Usuario olvidado, contraseña o los dos; Entidad, Pase y teléfono. La respuesta no dice
+        si los datos coinciden. Límite por hora (429).
+      parameters:
+      - name: X-Installation
+        in: header
+        required: true
+        schema:
+          type: string
+        description: <id>.<secreto> de la instalación (POST /installations)
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/AccessRecoveryDocument'
+      responses:
+        '201':
+          description: Creado
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/AccessRecoveryDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+      security: []
+  /guest/access-recoveries/{id}:
+    get:
+      tags:
+      - Sin cuenta
+      summary: Estado de mi solicitud
+      description: Con X-Installation. Si se aprobó y olvidó el usuario, trae `username` (y la solicitud termina).
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      - name: X-Installation
+        in: header
+        required: true
+        schema:
+          type: string
+        description: <id>.<secreto> de la instalación (POST /installations)
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/AccessRecoveryDocument'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      security: []
+  /guest/access-recoveries/{id}/password:
+    post:
+      tags:
+      - Sin cuenta
+      summary: Elegir contraseña nueva tras la aprobación
+      description: Con X-Installation. Cierra las demás sesiones y devuelve los tokens.
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      - name: X-Installation
+        in: header
+        required: true
+        schema:
+          type: string
+        description: <id>.<secreto> de la instalación (POST /installations)
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/AccessRecoveryDocument'
+      responses:
+        '201':
+          description: Creado
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/TokenDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+      security: []
+  /access-recoveries:
+    get:
+      tags:
+      - Sin cuenta
+      summary: Solicitudes "No puedo entrar"
+      description: Solo el Administrador. Por defecto, pendientes y aprobadas.
+      parameters:
+      - $ref: '#/components/parameters/PageNumber'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/Sort'
+      - $ref: '#/components/parameters/Include'
+      - name: filter[status]
+        in: query
+        required: false
+        description: Estados separados por comas
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/AccessRecoveryCollection'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /access-recoveries/{id}:
+    get:
+      tags:
+      - Sin cuenta
+      summary: Obtener solicitud
+      description: Solo el Administrador.
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/AccessRecoveryDocument'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags:
+      - Sin cuenta
+      summary: Aprobar o rechazar
+      description: 'Solo el Administrador, tras verificar a la persona por su cuenta. `status`: approved o rejected.'
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/AccessRecoveryDocument'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/AccessRecoveryDocument'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -214,23 +545,430 @@ paths:
           $ref: '#/components/responses/UnsupportedMediaType'
         '422':
           $ref: '#/components/responses/Unprocessable'
-  /tokens/current:
+  /guest/conversations:
+    get:
+      tags:
+      - Sin cuenta
+      summary: Mis conversaciones sin cuenta
+      description: Con X-Installation.
+      parameters:
+      - name: X-Installation
+        in: header
+        required: true
+        schema:
+          type: string
+        description: <id>.<secreto> de la instalación (POST /installations)
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/ConversationCollection'
+      security: []
+    post:
+      tags:
+      - Sin cuenta
+      summary: Escribir al desarrollador sin cuenta
+      description: Con X-Installation. `guestName`, `guestPhone`, `body` y la relación `topic` (de destinatario developer).
+        Límite de mensajes por hora (429).
+      parameters:
+      - name: X-Installation
+        in: header
+        required: true
+        schema:
+          type: string
+        description: <id>.<secreto> de la instalación (POST /installations)
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/ConversationDocument'
+      responses:
+        '201':
+          description: Creado
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/ConversationDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+      security: []
+  /guest/conversations/{id}/messages:
+    get:
+      tags:
+      - Sin cuenta
+      summary: Mensajes de una conversación sin cuenta
+      description: Con X-Installation.
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      - name: X-Installation
+        in: header
+        required: true
+        schema:
+          type: string
+        description: <id>.<secreto> de la instalación (POST /installations)
+      - name: filter[since]
+        in: query
+        required: false
+        description: Posteriores a
+        schema:
+          type: string
+          format: date-time
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/ConversationMessageCollection'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      security: []
+    post:
+      tags:
+      - Sin cuenta
+      summary: Escribir en una conversación sin cuenta
+      description: Con X-Installation. Falla con CONVERSATION_CLOSED si está cerrada.
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      - name: X-Installation
+        in: header
+        required: true
+        schema:
+          type: string
+        description: <id>.<secreto> de la instalación (POST /installations)
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/ConversationMessageDocument'
+      responses:
+        '201':
+          description: Creado
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/ConversationMessageDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+      security: []
+  /entities:
+    get:
+      tags:
+      - Entidades
+      summary: Listar entities
+      description: Solo el Administrador ve todas; los demás, la suya.
+      parameters:
+      - $ref: '#/components/parameters/PageNumber'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/Sort'
+      - $ref: '#/components/parameters/Include'
+      - name: filter[search]
+        in: query
+        required: false
+        description: Abreviatura o nombre
+        schema:
+          type: string
+      - name: filter[active]
+        in: query
+        required: false
+        description: true, false o all
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/EntityCollection'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags:
+      - Entidades
+      summary: Crear entities
+      description: Solo el Administrador.
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/EntityDocument'
+      responses:
+        '201':
+          description: Creado
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/EntityDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /entities/{id}:
+    get:
+      tags:
+      - Entidades
+      summary: Obtener entities
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      - $ref: '#/components/parameters/Include'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/EntityDocument'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags:
+      - Entidades
+      summary: Modificar entities
+      description: Solo el Administrador. `active` desactiva o reactiva.
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/EntityDocument'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/EntityDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
     delete:
       tags:
-      - Autenticación
-      summary: Cerrar sesión en este dispositivo
+      - Entidades
+      summary: Eliminar entities (borrado lógico)
+      description: Solo el Administrador.
+      parameters:
+      - $ref: '#/components/parameters/Id'
       responses:
         '204':
           description: Sin contenido
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /entities/lookup:
+    get:
+      tags:
+      - Entidades
+      summary: Buscar una Entidad por su abreviatura
+      description: Con sesión o con X-Installation. Abreviatura exacta, sin distinguir mayúsculas; devuelve solo abreviatura
+        y nombre. 404 ENTITY_NOT_FOUND.
+      parameters:
+      - name: abbreviation
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/EntityDocument'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /forbidden-words:
+    get:
+      tags:
+      - Nomencladores
+      summary: Listar forbidden-words
+      description: Solo el Administrador.
+      parameters:
+      - $ref: '#/components/parameters/PageNumber'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/Sort'
+      - $ref: '#/components/parameters/Include'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/ForbiddenWordCollection'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags:
+      - Nomencladores
+      summary: Crear forbidden-words
+      description: Solo el Administrador.
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/ForbiddenWordDocument'
+      responses:
+        '201':
+          description: Creado
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/ForbiddenWordDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /forbidden-words/{id}:
+    get:
+      tags:
+      - Nomencladores
+      summary: Obtener forbidden-words
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      - $ref: '#/components/parameters/Include'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/ForbiddenWordDocument'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags:
+      - Nomencladores
+      summary: Modificar forbidden-words
+      description: Solo el Administrador.
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/ForbiddenWordDocument'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/ForbiddenWordDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+    delete:
+      tags:
+      - Nomencladores
+      summary: Eliminar forbidden-words (borrado lógico)
+      description: Solo el Administrador.
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      responses:
+        '204':
+          description: Sin contenido
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
   /workers:
     post:
       tags:
       - Trabajadores
-      summary: Registrarse
-      description: Público. Carné, usuario, nombre, apellidos, jerarquía (relación `rank`) y contraseña. El primer usuario
-        registrado pasa a ser Administrador.
+      summary: Registrar a un trabajador sin teléfono
+      description: Jefe de Transporte (en su Entidad), Jefe de itinerario (en su itinerario) o Administrador (con la relación
+        `entity`). Cuatro nombres, Pase, sexo, jerarquía e, opcionalmente, itinerario y parada. La cuenta queda sin usuario
+        ni contraseña; meta.activationCode trae el código (solo esta vez). 409 PASS_TAKEN.
       requestBody:
         required: true
         content:
@@ -246,23 +984,32 @@ paths:
                 $ref: '#/components/schemas/WorkerDocument'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '409':
           $ref: '#/components/responses/Conflict'
         '415':
           $ref: '#/components/responses/UnsupportedMediaType'
         '422':
           $ref: '#/components/responses/Unprocessable'
-      security: []
     get:
       tags:
       - Trabajadores
       summary: Listar trabajadores
-      description: Solo datos públicos, salvo para el Administrador.
+      description: Los de la propia Entidad (todas para el Administrador).
       parameters:
       - $ref: '#/components/parameters/PageNumber'
       - $ref: '#/components/parameters/PageSize'
       - $ref: '#/components/parameters/Sort'
       - $ref: '#/components/parameters/Include'
+      - name: filter[entity]
+        in: query
+        required: false
+        description: Id de Entidad (Administrador)
+        schema:
+          type: string
       - name: filter[itinerary]
         in: query
         required: false
@@ -281,16 +1028,28 @@ paths:
         description: Id de jerarquía
         schema:
           type: string
+      - name: filter[pass]
+        in: query
+        required: false
+        description: Pase
+        schema:
+          type: string
+      - name: filter[activated]
+        in: query
+        required: false
+        description: true/false
+        schema:
+          type: boolean
       - name: filter[active]
         in: query
         required: false
-        description: true/false (solo Administrador)
+        description: true, false o all (Administrador)
         schema:
-          type: boolean
+          type: string
       - name: filter[search]
         in: query
         required: false
-        description: Texto en nombre, apellidos o usuario
+        description: Nombres, usuario o Pase
         schema:
           type: string
       responses:
@@ -331,7 +1090,7 @@ paths:
       tags:
       - Trabajadores
       summary: Activar o desactivar trabajador
-      description: Solo el Administrador. Atributo `active`.
+      description: Solo el Administrador. Atributo `active` (también la cuenta).
       parameters:
       - $ref: '#/components/parameters/Id'
       requestBody:
@@ -359,12 +1118,35 @@ paths:
           $ref: '#/components/responses/UnsupportedMediaType'
         '422':
           $ref: '#/components/responses/Unprocessable'
+  /workers/{id}/activation-codes:
+    post:
+      tags:
+      - Trabajadores
+      summary: Generar un código de activación nuevo
+      description: Los mismos superiores que pueden registrarlo. Anula los anteriores. 409 ALREADY_ACTIVATED.
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      responses:
+        '201':
+          description: Creado
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/WorkerDocument'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
   /me:
     get:
       tags:
       - Perfil
-      summary: Mi perfil
-      description: Incluye `username` y `cardNumber`.
+      summary: Mi cuenta
+      description: Incluye `username`. Con include=worker,worker.entity,worker.rank trae el trabajador.
       parameters:
       - $ref: '#/components/parameters/Include'
       responses:
@@ -373,15 +1155,45 @@ paths:
           content:
             application/vnd.api+json:
               schema:
-                $ref: '#/components/schemas/WorkerDocument'
+                $ref: '#/components/schemas/UserDocument'
         '401':
           $ref: '#/components/responses/Unauthorized'
     patch:
       tags:
       - Perfil
-      summary: Modificar mi perfil
-      description: Usuario, nombre, apellidos o contraseña. El usuario tiene que estar libre (409 USERNAME_TAKEN). Para cambiar
-        la contraseña hay que enviar también `meta.currentPassword`; al cambiarla se revocan todos los tokens de renovación.
+      summary: Modificar mi cuenta
+      description: Usuario, nombres, contraseña y la relación `rank` (jerarquía, sin solicitud). Para cambiar la contraseña
+        hay que enviar `meta.currentPassword` (salvo tras recuperar el acceso); se cierran las demás sesiones.
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/UserDocument'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/UserDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /me/worker:
+    post:
+      tags:
+      - Perfil
+      summary: Unirme a mi Entidad (paso 2 del registro)
+      description: '`entityAbbreviation`, `pass`, `sex` y la relación `rank`. Obligatorio salvo para el Administrador: hasta
+        entonces la API responde 403 ENTITY_REQUIRED. Errores: ENTITY_NOT_FOUND, PASS_TAKEN, ALREADY_IN_ENTITY.'
       requestBody:
         required: true
         content:
@@ -389,8 +1201,8 @@ paths:
             schema:
               $ref: '#/components/schemas/WorkerDocument'
       responses:
-        '200':
-          description: Correcto
+        '201':
+          description: Creado
           content:
             application/vnd.api+json:
               schema:
@@ -429,7 +1241,7 @@ paths:
           content:
             application/vnd.api+json:
               schema:
-                $ref: '#/components/schemas/WorkerDocument'
+                $ref: '#/components/schemas/UserDocument'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '422':
@@ -448,7 +1260,7 @@ paths:
       tags:
       - Ajustes
       summary: Mis ajustes
-      description: Valor efectivo de cada ajuste que el usuario puede personalizar.
+      description: Valor efectivo de cada ajuste que el usuario puede personalizar, y el heredado (Entidad o app).
       responses:
         '200':
           description: Correcto
@@ -492,7 +1304,7 @@ paths:
     delete:
       tags:
       - Ajustes
-      summary: Volver al valor global
+      summary: Volver al valor de mi Entidad
       parameters:
       - $ref: '#/components/parameters/Id'
       responses:
@@ -1928,9 +2740,8 @@ paths:
     get:
       tags:
       - Subida
-      summary: Pasajeros en orden de subida
-      description: Primero los que suben con niños; luego mujeres y después hombres; dentro de cada grupo, por jerarquía y
-        alfabético.
+      summary: Pasajeros esperados
+      description: Por parada (en el orden del itinerario) y, dentro de cada una, alfabéticamente por apellidos y nombres.
       parameters:
       - $ref: '#/components/parameters/Id'
       - name: filter[stop]
@@ -2897,8 +3708,7 @@ paths:
       tags:
       - Ajustes
       summary: Modificar settings
-      description: Solo quien indique `editableBy` en la definición (y siempre el Administrador). Se valida contra min, max
-        y opciones.
+      description: Solo el Administrador (valores de toda la app). Se valida contra min, max y opciones.
       parameters:
       - $ref: '#/components/parameters/Id'
       requestBody:
@@ -2928,12 +3738,97 @@ paths:
           $ref: '#/components/responses/UnsupportedMediaType'
         '422':
           $ref: '#/components/responses/Unprocessable'
+  /entity-settings:
+    get:
+      tags:
+      - Ajustes
+      summary: Ajustes de nivel Entidad
+      description: Los de la propia Entidad; el Administrador indica filter[entity].
+      parameters:
+      - name: filter[entity]
+        in: query
+        required: false
+        description: Id de Entidad (Administrador)
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/EntitySettingCollection'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /entity-settings/{id}:
+    patch:
+      tags:
+      - Ajustes
+      summary: Cambiar un ajuste de la Entidad
+      description: Jefe de Transporte de la Entidad o Administrador. `id` = clave.
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      - name: filter[entity]
+        in: query
+        required: false
+        description: Id de Entidad (Administrador)
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/EntitySettingDocument'
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/EntitySettingDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+    delete:
+      tags:
+      - Ajustes
+      summary: Volver al valor de la app
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      - name: filter[entity]
+        in: query
+        required: false
+        description: Id de Entidad (Administrador)
+        schema:
+          type: string
+      responses:
+        '204':
+          description: Sin contenido
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /statistics/{name}:
     get:
       tags:
       - Estadísticas
       summary: Obtener una estadística
-      description: 'Un solo tipo de periodo: `from`+`to`, `dates` o `last`. Los filtros se restringen según el rol.'
+      description: 'Un solo tipo de periodo: `from`+`to`, `dates` o `last`. Cada uno ve lo de su Entidad (el Administrador,
+        todas o una con `entity`); los filtros se restringen según el rol.'
       parameters:
       - name: name
         in: path
@@ -2984,6 +3879,18 @@ paths:
         schema:
           type: string
           pattern: ^\d+[dwmy]$
+      - name: filter[entity]
+        in: query
+        required: false
+        description: Id de Entidad (Administrador)
+        schema:
+          type: string
+      - name: filter[level]
+        in: query
+        required: false
+        description: 'overloaded-trips: saturated (por defecto) u overloaded'
+        schema:
+          type: string
       - name: filter[itinerary]
         in: query
         required: false
@@ -3046,7 +3953,9 @@ paths:
       tags:
       - Actualizaciones
       summary: Última versión de la app
-      description: Público. `data` es null si no hay ninguna. Con `filter[currentVersionCode]`, `meta.updateAvailable` y `meta.mandatory`.
+      description: 'Público. `data` es null si no hay ninguna. Con `filter[currentVersionCode]`, `meta.updateAvailable` y
+        `meta.mandatory`. Con `filter[abis]` (los que admite el teléfono, por preferencia), `meta.file` trae el APK que le
+        corresponde: el suyo, si no el universal, si no el único publicado.'
       parameters:
       - name: filter[currentVersionCode]
         in: query
@@ -3054,6 +3963,12 @@ paths:
         description: versionCode instalado
         schema:
           type: integer
+      - name: filter[abis]
+        in: query
+        required: false
+        description: p. ej. arm64-v8a,armeabi-v7a
+        schema:
+          type: string
       responses:
         '200':
           description: Correcto
@@ -3069,7 +3984,7 @@ paths:
       tags:
       - Actualizaciones
       summary: Versiones publicadas
-      description: Solo el Administrador. `meta.workersWithoutVersion`.
+      description: Solo el Administrador. `meta.usersWithoutVersion`.
       responses:
         '200':
           description: Correcto
@@ -3085,8 +4000,8 @@ paths:
       tags:
       - Actualizaciones
       summary: Publicar una versión
-      description: Solo el Administrador. `multipart/form-data`. El versionCode debe ser mayor que el de cualquier versión
-        anterior.
+      description: Solo el Administrador. `multipart/form-data`. Un APK por tipo de procesador (al menos uno). El versionCode
+        debe ser mayor que el de cualquier versión anterior.
       requestBody:
         required: true
         content:
@@ -3094,11 +4009,18 @@ paths:
             schema:
               type: object
               required:
-              - apk
               - versionName
               - versionCode
               properties:
-                apk:
+                apkArm64:
+                  type: string
+                  format: binary
+                  description: 64 bits
+                apkArm32:
+                  type: string
+                  format: binary
+                  description: 32 bits
+                apkUniversal:
                   type: string
                   format: binary
                 versionName:
@@ -3256,6 +4178,12 @@ components:
         application/vnd.api+json:
           schema:
             $ref: '#/components/schemas/ErrorDocument'
+    TooManyRequests:
+      description: Demasiadas solicitudes o mensajes desde ese teléfono en la última hora
+      content:
+        application/vnd.api+json:
+          schema:
+            $ref: '#/components/schemas/ErrorDocument'
   schemas:
     ResourceIdentifier:
       type: object
@@ -3384,9 +4312,138 @@ components:
               data:
                 type: object
                 additionalProperties: true
+    User:
+      type: object
+      description: Cuenta de la app. El Administrador es una cuenta sin trabajador. El usuario y los datos de la contraseña
+        solo los ven la propia cuenta y el Administrador.
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - users
+        id:
+          type: string
+        attributes:
+          type: object
+          properties:
+            username:
+              type: string
+              pattern: ^[a-z][a-z0-9._]{3,19}$
+              description: De 4 a 20 caracteres, empieza por letra, sin signos al final ni seguidos, al menos 3 letras, sin
+                palabras reservadas ni no permitidas. Único en toda la app; el anterior queda bloqueado `username_reuse_block_days`
+                días.
+            password:
+              type: string
+              format: password
+              writeOnly: true
+              description: Según la política de contraseñas (GET /password-policy)
+            firstName:
+              type: string
+              maxLength: 50
+            middleName:
+              type: string
+              maxLength: 50
+            firstSurname:
+              type: string
+              maxLength: 50
+            secondSurname:
+              type: string
+              maxLength: 50
+            fullName:
+              type: string
+              readOnly: true
+            photoUrl:
+              type: string
+              format: uri
+              nullable: true
+              readOnly: true
+            isAdmin:
+              type: boolean
+              readOnly: true
+            active:
+              type: boolean
+              description: Falso = borrado lógico. Solo el Administrador puede cambiarlo.
+            activated:
+              type: boolean
+              readOnly: true
+              description: Tiene usuario y contraseña (falso si la registró un superior y aún no la activó)
+            mustChangePassword:
+              type: boolean
+              readOnly: true
+              description: 'La contraseña caducó o se recuperó el acceso: solo se permite el perfil propio'
+            currentPasswordRequired:
+              type: boolean
+              readOnly: true
+              description: Para cambiarla hay que dar la actual (falso tras recuperar el acceso)
+            passwordExpiresAt:
+              type: string
+              format: date-time
+              nullable: true
+              readOnly: true
+            appVersionCode:
+              type: integer
+              nullable: true
+              readOnly: true
+              description: Solo para el Administrador
+            createdAt:
+              type: string
+              format: date-time
+              readOnly: true
+          required:
+          - username
+          - password
+          - firstName
+          - middleName
+          - firstSurname
+          - secondSurname
+        relationships:
+          type: object
+          properties:
+            worker:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+        links:
+          $ref: '#/components/schemas/Links'
+    UserDocument:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/User'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    UserCollection:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
     Worker:
       type: object
-      description: Trabajador y usuario de la app.
+      description: Trabajador de una Entidad. Los nombres y la foto vienen de su cuenta. El Pase lo ven el propio trabajador,
+        el Jefe de su itinerario, los Jefes de Transporte de su Entidad y el Administrador.
       required:
       - type
       properties:
@@ -3399,58 +4456,69 @@ components:
         attributes:
           type: object
           properties:
-            username:
-              type: string
-              pattern: ^[a-z][a-z0-9._]{2,29}$
-              description: Usuario para iniciar sesión, en minúsculas y único (también entre inactivos). Solo se devuelve
-                al propio trabajador y al Administrador.
-            cardNumber:
-              type: string
-              pattern: ^\d{11}$
-              description: Carné de identidad. Se envía al registrarse; solo se devuelve al propio trabajador y al Administrador.
             firstName:
               type: string
-              maxLength: 100
-            lastName:
+              maxLength: 50
+            middleName:
               type: string
-              maxLength: 150
-              description: Apellidos
-            password:
+              maxLength: 50
+            firstSurname:
               type: string
-              format: password
-              minLength: 8
-              writeOnly: true
+              maxLength: 50
+            secondSurname:
+              type: string
+              maxLength: 50
+            fullName:
+              type: string
+              readOnly: true
+            pass:
+              type: integer
+              minimum: 1
+              description: 'Pase: único dentro de la Entidad'
             sex:
               type: string
               enum:
               - F
               - M
-              readOnly: true
-              description: Calculado a partir del carné
             photoUrl:
               type: string
               format: uri
               nullable: true
               readOnly: true
-            isAdmin:
-              type: boolean
-              readOnly: true
             active:
               type: boolean
               description: Falso = borrado lógico. Solo el Administrador puede cambiarlo.
+            activated:
+              type: boolean
+              readOnly: true
             createdAt:
               type: string
               format: date-time
               readOnly: true
           required:
-          - username
-          - cardNumber
           - firstName
-          - lastName
-          - password
+          - middleName
+          - firstSurname
+          - secondSurname
+          - pass
+          - sex
         relationships:
           type: object
           properties:
+            user:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+            entity:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
             rank:
               type: object
               properties:
@@ -3491,6 +4559,13 @@ components:
                   type: array
                   items:
                     type: string
+            activationCode:
+              type: string
+              description: Solo al registrarlo un superior o al generar uno nuevo
+            activationExpiresAt:
+              type: string
+              format: date-time
+              nullable: true
         links:
           $ref: '#/components/schemas/Links'
     WorkerDocument:
@@ -3523,9 +4598,477 @@ components:
           $ref: '#/components/schemas/Links'
         meta:
           $ref: '#/components/schemas/PageMeta'
+    Entity:
+      type: object
+      description: 'Entidad: empresa que usa la app. Solo el Administrador las gestiona; se muestra por su abreviatura.'
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - entities
+        id:
+          type: string
+        attributes:
+          type: object
+          properties:
+            abbreviation:
+              type: string
+              pattern: ^[A-Z0-9]{2,15}$
+              description: Obligatoria y única (también entre inactivas); en mayúsculas
+            number:
+              type: string
+              pattern: ^\d{4}$
+              nullable: true
+              description: Opcional; único si se pone
+            name:
+              type: string
+              maxLength: 150
+            description:
+              type: string
+              nullable: true
+            observation:
+              type: string
+              nullable: true
+            active:
+              type: boolean
+              description: 'En PATCH: desactivar o reactivar'
+          required:
+          - abbreviation
+          - name
+        links:
+          $ref: '#/components/schemas/Links'
+    EntityDocument:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/Entity'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    EntityCollection:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Entity'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
+    ForbiddenWord:
+      type: object
+      description: Palabra que no puede contener un usuario (solo el Administrador).
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - forbidden-words
+        id:
+          type: string
+        attributes:
+          type: object
+          properties:
+            name:
+              type: string
+              maxLength: 100
+              description: Denominación
+            description:
+              type: string
+              nullable: true
+              description: Descripción
+            observation:
+              type: string
+              nullable: true
+              description: Observación
+          required:
+          - name
+        links:
+          $ref: '#/components/schemas/Links'
+    ForbiddenWordDocument:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/ForbiddenWord'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    ForbiddenWordCollection:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ForbiddenWord'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
+    Installation:
+      type: object
+      description: Instalación de la app en un teléfono. Al crearla se devuelve su secreto (meta.header) para la cabecera
+        X-Installation.
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - installations
+        id:
+          type: string
+        attributes:
+          type: object
+          properties:
+            deviceModel:
+              type: string
+              nullable: true
+            androidVersion:
+              type: string
+              nullable: true
+            appVersionCode:
+              type: integer
+              nullable: true
+            blocked:
+              type: boolean
+              description: Solo el Administrador; bloqueada no puede escribir sin cuenta ni pedir recuperación
+            createdAt:
+              type: string
+              format: date-time
+              readOnly: true
+        relationships:
+          type: object
+          properties:
+            user:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+        meta:
+          type: object
+          readOnly: true
+          properties:
+            header:
+              type: string
+              description: 'Solo al crearla: valor de X-Installation (<id>.<secreto>)'
+        links:
+          $ref: '#/components/schemas/Links'
+    InstallationDocument:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/Installation'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    InstallationCollection:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Installation'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
+    AccessRecovery:
+      type: object
+      description: Solicitud "No puedo entrar". La crea y consulta la instalación; el Administrador la aprueba o rechaza.
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - access-recoveries
+        id:
+          type: string
+        attributes:
+          type: object
+          properties:
+            forgotUsername:
+              type: boolean
+            forgotPassword:
+              type: boolean
+            entityAbbreviation:
+              type: string
+            pass:
+              type: integer
+              minimum: 1
+            phone:
+              type: string
+              description: Al crearla; después solo lo ve el Administrador
+            status:
+              type: string
+              enum:
+              - pending
+              - approved
+              - rejected
+              - completed
+              - expired
+              description: 'En PATCH (Administrador): approved o rejected'
+            username:
+              type: string
+              readOnly: true
+              description: Solo para la instalación, si se aprobó y olvidó el usuario
+            matched:
+              type: boolean
+              readOnly: true
+              description: 'Solo para el Administrador: los datos coinciden con un trabajador'
+            expiresAt:
+              type: string
+              format: date-time
+              readOnly: true
+            resolvedAt:
+              type: string
+              format: date-time
+              nullable: true
+              readOnly: true
+            createdAt:
+              type: string
+              format: date-time
+              readOnly: true
+          required:
+          - forgotUsername
+          - forgotPassword
+          - entityAbbreviation
+          - pass
+          - phone
+        relationships:
+          type: object
+          properties:
+            worker:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+            installation:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+            resolvedBy:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+        links:
+          $ref: '#/components/schemas/Links'
+    AccessRecoveryDocument:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/AccessRecovery'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    AccessRecoveryCollection:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AccessRecovery'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
+    Activation:
+      type: object
+      description: '"Ya me registró un superior": activar la cuenta con la Entidad, el Pase y el código.'
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - activations
+        id:
+          type: string
+        attributes:
+          type: object
+          properties:
+            entityAbbreviation:
+              type: string
+            pass:
+              type: integer
+              minimum: 1
+            code:
+              type: string
+              description: 8 caracteres; se admite con guion
+            username:
+              type: string
+            password:
+              type: string
+              format: password
+            deviceName:
+              type: string
+              nullable: true
+          required:
+          - entityAbbreviation
+          - pass
+          - code
+          - username
+          - password
+        links:
+          $ref: '#/components/schemas/Links'
+    ActivationDocument:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/Activation'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    ActivationCollection:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Activation'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
+    PasswordPolicy:
+      type: object
+      description: Requisitos actuales de la contraseña y del usuario.
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - password-policies
+        id:
+          type: string
+        attributes:
+          type: object
+          properties:
+            minLength:
+              type: integer
+            maxLength:
+              type: integer
+            requiredClasses:
+              type: integer
+              minimum: 1
+              maximum: 4
+            forbidPersonalData:
+              type: boolean
+            forbidCommon:
+              type: boolean
+            historyCount:
+              type: integer
+            expiryDays:
+              type: integer
+            usernameMinLength:
+              type: integer
+            usernameMaxLength:
+              type: integer
+        links:
+          $ref: '#/components/schemas/Links'
+    PasswordPolicyDocument:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/PasswordPolicy'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    PasswordPolicyCollection:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/PasswordPolicy'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
     Rank:
       type: object
-      description: Jerarquía.
+      description: Jerarquía, común a todas las Entidades. Solo sirve para las estadísticas.
       required:
       - type
       properties:
@@ -3550,10 +5093,10 @@ components:
               type: string
               nullable: true
               description: Observación
-            precedence:
+            sortOrder:
               type: integer
-              minimum: 1
-              description: 1 = la más alta
+              minimum: 0
+              description: Orden de presentación
             iconUrl:
               type: string
               format: uri
@@ -3561,7 +5104,6 @@ components:
               readOnly: true
           required:
           - name
-          - precedence
         links:
           $ref: '#/components/schemas/Links'
     RankDocument:
@@ -3786,7 +5328,7 @@ components:
           $ref: '#/components/schemas/PageMeta'
     Itinerary:
       type: object
-      description: Itinerario.
+      description: Itinerario de una Entidad (nombre único dentro de ella).
       required:
       - type
       properties:
@@ -3816,6 +5358,13 @@ components:
         relationships:
           type: object
           properties:
+            entity:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
             itineraryStops:
               type: object
               properties:
@@ -3874,7 +5423,7 @@ components:
           $ref: '#/components/schemas/PageMeta'
     Stop:
       type: object
-      description: Parada.
+      description: Parada de una Entidad. Dos Entidades pueden usar el mismo lugar, pero cada una registra la suya.
       required:
       - type
       properties:
@@ -3915,6 +5464,16 @@ components:
           - street
           - latitude
           - longitude
+        relationships:
+          type: object
+          properties:
+            entity:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
         links:
           $ref: '#/components/schemas/Links'
     StopDocument:
@@ -4208,7 +5767,7 @@ components:
           $ref: '#/components/schemas/PageMeta'
     Vehicle:
       type: object
-      description: Vehículo.
+      description: Vehículo de una Entidad (matrícula única dentro de ella).
       required:
       - type
       properties:
@@ -4239,6 +5798,13 @@ components:
         relationships:
           type: object
           properties:
+            entity:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
             vehicleType:
               type: object
               properties:
@@ -4372,10 +5938,23 @@ components:
           properties:
             expectedPassengers:
               type: integer
+              description: Trabajadores esperados (los niños van cargados y no cuentan)
             expectedChildren:
+              type: integer
+            seats:
               type: integer
             totalCapacity:
               type: integer
+              description: Asientos + capacidad de pie
+            occupancyLevel:
+              type: string
+              enum:
+              - normal
+              - saturated
+              - overloaded
+              description: 'saturated: más que asientos pero caben de pie; overloaded: no caben'
+            saturated:
+              type: boolean
             overloaded:
               type: boolean
             needsReassignment:
@@ -4454,7 +6033,7 @@ components:
                   allOf:
                   - $ref: '#/components/schemas/ResourceIdentifier'
                   nullable: true
-            worker:
+            user:
               type: object
               properties:
                 data:
@@ -4901,7 +6480,7 @@ components:
           $ref: '#/components/schemas/PageMeta'
     TripPassenger:
       type: object
-      description: Pasajero esperado en un viaje, en orden de subida.
+      description: 'Pasajero esperado en un viaje: por parada (en el orden del itinerario) y alfabéticamente.'
       required:
       - type
       properties:
@@ -4914,7 +6493,7 @@ components:
         attributes:
           type: object
           properties:
-            boardingOrder:
+            position:
               type: integer
               readOnly: true
             eligibleChildren:
@@ -5019,7 +6598,7 @@ components:
                   allOf:
                   - $ref: '#/components/schemas/ResourceIdentifier'
                   nullable: true
-            worker:
+            author:
               type: object
               properties:
                 data:
@@ -5075,13 +6654,24 @@ components:
           properties:
             firstName:
               type: string
-            lastName:
+              maxLength: 50
+            middleName:
               type: string
-            cardNumber:
+              maxLength: 50
+            firstSurname:
               type: string
-              pattern: ^\d{11}$
+              maxLength: 50
+            secondSurname:
+              type: string
+              maxLength: 50
+            fullName:
+              type: string
               readOnly: true
-              description: Solo para el padre o madre y el Administrador
+            birthDate:
+              type: string
+              format: date
+              readOnly: true
+              description: Solo para el padre o madre, sus jefes y el Administrador
         relationships:
           type: object
           properties:
@@ -5099,7 +6689,7 @@ components:
             eligibleUntil:
               type: string
               format: date
-              description: Solo para el padre o madre y el Administrador
+              description: Solo para quien ve la fecha de nacimiento
             eligible:
               type: boolean
             declared:
@@ -5159,7 +6749,6 @@ components:
               - itinerary_chief
               - driver
               - transport_chief
-              - rank_change
               - child_addition
               - child_removal
               - absence
@@ -5186,15 +6775,40 @@ components:
               readOnly: true
             childFirstName:
               type: string
-              description: Solo child_addition
-            childLastName:
-              type: string
-              description: Solo child_addition
-            childCardNumber:
-              type: string
-              pattern: ^\d{11}$
+              maxLength: 50
               writeOnly: true
               description: Solo child_addition
+            childMiddleName:
+              type: string
+              maxLength: 50
+              writeOnly: true
+              description: Solo child_addition
+            childFirstSurname:
+              type: string
+              maxLength: 50
+              writeOnly: true
+              description: Solo child_addition
+            childSecondSurname:
+              type: string
+              maxLength: 50
+              writeOnly: true
+              description: Solo child_addition
+            childBirthDate:
+              type: string
+              format: date
+              writeOnly: true
+              description: Solo child_addition
+            childFullName:
+              type: string
+              readOnly: true
+            possibleDuplicate:
+              type: boolean
+              readOnly: true
+              description: Pendiente de un niño que coincide con otro de la Entidad en fecha, primer nombre y primer apellido
+            assigned:
+              type: boolean
+              readOnly: true
+              description: La creó un superior (asignación o retirada directa)
             startsOn:
               type: string
               format: date
@@ -5223,6 +6837,13 @@ components:
                   allOf:
                   - $ref: '#/components/schemas/ResourceIdentifier'
                   nullable: true
+            createdBy:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
             resolvedBy:
               type: object
               properties:
@@ -5238,13 +6859,6 @@ components:
                   - $ref: '#/components/schemas/ResourceIdentifier'
                   nullable: true
             stop:
-              type: object
-              properties:
-                data:
-                  allOf:
-                  - $ref: '#/components/schemas/ResourceIdentifier'
-                  nullable: true
-            rank:
               type: object
               properties:
                 data:
@@ -5319,6 +6933,24 @@ components:
               - transport_chiefs
               - developer
               readOnly: true
+            guest:
+              type: boolean
+              readOnly: true
+              description: Abierta sin cuenta
+            closed:
+              type: boolean
+              description: 'En PATCH: cerrar o reabrir'
+            guestName:
+              type: string
+              nullable: true
+            guestPhone:
+              type: string
+              nullable: true
+              description: Solo para el Administrador
+            body:
+              type: string
+              writeOnly: true
+              description: 'Solo al abrirla sin cuenta: primer mensaje'
             createdAt:
               type: string
               format: date-time
@@ -5346,6 +6978,20 @@ components:
                   - $ref: '#/components/schemas/ResourceIdentifier'
                   nullable: true
             itinerary:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+            entity:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+            installation:
               type: object
               properties:
                 data:
@@ -5418,7 +7064,7 @@ components:
                   allOf:
                   - $ref: '#/components/schemas/ResourceIdentifier'
                   nullable: true
-            worker:
+            author:
               type: object
               properties:
                 data:
@@ -5477,11 +7123,14 @@ components:
               enum:
               - application_received
               - application_resolved
+              - role_assigned
+              - role_removed
               - resignation
               - inactivity_warning
               - inactivity_removal
               - trip_needs_reassignment
-              - password_reset_requested
+              - access_recovery_requested
+              - password_expiring
               readOnly: true
             readAt:
               type: string
@@ -5508,7 +7157,7 @@ components:
                   allOf:
                   - $ref: '#/components/schemas/ResourceIdentifier'
                   nullable: true
-            passwordReset:
+            accessRecovery:
               type: object
               properties:
                 data:
@@ -5589,12 +7238,13 @@ components:
               type: string
               nullable: true
               description: Clave del ajuste global que fija el mínimo
-            editableBy:
+            level:
               type: string
               enum:
-              - administrator
-              - transport_chief
-              nullable: true
+              - app
+              - entity
+              description: 'app: solo el Administrador; entity: el Administrador fija el de la app y cada Jefe de Transporte
+                el de su Entidad'
             userOverridable:
               type: boolean
             options:
@@ -5640,7 +7290,7 @@ components:
           $ref: '#/components/schemas/PageMeta'
     Setting:
       type: object
-      description: Valor global de un ajuste. El id es la clave.
+      description: Valor de un ajuste para toda la app. El id es la clave. Solo el Administrador lo cambia.
       required:
       - type
       properties:
@@ -5702,6 +7352,76 @@ components:
           $ref: '#/components/schemas/Links'
         meta:
           $ref: '#/components/schemas/PageMeta'
+    EntitySetting:
+      type: object
+      description: Valor de un ajuste de nivel Entidad para una Entidad. El id es la clave.
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - entity-settings
+        id:
+          type: string
+        attributes:
+          type: object
+          properties:
+            value:
+              type: string
+            appValue:
+              type: string
+              readOnly: true
+            isCustom:
+              type: boolean
+              readOnly: true
+            editable:
+              type: boolean
+              readOnly: true
+          required:
+          - value
+        relationships:
+          type: object
+          properties:
+            definition:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+        links:
+          $ref: '#/components/schemas/Links'
+    EntitySettingDocument:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/EntitySetting'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    EntitySettingCollection:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/EntitySetting'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
     UserSetting:
       type: object
       description: Valor efectivo de un ajuste para el usuario autenticado. El id es la clave.
@@ -5719,6 +7439,10 @@ components:
           properties:
             value:
               type: string
+            inheritedValue:
+              type: string
+              readOnly: true
+              description: El de su Entidad o el de la app
             isCustom:
               type: boolean
               readOnly: true
@@ -5860,13 +7584,25 @@ components:
               nullable: true
             mandatory:
               type: boolean
-            downloadUrl:
-              type: string
-              format: uri
-            sizeBytes:
-              type: integer
-            sha256:
-              type: string
+            files:
+              type: array
+              readOnly: true
+              items:
+                type: object
+                properties:
+                  abi:
+                    type: string
+                    enum:
+                    - arm64-v8a
+                    - armeabi-v7a
+                    - universal
+                  downloadUrl:
+                    type: string
+                    format: uri
+                  sizeBytes:
+                    type: integer
+                  sha256:
+                    type: string
             publishedAt:
               type: string
               format: date-time
@@ -5909,107 +7645,6 @@ components:
           $ref: '#/components/schemas/Links'
         meta:
           $ref: '#/components/schemas/PageMeta'
-    PasswordReset:
-      type: object
-      description: Solicitud de restablecimiento de contraseña. El teléfono y el código solo los ve el Administrador.
-      required:
-      - type
-      properties:
-        type:
-          type: string
-          enum:
-          - password-resets
-        id:
-          type: string
-        attributes:
-          type: object
-          properties:
-            username:
-              type: string
-              writeOnly: true
-              description: Solo al solicitarlo. Usuario o carné
-            cardNumber:
-              type: string
-              pattern: ^\d{11}$
-              writeOnly: true
-              description: 'Obsoleto: usar `username`. Lo envían las versiones de la app anteriores al usuario'
-            phone:
-              type: string
-              description: Teléfono para enviar el código por WhatsApp
-            code:
-              type: string
-              readOnly: true
-            status:
-              type: string
-              enum:
-              - pending
-              - sent
-              - used
-              - expired
-              - cancelled
-            failedAttempts:
-              type: integer
-              readOnly: true
-            expiresAt:
-              type: string
-              format: date-time
-              readOnly: true
-            sentAt:
-              type: string
-              format: date-time
-              nullable: true
-              readOnly: true
-            usedAt:
-              type: string
-              format: date-time
-              nullable: true
-              readOnly: true
-            createdAt:
-              type: string
-              format: date-time
-              readOnly: true
-        relationships:
-          type: object
-          properties:
-            worker:
-              type: object
-              properties:
-                data:
-                  allOf:
-                  - $ref: '#/components/schemas/ResourceIdentifier'
-                  nullable: true
-        links:
-          $ref: '#/components/schemas/Links'
-    PasswordResetDocument:
-      type: object
-      required:
-      - data
-      properties:
-        data:
-          $ref: '#/components/schemas/PasswordReset'
-        included:
-          type: array
-          items:
-            type: object
-            additionalProperties: true
-    PasswordResetCollection:
-      type: object
-      required:
-      - data
-      properties:
-        data:
-          type: array
-          items:
-            $ref: '#/components/schemas/PasswordReset'
-        included:
-          type: array
-          items:
-            type: object
-            additionalProperties: true
-        links:
-          $ref: '#/components/schemas/Links'
-        meta:
-          $ref: '#/components/schemas/PageMeta'
     Token:
       type: object
       description: Par de tokens JWT.
@@ -6028,12 +7663,6 @@ components:
             username:
               type: string
               writeOnly: true
-              description: Usuario o, como alternativa, carné (11 dígitos)
-            cardNumber:
-              type: string
-              pattern: ^\d{11}$
-              writeOnly: true
-              description: 'Obsoleto: usar `username`. Lo envían las versiones de la app anteriores al usuario'
             password:
               type: string
               format: password
@@ -6044,13 +7673,6 @@ components:
             refreshToken:
               type: string
               description: En /tokens/refresh se envía; en las respuestas se devuelve el nuevo
-            resetCode:
-              type: string
-              writeOnly: true
-              description: Solo en /tokens/reset-code
-            mustChangePassword:
-              type: boolean
-              readOnly: true
             accessToken:
               type: string
               readOnly: true

@@ -3,10 +3,10 @@
   "type": "trips",
   "id": "1",
   "attributes": {
-   "departsAt": "2026-10-30T17:15:03+00:00",
-   "returnsAt": "2026-10-31T05:20:03+00:00",
+   "departsAt": "2026-10-31T13:51:01+00:00",
+   "returnsAt": "2026-10-31T15:41:01+00:00",
    "status": "confirmed",
-   "updatedAt": "2026-10-30T17:20:03+00:00"
+   "updatedAt": "2026-10-31T15:51:03+00:00"
   },
   "relationships": {
    "itinerary": {
@@ -29,15 +29,18 @@
    },
    "createdBy": {
     "data": {
-     "type": "workers",
-     "id": "2"
+     "type": "users",
+     "id": "4"
     }
    }
   },
   "meta": {
    "expectedPassengers": 1,
    "expectedChildren": 1,
+   "seats": 1,
    "totalCapacity": 1,
+   "occupancyLevel": "normal",
+   "saturated": false,
    "overloaded": false,
    "needsReassignment": false,
    "departurePoint": {
@@ -62,8 +65,16 @@
    "id": "1",
    "attributes": {
     "name": "Ruta Este",
-    "description": "Hacia el este",
+    "description": null,
     "observation": null
+   },
+   "relationships": {
+    "entity": {
+     "data": {
+      "type": "entities",
+      "id": "1"
+     }
+    }
    },
    "meta": {
     "departurePoint": {
@@ -94,6 +105,12 @@
     "standingCapacity": 0
    },
    "relationships": {
+    "entity": {
+     "data": {
+      "type": "entities",
+      "id": "1"
+     }
+    },
     "vehicleType": {
      "data": {
       "type": "vehicle-types",
@@ -130,13 +147,13 @@
    "type": "drivers",
    "id": "1",
    "attributes": {
-    "createdAt": "2026-10-30T17:20:01+00:00"
+    "createdAt": "2026-10-31T15:51:03+00:00"
    },
    "relationships": {
     "worker": {
      "data": {
       "type": "workers",
-      "id": "3"
+      "id": "2"
      }
     }
    },
@@ -146,17 +163,31 @@
   },
   {
    "type": "workers",
-   "id": "3",
+   "id": "2",
    "attributes": {
     "firstName": "Carlos",
-    "lastName": "Chofer",
-    "sex": "M",
+    "middleName": "Luis",
+    "firstSurname": "Chofer",
+    "secondSurname": "Díaz",
+    "fullName": "Carlos Luis Chofer Díaz",
     "photoUrl": null,
-    "isAdmin": false,
+    "sex": "M",
     "active": true,
-    "createdAt": "2026-10-30T17:20:01+00:00"
+    "createdAt": "2026-10-31T15:51:02+00:00"
    },
    "relationships": {
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "3"
+     }
+    },
+    "entity": {
+     "data": {
+      "type": "entities",
+      "id": "1"
+     }
+    },
     "rank": {
      "data": {
       "type": "ranks",
@@ -172,7 +203,7 @@
     "stop": {
      "data": {
       "type": "stops",
-      "id": "2"
+      "id": "1"
      }
     }
    },
@@ -185,7 +216,7 @@
     }
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/workers/3"
+    "self": "http://localhost:8000/api/v1/workers/2"
    }
   }
  ]

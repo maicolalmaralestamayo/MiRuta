@@ -102,7 +102,7 @@ class _NomenclatorsScreenState extends State<NomenclatorsScreen> {
                 if (item.description != null) item.description!,
               ].join(' · ')),
               onTap: () => _edit(item),
-              trailing: IconButton(icon: const Icon(Icons.delete_outline), onPressed: () => _delete(item)),
+              trailing: BusyIconButton(icon: const Icon(Icons.delete_outline), onPressed: () => _delete(item)),
             ),
           if (_isRank) const Padding(padding: EdgeInsets.all(16), child: Text('Toca el círculo de una jerarquía para subir su icono.')),
         ]),

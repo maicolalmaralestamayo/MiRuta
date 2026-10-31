@@ -1,0 +1,10 @@
+{
+ "data": {
+  "type": "entities",
+  "id": "1",
+  "attributes": {
+   "abbreviation": "PRUEBA",
+   "name": "Empresa de prueba"
+  }
+ }
+}

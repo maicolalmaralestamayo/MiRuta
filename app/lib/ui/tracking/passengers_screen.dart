@@ -91,12 +91,11 @@ class _PassengersScreenState extends State<PassengersScreen> {
                 for (final stop in stops) ...[
                   if (passengers.any((p) => p.stopId == stop.id)) SectionTitle(stop.landmark),
                   for (final p in passengers.where((p) => p.stopId == stop.id))
-                    ListTile(
+                    BusyListTile(
                       leading: CircleAvatar(child: Text('${p.position}')),
                       title: Text(p.worker.fullName),
                       subtitle: Text([
                         if (p.worker.rank != null) p.worker.rank!.name,
-                        p.worker.sex == 'F' ? 'Mujer' : 'Hombre',
                         if (p.eligibleChildren > 0) '${p.eligibleChildren} niño(s) con derecho',
                         if (p.boarded) 'Subió (${_method(p.boardingMethod)}${p.boardedChildren != null && p.boardedChildren! > 0 ? ', ${p.boardedChildren} niño(s)' : ''})',
                       ].join(' · ')),

@@ -178,7 +178,7 @@ class _ItineraryEditorState extends State<ItineraryEditor> {
                           if (i == _links.length - 1 && i > 0) 'Punto de regreso',
                           _links[i].stop?.address ?? '',
                         ].join(' · ')),
-                        trailing: IconButton(icon: const Icon(Icons.remove_circle_outline), onPressed: () => _remove(_links[i])),
+                        trailing: BusyIconButton(icon: const Icon(Icons.remove_circle_outline), onPressed: () => _remove(_links[i])),
                       ),
                   ],
                 ),

@@ -5,6 +5,7 @@
    "id": "background_sync_enabled",
    "attributes": {
     "value": "1",
+    "inheritedValue": "1",
     "isCustom": false
    },
    "relationships": {
@@ -21,6 +22,7 @@
    "id": "cancel_notice_template",
    "attributes": {
     "value": "Se canceló tu viaje de {itinerario} del {fecha_salida}.",
+    "inheritedValue": "Se canceló tu viaje de {itinerario} del {fecha_salida}.",
     "isCustom": false
    },
    "relationships": {
@@ -37,6 +39,7 @@
    "id": "change_notice_template",
    "attributes": {
     "value": "Cambió tu viaje de {itinerario} del {fecha_salida}: {cambios}.",
+    "inheritedValue": "Cambió tu viaje de {itinerario} del {fecha_salida}: {cambios}.",
     "isCustom": false
    },
    "relationships": {
@@ -53,6 +56,7 @@
    "id": "conversations_poll_background_minutes",
    "attributes": {
     "value": "30",
+    "inheritedValue": "30",
     "isCustom": false
    },
    "relationships": {
@@ -69,6 +73,7 @@
    "id": "conversations_poll_foreground_seconds",
    "attributes": {
     "value": "10",
+    "inheritedValue": "10",
     "isCustom": false
    },
    "relationships": {
@@ -85,6 +90,7 @@
    "id": "departure_notice_fallback",
    "attributes": {
     "value": "default",
+    "inheritedValue": "default",
     "isCustom": false
    },
    "relationships": {
@@ -101,6 +107,7 @@
    "id": "departure_notice_fixed_days_before",
    "attributes": {
     "value": "0",
+    "inheritedValue": "0",
     "isCustom": false
    },
    "relationships": {
@@ -117,6 +124,7 @@
    "id": "departure_notice_fixed_time",
    "attributes": {
     "value": "14:00",
+    "inheritedValue": "14:00",
     "isCustom": false
    },
    "relationships": {
@@ -133,6 +141,7 @@
    "id": "departure_notice_minutes_before",
    "attributes": {
     "value": "60",
+    "inheritedValue": "60",
     "isCustom": false
    },
    "relationships": {
@@ -149,6 +158,7 @@
    "id": "departure_notice_mode",
    "attributes": {
     "value": "relative",
+    "inheritedValue": "relative",
     "isCustom": false
    },
    "relationships": {
@@ -165,6 +175,7 @@
    "id": "departure_notice_template",
    "attributes": {
     "value": "Salida {fecha_salida} a las {hora_salida} desde {punto_salida}. {tipo} {matricula}, chofer {chofer}, capacidad {capacidad}. Regreso {fecha_regreso} a las {hora_regreso} desde {punto_regreso}.",
+    "inheritedValue": "Salida {fecha_salida} a las {hora_salida} desde {punto_salida}. {tipo} {matricula}, chofer {chofer}, capacidad {capacidad}. Regreso {fecha_regreso} a las {hora_regreso} desde {punto_regreso}.",
     "isCustom": false
    },
    "relationships": {
@@ -181,6 +192,7 @@
    "id": "location_interval_seconds",
    "attributes": {
     "value": "10",
+    "inheritedValue": "10",
     "isCustom": false
    },
    "relationships": {
@@ -197,6 +209,7 @@
    "id": "notices_poll_background_minutes",
    "attributes": {
     "value": "30",
+    "inheritedValue": "30",
     "isCustom": false
    },
    "relationships": {
@@ -213,6 +226,7 @@
    "id": "notices_poll_foreground_seconds",
    "attributes": {
     "value": "60",
+    "inheritedValue": "60",
     "isCustom": false
    },
    "relationships": {
@@ -229,6 +243,7 @@
    "id": "notify_during_absence",
    "attributes": {
     "value": "0",
+    "inheritedValue": "0",
     "isCustom": false
    },
    "relationships": {
@@ -245,6 +260,7 @@
    "id": "return_notice_fallback",
    "attributes": {
     "value": "default",
+    "inheritedValue": "default",
     "isCustom": false
    },
    "relationships": {
@@ -261,6 +277,7 @@
    "id": "return_notice_fixed_days_before",
    "attributes": {
     "value": "1",
+    "inheritedValue": "1",
     "isCustom": false
    },
    "relationships": {
@@ -277,6 +294,7 @@
    "id": "return_notice_fixed_time",
    "attributes": {
     "value": "23:00",
+    "inheritedValue": "23:00",
     "isCustom": false
    },
    "relationships": {
@@ -293,6 +311,7 @@
    "id": "return_notice_minutes_before",
    "attributes": {
     "value": "60",
+    "inheritedValue": "60",
     "isCustom": false
    },
    "relationships": {
@@ -309,6 +328,7 @@
    "id": "return_notice_mode",
    "attributes": {
     "value": "relative",
+    "inheritedValue": "relative",
     "isCustom": false
    },
    "relationships": {
@@ -325,6 +345,7 @@
    "id": "return_notice_template",
    "attributes": {
     "value": "Regreso {fecha_regreso} a las {hora_regreso} desde {punto_regreso}. {tipo} {matricula}, chofer {chofer}, capacidad {capacidad}.",
+    "inheritedValue": "Regreso {fecha_regreso} a las {hora_regreso} desde {punto_regreso}. {tipo} {matricula}, chofer {chofer}, capacidad {capacidad}.",
     "isCustom": false
    },
    "relationships": {
@@ -338,9 +359,95 @@
   },
   {
    "type": "user-settings",
+   "id": "saturation_notice_enabled",
+   "attributes": {
+    "value": "1",
+    "inheritedValue": "1",
+    "isCustom": false
+   },
+   "relationships": {
+    "definition": {
+     "data": {
+      "type": "setting-definitions",
+      "id": "saturation_notice_enabled"
+     }
+    }
+   }
+  },
+  {
+   "type": "user-settings",
+   "id": "saturation_notice_level",
+   "attributes": {
+    "value": "overloaded",
+    "inheritedValue": "overloaded",
+    "isCustom": false
+   },
+   "relationships": {
+    "definition": {
+     "data": {
+      "type": "setting-definitions",
+      "id": "saturation_notice_level"
+     }
+    }
+   }
+  },
+  {
+   "type": "user-settings",
+   "id": "saturation_notice_minutes_before",
+   "attributes": {
+    "value": "120",
+    "inheritedValue": "120",
+    "isCustom": false
+   },
+   "relationships": {
+    "definition": {
+     "data": {
+      "type": "setting-definitions",
+      "id": "saturation_notice_minutes_before"
+     }
+    }
+   }
+  },
+  {
+   "type": "user-settings",
+   "id": "saturation_notice_scope",
+   "attributes": {
+    "value": "managed",
+    "inheritedValue": "managed",
+    "isCustom": false
+   },
+   "relationships": {
+    "definition": {
+     "data": {
+      "type": "setting-definitions",
+      "id": "saturation_notice_scope"
+     }
+    }
+   }
+  },
+  {
+   "type": "user-settings",
+   "id": "saturation_notice_when",
+   "attributes": {
+    "value": "change",
+    "inheritedValue": "change",
+    "isCustom": false
+   },
+   "relationships": {
+    "definition": {
+     "data": {
+      "type": "setting-definitions",
+      "id": "saturation_notice_when"
+     }
+    }
+   }
+  },
+  {
+   "type": "user-settings",
    "id": "share_location",
    "attributes": {
     "value": "0",
+    "inheritedValue": "0",
     "isCustom": false
    },
    "relationships": {
@@ -357,6 +464,7 @@
    "id": "stop_notice_after_boarding",
    "attributes": {
     "value": "0",
+    "inheritedValue": "0",
     "isCustom": false
    },
    "relationships": {
@@ -373,6 +481,7 @@
    "id": "stop_notice_scope",
    "attributes": {
     "value": "previous",
+    "inheritedValue": "previous",
     "isCustom": false
    },
    "relationships": {
@@ -389,6 +498,7 @@
    "id": "stop_notice_template",
    "attributes": {
     "value": "El transporte pasó por {parada} a las {hora}. Faltan {paradas_restantes} paradas para la tuya.",
+    "inheritedValue": "El transporte pasó por {parada} a las {hora}. Faltan {paradas_restantes} paradas para la tuya.",
     "isCustom": false
    },
    "relationships": {
@@ -405,6 +515,7 @@
    "id": "tracking_poll_background_seconds",
    "attributes": {
     "value": "60",
+    "inheritedValue": "60",
     "isCustom": false
    },
    "relationships": {
@@ -421,6 +532,7 @@
    "id": "tracking_poll_foreground_seconds",
    "attributes": {
     "value": "10",
+    "inheritedValue": "10",
     "isCustom": false
    },
    "relationships": {
@@ -437,6 +549,7 @@
    "id": "trip_chat_poll_background_minutes",
    "attributes": {
     "value": "30",
+    "inheritedValue": "30",
     "isCustom": false
    },
    "relationships": {
@@ -453,6 +566,7 @@
    "id": "trip_chat_poll_foreground_seconds",
    "attributes": {
     "value": "5",
+    "inheritedValue": "5",
     "isCustom": false
    },
    "relationships": {
@@ -469,6 +583,7 @@
    "id": "trip_view",
    "attributes": {
     "value": "timeline",
+    "inheritedValue": "timeline",
     "isCustom": false
    },
    "relationships": {
@@ -485,6 +600,7 @@
    "id": "trips_poll_background_minutes",
    "attributes": {
     "value": "30",
+    "inheritedValue": "30",
     "isCustom": false
    },
    "relationships": {
@@ -501,6 +617,7 @@
    "id": "trips_poll_foreground_seconds",
    "attributes": {
     "value": "60",
+    "inheritedValue": "60",
     "isCustom": false
    },
    "relationships": {
@@ -517,6 +634,7 @@
    "id": "tts_enabled",
    "attributes": {
     "value": "1",
+    "inheritedValue": "1",
     "isCustom": false
    },
    "relationships": {

@@ -2,57 +2,11 @@
  "data": [
   {
    "type": "notices",
-   "id": "7",
+   "id": "9",
    "attributes": {
-    "type": "application_received",
+    "type": "application_resolved",
     "readAt": null,
-    "createdAt": "2026-10-30T17:20:02+00:00"
-   },
-   "relationships": {
-    "application": {
-     "data": {
-      "type": "applications",
-      "id": "3"
-     }
-    },
-    "trip": {
-     "data": null
-    }
-   },
-   "links": {
-    "self": "http://localhost:8000/api/v1/notices/7"
-   }
-  },
-  {
-   "type": "notices",
-   "id": "10",
-   "attributes": {
-    "type": "application_received",
-    "readAt": null,
-    "createdAt": "2026-10-30T17:20:02+00:00"
-   },
-   "relationships": {
-    "application": {
-     "data": {
-      "type": "applications",
-      "id": "4"
-     }
-    },
-    "trip": {
-     "data": null
-    }
-   },
-   "links": {
-    "self": "http://localhost:8000/api/v1/notices/10"
-   }
-  },
-  {
-   "type": "notices",
-   "id": "13",
-   "attributes": {
-    "type": "application_received",
-    "readAt": null,
-    "createdAt": "2026-10-30T17:20:02+00:00"
+    "createdAt": "2026-10-31T15:51:04+00:00"
    },
    "relationships": {
     "application": {
@@ -63,56 +17,39 @@
     },
     "trip": {
      "data": null
+    },
+    "accessRecovery": {
+     "data": null
     }
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/notices/13"
+    "self": "http://localhost:8000/api/v1/notices/9"
    }
   },
   {
    "type": "notices",
-   "id": "2",
+   "id": "6",
    "attributes": {
     "type": "application_resolved",
     "readAt": null,
-    "createdAt": "2026-10-30T17:20:01+00:00"
+    "createdAt": "2026-10-31T15:51:03+00:00"
    },
    "relationships": {
     "application": {
      "data": {
       "type": "applications",
-      "id": "1"
+      "id": "4"
      }
     },
     "trip": {
      "data": null
-    }
-   },
-   "links": {
-    "self": "http://localhost:8000/api/v1/notices/2"
-   }
-  },
-  {
-   "type": "notices",
-   "id": "4",
-   "attributes": {
-    "type": "application_received",
-    "readAt": null,
-    "createdAt": "2026-10-30T17:20:01+00:00"
-   },
-   "relationships": {
-    "application": {
-     "data": {
-      "type": "applications",
-      "id": "2"
-     }
     },
-    "trip": {
+    "accessRecovery": {
      "data": null
     }
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/notices/4"
+    "self": "http://localhost:8000/api/v1/notices/6"
    }
   }
  ],
@@ -124,7 +61,7 @@
   "last": "http://localhost:8000/api/v1/notices?page%5Bnumber%5D=1&page%5Bsize%5D=25"
  },
  "meta": {
-  "total": 5,
+  "total": 2,
   "page": 1,
   "size": 25
  }

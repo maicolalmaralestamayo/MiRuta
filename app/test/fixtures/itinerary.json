@@ -4,8 +4,16 @@
   "id": "1",
   "attributes": {
    "name": "Ruta Este",
-   "description": "Hacia el este",
+   "description": null,
    "observation": null
+  },
+  "relationships": {
+   "entity": {
+    "data": {
+     "type": "entities",
+     "id": "1"
+    }
+   }
   },
   "meta": {
    "departurePoint": {
@@ -21,7 +29,7 @@
     "2",
     "3"
    ],
-   "memberCount": 0
+   "memberCount": 2
   },
   "links": {
    "self": "http://localhost:8000/api/v1/itineraries/1"

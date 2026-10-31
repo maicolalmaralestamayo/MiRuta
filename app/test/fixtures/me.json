@@ -1,54 +1,114 @@
 {
  "data": {
-  "type": "workers",
-  "id": "4",
+  "type": "users",
+  "id": "2",
   "attributes": {
-   "username": "nombre1.apellido1",
-   "cardNumber": "80010400010",
+   "username": "lucia.perez",
+   "activated": true,
    "firstName": "Lucía",
-   "lastName": "Pérez",
-   "sex": "F",
+   "middleName": "María",
+   "firstSurname": "Pérez",
+   "secondSurname": "García",
+   "fullName": "Lucía María Pérez García",
    "photoUrl": null,
    "isAdmin": false,
    "active": true,
-   "createdAt": "2026-10-30T17:20:01+00:00"
+   "mustChangePassword": false,
+   "currentPasswordRequired": true,
+   "passwordExpiresAt": "2027-10-31T15:51:02+00:00",
+   "createdAt": "2026-10-31T15:51:02+00:00"
   },
   "relationships": {
-   "rank": {
+   "worker": {
     "data": {
-     "type": "ranks",
-     "id": "17"
-    }
-   },
-   "itinerary": {
-    "data": {
-     "type": "itineraries",
+     "type": "workers",
      "id": "1"
     }
-   },
-   "stop": {
-    "data": {
-     "type": "stops",
-     "id": "2"
-    }
-   }
-  },
-  "meta": {
-   "childrenCount": 1,
-   "roles": {
-    "isTransportChief": false,
-    "driverId": null,
-    "chiefOfItineraries": []
    }
   },
   "links": {
-   "self": "http://localhost:8000/api/v1/workers/4"
+   "self": "http://localhost:8000/api/v1/users/2"
   }
  },
  "links": {
-  "self": "http://localhost:8000/api/v1/me?include=rank"
+  "self": "http://localhost:8000/api/v1/me?include=worker%2Cworker.entity%2Cworker.rank"
  },
  "included": [
+  {
+   "type": "workers",
+   "id": "1",
+   "attributes": {
+    "pass": 101,
+    "firstName": "Lucía",
+    "middleName": "María",
+    "firstSurname": "Pérez",
+    "secondSurname": "García",
+    "fullName": "Lucía María Pérez García",
+    "photoUrl": null,
+    "sex": "F",
+    "active": true,
+    "createdAt": "2026-10-31T15:51:02+00:00",
+    "activated": true
+   },
+   "relationships": {
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
+     }
+    },
+    "entity": {
+     "data": {
+      "type": "entities",
+      "id": "1"
+     }
+    },
+    "rank": {
+     "data": {
+      "type": "ranks",
+      "id": "17"
+     }
+    },
+    "itinerary": {
+     "data": {
+      "type": "itineraries",
+      "id": "1"
+     }
+    },
+    "stop": {
+     "data": {
+      "type": "stops",
+      "id": "2"
+     }
+    }
+   },
+   "meta": {
+    "childrenCount": 1,
+    "roles": {
+     "isTransportChief": false,
+     "driverId": null,
+     "chiefOfItineraries": []
+    }
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/workers/1"
+   }
+  },
+  {
+   "type": "entities",
+   "id": "1",
+   "attributes": {
+    "abbreviation": "PRUEBA",
+    "number": null,
+    "name": "Empresa de prueba",
+    "description": null,
+    "observation": null,
+    "active": true
+   },
+   "links": {
+    "self": "http://localhost:8000/api/v1/entities/1"
+   }
+  },
   {
    "type": "ranks",
    "id": "17",
@@ -56,7 +116,7 @@
     "name": "Trabajador civil",
     "description": null,
     "observation": null,
-    "precedence": 17,
+    "sortOrder": 17,
     "iconUrl": null
    },
    "links": {

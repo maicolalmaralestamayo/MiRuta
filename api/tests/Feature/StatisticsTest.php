@@ -33,7 +33,7 @@ class StatisticsTest extends TestCase
         $this->driver = $this->createDriver();
         $this->member = $this->joinItinerary($this->createWorker(), $this->itinerary, 2);
         $this->joinItinerary($this->createWorker(), $this->itinerary, 3);
-        $vehicle = Vehicle::create(['vehicle_type_id' => VehicleType::first()->id, 'plate' => 'B1', 'seats' => 1, 'standing_capacity' => 0]);
+        $vehicle = Vehicle::create(['entity_id' => $this->defaultEntity()->id, 'vehicle_type_id' => VehicleType::first()->id, 'plate' => 'B1', 'seats' => 1, 'standing_capacity' => 0]);
 
         $this->trip = Trip::create([
             'itinerary_id' => $this->itinerary->id, 'vehicle_id' => $vehicle->id, 'driver_id' => $this->driver->driverId(),

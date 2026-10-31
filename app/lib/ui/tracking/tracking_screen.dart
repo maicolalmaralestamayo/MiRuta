@@ -259,7 +259,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
                   onChanged: _toggleBackground,
                 ),
                 Wrap(spacing: 8, runSpacing: 8, alignment: WrapAlignment.center, children: [
-                  if (data.isPassenger(me)) FilledButton.tonalIcon(onPressed: () => selfBoarding(context, leg, me.childrenCount), icon: const Icon(Icons.how_to_reg), label: const Text('Ya subí')),
+                  if (data.isPassenger(me)) BusyButton.tonal(onPressed: () => selfBoarding(context, leg, me.childrenCount), icon: const Icon(Icons.how_to_reg), child: const Text('Ya subí')),
                   if (data.isPassenger(me))
                     OutlinedButton.icon(
                       onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => BoardingPassScreen(leg: leg))),
@@ -272,7 +272,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
                       icon: const Icon(Icons.format_list_numbered),
                       label: const Text('Pasajeros'),
                     ),
-                  if (operate) OutlinedButton.icon(onPressed: _end, icon: const Icon(Icons.stop_circle_outlined), label: const Text('Finalizar')),
+                  if (operate) BusyButton.outlined(onPressed: _end, icon: const Icon(Icons.stop_circle_outlined), child: const Text('Finalizar')),
                 ]),
               ]),
             ),

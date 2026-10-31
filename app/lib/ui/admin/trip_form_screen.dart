@@ -213,7 +213,7 @@ class _TripFormScreenState extends State<TripFormScreen> {
         ],
         if (_error != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error))),
         const SizedBox(height: 20),
-        FilledButton(onPressed: _busy ? null : _save, child: Text(_editing ? 'Guardar' : 'Crear')),
+        FilledButton(onPressed: _busy ? null : _save, child: _busy ? const BusyIndicator() : Text(_editing ? 'Guardar' : 'Crear')),
       ]),
     );
   }

@@ -1,10 +1,10 @@
 {
  "data": {
   "type": "boarding-passes",
-  "id": "1-4",
+  "id": "1-1",
   "attributes": {
-   "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOjQsImxlZyI6MSwidHlwIjoiYm9hcmRpbmciLCJpYXQiOjE3OTMzODA4MDMsImV4cCI6MTc5MzM4MDkyM30.ljfxq5aDFkLBFCk0x-2BHvnrdv1ZA_ckkYwD1ur1Dxg",
-   "expiresAt": "2026-10-30T17:22:03+00:00"
+   "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOjEsImxlZyI6MSwidHlwIjoiYm9hcmRpbmciLCJpYXQiOjE3OTM0NjE4NjQsImV4cCI6MTc5MzQ2MTk4NH0.tos7fWF9GzNGRn7kB-YfRvh0MH4xOMlYZ5ghcW0pJLk",
+   "expiresAt": "2026-10-31T15:53:04+00:00"
   },
   "relationships": {
    "tripLeg": {
@@ -16,7 +16,7 @@
    "worker": {
     "data": {
      "type": "workers",
-     "id": "4"
+     "id": "1"
     }
    }
   }
