@@ -16,7 +16,10 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <!-- Instalar las actualizaciones descargadas del propio servidor -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- usesCleartextTraffic: la app no impone el protocolo; el servidor puede
+         estar en https:// o en http:// (docs/05-app.md §5.2). -->
     <application
+        android:usesCleartextTraffic="true"
         android:label="MiTransporte"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">

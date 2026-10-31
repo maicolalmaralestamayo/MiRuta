@@ -18,7 +18,7 @@ Interfaz en **español**. Las opciones de menú solo aparecen si el rol del usua
 | QR | `qr_flutter` (mostrar) y `mobile_scanner` (escanear) |
 | Voz | `flutter_tts` |
 | PIN propio | Guardado como hash **PBKDF2-HMAC-SHA256** con sal en `flutter_secure_storage`; no depende de la huella ni del bloqueo del teléfono |
-| Servidor | La app **no lleva ninguna dirección de servidor**. La escribe el usuario (pantalla **Servidor**), se guarda en el teléfono y se puede cambiar. Para desarrollar se puede dar una de partida con `--dart-define=API_URL=…` |
+| Servidor | La dirección del servidor **no se pide al abrir la app**: puede venir puesta al compilar (`./build_release.sh <dirección>`, opcional) y el usuario la indica o la cambia con el botón **Servidor**. Se guarda en el teléfono. La app **no impone el protocolo**: sirve con `https://` y con `http://` (`usesCleartextTraffic`) |
 | Ícono | El de la pantalla de bienvenida se dibuja con las mismas formas y colores que el ícono adaptable de Android (`AppIcon`), así siempre coinciden |
 | Instalación | `device_info_plus`: modelo del teléfono y tipos de procesador admitidos. La instalación se registra en el servidor la primera vez que hace falta (cabecera `X-Installation`) |
 | Actualizaciones | `ota_update` (descarga con verificación SHA-256 e instalación), `package_info_plus`, `file_picker` (publicar los APK), `connectivity_plus` (solo con Wi-Fi), `share_plus` (compartir la app) |
@@ -29,7 +29,7 @@ Interfaz en **español**. Las opciones de menú solo aparecen si el rol del usua
 
 | Pantalla | Contenido |
 |---|---|
-| **Servidor** | Aparece la primera vez que se abre la app (y desde el botón **Servidor: …** de la bienvenida). Se escribe la dirección, p. ej. `transporte.miempresa.com`; la app la completa (`https://…/api/v1`), comprueba que ahí responde MiTransporte y la guarda. Si cambia, la instalación se vuelve a registrar en el servidor nuevo. Al compartir la app, el mensaje incluye la dirección |
+| **Servidor** | Se abre con el botón **Servidor** del pie de la bienvenida (muestra la dirección actual). Se escribe la dirección, p. ej. `transporte.miempresa.com`; si no lleva protocolo, la app prueba primero `https://` y, si ahí no responde, `http://`, añade `/api/v1`, comprueba que responde MiTransporte y la guarda (avisa si la conexión va sin cifrar). Si se intenta entrar sin servidor, la app indica que se use ese botón. Si la dirección cambia, la instalación se vuelve a registrar en el servidor nuevo. Al compartir la app, el mensaje incluye la dirección |
 | **Bienvenida / inicio de sesión** | Ícono de la app, usuario (recordado en el teléfono) y contraseña. Enlaces a **No puedo entrar**, **Crear cuenta**, **Ya me registró un superior** y **Hablar con el desarrollador** |
 | **Crear cuenta** | Cuatro nombres, usuario (lo elige el usuario; la app comprueba las reglas mientras escribe) y contraseña (con los requisitos a la vista) |
 | **Unirse a la Entidad** | Abreviatura de la Entidad (la app muestra su nombre para confirmar), Pase, sexo y jerarquía. Obligatoria salvo para el Administrador |

@@ -68,6 +68,9 @@ class ApiClient {
     }
   }
 
+  /// Aún no se ha indicado a qué servidor conectarse.
+  static ApiException noServer() => _probeError('NO_SERVER', 'Primero indica la dirección del servidor con el botón «Servidor», al pie de la pantalla de inicio.');
+
   static ApiException _probeError(String code, String detail) =>
       ApiException(null, [JsonApiError(status: '', code: code, title: 'Servidor', detail: detail)]);
 
@@ -152,6 +155,7 @@ class ApiClient {
   // Envío con renovación de token
 
   Future<Response> _send(Future<Response> Function() request, {bool retried = false}) async {
+    if (!hasServer) throw noServer();
     try {
       return await request();
     } on DioException catch (error) {

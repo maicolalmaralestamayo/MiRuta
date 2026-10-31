@@ -15,7 +15,6 @@ import 'ui/auth/join_entity_screen.dart';
 import 'ui/auth/lock_screen.dart';
 import 'ui/auth/login_screen.dart';
 import 'ui/auth/new_password_screen.dart';
-import 'ui/auth/server_screen.dart';
 import 'ui/home/home_shell.dart';
 import 'ui/theme.dart';
 import 'ui/updates/update_screen.dart';
@@ -111,16 +110,6 @@ class _RootState extends State<_Root> {
     if (_mandatory != null) return UpdateScreen(update: _mandatory!);
 
     final session = context.watch<Session>();
-    // La primera vez hay que decir a qué servidor conectarse.
-    if (!session.api.hasServer) {
-      return ServerScreen(
-        firstTime: true,
-        onSaved: (_) {
-          setState(() {});
-          _checkUpdate();
-        },
-      );
-    }
     if (session.state == SessionState.ready && session.me?.mustChangePassword == true) return const NewPasswordScreen();
     if (session.state == SessionState.ready && session.me?.needsEntity == true) return const JoinEntityScreen();
 

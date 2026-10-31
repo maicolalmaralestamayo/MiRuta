@@ -44,13 +44,10 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  void _server() => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (screen) => ServerScreen(onSaved: (_) {
-              Navigator.pop(screen);
-              setState(() {});
-            })),
-      );
+  Future<void> _server() async {
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => const ServerScreen()));
+    if (mounted) setState(() => _error = null);
+  }
 
   void _open(Widget screen) => Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
 
@@ -108,7 +105,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 TextButton.icon(
                   onPressed: _server,
                   icon: const Icon(Icons.dns_outlined, size: 18),
-                  label: Text('Servidor: ${ServerUrl.short(context.api.baseUrl)}', overflow: TextOverflow.ellipsis),
+                  label: Text(context.api.hasServer ? 'Servidor: ${ServerUrl.short(context.api.baseUrl)}' : 'Servidor', overflow: TextOverflow.ellipsis),
                 ),
               ]),
             ),

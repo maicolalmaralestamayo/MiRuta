@@ -9,7 +9,9 @@ App Flutter de MiTransporte. La documentación funcional está en [`../docs`](..
 
 ## Ejecutar
 
-La app **no lleva ninguna dirección de servidor**. La primera vez que se abre pide la **dirección del servidor** (p. ej. `transporte.miempresa.com`), la completa (`https://…/api/v1`), comprueba que ahí responde MiTransporte y la guarda. Se cambia desde el botón **Servidor** de la pantalla de inicio de sesión. Al compartir la app, el mensaje incluye la dirección del servidor.
+La dirección del servidor **no se pide al abrir la app**. Puede venir puesta al compilar (opcional) y el usuario la indica o la cambia con el botón **Servidor** del pie de la pantalla de inicio de sesión (p. ej. `transporte.miempresa.com`). La app **no impone el protocolo**: si no se escribe, prueba `https://` y, si no responde, `http://`; añade `/api/v1`, comprueba que ahí responde MiTransporte y la guarda. Al compartir la app, el mensaje incluye la dirección del servidor.
+
+> Con `http://` la conexión va sin cifrar: las contraseñas y los datos viajan legibles por la red. Úsalo solo si el servidor no admite HTTPS.
 
 ```bash
 cd app
@@ -17,14 +19,15 @@ flutter pub get
 flutter run
 ```
 
-Para desarrollar se puede dar una dirección de partida con `--dart-define=API_URL=…`, p. ej. con el emulador de Android y la API en el propio ordenador: `--dart-define=API_URL=http://10.0.2.2:8000/api/v1`. Las direcciones `http://` solo se permiten en las versiones de depuración; en producción hace falta HTTPS.
+Para dar una dirección de partida: `--dart-define=API_URL=…`, p. ej. con el emulador de Android y la API en el propio ordenador: `--dart-define=API_URL=http://10.0.2.2:8000/api/v1`.
 
 ## Compilar los APK
 
 Cada versión se publica con **dos APK**: uno para teléfonos de 64 bits (la mayoría) y otro para los de 32 bits. Cada teléfono descarga el suyo (docs/08-version-2.md §8.1).
 
 ```bash
-./build_release.sh
+./build_release.sh                       # sin dirección: el usuario la pone con «Servidor»
+./build_release.sh http://mi-servidor     # o con la dirección ya puesta (https:// o http://)
 # Resultado: build/release/<versión>/MiTransporte-<versión>-64bits.apk y -32bits.apk
 ```
 
