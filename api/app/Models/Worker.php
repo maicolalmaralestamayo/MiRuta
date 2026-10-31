@@ -129,9 +129,29 @@ class Worker extends Model implements AuthenticatableContract, AuthorizableContr
         return $this->roles()['itinerary_ids'];
     }
 
+    /**
+     * El Administrador cuenta como Jefe de todos los itinerarios.
+     */
     public function isChiefOf(?int $itineraryId): bool
     {
-        return $itineraryId !== null && in_array($itineraryId, $this->chiefItineraryIds(), true);
+        return $itineraryId !== null && ($this->isAdmin() || in_array($itineraryId, $this->chiefItineraryIds(), true));
+    }
+
+    /**
+     * Puede planificar viajes de ese itinerario: Administrador, Jefes de
+     * Transporte y los Jefes de ese itinerario.
+     */
+    public function canPlan(?int $itineraryId): bool
+    {
+        return $this->managesTransport() || $this->isChiefOf($itineraryId);
+    }
+
+    /**
+     * Puede planificar viajes de algún itinerario.
+     */
+    public function plansTrips(): bool
+    {
+        return $this->managesTransport() || $this->chiefItineraryIds() !== [];
     }
 
     /**

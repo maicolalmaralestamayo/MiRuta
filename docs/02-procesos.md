@@ -67,7 +67,7 @@ Las solicitudes **no se borran**: son el historial.
 | Tipo | Datos propios | Quién aprueba | Efecto al aprobarse |
 |---|---|---|---|
 | `itinerary_membership` | Itinerario y parada | Jefe de **ese** itinerario o Jefe de Transporte | El trabajador pasa a ese itinerario y esa parada |
-| `itinerary_chief` | Itinerario y parada | Jefe de Transporte | Pasa a ser jefe de ese itinerario **y** se cambia a ese itinerario y esa parada. Las solicitudes de itinerario que tuviera pendientes se cancelan |
+| `itinerary_chief` | Itinerario y parada (no puede ser ya Jefe de otro itinerario) | Jefe de Transporte | Pasa a ser jefe de ese itinerario **y** se cambia a ese itinerario y esa parada. Las solicitudes de itinerario que tuviera pendientes se cancelan |
 | `driver` | — | Jefe de Transporte | Pasa a ser chofer |
 | `transport_chief` | — | Administrador | Pasa a ser Jefe de Transporte |
 | `rank_change` | Jerarquía nueva | Jefe de su itinerario o Jefe de Transporte | Cambia su jerarquía |

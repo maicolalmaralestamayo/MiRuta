@@ -150,7 +150,8 @@ Leyenda: **A** Administrador · **JT** Jefe de Transporte · **JI** Jefe de itin
 | Ver carné y fechas de nacimiento | ✔ | | | | Propio |
 | Gestionar jerarquías e iconos, motivos de conversación | ✔ | | | | |
 | Gestionar tipos de vehículo y tipos de ausencia | ✔ | ✔ | | | |
-| Gestionar vehículos, itinerarios, paradas y viajes | ✔ | ✔ | | | |
+| Gestionar vehículos, itinerarios y paradas | ✔ | ✔ | | | |
+| Planificar viajes (crear, copiar a un rango, confirmar, cancelar) | ✔ | ✔ | Solo su itinerario | | |
 | Ver viajes | ✔ | ✔ | ✔ | ✔ | De su itinerario |
 | Aprobar `transport_chief` | ✔ | | | | |
 | Aprobar `itinerary_chief` y `driver` | ✔ | ✔ | | | |
@@ -223,6 +224,7 @@ Siempre con el formato `errors[]` de JSON:API: `status`, `code`, `title`, `detai
 | `APPLICATION_ALREADY_PENDING` | 409 | Ya hay una solicitud pendiente de ese tipo |
 | `ALREADY_MEMBER` | 409 | Ya viaja en ese itinerario y esa parada |
 | `ALREADY_HAS_ROLE` | 409 | Ya tiene el rol que pide |
+| `ALREADY_CHIEF_OF_OTHER` | 409 | Pide ser Jefe de un itinerario siendo ya Jefe de otro |
 | `STOP_ALREADY_IN_ITINERARY` | 409 | La parada ya está en el itinerario |
 | `STOP_HAS_MEMBERS` | 409 | Quitar del itinerario una parada en la que hay miembros |
 | `STOP_IN_USE` | 409 | Borrar una parada que está en algún itinerario |

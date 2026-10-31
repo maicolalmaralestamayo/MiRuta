@@ -55,13 +55,13 @@ Sustituye la coordinación manual (listas, llamadas, mensajes sueltos) por un si
 
 ## 1.4 Roles de la aplicación
 
-Todos los usuarios son **trabajadores**. Los roles solo añaden permisos para aprobar y planificar. Quien tiene un rol sigue viajando en su itinerario y pide los cambios como cualquier otro trabajador.
+Todos los usuarios son **trabajadores**. **Una persona puede tener varios roles a la vez** (por ejemplo, chofer y Jefe de itinerario); cada uno se solicita por separado. El **Administrador** tiene, además, todos los permisos de Jefe de Transporte y de Jefe de todos los itinerarios. Los roles solo añaden permisos para aprobar y planificar. Quien tiene un rol sigue viajando en su itinerario y pide los cambios como cualquier otro trabajador.
 
 | Rol | Cómo se obtiene | Qué puede hacer |
 |---|---|---|
 | **Administrador** | Es el primer usuario que se registra | Todo. Además es el **desarrollador**: recibe las conversaciones de ideas, errores y consultas sobre la app |
 | **Jefe de Transporte** | Solicitud aprobada por el Administrador | Gestiona vehículos, choferes, itinerarios, paradas y viajes. Aprueba a Jefes de itinerario y a choferes. Hace todo lo que hace un Jefe de itinerario, en cualquier itinerario. Ve todo |
-| **Jefe de itinerario** | Solicitud aprobada por un Jefe de Transporte | En **sus** itinerarios: aprueba solicitudes de miembros, controla la subida y marca viajes como realizados. Puede haber cualquier cantidad por itinerario |
+| **Jefe de itinerario** | Solicitud aprobada por un Jefe de Transporte | En **su** itinerario: **planifica sus viajes**, aprueba solicitudes de miembros, controla la subida y marca viajes como realizados. Puede haber cualquier cantidad por itinerario, pero **cada persona solo puede ser Jefe de un itinerario** |
 | **Chofer** | Solicitud aprobada por un Jefe de Transporte | Ve sus viajes, comparte ubicación, controla la subida y marca sus viajes como realizados. El Jefe de Transporte le asigna un vehículo |
 | **Trabajador** | Registrándose | Pide su itinerario y su parada, ve sus viajes, recibe avisos y sigue el recorrido |
 

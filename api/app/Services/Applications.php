@@ -406,6 +406,7 @@ class Applications
 
             case Application::TYPE_ITINERARY_CHIEF:
                 $request = $application->itineraryApplication;
+                $this->ensureChiefOfNoOther($worker, (int) $request->itinerary_id);
                 $chief = ItineraryChief::withTrashed()->firstOrNew(['itinerary_id' => $request->itinerary_id, 'worker_id' => $worker->id]);
                 $chief->deleted_at = null;
                 $chief->save();
@@ -447,6 +448,24 @@ class Applications
         }
     }
 
+    /**
+     * Un Jefe de itinerario solo puede serlo de un itinerario.
+     */
+    private function ensureChiefOfNoOther(Worker $worker, ?int $itineraryId): void
+    {
+        $current = ItineraryChief::where('worker_id', $worker->id)->lockForUpdate()->pluck('itinerary_id')->map(function ($id) {
+            return (int) $id;
+        })->all();
+
+        if (in_array($itineraryId, $current, true)) {
+            throw $this->conflict('ALREADY_HAS_ROLE', 'Ya eres Jefe de ese itinerario.');
+        }
+
+        if ($current) {
+            throw $this->conflict('ALREADY_CHIEF_OF_OTHER', 'Ya eres Jefe de otro itinerario. Un Jefe de itinerario solo puede serlo de uno: date de baja primero.');
+        }
+    }
+
     private function moveWorker(Worker $worker, ItineraryApplication $request): void
     {
         $stillInItinerary = ItineraryStop::where('itinerary_id', $request->itinerary_id)->where('stop_id', $request->stop_id)->exists();
@@ -471,8 +490,8 @@ class Applications
             throw $this->conflict('ALREADY_MEMBER', 'Ya viajas en ese itinerario y en esa parada.');
         }
 
-        if ($application->type === Application::TYPE_ITINERARY_CHIEF && $worker->isChiefOf($itineraryId)) {
-            throw $this->conflict('ALREADY_HAS_ROLE', 'Ya eres Jefe de ese itinerario.');
+        if ($application->type === Application::TYPE_ITINERARY_CHIEF) {
+            $this->ensureChiefOfNoOther($worker, $itineraryId);
         }
 
         ItineraryApplication::create(['application_id' => $application->id, 'itinerary_id' => $itineraryId, 'stop_id' => $stopId]);

@@ -93,6 +93,7 @@ class TripController extends Controller
         return DB::transaction(function () use ($data, $request) {
             $trip = new Trip(['status' => Trip::STATUS_UNCONFIRMED, 'created_by' => $request->user()->id]);
             $this->fill($trip, $data);
+            $this->authorizeItinerary($request, (int) $trip->itinerary_id);
             $this->trips->validate($trip);
             $trip->save();
 
@@ -107,8 +108,10 @@ class TripController extends Controller
     {
         return DB::transaction(function () use ($trip, $data, $request) {
             $trip = Trip::lockForUpdate()->findOrFail($trip->id);
+            $this->authorizeItinerary($request, (int) $trip->itinerary_id);
             $previousStatus = $trip->status;
             $this->fill($trip, $data);
+            $this->authorizeItinerary($request, (int) $trip->itinerary_id);
             $this->trips->applyStatusChange($trip, $previousStatus, $request->user());
 
             if ($trip->isDirty(['departs_at', 'returns_at', 'vehicle_id', 'driver_id', 'status'])) {
@@ -143,10 +146,21 @@ class TripController extends Controller
         );
     }
 
+    /**
+     * Planifican el Administrador, los Jefes de Transporte y los Jefes de
+     * itinerario (estos, solo en su itinerario: ver authorizeItinerary).
+     */
     public function authorizeManagement(Request $request): void
     {
-        if (! $request->user()->managesTransport()) {
-            throw new JsonApiException(403, 'FORBIDDEN', 'Sin permiso', 'Solo los Jefes de Transporte planifican los viajes.');
+        if (! $request->user()->plansTrips()) {
+            throw new JsonApiException(403, 'FORBIDDEN', 'Sin permiso', 'Solo los Jefes de Transporte y los Jefes de itinerario planifican los viajes.');
+        }
+    }
+
+    private function authorizeItinerary(Request $request, int $itineraryId): void
+    {
+        if (! $request->user()->canPlan($itineraryId)) {
+            throw new JsonApiException(403, 'FORBIDDEN', 'Sin permiso', 'Solo puedes planificar viajes de tu itinerario.', ['pointer' => '/data/relationships/itinerary']);
         }
     }
 
