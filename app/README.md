@@ -9,22 +9,22 @@ App Flutter de MiTransporte. La documentación funcional está en [`../docs`](..
 
 ## Ejecutar
 
-La dirección de la API se fija al compilar con `API_URL` y también se puede cambiar desde la pantalla de inicio de sesión (botón **Servidor**):
+La app **no lleva ninguna dirección de servidor**. La primera vez que se abre pide la **dirección del servidor** (p. ej. `transporte.miempresa.com`), la completa (`https://…/api/v1`), comprueba que ahí responde MiTransporte y la guarda. Se cambia desde el botón **Servidor** de la pantalla de inicio de sesión. Al compartir la app, el mensaje incluye la dirección del servidor.
 
 ```bash
 cd app
 flutter pub get
-flutter run --dart-define=API_URL=https://mi-servidor/api/v1
+flutter run
 ```
 
-Con el emulador de Android y la API en el propio ordenador: `--dart-define=API_URL=http://10.0.2.2:8000/api/v1`. Las direcciones `http://` solo se permiten en las versiones de depuración; en producción hace falta HTTPS.
+Para desarrollar se puede dar una dirección de partida con `--dart-define=API_URL=…`, p. ej. con el emulador de Android y la API en el propio ordenador: `--dart-define=API_URL=http://10.0.2.2:8000/api/v1`. Las direcciones `http://` solo se permiten en las versiones de depuración; en producción hace falta HTTPS.
 
 ## Compilar los APK
 
 Cada versión se publica con **dos APK**: uno para teléfonos de 64 bits (la mayoría) y otro para los de 32 bits. Cada teléfono descarga el suyo (docs/08-version-2.md §8.1).
 
 ```bash
-./build_release.sh https://mi-servidor/api/v1
+./build_release.sh
 # Resultado: build/release/<versión>/MiTransporte-<versión>-64bits.apk y -32bits.apk
 ```
 
@@ -32,9 +32,9 @@ El script compila dos veces:
 
 ```bash
 flutter build apk --release --target-platform android-arm64 \
-  --obfuscate --split-debug-info=build/symbols/<versión> --dart-define=API_URL=…
+  --obfuscate --split-debug-info=build/symbols/<versión>
 flutter build apk --release --target-platform android-arm \
-  --obfuscate --split-debug-info=build/symbols/<versión> --dart-define=API_URL=…
+  --obfuscate --split-debug-info=build/symbols/<versión>
 ```
 
 Qué hace cada opción para bajar el peso:

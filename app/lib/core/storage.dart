@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Datos guardados en el teléfono. Los tokens y el carné van cifrados
-/// (flutter_secure_storage); el resto, en preferencias.
+/// Datos guardados en el teléfono. Los tokens y el usuario recordado van
+/// cifrados (flutter_secure_storage); el resto, en preferencias.
 class Storage {
   static const _secure = FlutterSecureStorage();
 
@@ -13,7 +13,10 @@ class Storage {
   static const _lastLogin = 'last_login';
   static const _lastCard = 'last_card';
 
-  static const defaultApiUrl = String.fromEnvironment('API_URL', defaultValue: 'http://10.0.2.2:8000/api/v1');
+  /// Dirección del servidor de fábrica. Normalmente vacía: la escribe el
+  /// usuario la primera vez (docs/05-app.md §5.1). Para desarrollar se puede
+  /// fijar con --dart-define=API_URL=...
+  static const defaultApiUrl = String.fromEnvironment('API_URL');
 
   static Future<SharedPreferences> get _prefs => SharedPreferences.getInstance();
 
@@ -45,6 +48,7 @@ class Storage {
 
   // Preferencias
 
+  /// Dirección de la API, o cadena vacía si aún no se ha indicado.
   static Future<String> apiUrl() async => (await _prefs).getString('api_url') ?? defaultApiUrl;
 
   static Future<void> setApiUrl(String url) async => (await _prefs).setString('api_url', url);

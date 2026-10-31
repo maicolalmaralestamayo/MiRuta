@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 
 import '../../core/api_exception.dart';
+import '../../core/server_url.dart';
 import '../../core/storage.dart';
 import '../guest/developer_chat_screen.dart';
+import '../widgets/app_icon.dart';
 import '../widgets/common.dart';
 import 'access_recovery_screen.dart';
 import 'activation_screen.dart';
 import 'register_screen.dart';
+import 'server_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -41,12 +44,13 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  Future<void> _server() async {
-    final url = await promptText(context, 'Servidor', label: 'Dirección de la API', initial: context.api.baseUrl);
-    if (url == null || url.isEmpty) return;
-    await Storage.setApiUrl(url);
-    if (mounted) context.api.setBaseUrl(url);
-  }
+  void _server() => Navigator.push(
+        context,
+        MaterialPageRoute(builder: (screen) => ServerScreen(onSaved: (_) {
+              Navigator.pop(screen);
+              setState(() {});
+            })),
+      );
 
   void _open(Widget screen) => Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
 
@@ -60,8 +64,8 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Form(
               key: _form,
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                Icon(Icons.directions_bus_filled, size: 72, color: Theme.of(context).colorScheme.primary),
-                const SizedBox(height: 8),
+                const Center(child: AppIcon(size: 88)),
+                const SizedBox(height: 12),
                 Text('MiTransporte', textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineMedium),
                 const SizedBox(height: 32),
                 TextFormField(
@@ -101,7 +105,11 @@ class _LoginScreenState extends State<LoginScreen> {
                   icon: const Icon(Icons.support_agent),
                   label: const Text('Hablar con el desarrollador'),
                 ),
-                TextButton.icon(onPressed: _server, icon: const Icon(Icons.dns_outlined, size: 18), label: const Text('Servidor')),
+                TextButton.icon(
+                  onPressed: _server,
+                  icon: const Icon(Icons.dns_outlined, size: 18),
+                  label: Text('Servidor: ${ServerUrl.short(context.api.baseUrl)}', overflow: TextOverflow.ellipsis),
+                ),
               ]),
             ),
           ),

@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../core/api_client.dart';
+import '../core/server_url.dart';
 import '../core/storage.dart';
 import 'installation.dart';
 
@@ -108,7 +109,7 @@ class AppUpdates {
 
     await SharePlus.instance.share(ShareParams(
       files: [XFile(target.path, mimeType: 'application/vnd.android.package-archive')],
-      text: 'MiTransporte: ábrelo para instalar la app.',
+      text: 'MiTransporte: ábrelo para instalar la app. Dirección del servidor: ${ServerUrl.short(api.baseUrl)}',
     ));
   }
 

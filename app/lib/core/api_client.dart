@@ -44,6 +44,33 @@ class ApiClient {
 
   String get baseUrl => _dio.options.baseUrl;
 
+  /// Si ya se sabe a qué servidor conectarse.
+  bool get hasServer => baseUrl.isNotEmpty;
+
+  /// Comprueba que en [url] responde un servidor de MiTransporte.
+  static Future<void> probe(String url) async {
+    final dio = Dio(BaseOptions(
+      baseUrl: url,
+      connectTimeout: const Duration(seconds: 10),
+      receiveTimeout: const Duration(seconds: 15),
+      headers: {'Accept': jsonApi},
+    ));
+    try {
+      final response = await dio.get<dynamic>('/password-policy');
+      final data = response.data;
+      if (data is! Map || data['data'] is! Map || (data['data'] as Map)['type'] != 'password-policies') throw const FormatException();
+    } on DioException catch (error) {
+      throw error.response == null
+          ? _probeError('NETWORK_ERROR', 'No se pudo conectar con esa dirección. Revisa que esté bien escrita y que tengas conexión.')
+          : _probeError('NOT_MITRANSPORTE', 'En esa dirección no hay un servidor de MiTransporte.');
+    } on FormatException {
+      throw _probeError('NOT_MITRANSPORTE', 'En esa dirección no hay un servidor de MiTransporte.');
+    }
+  }
+
+  static ApiException _probeError(String code, String detail) =>
+      ApiException(null, [JsonApiError(status: '', code: code, title: 'Servidor', detail: detail)]);
+
   Future<void> _onRequest(RequestOptions options, RequestInterceptorHandler handler) async {
     if (options.extra['auth'] != false) {
       final token = await Storage.accessToken();
