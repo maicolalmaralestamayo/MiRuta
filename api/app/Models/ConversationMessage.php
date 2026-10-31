@@ -9,15 +9,15 @@ use Illuminate\Database\Eloquent\Model;
  */
 class ConversationMessage extends Model
 {
-    protected $fillable = ['conversation_id', 'worker_id', 'body'];
+    protected $fillable = ['conversation_id', 'user_id', 'body'];
 
     public function conversation()
     {
         return $this->belongsTo(Conversation::class);
     }
 
-    public function worker()
+    public function user()
     {
-        return $this->belongsTo(Worker::class)->withTrashed();
+        return $this->belongsTo(User::class)->withTrashed();
     }
 }

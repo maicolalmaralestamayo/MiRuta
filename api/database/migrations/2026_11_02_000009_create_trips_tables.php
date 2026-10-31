@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Schema;
 class CreateTripsTables extends Migration
 {
     /**
-     * Run the migrations.
+     * Viajes. La Entidad es la de su itinerario.
      *
      * @return void
      */
@@ -22,45 +22,32 @@ class CreateTripsTables extends Migration
             $table->dateTime('departs_at');
             $table->dateTime('returns_at');
             $table->enum('status', ['unconfirmed', 'confirmed', 'completed', 'cancelled']);
-            $table->foreignId('created_by')->constrained('workers');
+            $table->foreignId('created_by')->constrained('users');
             $table->timestamps();
             $table->softDeletes();
-
             $table->index(['vehicle_id', 'status', 'departs_at', 'returns_at']);
             $table->index(['driver_id', 'status', 'departs_at', 'returns_at']);
             $table->index(['itinerary_id', 'departs_at']);
             $table->index('updated_at');
         });
-
         DB::statement('ALTER TABLE trips ADD CONSTRAINT trips_returns_after_departs CHECK (returns_at > departs_at)');
 
         Schema::create('trip_completions', function (Blueprint $table) {
             $table->id();
             $table->foreignId('trip_id')->constrained();
-            $table->foreignId('worker_id')->nullable()->comment('NULL = el sistema')->constrained();
+            $table->foreignId('user_id')->nullable()->comment('NULL = el sistema')->constrained();
             $table->enum('role', ['driver', 'itinerary_chief', 'transport_chief', 'administrator', 'system']);
             $table->timestamps();
             $table->softDeletes();
-
-            $table->unique(['trip_id', 'worker_id']);
-        });
-
-        Schema::table('notices', function (Blueprint $table) {
-            $table->foreign('trip_id')->references('id')->on('trips');
+            $table->unique(['trip_id', 'user_id']);
         });
     }
 
     /**
-     * Reverse the migrations.
-     *
      * @return void
      */
     public function down()
     {
-        Schema::table('notices', function (Blueprint $table) {
-            $table->dropForeign(['trip_id']);
-        });
-
         Schema::dropIfExists('trip_completions');
         Schema::dropIfExists('trips');
     }

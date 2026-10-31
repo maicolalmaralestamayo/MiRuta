@@ -4,10 +4,11 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-class CreateItinerariesTable extends Migration
+class CreateItinerariesTables extends Migration
 {
     /**
-     * Run the migrations.
+     * Itinerarios y paradas, de una Entidad cada uno. Dos Entidades pueden
+     * tener una parada en el mismo lugar, pero cada una registra la suya.
      *
      * @return void
      */
@@ -15,15 +16,18 @@ class CreateItinerariesTable extends Migration
     {
         Schema::create('itineraries', function (Blueprint $table) {
             $table->id();
-            $table->string('name', 100)->unique();
+            $table->foreignId('entity_id')->constrained();
+            $table->string('name', 100);
             $table->text('description')->nullable();
             $table->text('observation')->nullable();
             $table->timestamps();
             $table->softDeletes();
+            $table->unique(['entity_id', 'name']);
         });
 
         Schema::create('stops', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('entity_id')->constrained();
             $table->string('landmark')->comment('Punto de referencia');
             $table->string('street');
             $table->string('cross_street_1')->nullable();
@@ -42,30 +46,18 @@ class CreateItinerariesTable extends Migration
                 ->comment('1 = punto de salida; la última = punto de regreso; NULL si se quitó (borrada)');
             $table->timestamps();
             $table->softDeletes();
-
             $table->unique(['itinerary_id', 'stop_id']);
             $table->unique(['itinerary_id', 'position']);
-        });
-
-        // La parada del trabajador tiene que pertenecer a su itinerario.
-        Schema::table('workers', function (Blueprint $table) {
-            $table->foreign(['itinerary_id', 'stop_id'])->references(['itinerary_id', 'stop_id'])->on('itinerary_stop');
         });
     }
 
     /**
-     * Reverse the migrations.
-     *
      * @return void
      */
     public function down()
     {
-        Schema::table('workers', function (Blueprint $table) {
-            $table->dropForeign(['itinerary_id', 'stop_id']);
-        });
-
-        Schema::dropIfExists('itinerary_stop');
-        Schema::dropIfExists('stops');
-        Schema::dropIfExists('itineraries');
+        foreach (['itinerary_stop', 'stops', 'itineraries'] as $name) {
+            Schema::dropIfExists($name);
+        }
     }
 }

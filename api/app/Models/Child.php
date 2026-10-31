@@ -2,11 +2,9 @@
 
 namespace App\Models;
 
-use App\Support\CardNumber;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Support\Facades\Crypt;
 
 /**
  * Hijo declarado por un trabajador. Mientras su solicitud está pendiente la
@@ -18,9 +16,9 @@ class Child extends Model
 
     protected $table = 'children';
 
-    protected $fillable = ['worker_id', 'first_name', 'last_name', 'card_number_encrypted', 'card_number_hash'];
+    protected $fillable = ['worker_id', 'first_name', 'middle_name', 'first_surname', 'second_surname', 'birth_date'];
 
-    protected $hidden = ['card_number_encrypted', 'card_number_hash'];
+    protected $dates = ['birth_date'];
 
     public function worker()
     {
@@ -47,8 +45,8 @@ class Child extends Model
         });
     }
 
-    public function cardNumber(): CardNumber
+    public function fullName(): string
     {
-        return CardNumber::tryParse(Crypt::decryptString($this->card_number_encrypted));
+        return trim(implode(' ', [$this->first_name, $this->middle_name, $this->first_surname, $this->second_surname]));
     }
 }

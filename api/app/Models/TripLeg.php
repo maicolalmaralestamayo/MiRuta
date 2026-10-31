@@ -32,7 +32,7 @@ class TripLeg extends Model
 
     public function starter()
     {
-        return $this->belongsTo(Worker::class, 'started_by')->withTrashed();
+        return $this->belongsTo(User::class, 'started_by')->withTrashed();
     }
 
     public function positions()

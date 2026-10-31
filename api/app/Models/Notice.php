@@ -18,22 +18,25 @@ class Notice extends Model
     const TYPE_INACTIVITY_WARNING = 'inactivity_warning';
     const TYPE_INACTIVITY_REMOVAL = 'inactivity_removal';
     const TYPE_TRIP_NEEDS_REASSIGNMENT = 'trip_needs_reassignment';
-    const TYPE_PASSWORD_RESET_REQUESTED = 'password_reset_requested';
+    const TYPE_ROLE_ASSIGNED = 'role_assigned';
+    const TYPE_ROLE_REMOVED = 'role_removed';
+    const TYPE_ACCESS_RECOVERY_REQUESTED = 'access_recovery_requested';
+    const TYPE_PASSWORD_EXPIRING = 'password_expiring';
 
-    protected $fillable = ['worker_id', 'type', 'application_id', 'trip_id', 'password_reset_id', 'read_at'];
+    protected $fillable = ['user_id', 'type', 'application_id', 'trip_id', 'access_recovery_id', 'read_at'];
 
     protected $casts = [
         'read_at' => 'datetime',
     ];
 
-    public function worker()
+    public function user()
     {
-        return $this->belongsTo(Worker::class);
+        return $this->belongsTo(User::class);
     }
 
-    public function passwordReset()
+    public function accessRecovery()
     {
-        return $this->belongsTo(PasswordReset::class);
+        return $this->belongsTo(AccessRecovery::class);
     }
 
     public function application()

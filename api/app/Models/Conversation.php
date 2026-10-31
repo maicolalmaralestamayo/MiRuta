@@ -13,7 +13,9 @@ class Conversation extends Model
 {
     use SoftDeletes;
 
-    protected $fillable = ['conversation_topic_id', 'opened_by', 'itinerary_id'];
+    protected $dates = ['closed_at'];
+
+    protected $fillable = ['conversation_topic_id', 'opened_by', 'installation_id', 'guest_name', 'guest_phone_encrypted', 'itinerary_id', 'entity_id', 'closed_at'];
 
     public function topic()
     {
@@ -22,7 +24,27 @@ class Conversation extends Model
 
     public function opener()
     {
-        return $this->belongsTo(Worker::class, 'opened_by')->withTrashed();
+        return $this->belongsTo(User::class, 'opened_by')->withTrashed();
+    }
+
+    public function installation()
+    {
+        return $this->belongsTo(Installation::class);
+    }
+
+    public function entity()
+    {
+        return $this->belongsTo(Entity::class)->withTrashed();
+    }
+
+    public function isGuest(): bool
+    {
+        return $this->opened_by === null;
+    }
+
+    public function isClosed(): bool
+    {
+        return $this->closed_at !== null;
     }
 
     public function itinerary()

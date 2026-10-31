@@ -9,15 +9,15 @@ use Illuminate\Database\Eloquent\Model;
  */
 class TripMessage extends Model
 {
-    protected $fillable = ['trip_id', 'worker_id', 'body'];
+    protected $fillable = ['trip_id', 'user_id', 'body'];
 
     public function trip()
     {
         return $this->belongsTo(Trip::class);
     }
 
-    public function worker()
+    public function user()
     {
-        return $this->belongsTo(Worker::class)->withTrashed();
+        return $this->belongsTo(User::class)->withTrashed();
     }
 }

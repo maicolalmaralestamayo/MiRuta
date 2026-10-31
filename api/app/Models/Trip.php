@@ -46,7 +46,7 @@ class Trip extends Model
 
     public function creator()
     {
-        return $this->belongsTo(Worker::class, 'created_by')->withTrashed();
+        return $this->belongsTo(User::class, 'created_by')->withTrashed();
     }
 
     public function completions()

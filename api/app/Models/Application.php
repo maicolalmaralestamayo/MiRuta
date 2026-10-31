@@ -21,7 +21,6 @@ class Application extends Model
     const TYPE_ITINERARY_CHIEF = 'itinerary_chief';
     const TYPE_DRIVER = 'driver';
     const TYPE_TRANSPORT_CHIEF = 'transport_chief';
-    const TYPE_RANK_CHANGE = 'rank_change';
     const TYPE_CHILD_ADDITION = 'child_addition';
     const TYPE_CHILD_REMOVAL = 'child_removal';
     const TYPE_ABSENCE = 'absence';
@@ -48,7 +47,7 @@ class Application extends Model
         self::TYPE_ITINERARY_REMOVAL,
     ];
 
-    protected $fillable = ['worker_id', 'type', 'status', 'resolved_by', 'resolved_at', 'resolution_note'];
+    protected $fillable = ['worker_id', 'type', 'status', 'created_by', 'resolved_by', 'resolved_at', 'resolution_note'];
 
     protected $casts = [
         'resolved_at' => 'datetime',
@@ -59,9 +58,14 @@ class Application extends Model
         return $this->belongsTo(Worker::class)->withTrashed();
     }
 
+    public function creator()
+    {
+        return $this->belongsTo(User::class, 'created_by')->withTrashed();
+    }
+
     public function resolver()
     {
-        return $this->belongsTo(Worker::class, 'resolved_by')->withTrashed();
+        return $this->belongsTo(User::class, 'resolved_by')->withTrashed();
     }
 
     public function itineraryApplication()
@@ -69,10 +73,6 @@ class Application extends Model
         return $this->hasOne(ItineraryApplication::class);
     }
 
-    public function rankApplication()
-    {
-        return $this->hasOne(RankApplication::class);
-    }
 
     public function childApplication()
     {
@@ -98,10 +98,6 @@ class Application extends Model
         return $this->itineraryApplication ? $this->itineraryApplication->stop_id : null;
     }
 
-    public function getRankIdAttribute()
-    {
-        return $this->rankApplication ? $this->rankApplication->rank_id : null;
-    }
 
     public function getChildIdAttribute()
     {
@@ -123,10 +119,6 @@ class Application extends Model
         return $this->itineraryApplication ? $this->itineraryApplication->stop : null;
     }
 
-    public function getRequestedRankAttribute()
-    {
-        return $this->rankApplication ? $this->rankApplication->rank : null;
-    }
 
     public function getRelatedChildAttribute()
     {

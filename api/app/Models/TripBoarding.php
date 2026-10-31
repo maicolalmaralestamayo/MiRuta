@@ -37,6 +37,6 @@ class TripBoarding extends Model
 
     public function marker()
     {
-        return $this->belongsTo(Worker::class, 'marked_by')->withTrashed();
+        return $this->belongsTo(User::class, 'marked_by')->withTrashed();
     }
 }

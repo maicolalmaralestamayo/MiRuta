@@ -9,7 +9,7 @@ class Vehicle extends Model
 {
     use SoftDeletes;
 
-    protected $fillable = ['vehicle_type_id', 'plate', 'seats', 'standing_capacity', 'driver_id'];
+    protected $fillable = ['entity_id', 'vehicle_type_id', 'plate', 'seats', 'standing_capacity', 'driver_id'];
 
     protected $casts = [
         'seats' => 'integer',
@@ -35,5 +35,18 @@ class Vehicle extends Model
     public function totalCapacity(): int
     {
         return $this->seats + $this->standing_capacity;
+    }
+
+    public function entity()
+    {
+        return $this->belongsTo(Entity::class)->withTrashed();
+    }
+
+    /**
+     * Los de la Entidad de esa cuenta (todos, para el Administrador).
+     */
+    public function scopeVisibleTo($query, User $user)
+    {
+        return $user->isAdmin() ? $query : $query->where($this->getTable().'.entity_id', $user->entityId());
     }
 }

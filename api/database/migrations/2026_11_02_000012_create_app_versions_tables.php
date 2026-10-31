@@ -4,10 +4,11 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-class CreateAppVersionsTable extends Migration
+class CreateAppVersionsTables extends Migration
 {
     /**
-     * Run the migrations.
+     * Versiones de la app con un APK por tipo de procesador
+     * (docs/08-version-2.md §8.1).
      *
      * @return void
      */
@@ -19,31 +20,30 @@ class CreateAppVersionsTable extends Migration
             $table->unsignedInteger('version_code')->unique()->comment('versionCode de Android; crece con cada versión');
             $table->text('notes')->nullable()->comment('Novedades');
             $table->boolean('mandatory')->default(false)->comment('Las versiones anteriores dejan de poder usarse');
-            $table->string('apk_path');
-            $table->unsignedBigInteger('size_bytes');
-            $table->char('sha256', 64);
-            $table->foreignId('published_by')->constrained('workers');
+            $table->foreignId('published_by')->constrained('users');
             $table->timestamps();
             $table->softDeletes();
         });
 
-        Schema::table('workers', function (Blueprint $table) {
-            $table->unsignedInteger('app_version_code')->nullable()->after('photo_path')
-                ->comment('Versión de la app instalada (la envía la app en cada petición)');
+        Schema::create('app_version_files', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('app_version_id')->constrained();
+            $table->enum('abi', ['arm64-v8a', 'armeabi-v7a', 'universal'])->comment('Tipo de procesador del APK');
+            $table->string('apk_path');
+            $table->unsignedBigInteger('size_bytes');
+            $table->char('sha256', 64);
+            $table->timestamps();
+            $table->softDeletes();
+            $table->unique(['app_version_id', 'abi']);
         });
     }
 
     /**
-     * Reverse the migrations.
-     *
      * @return void
      */
     public function down()
     {
-        Schema::table('workers', function (Blueprint $table) {
-            $table->dropColumn('app_version_code');
-        });
-
+        Schema::dropIfExists('app_version_files');
         Schema::dropIfExists('app_versions');
     }
 }

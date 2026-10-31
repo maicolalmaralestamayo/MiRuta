@@ -17,6 +17,7 @@ class DatabaseSeeder extends Seeder
         $this->call(VehicleTypeSeeder::class);
         $this->call(AbsenceTypeSeeder::class);
         $this->call(ConversationTopicSeeder::class);
+        $this->call(ForbiddenWordSeeder::class);
         $this->call(SettingDefinitionSeeder::class);
     }
 }

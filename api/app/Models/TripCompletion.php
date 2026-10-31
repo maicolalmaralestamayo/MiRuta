@@ -19,15 +19,15 @@ class TripCompletion extends Model
     const ROLE_ADMINISTRATOR = 'administrator';
     const ROLE_SYSTEM = 'system';
 
-    protected $fillable = ['trip_id', 'worker_id', 'role'];
+    protected $fillable = ['trip_id', 'user_id', 'role'];
 
     public function trip()
     {
         return $this->belongsTo(Trip::class);
     }
 
-    public function worker()
+    public function user()
     {
-        return $this->belongsTo(Worker::class)->withTrashed();
+        return $this->belongsTo(User::class)->withTrashed();
     }
 }

@@ -15,9 +15,12 @@ class SettingDefinition extends Model
     const TYPE_TIME = 'time';
     const TYPE_OPTION = 'option';
 
+    const LEVEL_APP = 'app';
+    const LEVEL_ENTITY = 'entity';
+
     protected $fillable = [
         'key', 'name', 'description', 'observation', 'value_type', 'default_value',
-        'min_value', 'max_value', 'min_setting_definition_id', 'editable_by', 'user_overridable',
+        'min_value', 'max_value', 'min_setting_definition_id', 'level', 'user_overridable',
     ];
 
     protected $casts = [

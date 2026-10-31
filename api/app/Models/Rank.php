@@ -9,10 +9,10 @@ class Rank extends Model
 {
     use SoftDeletes;
 
-    protected $fillable = ['name', 'description', 'observation', 'precedence', 'icon_path'];
+    protected $fillable = ['name', 'description', 'observation', 'sort_order', 'icon_path'];
 
     protected $casts = [
-        'precedence' => 'integer',
+        'sort_order' => 'integer',
     ];
 
     public function workers()

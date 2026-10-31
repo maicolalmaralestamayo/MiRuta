@@ -9,7 +9,7 @@ class Itinerary extends Model
 {
     use SoftDeletes;
 
-    protected $fillable = ['name', 'description', 'observation'];
+    protected $fillable = ['entity_id', 'name', 'description', 'observation'];
 
     /**
      * Paradas en orden. La primera es el punto de salida y la última, el de regreso.
@@ -58,5 +58,18 @@ class Itinerary extends Model
     public function returnStop(): ?Stop
     {
         return $this->stops->last();
+    }
+
+    public function entity()
+    {
+        return $this->belongsTo(Entity::class)->withTrashed();
+    }
+
+    /**
+     * Los de la Entidad de esa cuenta (todos, para el Administrador).
+     */
+    public function scopeVisibleTo($query, User $user)
+    {
+        return $user->isAdmin() ? $query : $query->where($this->getTable().'.entity_id', $user->entityId());
     }
 }

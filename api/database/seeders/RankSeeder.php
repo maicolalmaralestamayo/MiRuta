@@ -8,7 +8,8 @@ use Illuminate\Database\Seeder;
 class RankSeeder extends Seeder
 {
     /**
-     * Jerarquías en orden de prioridad de subida (1 = la más alta).
+     * Jerarquías, comunes a todas las Entidades, en su orden de presentación.
+     * Solo sirven para las estadísticas.
      */
     const RANKS = [
         'Coronel',
@@ -34,7 +35,7 @@ class RankSeeder extends Seeder
     public function run()
     {
         foreach (self::RANKS as $index => $name) {
-            Rank::withTrashed()->updateOrCreate(['name' => $name], ['precedence' => $index + 1]);
+            Rank::withTrashed()->updateOrCreate(['name' => $name], ['sort_order' => $index + 1]);
         }
     }
 }
