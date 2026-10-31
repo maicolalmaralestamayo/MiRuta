@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Models\Child;
 use App\Models\Worker;
-use App\Support\CardNumber;
 use Carbon\CarbonImmutable;
 
 /**
@@ -21,10 +20,14 @@ class ChildEligibility
         $this->settings = $settings;
     }
 
-    public function eligibleUntil(CardNumber $card): CarbonImmutable
+    /**
+     * Último día con derecho a viajar: el 31 de agosto siguiente a cumplir
+     * la edad máxima de su Entidad (child_max_age).
+     */
+    public function eligibleUntil($birthDate, ?int $entityId): CarbonImmutable
     {
-        $birth = $card->birthDate();
-        $limitYear = $birth->year + $this->settings->int('child_max_age');
+        $birth = CarbonImmutable::parse($birthDate)->startOfDay();
+        $limitYear = $birth->year + $this->settings->int('child_max_age', null, $entityId);
 
         // 29 de febrero en un año no bisiesto → 28 de febrero
         $limit = $birth->month === 2 && $birth->day === 29 && ! checkdate(2, 29, $limitYear)
@@ -36,11 +39,21 @@ class ChildEligibility
         return $limit->lessThanOrEqualTo($endOfCourse) ? $endOfCourse : $endOfCourse->addYear();
     }
 
-    public function isEligible(CardNumber $card, ?CarbonImmutable $date = null): bool
+    public function isEligible($birthDate, ?int $entityId, ?CarbonImmutable $date = null): bool
     {
         $date = $date ?: CarbonImmutable::today();
 
-        return $date->startOfDay()->lessThanOrEqualTo($this->eligibleUntil($card));
+        return $date->startOfDay()->lessThanOrEqualTo($this->eligibleUntil($birthDate, $entityId));
+    }
+
+    public function isChildEligible(Child $child, ?CarbonImmutable $date = null): bool
+    {
+        return $this->isEligible($child->birth_date, $this->entityOf($child->worker_id), $date);
+    }
+
+    public function childEligibleUntil(Child $child): CarbonImmutable
+    {
+        return $this->eligibleUntil($child->birth_date, $this->entityOf($child->worker_id));
     }
 
     /**
@@ -63,12 +76,23 @@ class ChildEligibility
             return $counts;
         }
 
+        $entities = Worker::withTrashed()->whereIn('id', $workerIds)->pluck('entity_id', 'id')->all();
+
         foreach (Child::declared()->whereIn('worker_id', $workerIds)->get() as $child) {
-            if ($this->isEligible($child->cardNumber(), $date)) {
+            $entityId = isset($entities[$child->worker_id]) ? (int) $entities[$child->worker_id] : null;
+
+            if ($this->isEligible($child->birth_date, $entityId, $date)) {
                 $counts[$child->worker_id]++;
             }
         }
 
         return $counts;
+    }
+
+    private function entityOf($workerId): ?int
+    {
+        $entityId = Worker::withTrashed()->whereKey($workerId)->value('entity_id');
+
+        return $entityId === null ? null : (int) $entityId;
     }
 }

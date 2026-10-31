@@ -5,6 +5,7 @@ namespace App\Services;
 use App\JsonApi\JsonApiException;
 use App\Models\TripBoarding;
 use App\Models\TripLeg;
+use App\Models\User;
 use App\Models\Worker;
 use App\Support\ExpiredJwtException;
 use App\Support\Jwt;
@@ -34,7 +35,7 @@ class Boardings
     /**
      * Registra la subida. $children null = todos los que tiene con derecho.
      */
-    public function board(TripLeg $leg, Worker $worker, string $method, ?int $children, ?Worker $markedBy): TripBoarding
+    public function board(TripLeg $leg, Worker $worker, string $method, ?int $children, ?User $markedBy): TripBoarding
     {
         if (! $leg->isActive()) {
             throw JsonApiException::conflict('LEG_NOT_ACTIVE', 'El trayecto no está en curso.');

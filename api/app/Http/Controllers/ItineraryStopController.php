@@ -58,11 +58,27 @@ class ItineraryStopController extends ResourceController
         }
     }
 
+    protected function newQuery(Request $request): Builder
+    {
+        $user = $request->user();
+        $query = ItineraryStop::query();
+
+        return $user->isAdmin() ? $query : $query->whereHas('itinerary', function (Builder $query) use ($user) {
+            $query->where('entity_id', $user->entityId());
+        });
+    }
+
     public function store(Request $request)
     {
         $this->authorize('create', ItineraryStop::class);
         $data = $this->validateResource($request, $this->type, $this->rules($request, null));
         $position = isset($data['attributes']['position']) ? (int) $data['attributes']['position'] : null;
+        $itineraryId = (int) $data['relationships']['itinerary']['data']['id'];
+
+        // El itinerario tiene que ser suyo y la parada de la misma Entidad.
+        \App\Support\Tenancy::ensureVisible($request->user(), 'itineraries', $itineraryId);
+        \App\Support\Tenancy::ensureSame(\App\Support\Tenancy::entityOf('itineraries', $itineraryId), 'stops',
+            (int) $data['relationships']['stop']['data']['id'], '/data/relationships/stop');
 
         $itineraryStop = DB::transaction(function () use ($data, $position) {
             return $this->itineraryStops->add(
@@ -79,7 +95,7 @@ class ItineraryStopController extends ResourceController
 
     public function update(Request $request, $id)
     {
-        $itineraryStop = ItineraryStop::findOrFail($id);
+        $itineraryStop = $this->findOrFail($request, $id);
         $this->authorize('update', $itineraryStop);
         $data = $this->validateResource($request, $this->type, $this->rules($request, $itineraryStop));
 
@@ -92,7 +108,7 @@ class ItineraryStopController extends ResourceController
 
     public function destroy(Request $request, $id)
     {
-        $itineraryStop = ItineraryStop::findOrFail($id);
+        $itineraryStop = $this->findOrFail($request, $id);
         $this->authorize('delete', $itineraryStop);
 
         DB::transaction(function () use ($itineraryStop) {

@@ -13,7 +13,7 @@ class TripMessageSerializer extends MessageSerializer
     {
         return [
             'trip' => ['trips', 'trip_id', 'trip'],
-            'worker' => ['workers', 'worker_id', 'worker'],
+            'author' => ['users', 'user_id', 'user'],
         ];
     }
 }

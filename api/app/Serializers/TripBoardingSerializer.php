@@ -26,7 +26,7 @@ class TripBoardingSerializer extends Serializer
         return [
             'tripLeg' => ['trip-legs', 'trip_leg_id', 'tripLeg'],
             'worker' => ['workers', 'worker_id', 'worker'],
-            'markedBy' => ['workers', 'marked_by', 'marker'],
+            'markedBy' => ['users', 'marked_by', 'marker'],
         ];
     }
 }

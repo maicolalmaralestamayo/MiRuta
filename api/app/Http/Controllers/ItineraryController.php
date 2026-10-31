@@ -15,9 +15,49 @@ class ItineraryController extends NomenclatorController
 
     protected $type = 'itineraries';
 
+    protected $entityScoped = true;
+
+    protected $filterable = ['name', 'entity'];
+
     protected function newQuery(Request $request): Builder
     {
-        return Itinerary::with('stops');
+        return parent::newQuery($request)->with('stops');
+    }
+
+    /**
+     * El nombre es único dentro de la Entidad.
+     */
+    protected function rules(Request $request, ?Model $model): array
+    {
+        $entityId = self::targetEntityId($request, $model);
+
+        return [
+            'attributes.name' => [$model ? 'sometimes' : 'required', 'string', 'max:100',
+                \Illuminate\Validation\Rule::unique('itineraries', 'name')->where('entity_id', $entityId)->whereNull('deleted_at')->ignore($model ? $model->id : null)],
+            'attributes.description' => ['sometimes', 'nullable', 'string'],
+            'attributes.observation' => ['sometimes', 'nullable', 'string'],
+        ];
+    }
+
+    protected function restorable(array $data): ?Model
+    {
+        $entityId = self::targetEntityId(app('request'), null);
+
+        return Itinerary::onlyTrashed()->where('entity_id', $entityId)->where('name', trim($data['attributes']['name']))->first();
+    }
+
+    /**
+     * Entidad en la que se crea o está el recurso.
+     */
+    public static function targetEntityId(Request $request, ?Model $model): ?int
+    {
+        if ($model) {
+            return (int) $model->entity_id;
+        }
+
+        $user = $request->user();
+
+        return $user->isAdmin() ? (int) $request->input('data.relationships.entity.data.id') : $user->entityId();
     }
 
     protected function beforeDelete(Model $itinerary, Request $request): void

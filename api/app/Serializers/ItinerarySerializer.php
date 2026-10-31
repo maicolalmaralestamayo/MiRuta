@@ -26,4 +26,9 @@ class ItinerarySerializer extends NomenclatorSerializer
             'memberCount' => $itinerary->members()->count(),
         ];
     }
+
+    public function toOneRelationships(): array
+    {
+        return ['entity' => ['entities', 'entity_id', 'entity']];
+    }
 }

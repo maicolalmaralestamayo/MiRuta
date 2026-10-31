@@ -2,7 +2,7 @@
 
 namespace App\Providers;
 
-use App\Models\Worker;
+use App\Models\User;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
@@ -16,8 +16,10 @@ class AuthServiceProvider extends ServiceProvider
     protected $policies = [
         \App\Models\Rank::class => \App\Policies\AdminManagedPolicy::class,
         \App\Models\ConversationTopic::class => \App\Policies\AdminManagedPolicy::class,
-        \App\Models\VehicleType::class => \App\Policies\TransportManagedPolicy::class,
-        \App\Models\AbsenceType::class => \App\Policies\TransportManagedPolicy::class,
+        \App\Models\VehicleType::class => \App\Policies\AdminManagedPolicy::class,
+        \App\Models\AbsenceType::class => \App\Policies\AdminManagedPolicy::class,
+        \App\Models\ForbiddenWord::class => \App\Policies\AdminManagedPolicy::class,
+        \App\Models\Entity::class => \App\Policies\AdminManagedPolicy::class,
         \App\Models\Itinerary::class => \App\Policies\TransportManagedPolicy::class,
         \App\Models\Stop::class => \App\Policies\TransportManagedPolicy::class,
         \App\Models\ItineraryStop::class => \App\Policies\TransportManagedPolicy::class,
@@ -41,8 +43,8 @@ class AuthServiceProvider extends ServiceProvider
         });
 
         // El Administrador puede hacer todo.
-        Gate::before(function (Worker $worker) {
-            return $worker->is_admin ? true : null;
+        Gate::before(function (User $user) {
+            return $user->is_admin ? true : null;
         });
 
         foreach ($this->policies as $model => $policy) {

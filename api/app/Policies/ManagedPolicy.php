@@ -2,38 +2,38 @@
 
 namespace App\Policies;
 
-use App\Models\Worker;
+use App\Models\User;
 
 /**
- * Cualquier usuario autenticado puede ver; solo quien gestiona puede crear,
- * modificar o borrar. El Administrador siempre puede (Gate::before).
+ * Lectura para todos (lo visible ya lo limita cada consulta por Entidad);
+ * crear, modificar y borrar para quien gestiona el recurso.
  */
 abstract class ManagedPolicy
 {
-    abstract protected function manages(Worker $worker): bool;
+    abstract protected function manages(User $user, $model = null): bool;
 
-    public function viewAny(?Worker $worker): bool
+    public function viewAny(?User $user): bool
     {
         return true;
     }
 
-    public function view(?Worker $worker, $model): bool
+    public function view(?User $user, $model): bool
     {
         return true;
     }
 
-    public function create(Worker $worker): bool
+    public function create(User $user): bool
     {
-        return $this->manages($worker);
+        return $this->manages($user);
     }
 
-    public function update(Worker $worker, $model): bool
+    public function update(User $user, $model): bool
     {
-        return $this->manages($worker);
+        return $this->manages($user, $model);
     }
 
-    public function delete(Worker $worker, $model): bool
+    public function delete(User $user, $model): bool
     {
-        return $this->manages($worker);
+        return $this->manages($user, $model);
     }
 }

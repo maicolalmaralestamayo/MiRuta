@@ -33,8 +33,4 @@ class ItineraryChiefController extends RoleController
         return Application::TYPE_ITINERARY_CHIEF_LEAVE;
     }
 
-    protected function canRemoveOthers(Worker $user): bool
-    {
-        return $user->isTransportChief();
-    }
 }

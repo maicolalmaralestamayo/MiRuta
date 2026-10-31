@@ -2,15 +2,21 @@
 
 namespace App\Policies;
 
-use App\Models\Worker;
+use App\Models\User;
+use App\Support\Tenancy;
 
 /**
- * Lo gestionan los Jefes de Transporte (y el Administrador).
+ * El Jefe de Transporte gestiona los recursos de su Entidad (itinerarios,
+ * paradas, vehículos…). El Administrador, todos (Gate::before).
  */
 class TransportManagedPolicy extends ManagedPolicy
 {
-    protected function manages(Worker $worker): bool
+    protected function manages(User $user, $model = null): bool
     {
-        return $worker->isTransportChief();
+        if (! $user->isTransportChief()) {
+            return false;
+        }
+
+        return $model === null || Tenancy::entityOf($model->getTable(), $model->getKey()) === $user->entityId();
     }
 }

@@ -8,6 +8,7 @@ use App\Models\Trip;
 use App\Models\TripBoarding;
 use App\Models\TripLeg;
 use App\Models\TripPosition;
+use App\Models\User;
 use App\Models\Worker;
 use App\Support\Geo;
 use Carbon\Carbon;
@@ -18,7 +19,9 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * Estadísticas (docs/02-procesos.md §2.11 y docs/04-api.md §4.6). Cada una
- * devuelve columnas y filas; la app dibuja los gráficos y exporta.
+ * devuelve columnas y filas; la app dibuja los gráficos y las tablas.
+ *
+ * Cada uno ve lo de su Entidad; el Administrador, todas (o una con filter[entity]).
  */
 class Statistics
 {
@@ -58,7 +61,10 @@ class Statistics
     /** @var int|null chofer al que se limita */
     private $driverScope;
 
-    /** @var Worker */
+    /** @var int|null Entidad a la que se limita; null = todas (Administrador) */
+    private $entityScope;
+
+    /** @var User */
     private $user;
 
     public function __construct(Trips $trips, Tracking $tracking, ChildEligibility $childEligibility)
@@ -71,7 +77,7 @@ class Statistics
     /**
      * @return array ['columns' => [...], 'rows' => [...], 'period' => [...]]
      */
-    public function compute(string $name, Worker $user, array $filters): array
+    public function compute(string $name, User $user, array $filters): array
     {
         if (! in_array($name, self::NAMES, true)) {
             throw new JsonApiException(404, 'NOT_FOUND', 'No encontrado', "No existe la estadística \"{$name}\".");
@@ -160,7 +166,15 @@ class Statistics
         $this->driverScope = null;
         $user = $this->user;
 
-        if ($user->managesTransport()) {
+        if ($user->isAdmin()) {
+            $this->entityScope = ! empty($this->filters['entity']) ? (int) $this->filters['entity'] : null;
+
+            return;
+        }
+
+        $this->entityScope = $user->entityId();
+
+        if ($user->isTransportChief()) {
             return;
         }
 
@@ -180,7 +194,8 @@ class Statistics
             throw new JsonApiException(403, 'FORBIDDEN', 'Sin permiso', 'No puedes ver esta estadística.');
         }
 
-        $this->itineraryScope = $user->itinerary_id ? [(int) $user->itinerary_id] : [];
+        $worker = $user->workerModel();
+        $this->itineraryScope = $worker && $worker->itinerary_id ? [(int) $worker->itinerary_id] : [];
     }
 
     /*
@@ -280,26 +295,38 @@ class Statistics
     {
         $rows = [];
 
+        // filter[level]: overloaded (solo los que no caben) o saturated (también los que van de pie).
+        $level = isset($this->filters['level']) ? $this->filters['level'] : 'saturated';
+
+        if (! in_array($level, ['saturated', 'overloaded'], true)) {
+            throw JsonApiException::badRequest('filter[level] debe ser saturated u overloaded.', 'filter[level]');
+        }
+
         foreach ($this->tripQuery()->where('status', '!=', Trip::STATUS_CANCELLED)->with('itinerary', 'vehicle', 'driver')->orderBy('departs_at')->get() as $trip) {
             $occupancy = $this->trips->occupancy($trip);
 
-            if ($occupancy['overloaded']) {
+            if ($occupancy['overloaded'] || ($level === 'saturated' && $occupancy['saturated'])) {
                 $rows[] = [
                     'trip' => (string) $trip->id,
                     'departsAt' => $trip->departs_at->toIso8601String(),
                     'itinerary' => $trip->itinerary->name,
                     'vehicle' => $trip->vehicle->plate,
+                    'level' => $occupancy['overloaded'] ? 'Sobresaturado' : 'Saturado',
                     'expectedPassengers' => $occupancy['expectedPassengers'],
+                    'expectedChildren' => $occupancy['expectedChildren'],
+                    'seats' => $occupancy['seats'],
                     'totalCapacity' => $occupancy['totalCapacity'],
-                    'excess' => $occupancy['expectedPassengers'] - $occupancy['totalCapacity'],
+                    'standing' => max(0, min($occupancy['expectedPassengers'], $occupancy['totalCapacity']) - $occupancy['seats']),
+                    'excess' => max(0, $occupancy['expectedPassengers'] - $occupancy['totalCapacity']),
                 ];
             }
         }
 
         return [[
             ['trip', 'Viaje', 'string'], ['departsAt', 'Salida', 'datetime'], ['itinerary', 'Itinerario', 'string'],
-            ['vehicle', 'Vehículo', 'string'], ['expectedPassengers', 'Esperados', 'integer'],
-            ['totalCapacity', 'Capacidad', 'integer'], ['excess', 'Exceso', 'integer'],
+            ['vehicle', 'Vehículo', 'string'], ['level', 'Estado', 'string'], ['expectedPassengers', 'Trabajadores', 'integer'],
+            ['expectedChildren', 'Niños', 'integer'], ['seats', 'Asientos', 'integer'], ['totalCapacity', 'Capacidad', 'integer'],
+            ['standing', 'De pie', 'integer'], ['excess', 'No caben', 'integer'],
         ], $rows];
     }
 
@@ -402,6 +429,10 @@ class Statistics
 
         $query = Worker::query()->select($columns[$by].' AS value', DB::raw('COUNT(*) AS total'))->groupBy($columns[$by]);
 
+        if ($this->entityScope !== null) {
+            $query->where('entity_id', $this->entityScope);
+        }
+
         if ($this->itineraryScope !== null) {
             $query->whereIn('itinerary_id', $this->itineraryScope);
         }
@@ -421,10 +452,15 @@ class Statistics
 
     private function workerTrips(): array
     {
-        $workerId = isset($this->filters['worker']) ? (int) $this->filters['worker'] : (int) $this->user->id;
+        $ownId = (int) $this->user->workerId();
+        $workerId = isset($this->filters['worker']) ? (int) $this->filters['worker'] : $ownId;
 
-        if ($workerId !== (int) $this->user->id && ! $this->user->managesTransport() && ! $this->user->chiefItineraryIds()) {
+        if ($workerId !== $ownId && ! $this->user->managesTransport() && ! $this->user->chiefItineraryIds()) {
             throw new JsonApiException(403, 'FORBIDDEN', 'Sin permiso', 'Solo puedes ver tus propios viajes.');
+        }
+
+        if ($workerId !== $ownId && ! $this->user->canAccessEntity(\App\Support\Tenancy::entityOf('workers', $workerId))) {
+            throw new JsonApiException(404, 'NOT_FOUND', 'No encontrado', 'El trabajador no existe.');
         }
 
         $rows = DB::table('trip_boardings')
@@ -436,7 +472,7 @@ class Statistics
             ->where(function ($query) {
                 $this->applyPeriod($query, 'trips.departs_at');
             })
-            ->when($this->itineraryScope !== null && $workerId !== (int) $this->user->id, function ($query) {
+            ->when($this->itineraryScope !== null && $workerId !== $ownId, function ($query) {
                 $query->whereIn('trips.itinerary_id', $this->itineraryScope);
             })
             ->orderBy('trips.departs_at')
@@ -468,6 +504,12 @@ class Statistics
         $query = Application::query()->where(function ($query) {
             $this->applyPeriod($query, 'created_at');
         });
+
+        if ($this->entityScope !== null) {
+            $query->whereHas('worker', function (Builder $query) {
+                $query->withTrashed()->where('entity_id', $this->entityScope);
+            });
+        }
 
         if ($this->itineraryScope !== null) {
             $query->whereHas('worker', function (Builder $query) {
@@ -645,6 +687,12 @@ class Statistics
             $this->applyPeriod($query, 'departs_at');
         });
 
+        if ($this->entityScope !== null) {
+            $query->whereHas('itinerary', function (Builder $query) {
+                $query->withTrashed()->where('entity_id', $this->entityScope);
+            });
+        }
+
         if ($this->itineraryScope !== null) {
             $query->whereIn('itinerary_id', $this->itineraryScope);
         }
@@ -710,7 +758,7 @@ class Statistics
             case 'driver':
                 $worker = $trip->driver ? $trip->driver->worker : null;
 
-                return $worker ? $worker->first_name.' '.$worker->last_name : '';
+                return $worker ? $worker->fullName() : '';
             default:
                 return $trip->itinerary ? $trip->itinerary->name : '';
         }

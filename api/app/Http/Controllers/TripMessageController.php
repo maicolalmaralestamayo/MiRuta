@@ -39,7 +39,7 @@ class TripMessageController extends Controller
         ]));
         $trip = $chats->tripWithChat($request->user(), $data['relationships']['trip']['data']['id']);
 
-        $message = TripMessage::create(['trip_id' => $trip->id, 'worker_id' => $request->user()->id, 'body' => trim($data['attributes']['body'])]);
+        $message = TripMessage::create(['trip_id' => $trip->id, 'user_id' => $request->user()->id, 'body' => trim($data['attributes']['body'])]);
 
         return JsonApiResponse::make((new Document($request))->resource($message->fresh()), 201);
     }

@@ -2,81 +2,189 @@
 
 namespace App\Support;
 
+use App\Models\ForbiddenWord;
+use App\Models\ReleasedUsername;
+use App\Services\Settings;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Nombre de usuario para iniciar sesión (docs/02-procesos.md §2.1).
+ * Nombre de usuario (docs/08-version-2.md §8.3). Lo elige el propio usuario.
  *
- * - De 3 a 30 caracteres: letras minúsculas sin tilde, dígitos, punto y guion bajo.
- * - Empieza por una letra, así nunca se confunde con un carné (11 dígitos).
- * - Se guarda en minúsculas; al iniciar sesión da igual cómo se escriba.
- * - Único también entre los trabajadores inactivos.
+ * - De 4 a 20 caracteres: letras sin tilde, números, punto y guion bajo.
+ * - Empieza por letra y no termina en signo; sin dos signos seguidos.
+ * - Al menos 3 letras; ningún carácter repetido más de 3 veces seguidas.
+ * - Sin palabras reservadas ni palabras no permitidas (nomenclador).
+ * - En minúsculas, único en toda la app; el que alguien deja de usar queda
+ *   bloqueado para los demás durante username_reuse_block_days.
  */
 final class Username
 {
-    const PATTERN = '/^[a-z][a-z0-9._]{2,29}$/';
+    const MIN_LENGTH = 4;
+    const MAX_LENGTH = 20;
 
-    const MAX_LENGTH = 30;
+    /** Nadie puede hacerse pasar por la app o por su equipo. */
+    const RESERVED = [
+        'admin', 'administrador', 'administrator', 'soporte', 'support', 'sistema', 'system',
+        'mitransporte', 'root', 'moderador', 'moderator', 'desarrollador', 'developer', 'oficial',
+    ];
+
+    /** Números que se usan para camuflar letras. */
+    const LEET = ['0' => 'o', '1' => 'i', '3' => 'e', '4' => 'a', '5' => 's', '7' => 't', '8' => 'b', '9' => 'g'];
+
+    /** Las palabras no permitidas de esta longitud o más se buscan dentro de todo el usuario. */
+    const SUBSTRING_MIN_LENGTH = 7;
 
     public static function normalize($value): string
     {
         return is_string($value) ? mb_strtolower(trim($value), 'UTF-8') : '';
     }
 
-    public static function isValid($value): bool
+    /**
+     * Cumple el formato (sin consultar la base de datos).
+     */
+    public static function looksValid($value): bool
     {
-        return is_string($value) && preg_match(self::PATTERN, self::normalize($value)) === 1;
+        return self::formatError($value) === null;
     }
 
     /**
-     * Propuesta a partir del nombre: primer nombre y primer apellido, sin
-     * tildes ("María José Pérez Díaz" → "maria.perez"). Si ya existe, añade un número.
+     * Motivo por el que el formato no es válido, o null.
      */
-    public static function suggest(string $firstName, string $lastName, ?int $ignoreWorkerId = null): string
+    public static function formatError($value): ?string
     {
-        $first = self::slug(self::firstWord($firstName));
-        $last = self::slug(self::firstWord($lastName));
-        $base = trim($first.'.'.$last, '.');
+        $username = self::normalize($value);
+        $length = strlen($username);
 
-        if ($base === '' || ! ctype_alpha($base[0])) {
-            $base = 'usuario'.$base;
+        if ($length < self::MIN_LENGTH || $length > self::MAX_LENGTH) {
+            return 'El usuario debe tener de '.self::MIN_LENGTH.' a '.self::MAX_LENGTH.' caracteres.';
         }
 
-        $base = substr(str_pad($base, 3, '0'), 0, self::MAX_LENGTH - 3);
-        $candidate = $base;
-
-        for ($n = 2; self::taken($candidate, $ignoreWorkerId); $n++) {
-            $candidate = $base.$n;
+        if (! preg_match('/^[a-z0-9._]+$/', $username)) {
+            return 'El usuario solo puede tener letras sin tilde, números, punto y guion bajo.';
         }
 
-        return $candidate;
-    }
-
-    public static function taken(string $username, ?int $ignoreWorkerId = null): bool
-    {
-        $query = DB::table('workers')->where('username', self::normalize($username));
-
-        if ($ignoreWorkerId !== null) {
-            $query->where('id', '<>', $ignoreWorkerId);
+        if (! preg_match('/^[a-z]/', $username)) {
+            return 'El usuario tiene que empezar por una letra.';
         }
 
-        return $query->exists();
+        if (preg_match('/[._]$/', $username)) {
+            return 'El usuario no puede terminar en punto ni en guion bajo.';
+        }
+
+        if (preg_match('/[._]{2}/', $username)) {
+            return 'El usuario no puede tener dos signos seguidos.';
+        }
+
+        if (preg_match_all('/[a-z]/', $username) < 3) {
+            return 'El usuario tiene que tener al menos 3 letras.';
+        }
+
+        if (preg_match('/(.)\1{3}/', $username)) {
+            return 'El usuario no puede repetir un carácter más de 3 veces seguidas.';
+        }
+
+        return null;
     }
 
-    private static function firstWord(string $text): string
+    /**
+     * Motivo por el que no se puede usar ese usuario (formato, palabras,
+     * reservadas o no permitidas), o null. Que esté libre se comprueba con taken().
+     */
+    public static function unavailableReason($value): ?string
     {
-        $words = preg_split('/\s+/u', trim($text));
+        if ($error = self::formatError($value)) {
+            return $error;
+        }
 
-        return $words ? $words[0] : '';
+        $username = self::normalize($value);
+
+        if (self::containsReservedWord($username)) {
+            return 'El usuario no puede contener palabras reservadas de la app.';
+        }
+
+        if (self::containsForbiddenWord($username)) {
+            return 'El usuario contiene una palabra no permitida.';
+        }
+
+        return null;
     }
 
-    private static function slug(string $text): string
+    /**
+     * Ya lo usa otra cuenta (activa o no) o lo dejó hace poco otra persona.
+     */
+    public static function taken(string $username, ?int $userId = null): bool
+    {
+        $username = self::normalize($username);
+        $query = DB::table('users')->where('username', $username);
+
+        if ($userId !== null) {
+            $query->where('id', '<>', $userId);
+        }
+
+        if ($query->exists()) {
+            return true;
+        }
+
+        $days = app(Settings::class)->int('username_reuse_block_days');
+        $released = ReleasedUsername::where('username', $username)
+            ->where('released_at', '>', Carbon::now()->subDays($days));
+
+        if ($userId !== null) {
+            // Quien lo dejó puede recuperarlo.
+            $released->where('user_id', '<>', $userId);
+        }
+
+        return $days > 0 && $released->exists();
+    }
+
+    public static function containsReservedWord(string $username): bool
+    {
+        $plain = self::plain($username);
+
+        foreach (self::RESERVED as $word) {
+            if (strpos($plain, $word) !== false) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public static function containsForbiddenWord(string $username): bool
+    {
+        $plain = self::plain($username);
+        $parts = preg_split('/[._]+/', self::deLeet($username));
+
+        foreach (ForbiddenWord::pluck('name') as $word) {
+            $word = self::plain($word);
+
+            if ($word === '') {
+                continue;
+            }
+
+            if (strlen($word) >= self::SUBSTRING_MIN_LENGTH ? strpos($plain, $word) !== false : in_array($word, $parts, true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Sin tildes, sin signos y con los números camuflados convertidos en letras.
+     */
+    private static function plain(string $text): string
+    {
+        return preg_replace('/[^a-z]/', '', self::deLeet($text));
+    }
+
+    private static function deLeet(string $text): string
     {
         $text = strtr(mb_strtolower($text, 'UTF-8'), [
             'á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ú' => 'u', 'ü' => 'u', 'ñ' => 'n',
-            'à' => 'a', 'è' => 'e', 'ì' => 'i', 'ò' => 'o', 'ù' => 'u', 'ç' => 'c',
         ]);
 
-        return preg_replace('/[^a-z0-9]/', '', $text);
+        return strtr($text, self::LEET);
     }
 }

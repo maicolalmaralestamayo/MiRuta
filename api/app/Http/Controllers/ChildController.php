@@ -10,16 +10,16 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 
 /**
- * Hijos. Se ven los declarados de todos (nombre y apellidos son públicos) y,
+ * Hijos. Se ven los declarados de la Entidad (los nombres son públicos) y,
  * además, los pendientes propios. Se crean y quitan mediante solicitudes.
  */
 class ChildController extends Controller
 {
-    const SORTABLE = ['firstName' => 'first_name', 'lastName' => 'last_name', 'id' => 'id'];
+    const SORTABLE = ['firstName' => 'first_name', 'firstSurname' => 'first_surname', 'secondSurname' => 'second_surname', 'id' => 'id'];
 
     public function index(Request $request)
     {
-        $parameters = QueryParameters::fromRequest($request, self::SORTABLE, ['worker'], ['worker'], 'lastName,firstName');
+        $parameters = QueryParameters::fromRequest($request, self::SORTABLE, ['worker'], ['worker'], 'firstSurname,secondSurname,firstName');
         $query = $this->visible($request);
 
         if ($worker = $parameters->filter('worker')) {
@@ -43,8 +43,12 @@ class ChildController extends Controller
     {
         $user = $request->user();
 
-        return Child::query()->where(function (Builder $query) use ($user) {
-            $query->declared()->orWhere('worker_id', $user->id);
+        $query = Child::query()->where(function (Builder $query) use ($user) {
+            $query->declared()->orWhere('worker_id', (int) $user->workerId());
+        });
+
+        return $user->isAdmin() ? $query : $query->whereHas('worker', function (Builder $query) use ($user) {
+            $query->where('entity_id', $user->entityId());
         });
     }
 }

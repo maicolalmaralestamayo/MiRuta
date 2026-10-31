@@ -7,13 +7,14 @@ use App\JsonApi\JsonApiException;
 use App\JsonApi\JsonApiResponse;
 use App\Models\Setting;
 use App\Models\SettingDefinition;
-use App\Models\Worker;
+use App\Models\User;
 use App\Services\Settings;
 use Illuminate\Http\Request;
 
 /**
- * Valores globales de los ajustes. El id es la clave del ajuste. Cada uno lo
- * cambia quien indique editable_by (el Administrador siempre).
+ * Valores de los ajustes para toda la app. El id es la clave del ajuste.
+ * Solo el Administrador los cambia; los Jefes de Transporte cambian los de
+ * nivel Entidad para su Entidad (EntitySettingController).
  */
 class SettingController extends Controller
 {
@@ -44,9 +45,9 @@ class SettingController extends Controller
     public function update(Request $request, string $id)
     {
         $definition = $this->settings->definition($id);
-        $worker = $request->user();
+        $user = $request->user();
 
-        if (! $this->canEdit($definition, $worker)) {
+        if (! $user->isAdmin()) {
             throw new JsonApiException(403, 'FORBIDDEN', 'Sin permiso', 'No puedes cambiar este ajuste.');
         }
 
@@ -59,26 +60,17 @@ class SettingController extends Controller
         $setting->save();
         $this->settings->flush();
 
-        return JsonApiResponse::make(Document::fromArray($this->resource($this->settings->definition($id), $worker)));
+        return JsonApiResponse::make(Document::fromArray($this->resource($this->settings->definition($id), $user)));
     }
 
-    private function canEdit(SettingDefinition $definition, Worker $worker): bool
-    {
-        if ($worker->isAdmin()) {
-            return true;
-        }
-
-        return $definition->editable_by === 'transport_chief' && $worker->isTransportChief();
-    }
-
-    private function resource(SettingDefinition $definition, Worker $worker): array
+    private function resource(SettingDefinition $definition, User $user): array
     {
         return [
             'type' => 'settings',
             'id' => $definition->key,
             'attributes' => [
                 'value' => $this->settings->effectiveRaw($definition),
-                'editable' => $this->canEdit($definition, $worker),
+                'editable' => $user->isAdmin(),
             ],
             'relationships' => [
                 'definition' => ['data' => ['type' => 'setting-definitions', 'id' => $definition->key]],

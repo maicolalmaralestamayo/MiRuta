@@ -6,7 +6,8 @@ use App\JsonApi\Document;
 use App\JsonApi\JsonApiException;
 use App\JsonApi\JsonApiResponse;
 use App\Models\AppVersion;
-use App\Models\Worker;
+use App\Models\AppVersionFile;
+use App\Models\User;
 use App\Services\Settings;
 use App\Services\Uploads;
 use Illuminate\Http\Request;
@@ -14,14 +15,24 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * Actualizaciones de la app desde el propio servidor. Solo el Administrador
- * publica versiones; la consulta de la última es pública (también la hace la
- * app antes de iniciar sesión).
+ * publica versiones, con un APK por tipo de procesador (64 y 32 bits) o uno
+ * universal; la consulta de la última es pública (también la hace la app
+ * antes de iniciar sesión).
  */
 class AppVersionController extends Controller
 {
+    /** Campos del formulario de publicación para cada tipo de procesador. */
+    const FILE_FIELDS = [
+        'apkArm64' => AppVersionFile::ABI_ARM64,
+        'apkArm32' => AppVersionFile::ABI_ARM32,
+        'apkUniversal' => AppVersionFile::ABI_UNIVERSAL,
+    ];
+
     /**
      * Última versión. Con filter[currentVersionCode] indica si hay que
-     * actualizar y si la actualización es obligatoria.
+     * actualizar y si la actualización es obligatoria. Con filter[abis]
+     * (los que admite el teléfono, por preferencia) indica en meta.file qué
+     * APK le corresponde.
      */
     public function latest(Request $request)
     {
@@ -33,12 +44,25 @@ class AppVersionController extends Controller
 
         $latest = AppVersion::latest();
         $document = $latest ? (new Document($request))->resource($latest) : Document::fromArray(null);
+        $meta = [];
 
         if ($current !== null) {
-            $document['meta'] = [
-                'updateAvailable' => $latest !== null && $latest->version_code > (int) $current,
-                'mandatory' => AppVersion::isMandatoryAfter((int) $current),
-            ];
+            $meta['updateAvailable'] = $latest !== null && $latest->version_code > (int) $current;
+            $meta['mandatory'] = AppVersion::isMandatoryAfter((int) $current);
+        }
+
+        if ($latest && ($abis = $request->input('filter.abis'))) {
+            $file = $latest->fileFor(array_values(array_filter(array_map('trim', explode(',', (string) $abis)))));
+            $meta['file'] = $file ? [
+                'abi' => $file->abi,
+                'downloadUrl' => url($file->apk_path),
+                'sizeBytes' => $file->size_bytes,
+                'sha256' => $file->sha256,
+            ] : null;
+        }
+
+        if ($meta) {
+            $document['meta'] = $meta;
         }
 
         return JsonApiResponse::make($document);
@@ -50,31 +74,48 @@ class AppVersionController extends Controller
         $versions = AppVersion::orderBy('version_code', 'desc')->get();
         $document = (new Document($request))->list($versions);
         $document['meta'] = [
-            'workersWithoutVersion' => Worker::whereNull('app_version_code')->count(),
+            'usersWithoutVersion' => User::whereNull('app_version_code')->count(),
         ];
 
         return JsonApiResponse::make($document);
     }
 
     /**
-     * Publicar una versión (multipart/form-data): apk, versionName, versionCode,
-     * notes y mandatory.
+     * Publicar una versión (multipart/form-data): apkArm64, apkArm32 y/o
+     * apkUniversal (al menos uno), versionName, versionCode, notes y mandatory.
      */
     public function store(Request $request, Settings $settings, Uploads $uploads)
     {
         $this->ensureAdmin($request);
+        $max = $settings->int('app_max_mb') * 1024;
         $this->validate($request, [
-            'apk' => ['required', 'file', 'max:'.($settings->int('app_max_mb') * 1024)],
+            'apkArm64' => ['nullable', 'file', 'max:'.$max],
+            'apkArm32' => ['nullable', 'file', 'max:'.$max],
+            'apkUniversal' => ['nullable', 'file', 'max:'.$max],
             'versionName' => ['required', 'string', 'max:20'],
             'versionCode' => ['required', 'integer', 'min:1'],
             'notes' => ['nullable', 'string', 'max:5000'],
             'mandatory' => ['nullable', 'in:0,1,true,false'],
         ]);
 
-        $file = $request->file('apk');
+        $files = [];
 
-        if (strtolower($file->getClientOriginalExtension()) !== 'apk' || file_get_contents($file->getRealPath(), false, null, 0, 2) !== 'PK') {
-            throw new JsonApiException(422, 'APK_INVALID', 'Archivo no válido', 'El archivo debe ser un APK de Android.', ['pointer' => '/apk']);
+        foreach (self::FILE_FIELDS as $field => $abi) {
+            if (! $request->hasFile($field)) {
+                continue;
+            }
+
+            $file = $request->file($field);
+
+            if (strtolower($file->getClientOriginalExtension()) !== 'apk' || file_get_contents($file->getRealPath(), false, null, 0, 2) !== 'PK') {
+                throw new JsonApiException(422, 'APK_INVALID', 'Archivo no válido', 'El archivo debe ser un APK de Android.', ['pointer' => '/'.$field]);
+            }
+
+            $files[$abi] = $file;
+        }
+
+        if ($files === []) {
+            throw new JsonApiException(422, 'APK_REQUIRED', 'Falta el APK', 'Sube al menos un APK (64 bits, 32 bits o universal).', ['pointer' => '/apkArm64']);
         }
 
         $code = (int) $request->input('versionCode');
@@ -85,20 +126,26 @@ class AppVersionController extends Controller
                 "El versionCode debe ser mayor que el de la última versión publicada ({$latest}).", ['pointer' => '/versionCode']);
         }
 
-        $sha256 = hash_file('sha256', $file->getRealPath());
-        $size = $file->getSize();
-
-        $version = DB::transaction(function () use ($request, $uploads, $file, $code, $sha256, $size) {
-            return AppVersion::create([
+        $version = DB::transaction(function () use ($request, $uploads, $files, $code) {
+            $version = AppVersion::create([
                 'version_name' => trim($request->input('versionName')),
                 'version_code' => $code,
                 'notes' => $request->input('notes'),
                 'mandatory' => in_array($request->input('mandatory'), ['1', 'true', 1, true], true),
-                'apk_path' => $uploads->store($file, 'apk', 'apk'),
-                'size_bytes' => $size,
-                'sha256' => $sha256,
                 'published_by' => $request->user()->id,
             ]);
+
+            foreach ($files as $abi => $file) {
+                AppVersionFile::create([
+                    'app_version_id' => $version->id,
+                    'abi' => $abi,
+                    'sha256' => hash_file('sha256', $file->getRealPath()),
+                    'size_bytes' => $file->getSize(),
+                    'apk_path' => $uploads->store($file, 'apk', 'apk'),
+                ]);
+            }
+
+            return $version;
         });
 
         return JsonApiResponse::make((new Document($request))->resource($version->fresh()), 201);
@@ -111,7 +158,12 @@ class AppVersionController extends Controller
     {
         $this->ensureAdmin($request);
         $version = AppVersion::findOrFail($id);
-        $uploads->delete($version->apk_path);
+
+        foreach ($version->files as $file) {
+            $uploads->delete($file->apk_path);
+            $file->delete();
+        }
+
         $version->delete();
 
         return response('', 204);

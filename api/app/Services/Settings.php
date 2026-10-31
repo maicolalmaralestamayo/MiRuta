@@ -3,13 +3,17 @@
 namespace App\Services;
 
 use App\JsonApi\JsonApiException;
+use App\Models\EntitySetting;
 use App\Models\Setting;
 use App\Models\SettingDefinition;
 use App\Models\UserSetting;
-use App\Models\Worker;
+use App\Models\User;
 
 /**
  * Valor efectivo y validación de los ajustes (docs/07-algoritmos.md §7.5).
+ *
+ * Tres niveles: app (Administrador) → Entidad (Jefe de Transporte, solo los
+ * ajustes de nivel Entidad) → usuario (solo los que el usuario puede cambiar).
  */
 class Settings
 {
@@ -19,29 +23,52 @@ class Settings
     /** @var array [id de definición => valor global] */
     private $globals;
 
+    /** @var array [id de Entidad => [id de definición => valor]] */
+    private $entityValues = [];
+
     /**
-     * Valor efectivo convertido a su tipo: el del usuario, si no el global,
-     * si no el valor por defecto; nunca menor que su ajuste mínimo global.
+     * Valor efectivo convertido a su tipo: el del usuario, si no el de su
+     * Entidad, si no el de la app, si no el valor por defecto; nunca menor
+     * que su ajuste mínimo. Sin $entityId se usa la Entidad del usuario.
      */
-    public function get(string $key, ?Worker $worker = null)
+    public function get(string $key, ?User $user = null, ?int $entityId = null)
     {
         $definition = $this->definition($key);
-        $raw = $this->rawValue($definition, $worker);
 
-        return $this->cast($definition, $this->applyMinimum($definition, $raw, $worker));
+        return $this->cast($definition, $this->effectiveRaw($definition, $user, $entityId));
     }
 
-    public function int(string $key, ?Worker $worker = null): int
+    public function int(string $key, ?User $user = null, ?int $entityId = null): int
     {
-        return (int) $this->get($key, $worker);
+        return (int) $this->get($key, $user, $entityId);
+    }
+
+    /**
+     * Valor de un ajuste de nivel Entidad para una Entidad.
+     */
+    public function forEntity(string $key, ?int $entityId)
+    {
+        return $this->get($key, null, $entityId);
     }
 
     /**
      * Valor sin convertir, ya ajustado al mínimo (como se envía en la API).
      */
-    public function effectiveRaw(SettingDefinition $definition, ?Worker $worker = null): string
+    public function effectiveRaw(SettingDefinition $definition, ?User $user = null, ?int $entityId = null): string
     {
-        return $this->applyMinimum($definition, $this->rawValue($definition, $worker), $worker);
+        if ($entityId === null && $user) {
+            $entityId = $user->entityId();
+        }
+
+        return $this->applyMinimum($definition, $this->rawValue($definition, $user, $entityId));
+    }
+
+    /**
+     * Valor por encima del usuario: el de la Entidad o el de la app.
+     */
+    public function inheritedRaw(SettingDefinition $definition, ?int $entityId): string
+    {
+        return $this->applyMinimum($definition, $this->rawValue($definition, null, $entityId));
     }
 
     public function definition(string $key): SettingDefinition
@@ -71,7 +98,7 @@ class Settings
      * Comprueba un valor nuevo y lo devuelve normalizado como texto.
      * Si el valor no es válido lanza SETTING_OUT_OF_RANGE.
      */
-    public function normalize(SettingDefinition $definition, $value, ?Worker $worker = null, string $pointer = '/data/attributes/value'): string
+    public function normalize(SettingDefinition $definition, $value, string $pointer = '/data/attributes/value'): string
     {
         $fail = function (string $detail) use ($pointer) {
             return new JsonApiException(422, 'SETTING_OUT_OF_RANGE', 'Valor no válido', $detail, ['pointer' => $pointer]);
@@ -160,12 +187,13 @@ class Settings
     {
         $this->definitions = null;
         $this->globals = null;
+        $this->entityValues = [];
     }
 
-    private function rawValue(SettingDefinition $definition, ?Worker $worker): string
+    private function rawValue(SettingDefinition $definition, ?User $user, ?int $entityId): string
     {
-        if ($worker && $definition->user_overridable) {
-            $userValue = UserSetting::where('worker_id', $worker->id)
+        if ($user && $definition->user_overridable) {
+            $userValue = UserSetting::where('user_id', $user->id)
                 ->where('setting_definition_id', $definition->id)
                 ->value('value');
 
@@ -174,12 +202,22 @@ class Settings
             }
         }
 
+        if ($entityId !== null && $definition->level === SettingDefinition::LEVEL_ENTITY) {
+            if (! isset($this->entityValues[$entityId])) {
+                $this->entityValues[$entityId] = EntitySetting::where('entity_id', $entityId)->pluck('value', 'setting_definition_id')->all();
+            }
+
+            if (isset($this->entityValues[$entityId][$definition->id])) {
+                return $this->entityValues[$entityId][$definition->id];
+            }
+        }
+
         $globals = $this->globals();
 
         return isset($globals[$definition->id]) ? $globals[$definition->id] : $definition->default_value;
     }
 
-    private function applyMinimum(SettingDefinition $definition, string $raw, ?Worker $worker): string
+    private function applyMinimum(SettingDefinition $definition, string $raw): string
     {
         if ($definition->value_type !== SettingDefinition::TYPE_INTEGER || ! $definition->minSettingDefinition) {
             return $raw;

@@ -57,6 +57,8 @@ $app->configure('jsonapi');
 $app->routeMiddleware([
     'jsonapi' => App\Http\Middleware\RequireJsonApi::class,
     'auth' => App\Http\Middleware\Authenticate::class,
+    'installation' => App\Http\Middleware\AuthenticateInstallation::class,
+    'auth.any' => App\Http\Middleware\AuthenticateAny::class,
 ]);
 
 /*

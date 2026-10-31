@@ -12,7 +12,7 @@ class ActivationCode extends Model
 {
     use SoftDeletes;
 
-    protected $fillable = ['user_id', 'code_hash', 'expires_at', 'created_by', 'used_at'];
+    protected $fillable = ['user_id', 'code_hash', 'failed_attempts', 'expires_at', 'created_by', 'used_at'];
 
     protected $hidden = ['code_hash'];
 

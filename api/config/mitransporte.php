@@ -4,20 +4,6 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Clave para la huella del carné
-    |--------------------------------------------------------------------------
-    |
-    | Clave secreta del HMAC-SHA256 con que se calcula la huella del carné
-    | (columna card_number_hash). Permite buscar y comprobar la unicidad sin
-    | descifrar. No debe cambiar una vez haya datos: las huellas dejarían de
-    | coincidir.
-    |
-    */
-
-    'card_hash_key' => env('CARD_HASH_KEY'),
-
-    /*
-    |--------------------------------------------------------------------------
     | JWT (RFC 7519)
     |--------------------------------------------------------------------------
     |

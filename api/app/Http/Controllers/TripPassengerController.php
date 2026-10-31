@@ -36,7 +36,7 @@ class TripPassengerController extends Controller
         $data = [];
         $included = [];
 
-        foreach ($trips->boardingOrder($trip, $stop ? (int) $stop : null) as $item) {
+        foreach ($trips->passengerList($trip, $stop ? (int) $stop : null) as $index => $item) {
             $worker = $item['worker'];
             $boarding = isset($latest[$worker->id]) ? $latest[$worker->id] : null;
 
@@ -44,7 +44,7 @@ class TripPassengerController extends Controller
                 'type' => 'trip-passengers',
                 'id' => $trip->id.'-'.$worker->id,
                 'attributes' => [
-                    'boardingOrder' => $item['order'],
+                    'position' => $index + 1,
                     'eligibleChildren' => $item['children'],
                     'boarded' => $boarding !== null,
                     'boardedChildren' => $boarding ? (int) $boarding->children_count : null,
@@ -56,6 +56,7 @@ class TripPassengerController extends Controller
                 ],
             ];
             $included['workers:'.$worker->id] = $document->resourceObjectFor($worker);
+            $included['users:'.$worker->user_id] = $document->resourceObjectFor($worker->user);
             $included['ranks:'.$worker->rank_id] = $document->resourceObjectFor($worker->rank);
         }
 

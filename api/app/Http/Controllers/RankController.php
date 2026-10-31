@@ -24,19 +24,18 @@ class RankController extends NomenclatorController
         'name' => 'name',
         'description' => 'description',
         'observation' => 'observation',
-        'precedence' => 'precedence',
+        'sortOrder' => 'sort_order',
     ];
 
-    protected $sortable = ['id' => 'id', 'name' => 'name', 'precedence' => 'precedence'];
+    protected $sortable = ['id' => 'id', 'name' => 'name', 'sortOrder' => 'sort_order'];
 
-    protected $defaultSort = 'precedence';
+    protected $defaultSort = 'sortOrder,name';
 
     protected function rules(Request $request, ?Model $model): array
     {
-        $unique = 'unique:ranks,precedence'.($model ? ",{$model->id}" : ',NULL').',id,deleted_at,NULL';
 
         return parent::rules($request, $model) + [
-            'attributes.precedence' => [$model ? 'sometimes' : 'required', 'integer', 'min:1', 'max:65535', $unique],
+            'attributes.sortOrder' => ['sometimes', 'integer', 'min:0', 'max:65535'],
         ];
     }
 

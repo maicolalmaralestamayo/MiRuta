@@ -17,8 +17,4 @@ class DriverController extends RoleController
         return Application::TYPE_DRIVER_LEAVE;
     }
 
-    protected function canRemoveOthers(Worker $user): bool
-    {
-        return $user->isTransportChief();
-    }
 }

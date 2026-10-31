@@ -27,7 +27,9 @@ class VehicleController extends ResourceController
 
     protected $sortable = ['id' => 'id', 'plate' => 'plate'];
 
-    protected $filterable = ['vehicleType', 'driver', 'search'];
+    protected $filterable = ['vehicleType', 'driver', 'search', 'entity'];
+
+    protected $entityScoped = true;
 
     protected $includable = ['vehicleType', 'driver', 'driver.worker'];
 
@@ -36,7 +38,10 @@ class VehicleController extends ResourceController
     protected function rules(Request $request, ?Model $model): array
     {
         $presence = $model ? 'sometimes' : 'required';
-        $unique = 'unique:vehicles,plate'.($model ? ",{$model->id}" : ',NULL').',id,deleted_at,NULL';
+        // La matrícula es única dentro de la Entidad.
+        $unique = \Illuminate\Validation\Rule::unique('vehicles', 'plate')
+            ->where('entity_id', ItineraryController::targetEntityId($request, $model))
+            ->whereNull('deleted_at')->ignore($model ? $model->id : null);
 
         return array_merge([
             'attributes.plate' => [$presence, 'string', 'max:20', $unique],
@@ -65,6 +70,17 @@ class VehicleController extends ResourceController
 
     protected function restorable(array $data): ?Model
     {
-        return Vehicle::onlyTrashed()->where('plate', trim($data['attributes']['plate']))->first();
+        return Vehicle::onlyTrashed()
+            ->where('entity_id', ItineraryController::targetEntityId(app('request'), null))
+            ->where('plate', trim($data['attributes']['plate']))->first();
+    }
+
+    /**
+     * El chofer habitual tiene que ser de la misma Entidad.
+     */
+    protected function beforeSave(Model $model, Request $request, bool $creating): void
+    {
+        parent::beforeSave($model, $request, $creating);
+        \App\Support\Tenancy::ensureSame((int) $model->entity_id, 'drivers', $model->driver_id, '/data/relationships/driver');
     }
 }

@@ -94,6 +94,7 @@ class TripController extends Controller
             $trip = new Trip(['status' => Trip::STATUS_UNCONFIRMED, 'created_by' => $request->user()->id]);
             $this->fill($trip, $data);
             $this->authorizeItinerary($request, (int) $trip->itinerary_id);
+            $this->ensureSameEntity($trip);
             $this->trips->validate($trip);
             $trip->save();
 
@@ -112,6 +113,7 @@ class TripController extends Controller
             $previousStatus = $trip->status;
             $this->fill($trip, $data);
             $this->authorizeItinerary($request, (int) $trip->itinerary_id);
+            $this->ensureSameEntity($trip);
             $this->trips->applyStatusChange($trip, $previousStatus, $request->user());
 
             if ($trip->isDirty(['departs_at', 'returns_at', 'vehicle_id', 'driver_id', 'status'])) {
@@ -162,6 +164,16 @@ class TripController extends Controller
         if (! $request->user()->canPlan($itineraryId)) {
             throw new JsonApiException(403, 'FORBIDDEN', 'Sin permiso', 'Solo puedes planificar viajes de tu itinerario.', ['pointer' => '/data/relationships/itinerary']);
         }
+    }
+
+    /**
+     * El vehículo y el chofer tienen que ser de la Entidad del itinerario.
+     */
+    private function ensureSameEntity(Trip $trip): void
+    {
+        $entityId = \App\Support\Tenancy::entityOf('itineraries', $trip->itinerary_id);
+        \App\Support\Tenancy::ensureSame($entityId, 'vehicles', $trip->vehicle_id, '/data/relationships/vehicle');
+        \App\Support\Tenancy::ensureSame($entityId, 'drivers', $trip->driver_id, '/data/relationships/driver');
     }
 
     private function fill(Trip $trip, array $data): void

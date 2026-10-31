@@ -7,7 +7,7 @@ use App\JsonApi\JsonApiException;
 use App\JsonApi\JsonApiResponse;
 use App\Models\SettingDefinition;
 use App\Models\UserSetting;
-use App\Models\Worker;
+use App\Models\User;
 use App\Services\Settings;
 use Illuminate\Http\Request;
 
@@ -26,13 +26,13 @@ class UserSettingController extends Controller
 
     public function index(Request $request)
     {
-        $worker = $request->user();
-        $custom = UserSetting::where('worker_id', $worker->id)->pluck('setting_definition_id')->all();
+        $user = $request->user();
+        $custom = UserSetting::where('user_id', $user->id)->pluck('setting_definition_id')->all();
         $data = [];
 
         foreach ($this->settings->definitions() as $definition) {
             if ($definition->user_overridable) {
-                $data[] = $this->resource($definition, $worker, in_array($definition->id, $custom));
+                $data[] = $this->resource($definition, $user, in_array($definition->id, $custom));
             }
         }
 
@@ -45,27 +45,27 @@ class UserSettingController extends Controller
         $data = $this->validateResource($request, 'user-settings', [
             'attributes.value' => ['present'],
         ]);
-        $worker = $request->user();
-        $value = $this->settings->normalize($definition, $data['attributes']['value'], $worker);
+        $user = $request->user();
+        $value = $this->settings->normalize($definition, $data['attributes']['value']);
 
         $setting = UserSetting::withTrashed()->firstOrNew([
-            'worker_id' => $worker->id,
+            'user_id' => $user->id,
             'setting_definition_id' => $definition->id,
         ]);
         $setting->value = $value;
         $setting->deleted_at = null;
         $setting->save();
 
-        return JsonApiResponse::make(Document::fromArray($this->resource($definition, $worker, true)));
+        return JsonApiResponse::make(Document::fromArray($this->resource($definition, $user, true)));
     }
 
     /**
-     * Vuelve al valor global.
+     * Vuelve al valor de su Entidad (o al de la app).
      */
     public function destroy(Request $request, string $id)
     {
         $definition = $this->overridable($id);
-        UserSetting::where('worker_id', $request->user()->id)->where('setting_definition_id', $definition->id)->delete();
+        UserSetting::where('user_id', $request->user()->id)->where('setting_definition_id', $definition->id)->delete();
 
         return response('', 204);
     }
@@ -81,13 +81,15 @@ class UserSettingController extends Controller
         return $definition;
     }
 
-    private function resource(SettingDefinition $definition, Worker $worker, bool $isCustom): array
+    private function resource(SettingDefinition $definition, User $user, bool $isCustom): array
     {
         return [
             'type' => 'user-settings',
             'id' => $definition->key,
             'attributes' => [
-                'value' => $this->settings->effectiveRaw($definition, $worker),
+                'value' => $this->settings->effectiveRaw($definition, $user),
+                // Lo que vale si quita el suyo: el de su Entidad o el de la app.
+                'inheritedValue' => $this->settings->inheritedRaw($definition, $user->entityId()),
                 'isCustom' => $isCustom,
             ],
             'relationships' => [

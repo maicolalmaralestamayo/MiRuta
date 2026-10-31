@@ -8,6 +8,7 @@ use App\Models\TripBoarding;
 use App\Models\TripLeg;
 use App\Models\TripPosition;
 use App\Models\TripStopPass;
+use App\Models\User;
 use App\Models\Worker;
 use App\Support\Geo;
 use Carbon\Carbon;
@@ -40,14 +41,13 @@ class Tracking
      * Pueden iniciar y finalizar trayectos (y registrar subidas de otros) el
      * chofer del viaje, los Jefes de su itinerario y los Jefes de Transporte.
      */
-    public function canOperate(Trip $trip, Worker $user): bool
+    public function canOperate(Trip $trip, User $user): bool
     {
-        return $user->managesTransport()
-            || ($user->driverId() !== null && (int) $trip->driver_id === $user->driverId())
+        return ($user->driverId() !== null && (int) $trip->driver_id === $user->driverId())
             || $user->isChiefOf((int) $trip->itinerary_id);
     }
 
-    public function start(Trip $trip, string $direction, Worker $user): TripLeg
+    public function start(Trip $trip, string $direction, User $user): TripLeg
     {
         $this->ensureCanOperate($trip, $user);
 
@@ -70,7 +70,7 @@ class Tracking
     /**
      * Finalizar a mano. Gana lo que ocurra primero: esto o el paso por la última parada.
      */
-    public function end(TripLeg $leg, Worker $user): TripLeg
+    public function end(TripLeg $leg, User $user): TripLeg
     {
         $this->ensureCanOperate($leg->trip, $user);
 
@@ -277,7 +277,7 @@ class Tracking
         ];
     }
 
-    private function ensureCanOperate(Trip $trip, Worker $user): void
+    private function ensureCanOperate(Trip $trip, User $user): void
     {
         if (! $this->canOperate($trip, $user)) {
             throw new JsonApiException(403, 'FORBIDDEN', 'Sin permiso', 'Solo el chofer del viaje, los Jefes de su itinerario y los Jefes de Transporte pueden hacerlo.');

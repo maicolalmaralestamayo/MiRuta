@@ -19,12 +19,14 @@ class ApplicationSerializer extends Serializer
             'status' => $application->status,
             'resolutionNote' => $application->resolution_note,
             'resolvedAt' => $this->date($application->resolved_at),
+            'assigned' => $application->created_by !== null && $application->worker && (int) $application->created_by !== (int) $application->worker->user_id,
             'createdAt' => $this->date($application->created_at),
         ];
 
         if ($child = $application->related_child) {
-            $attributes['childFirstName'] = $child->first_name;
-            $attributes['childLastName'] = $child->last_name;
+            $attributes['childFullName'] = $child->fullName();
+            $attributes['possibleDuplicate'] = $application->type === 'child_addition' && $application->isPending()
+                && app(\App\Services\Children::class)->hasPossibleDuplicate($child);
         }
 
         if ($absence = $application->absenceApplication) {
@@ -40,10 +42,10 @@ class ApplicationSerializer extends Serializer
     {
         return [
             'worker' => ['workers', 'worker_id', 'worker'],
-            'resolvedBy' => ['workers', 'resolved_by', 'resolver'],
+            'createdBy' => ['users', 'created_by', 'creator'],
+            'resolvedBy' => ['users', 'resolved_by', 'resolver'],
             'itinerary' => ['itineraries', 'itinerary_id', 'requested_itinerary'],
             'stop' => ['stops', 'stop_id', 'requested_stop'],
-            'rank' => ['ranks', 'rank_id', 'requested_rank'],
             'child' => ['children', 'child_id', 'related_child'],
             'absenceType' => ['absence-types', 'absence_type_id', 'related_absence_type'],
         ];

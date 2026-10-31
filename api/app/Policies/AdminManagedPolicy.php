@@ -2,14 +2,14 @@
 
 namespace App\Policies;
 
-use App\Models\Worker;
+use App\Models\User;
 
 /**
- * Solo lo gestiona el Administrador.
+ * Solo el Administrador (Gate::before), p. ej. Entidades y nomencladores comunes.
  */
 class AdminManagedPolicy extends ManagedPolicy
 {
-    protected function manages(Worker $worker): bool
+    protected function manages(User $user, $model = null): bool
     {
         return false;
     }

@@ -19,7 +19,7 @@ class NoticeController extends Controller
     public function index(Request $request)
     {
         $parameters = QueryParameters::fromRequest($request, self::SORTABLE, ['unread', 'since'], ['application'], '-createdAt');
-        $query = Notice::where('worker_id', $request->user()->id);
+        $query = Notice::where('user_id', $request->user()->id);
 
         if ($parameters->filter('unread') === 'true') {
             $query->whereNull('read_at');
@@ -40,7 +40,7 @@ class NoticeController extends Controller
      */
     public function update(Request $request, $id)
     {
-        $notice = Notice::where('worker_id', $request->user()->id)->findOrFail($id);
+        $notice = Notice::where('user_id', $request->user()->id)->findOrFail($id);
         $data = $this->validateResource($request, 'notices', ['attributes.readAt' => ['present', 'nullable', 'date']]);
 
         $notice->read_at = $data['attributes']['readAt'] === null ? null : Carbon::now();

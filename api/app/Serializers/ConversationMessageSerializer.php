@@ -13,7 +13,7 @@ class ConversationMessageSerializer extends MessageSerializer
     {
         return [
             'conversation' => ['conversations', 'conversation_id', 'conversation'],
-            'worker' => ['workers', 'worker_id', 'worker'],
+            'author' => ['users', 'user_id', 'user'],
         ];
     }
 }

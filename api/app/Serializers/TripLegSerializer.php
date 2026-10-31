@@ -27,7 +27,7 @@ class TripLegSerializer extends Serializer
     {
         return [
             'trip' => ['trips', 'trip_id', 'trip'],
-            'startedBy' => ['workers', 'started_by', 'starter'],
+            'startedBy' => ['users', 'started_by', 'starter'],
         ];
     }
 

@@ -21,11 +21,14 @@ class ChildSerializer extends Serializer
     {
         $attributes = [
             'firstName' => $child->first_name,
-            'lastName' => $child->last_name,
+            'middleName' => $child->middle_name,
+            'firstSurname' => $child->first_surname,
+            'secondSurname' => $child->second_surname,
+            'fullName' => $child->fullName(),
         ];
 
-        if ($this->canSeePrivateData($child, $request)) {
-            $attributes['cardNumber'] = $child->cardNumber()->value();
+        if (self::canSeePrivateData($child, $request)) {
+            $attributes['birthDate'] = $child->birth_date->toDateString();
         }
 
         return $attributes;
@@ -39,23 +42,36 @@ class ChildSerializer extends Serializer
     public function meta(Model $child, Request $request): array
     {
         $eligibility = app(ChildEligibility::class);
-        $card = $child->cardNumber();
         $meta = [
             'declared' => $child->newQuery()->declared()->whereKey($child->id)->exists(),
-            'eligible' => $eligibility->isEligible($card),
+            'eligible' => $eligibility->isChildEligible($child),
         ];
 
-        if ($this->canSeePrivateData($child, $request)) {
-            $meta['eligibleUntil'] = $eligibility->eligibleUntil($card)->toDateString();
+        if (self::canSeePrivateData($child, $request)) {
+            $meta['eligibleUntil'] = $eligibility->childEligibleUntil($child)->toDateString();
         }
 
         return $meta;
     }
 
-    private function canSeePrivateData(Model $child, Request $request): bool
+    /**
+     * La fecha de nacimiento la ven el padre o la madre, sus jefes (los de
+     * su itinerario y los Jefes de Transporte de su Entidad) y el Administrador.
+     */
+    public static function canSeePrivateData(Model $child, Request $request): bool
     {
         $viewer = $request->user();
 
-        return $viewer && ($viewer->is_admin || (int) $viewer->id === (int) $child->worker_id);
+        if (! $viewer) {
+            return false;
+        }
+
+        if ($viewer->isAdmin() || $viewer->workerId() === (int) $child->worker_id) {
+            return true;
+        }
+
+        $worker = $child->worker;
+
+        return $worker && ($viewer->managesEntity($worker->entity_id) || $viewer->isChiefOf($worker->itinerary_id ? (int) $worker->itinerary_id : null));
     }
 }

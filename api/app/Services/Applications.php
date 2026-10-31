@@ -12,12 +12,12 @@ use App\Models\ItineraryApplication;
 use App\Models\ItineraryChief;
 use App\Models\ItineraryStop;
 use App\Models\Notice;
-use App\Models\RankApplication;
 use App\Models\TransportChief;
 use App\Models\Trip;
 use App\Models\Vehicle;
+use App\Models\User;
 use App\Models\Worker;
-use App\Support\CardNumber;
+use App\Support\Tenancy;
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
@@ -26,6 +26,10 @@ use Illuminate\Support\Facades\DB;
 /**
  * Solicitudes: creación, permisos para resolverlas, efectos de aprobarlas y
  * bajas (docs/07-algoritmos.md §7.6, §7.7 y §7.8).
+ *
+ * Un superior también puede asignar directamente un rol, un itinerario y
+ * una parada: queda como una solicitud creada por él y ya aprobada
+ * (docs/08-version-2.md §8.5).
  */
 class Applications
 {
@@ -35,7 +39,14 @@ class Applications
         Application::TYPE_ITINERARY_CHIEF,
         Application::TYPE_DRIVER,
         Application::TYPE_TRANSPORT_CHIEF,
-        Application::TYPE_RANK_CHANGE,
+    ];
+
+    /** Lo que un superior puede asignar directamente. */
+    const ASSIGNABLE_TYPES = [
+        Application::TYPE_ITINERARY_MEMBERSHIP,
+        Application::TYPE_ITINERARY_CHIEF,
+        Application::TYPE_DRIVER,
+        Application::TYPE_TRANSPORT_CHIEF,
     ];
 
     /** @var Notices */
@@ -52,9 +63,62 @@ class Applications
 
     /**
      * Crea una solicitud a partir del objeto "data" de JSON:API, ya validado
-     * en su forma. Las bajas se aprueban al instante.
+     * en su forma. Las bajas se aprueban al instante. Si $actor no es el
+     * propio trabajador, es una asignación (o una retirada) de un superior.
      */
-    public function create(Worker $worker, array $data): Application
+    public function create(User $actor, Worker $worker, array $data): Application
+    {
+        if ((int) $worker->user_id !== (int) $actor->id) {
+            return $this->assign($actor, $worker, $data);
+        }
+
+        return $this->request($worker, $data);
+    }
+
+    /**
+     * Un superior asigna directamente (o retira, con un tipo de baja).
+     */
+    private function assign(User $actor, Worker $worker, array $data): Application
+    {
+        $type = $data['attributes']['type'];
+        $relationships = isset($data['relationships']) ? $data['relationships'] : [];
+        $itineraryId = isset($relationships['itinerary']['data']['id']) ? (int) $relationships['itinerary']['data']['id'] : null;
+
+        if (in_array($type, Application::LEAVE_TYPES, true)) {
+            if (! $this->canRemove($actor, $worker, $type, $itineraryId)) {
+                throw new JsonApiException(403, 'FORBIDDEN', 'Sin permiso', 'No puedes quitar ese rol a este trabajador.');
+            }
+
+            return $this->leave($worker, $type, $itineraryId, $actor);
+        }
+
+        if (! in_array($type, self::ASSIGNABLE_TYPES, true)) {
+            throw $this->invalid('Eso solo lo puede pedir el propio trabajador.', '/data/attributes/type');
+        }
+
+        return DB::transaction(function () use ($actor, $worker, $data, $type) {
+            $application = $this->request($worker, $data, $actor);
+
+            if (! $this->canResolve($actor, $application)) {
+                throw new JsonApiException(403, 'FORBIDDEN', 'Sin permiso', 'No puedes asignar eso a este trabajador.');
+            }
+
+            $application->forceFill([
+                'status' => Application::STATUS_APPROVED,
+                'resolved_by' => $actor->id,
+                'resolved_at' => Carbon::now(),
+            ])->save();
+            $this->applyApproval($application);
+            $this->notices->send([(int) $worker->user_id], Notice::TYPE_ROLE_ASSIGNED, $application->id);
+
+            return $application;
+        });
+    }
+
+    /**
+     * Solicitud del propio trabajador (o la base de una asignación, si $assignedBy).
+     */
+    private function request(Worker $worker, array $data, ?User $assignedBy = null): Application
     {
         $attributes = $data['attributes'];
         $relationships = isset($data['relationships']) ? $data['relationships'] : [];
@@ -71,14 +135,19 @@ class Applications
             return $this->leave($worker, $type, $relatedId('itinerary'), null);
         }
 
-        $this->ensureNoPendingDuplicate($worker, $type, $relatedId('itinerary'));
+        if (! $assignedBy) {
+            $this->ensureNoPendingDuplicate($worker, $type, $relatedId('itinerary'));
+        }
 
-        return DB::transaction(function () use ($worker, $type, $attributes, $relatedId) {
+        return DB::transaction(function () use ($worker, $type, $attributes, $relatedId, $assignedBy) {
             $application = Application::create([
                 'worker_id' => $worker->id,
                 'type' => $type,
                 'status' => Application::STATUS_PENDING,
+                'created_by' => $assignedBy ? $assignedBy->id : $worker->user_id,
             ]);
+            $user = $worker->user->refreshRoles();
+            $you = $assignedBy ? 'El trabajador ya' : 'Ya';
 
             switch ($type) {
                 case Application::TYPE_ITINERARY_MEMBERSHIP:
@@ -86,21 +155,14 @@ class Applications
                     $this->createItineraryRequest($worker, $application, $relatedId('itinerary'), $relatedId('stop'));
                     break;
                 case Application::TYPE_DRIVER:
-                    if ($worker->isDriver()) {
-                        throw $this->conflict('ALREADY_HAS_ROLE', 'Ya eres chofer.');
+                    if ($user->isDriver()) {
+                        throw $this->conflict('ALREADY_HAS_ROLE', $you.' es chofer.');
                     }
                     break;
                 case Application::TYPE_TRANSPORT_CHIEF:
-                    if ($worker->isTransportChief()) {
-                        throw $this->conflict('ALREADY_HAS_ROLE', 'Ya eres Jefe de Transporte.');
+                    if ($user->isTransportChief()) {
+                        throw $this->conflict('ALREADY_HAS_ROLE', $you.' es Jefe de Transporte.');
                     }
-                    break;
-                case Application::TYPE_RANK_CHANGE:
-                    $rankId = $relatedId('rank');
-                    if ($rankId === (int) $worker->rank_id) {
-                        throw $this->invalid('Ya tienes esa jerarquía.', '/data/relationships/rank');
-                    }
-                    RankApplication::create(['application_id' => $application->id, 'rank_id' => $rankId]);
                     break;
                 case Application::TYPE_CHILD_ADDITION:
                     $child = $this->declareChild($worker, $attributes);
@@ -124,7 +186,9 @@ class Applications
                     break;
             }
 
-            $this->notices->send($this->resolverIds($application), Notice::TYPE_APPLICATION_RECEIVED, $application->id, null, $worker->id);
+            if (! $assignedBy) {
+                $this->notices->send($this->resolverIds($application), Notice::TYPE_APPLICATION_RECEIVED, $application->id, null, (int) $worker->user_id);
+            }
 
             return $application;
         });
@@ -134,14 +198,20 @@ class Applications
      * Quién puede aprobar o rechazar la solicitud (algoritmo 7.6, sin el
      * estado pendiente ni la regla de no resolver las propias).
      */
-    public function canResolve(Worker $user, Application $application): bool
+    public function canResolve(User $user, Application $application): bool
     {
-        if ((int) $application->worker_id === (int) $user->id) {
+        if ((int) $application->worker_id === $user->workerId()) {
             return false;
         }
 
         if ($user->isAdmin()) {
             return true;
+        }
+
+        $worker = $application->worker;
+
+        if (! $worker || (int) $worker->entity_id !== $user->entityId()) {
+            return false;
         }
 
         switch ($application->type) {
@@ -151,16 +221,44 @@ class Applications
             case Application::TYPE_DRIVER:
                 return $user->isTransportChief();
             default:
-                return $user->isTransportChief() || $user->isChiefOf($this->relevantItineraryId($application));
+                return $user->isChiefOf($this->relevantItineraryId($application));
         }
     }
 
-    public function approve(Application $application, Worker $by, ?string $note = null): Application
+    /**
+     * Un superior puede quitar a otro: el Administrador todo; el Jefe de
+     * Transporte, en su Entidad, los roles de Jefe de itinerario y chofer y
+     * el itinerario; el Jefe de itinerario, el itinerario de los de su itinerario.
+     */
+    public function canRemove(User $user, Worker $worker, string $type, ?int $itineraryId): bool
+    {
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        if ((int) $worker->entity_id !== $user->entityId()) {
+            return false;
+        }
+
+        switch ($type) {
+            case Application::TYPE_TRANSPORT_CHIEF_LEAVE:
+                return false;
+            case Application::TYPE_ITINERARY_CHIEF_LEAVE:
+            case Application::TYPE_DRIVER_LEAVE:
+                return $user->isTransportChief();
+            case Application::TYPE_ITINERARY_LEAVE:
+                return $user->isChiefOf($worker->itinerary_id ? (int) $worker->itinerary_id : null);
+            default:
+                return false;
+        }
+    }
+
+    public function approve(Application $application, User $by, ?string $note = null): Application
     {
         return $this->resolve($application, $by, Application::STATUS_APPROVED, $note);
     }
 
-    public function reject(Application $application, Worker $by, ?string $note = null): Application
+    public function reject(Application $application, User $by, ?string $note = null): Application
     {
         return $this->resolve($application, $by, Application::STATUS_REJECTED, $note);
     }
@@ -168,9 +266,9 @@ class Applications
     /**
      * Solo el solicitante, mientras esté pendiente.
      */
-    public function cancel(Application $application, Worker $by): Application
+    public function cancel(Application $application, User $by): Application
     {
-        if ((int) $application->worker_id !== (int) $by->id) {
+        if ((int) $application->worker_id !== $by->workerId()) {
             throw new JsonApiException(403, 'FORBIDDEN', 'Sin permiso', 'Solo quien envió la solicitud puede cancelarla.');
         }
 
@@ -187,8 +285,11 @@ class Applications
     /**
      * Baja (algoritmo 7.8). $by es quien la da: el propio trabajador o un superior.
      */
-    public function leave(Worker $worker, string $type, ?int $itineraryId, ?Worker $by): Application
+    public function leave(Worker $worker, string $type, ?int $itineraryId, ?User $by): Application
     {
+        $self = ! $by || (int) $by->id === (int) $worker->user_id;
+        $subject = $self ? 'No eres' : 'El trabajador no es';
+
         return DB::transaction(function () use ($worker, $type, $itineraryId, $by) {
             $notify = [];
             $stopId = null;
@@ -196,7 +297,7 @@ class Applications
             switch ($type) {
                 case Application::TYPE_ITINERARY_LEAVE:
                     if (! $worker->itinerary_id) {
-                        throw $this->invalid('No eres miembro de ningún itinerario.', '/data/attributes/type');
+                        throw $this->invalid($subject.' miembro de ningún itinerario.', '/data/attributes/type');
                     }
                     $itineraryId = (int) $worker->itinerary_id;
                     $stopId = (int) $worker->stop_id;
@@ -209,27 +310,27 @@ class Applications
                 case Application::TYPE_ITINERARY_CHIEF_LEAVE:
                     $chief = ItineraryChief::where('worker_id', $worker->id)->where('itinerary_id', $itineraryId)->first();
                     if (! $chief) {
-                        throw $this->invalid('No eres Jefe de ese itinerario.', '/data/relationships/itinerary');
+                        throw $this->invalid($subject.' Jefe de ese itinerario.', '/data/relationships/itinerary');
                     }
                     $chief->delete();
-                    $notify = $this->notices->transportChiefIds();
+                    $notify = $this->notices->transportChiefIds((int) $worker->entity_id);
                     break;
 
                 case Application::TYPE_DRIVER_LEAVE:
                     $driver = Driver::where('worker_id', $worker->id)->first();
                     if (! $driver) {
-                        throw $this->invalid('No eres chofer.', '/data/attributes/type');
+                        throw $this->invalid($subject.' chofer.', '/data/attributes/type');
                     }
                     $driver->delete();
                     Vehicle::where('driver_id', $driver->id)->update(['driver_id' => null]);
-                    $notify = $this->notices->transportChiefIds();
+                    $notify = $this->notices->transportChiefIds((int) $worker->entity_id);
                     $this->notifyTripsToReassign($driver->id, $notify);
                     break;
 
                 case Application::TYPE_TRANSPORT_CHIEF_LEAVE:
                     $transportChief = TransportChief::where('worker_id', $worker->id)->first();
                     if (! $transportChief) {
-                        throw $this->invalid('No eres Jefe de Transporte.', '/data/attributes/type');
+                        throw $this->invalid($subject.' Jefe de Transporte.', '/data/attributes/type');
                     }
                     $transportChief->delete();
                     $notify = $this->notices->adminIds();
@@ -240,7 +341,8 @@ class Applications
                 'worker_id' => $worker->id,
                 'type' => $type,
                 'status' => Application::STATUS_APPROVED,
-                'resolved_by' => $by && (int) $by->id !== (int) $worker->id ? $by->id : null,
+                'created_by' => $by ? $by->id : $worker->user_id,
+                'resolved_by' => $self ? null : $by->id,
                 'resolved_at' => Carbon::now(),
             ]);
 
@@ -248,8 +350,11 @@ class Applications
                 ItineraryApplication::create(['application_id' => $application->id, 'itinerary_id' => $itineraryId, 'stop_id' => $stopId]);
             }
 
-            $this->notices->send($notify, Notice::TYPE_RESIGNATION, $application->id, null, $by ? (int) $by->id : (int) $worker->id);
-            $worker->refreshRoles();
+            $this->notices->send($notify, Notice::TYPE_RESIGNATION, $application->id, null, $by ? (int) $by->id : (int) $worker->user_id);
+
+            if (! $self) {
+                $this->notices->send([(int) $worker->user_id], Notice::TYPE_ROLE_REMOVED, $application->id);
+            }
 
             return $application;
         });
@@ -259,18 +364,26 @@ class Applications
      * Solicitudes que el usuario puede ver: las suyas, las que puede resolver
      * y, para el Administrador y los Jefes de Transporte, todas.
      */
-    public function visibleTo(Worker $user): Builder
+    public function visibleTo(User $user): Builder
     {
         $query = Application::query();
 
-        if ($user->isAdmin() || $user->isTransportChief()) {
+        if ($user->isAdmin()) {
             return $query;
+        }
+
+        $entityId = $user->entityId();
+
+        if ($user->isTransportChief()) {
+            return $query->whereHas('worker', function (Builder $query) use ($entityId) {
+                $query->withTrashed()->where('entity_id', $entityId);
+            });
         }
 
         $itineraryIds = $user->chiefItineraryIds();
 
         return $query->where(function (Builder $query) use ($user, $itineraryIds) {
-            $query->where('worker_id', $user->id);
+            $query->where('worker_id', $user->workerId());
 
             if ($itineraryIds) {
                 $query->orWhere(function (Builder $query) use ($itineraryIds) {
@@ -279,7 +392,7 @@ class Applications
                             $query->whereIn('itinerary_id', $itineraryIds);
                         });
                 })->orWhere(function (Builder $query) use ($itineraryIds) {
-                    $query->whereIn('type', [Application::TYPE_RANK_CHANGE, Application::TYPE_CHILD_ADDITION, Application::TYPE_CHILD_REMOVAL, Application::TYPE_ABSENCE])
+                    $query->whereIn('type', [Application::TYPE_CHILD_ADDITION, Application::TYPE_CHILD_REMOVAL, Application::TYPE_ABSENCE])
                         ->whereHas('worker', function (Builder $query) use ($itineraryIds) {
                             $query->whereIn('itinerary_id', $itineraryIds);
                         });
@@ -291,22 +404,29 @@ class Applications
     /**
      * Filtra una consulta a las solicitudes pendientes que el usuario puede resolver.
      */
-    public function resolvableBy(Worker $user, Builder $query): Builder
+    public function resolvableBy(User $user, Builder $query): Builder
     {
-        $query->where('status', Application::STATUS_PENDING)->where('worker_id', '!=', $user->id);
+        $query->where('status', Application::STATUS_PENDING);
 
         if ($user->isAdmin()) {
             return $query;
         }
 
+        $query->where('worker_id', '!=', (int) $user->workerId());
         $itineraryIds = $user->chiefItineraryIds();
         $isTransportChief = $user->isTransportChief();
+        $entityId = $user->entityId();
 
-        return $query->where(function (Builder $query) use ($isTransportChief, $itineraryIds) {
+        return $query->where(function (Builder $query) use ($isTransportChief, $itineraryIds, $entityId) {
             $query->whereRaw('1 = 0');
 
             if ($isTransportChief) {
-                $query->orWhere('type', '!=', Application::TYPE_TRANSPORT_CHIEF);
+                $query->orWhere(function (Builder $query) use ($entityId) {
+                    $query->where('type', '!=', Application::TYPE_TRANSPORT_CHIEF)
+                        ->whereHas('worker', function (Builder $query) use ($entityId) {
+                            $query->where('entity_id', $entityId);
+                        });
+                });
 
                 return;
             }
@@ -318,7 +438,7 @@ class Applications
                             $query->whereIn('itinerary_id', $itineraryIds);
                         });
                 })->orWhere(function (Builder $query) use ($itineraryIds) {
-                    $query->whereIn('type', [Application::TYPE_RANK_CHANGE, Application::TYPE_CHILD_ADDITION, Application::TYPE_CHILD_REMOVAL, Application::TYPE_ABSENCE])
+                    $query->whereIn('type', [Application::TYPE_CHILD_ADDITION, Application::TYPE_CHILD_REMOVAL, Application::TYPE_ABSENCE])
                         ->whereHas('worker', function (Builder $query) use ($itineraryIds) {
                             $query->whereIn('itinerary_id', $itineraryIds);
                         });
@@ -349,9 +469,10 @@ class Applications
     private function resolverIds(Application $application): array
     {
         $ids = $this->notices->adminIds();
+        $entityId = $application->worker ? (int) $application->worker->entity_id : null;
 
         if ($application->type !== Application::TYPE_TRANSPORT_CHIEF) {
-            $ids = array_merge($ids, $this->notices->transportChiefIds());
+            $ids = array_merge($ids, $this->notices->transportChiefIds($entityId));
         }
 
         if (! in_array($application->type, [Application::TYPE_TRANSPORT_CHIEF, Application::TYPE_ITINERARY_CHIEF, Application::TYPE_DRIVER], true)) {
@@ -361,9 +482,9 @@ class Applications
         return array_values(array_unique($ids));
     }
 
-    private function resolve(Application $application, Worker $by, string $status, ?string $note): Application
+    private function resolve(Application $application, User $by, string $status, ?string $note): Application
     {
-        if ((int) $application->worker_id === (int) $by->id) {
+        if ((int) $application->worker_id === $by->workerId()) {
             throw new JsonApiException(403, 'SELF_APPROVAL', 'Sin permiso', 'No puedes resolver tus propias solicitudes.');
         }
 
@@ -386,7 +507,7 @@ class Applications
                 $this->discardChild($application);
             }
 
-            $this->notices->send([(int) $application->worker_id], Notice::TYPE_APPLICATION_RESOLVED, $application->id);
+            $this->notices->send([(int) $application->worker->user_id], Notice::TYPE_APPLICATION_RESOLVED, $application->id);
 
             return $application;
         });
@@ -437,11 +558,6 @@ class Applications
                 $chief->save();
                 break;
 
-            case Application::TYPE_RANK_CHANGE:
-                $worker->rank_id = $application->rankApplication->rank_id;
-                $worker->save();
-                break;
-
             case Application::TYPE_CHILD_REMOVAL:
                 $application->childApplication->child->delete();
                 break;
@@ -458,11 +574,11 @@ class Applications
         })->all();
 
         if (in_array($itineraryId, $current, true)) {
-            throw $this->conflict('ALREADY_HAS_ROLE', 'Ya eres Jefe de ese itinerario.');
+            throw $this->conflict('ALREADY_HAS_ROLE', 'Ya es Jefe de ese itinerario.');
         }
 
         if ($current) {
-            throw $this->conflict('ALREADY_CHIEF_OF_OTHER', 'Ya eres Jefe de otro itinerario. Un Jefe de itinerario solo puede serlo de uno: date de baja primero.');
+            throw $this->conflict('ALREADY_CHIEF_OF_OTHER', 'Ya es Jefe de otro itinerario. Un Jefe de itinerario solo puede serlo de uno: primero hay que darlo de baja de ese.');
         }
     }
 
@@ -481,13 +597,15 @@ class Applications
 
     private function createItineraryRequest(Worker $worker, Application $application, ?int $itineraryId, ?int $stopId): void
     {
+        Tenancy::ensureSame((int) $worker->entity_id, 'itineraries', $itineraryId, '/data/relationships/itinerary');
+
         if (! ItineraryStop::where('itinerary_id', $itineraryId)->where('stop_id', $stopId)->exists()) {
             throw $this->invalid('La parada no pertenece a ese itinerario.', '/data/relationships/stop', 'STOP_NOT_IN_ITINERARY');
         }
 
         if ($application->type === Application::TYPE_ITINERARY_MEMBERSHIP
             && (int) $worker->itinerary_id === $itineraryId && (int) $worker->stop_id === $stopId) {
-            throw $this->conflict('ALREADY_MEMBER', 'Ya viajas en ese itinerario y en esa parada.');
+            throw $this->conflict('ALREADY_MEMBER', 'Ya viaja en ese itinerario y en esa parada.');
         }
 
         if ($application->type === Application::TYPE_ITINERARY_CHIEF) {
@@ -498,36 +616,37 @@ class Applications
     }
 
     /**
-     * Crea (o restaura) la fila del niño. Cuenta cuando se aprueba la solicitud.
+     * Crea la fila del niño. Cuenta cuando se aprueba la solicitud.
      */
     private function declareChild(Worker $worker, array $attributes): Child
     {
-        $card = CardNumber::tryParse($attributes['childCardNumber']);
+        $birthDate = CarbonImmutable::parse($attributes['childBirthDate'])->startOfDay();
 
-        if (! $this->childEligibility->isEligible($card)) {
+        if ($birthDate->isFuture()) {
+            throw $this->invalid('La fecha de nacimiento no puede ser futura.', '/data/attributes/childBirthDate');
+        }
+
+        if (! $this->childEligibility->isEligible($birthDate, (int) $worker->entity_id)) {
             throw $this->invalid(
-                'El niño ya no tiene derecho a viajar: lo tuvo hasta el '.$this->childEligibility->eligibleUntil($card)->format('d/m/Y').'.',
-                '/data/attributes/childCardNumber',
+                'El niño ya no tiene derecho a viajar: lo tuvo hasta el '.$this->childEligibility->eligibleUntil($birthDate, (int) $worker->entity_id)->format('d/m/Y').'.',
+                '/data/attributes/childBirthDate',
                 'CHILD_NOT_ELIGIBLE'
             );
         }
 
-        $child = Child::withTrashed()->where('card_number_hash', $card->hash())->first();
-
-        if ($child && ! $child->trashed()) {
-            throw $this->conflict('CHILD_ALREADY_DECLARED', 'Ese niño ya está declarado (o pendiente de aprobar).', '/data/attributes/childCardNumber');
-        }
-
-        $child = $child ?: new Child(['card_number_hash' => $card->hash()]);
-        $child->forceFill([
+        return Child::create([
             'worker_id' => $worker->id,
-            'first_name' => trim($attributes['childFirstName']),
-            'last_name' => trim($attributes['childLastName']),
-            'card_number_encrypted' => $card->encrypt(),
-            'deleted_at' => null,
-        ])->save();
+            'first_name' => self::cleanName($attributes['childFirstName']),
+            'middle_name' => self::cleanName($attributes['childMiddleName']),
+            'first_surname' => self::cleanName($attributes['childFirstSurname']),
+            'second_surname' => self::cleanName($attributes['childSecondSurname']),
+            'birth_date' => $birthDate->toDateString(),
+        ]);
+    }
 
-        return $child;
+    private static function cleanName(string $name): string
+    {
+        return preg_replace('/\s+/u', ' ', trim($name));
     }
 
     /**

@@ -2,7 +2,8 @@
 
 namespace App\Serializers;
 
-use App\Models\Worker;
+use App\Models\AppVersionFile;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 
@@ -20,9 +21,14 @@ class AppVersionSerializer extends Serializer
             'versionCode' => $version->version_code,
             'notes' => $version->notes,
             'mandatory' => $version->mandatory,
-            'downloadUrl' => url($version->apk_path),
-            'sizeBytes' => $version->size_bytes,
-            'sha256' => $version->sha256,
+            'files' => $version->files->sortBy('abi')->values()->map(function (AppVersionFile $file) {
+                return [
+                    'abi' => $file->abi,
+                    'downloadUrl' => url($file->apk_path),
+                    'sizeBytes' => $file->size_bytes,
+                    'sha256' => $file->sha256,
+                ];
+            })->all(),
             'publishedAt' => $this->date($version->created_at),
         ];
     }
@@ -31,9 +37,9 @@ class AppVersionSerializer extends Serializer
     {
         $viewer = $request->user();
 
-        // Cuántos trabajadores la tienen instalada (solo para el Administrador).
+        // Cuántas cuentas la tienen instalada (solo para el Administrador).
         return $viewer && $viewer->isAdmin()
-            ? ['installedCount' => Worker::where('app_version_code', $version->version_code)->count()]
+            ? ['installedCount' => User::where('app_version_code', $version->version_code)->count()]
             : [];
     }
 }

@@ -17,8 +17,4 @@ class TransportChiefController extends RoleController
         return Application::TYPE_TRANSPORT_CHIEF_LEAVE;
     }
 
-    protected function canRemoveOthers(Worker $user): bool
-    {
-        return false;
-    }
 }

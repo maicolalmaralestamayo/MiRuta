@@ -15,7 +15,7 @@ use Illuminate\Http\Request;
 
 class ConversationController extends Controller
 {
-    const INCLUDABLE = ['topic', 'openedBy', 'itinerary'];
+    const INCLUDABLE = ['topic', 'openedBy', 'itinerary', 'entity', 'installation'];
 
     /** @var Chats */
     private $chats;
@@ -71,7 +71,7 @@ class ConversationController extends Controller
     public function messages(Request $request, $id)
     {
         $conversation = $this->find($request, $id);
-        $parameters = QueryParameters::fromRequest($request, ['createdAt' => 'created_at'], ['since'], ['worker'], 'createdAt');
+        $parameters = QueryParameters::fromRequest($request, ['createdAt' => 'created_at'], ['since'], ['author'], 'createdAt');
         $query = ConversationMessage::where('conversation_id', $conversation->id);
 
         if ($since = $parameters->filter('since')) {
@@ -91,14 +91,28 @@ class ConversationController extends Controller
             'relationships.conversation.data.id' => ['required', 'integer'],
         ]));
         $conversation = $this->find($request, $data['relationships']['conversation']['data']['id']);
+        $this->chats->ensureOpen($conversation);
 
         $message = ConversationMessage::create([
             'conversation_id' => $conversation->id,
-            'worker_id' => $request->user()->id,
+            'user_id' => $request->user()->id,
             'body' => trim($data['attributes']['body']),
         ]);
 
         return JsonApiResponse::make((new Document($request))->resource($message->fresh()), 201);
+    }
+
+    /**
+     * Cerrar o reabrir (attributes.closed). Quien la abrió o quien la recibe.
+     */
+    public function update(Request $request, $id)
+    {
+        $conversation = $this->find($request, $id);
+        $data = $this->validateResource($request, 'conversations', ['attributes.closed' => ['required', 'boolean']]);
+        $conversation->closed_at = $data['attributes']['closed'] ? ($conversation->closed_at ?: Carbon::now()) : null;
+        $conversation->save();
+
+        return JsonApiResponse::make((new Document($request))->resource($conversation));
     }
 
     private function find(Request $request, $id): Conversation

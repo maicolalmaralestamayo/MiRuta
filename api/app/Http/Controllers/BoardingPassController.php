@@ -18,9 +18,9 @@ class BoardingPassController extends TrackingController
     {
         $data = $this->validateResource($request, 'boarding-passes', $this->legRules());
         $leg = $this->findLeg($request, $data['relationships']['tripLeg']['data']['id']);
-        $user = $request->user();
+        $user = $request->user()->workerModel();
 
-        if (! $trips->expectedPassengers($leg->trip)->contains('id', $user->id)) {
+        if (! $user || ! $trips->expectedPassengers($leg->trip)->contains('id', $user->id)) {
             throw new JsonApiException(422, 'NOT_A_PASSENGER', 'No es pasajero', 'No eres pasajero esperado de este viaje.');
         }
 

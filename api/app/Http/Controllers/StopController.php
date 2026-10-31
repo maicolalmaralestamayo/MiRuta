@@ -27,7 +27,9 @@ class StopController extends ResourceController
 
     protected $sortable = ['id' => 'id', 'landmark' => 'landmark', 'street' => 'street'];
 
-    protected $filterable = ['itinerary', 'search'];
+    protected $filterable = ['itinerary', 'search', 'entity'];
+
+    protected $entityScoped = true;
 
     protected $defaultSort = 'landmark';
 

@@ -33,12 +33,13 @@ class Inactivity
      */
     public function run(): array
     {
-        $limit = $this->settings->int('inactivity_days');
-        $warningDays = $this->settings->int('inactivity_warning_days');
         $warned = 0;
         $removed = 0;
 
         foreach (Worker::whereNotNull('itinerary_id')->get() as $worker) {
+            // Los plazos son de la Entidad del trabajador.
+            $limit = $this->settings->int('inactivity_days', null, (int) $worker->entity_id);
+            $warningDays = $this->settings->int('inactivity_warning_days', null, (int) $worker->entity_id);
             $since = $this->since($worker);
             $counted = $this->countedDays($worker, $since);
 
@@ -46,7 +47,7 @@ class Inactivity
                 $this->remove($worker);
                 $removed++;
             } elseif ($warningDays > 0 && $counted === $limit - $warningDays && ! $this->alreadyWarned($worker, $since)) {
-                $this->notices->send([$worker->id], Notice::TYPE_INACTIVITY_WARNING);
+                $this->notices->send([(int) $worker->user_id], Notice::TYPE_INACTIVITY_WARNING);
                 $warned++;
             }
         }
@@ -79,7 +80,14 @@ class Inactivity
             ->where('applications.status', Application::STATUS_APPROVED)
             ->get(['starts_on', 'ends_on']);
 
-        return count(array_filter($days, function (string $day) use ($absences) {
+        // Los días en que condujo un viaje realizado tampoco cuentan.
+        $driven = $this->drivenDays($worker, $since);
+
+        return count(array_filter($days, function (string $day) use ($absences, $driven) {
+            if (in_array($day, $driven, true)) {
+                return false;
+            }
+
             foreach ($absences as $absence) {
                 if ($day >= $absence->starts_on && $day <= $absence->ends_on) {
                     return false;
@@ -112,14 +120,38 @@ class Inactivity
             })
             ->max('resolved_at');
 
-        $candidates = array_filter([$lastBoarding, $joined, (string) $worker->created_at]);
+        // Conducir un viaje realizado también es actividad.
+        $lastDriven = DB::table('trips')
+            ->join('drivers', 'drivers.id', '=', 'trips.driver_id')
+            ->where('drivers.worker_id', $worker->id)
+            ->where('trips.status', Trip::STATUS_COMPLETED)
+            ->where('trips.departs_at', '<=', Carbon::now())
+            ->max('trips.departs_at');
+
+        $candidates = array_filter([$lastBoarding, $lastDriven, $joined, (string) $worker->created_at]);
 
         return CarbonImmutable::parse(max($candidates));
     }
 
+    /**
+     * @return string[] días (Y-m-d) en que condujo un viaje realizado
+     */
+    private function drivenDays(Worker $worker, CarbonImmutable $since): array
+    {
+        return DB::table('trips')
+            ->join('drivers', 'drivers.id', '=', 'trips.driver_id')
+            ->where('drivers.worker_id', $worker->id)
+            ->where('trips.status', Trip::STATUS_COMPLETED)
+            ->where('trips.departs_at', '>', $since)
+            ->pluck('trips.departs_at')
+            ->map(function ($date) {
+                return Carbon::parse($date)->toDateString();
+            })->unique()->values()->all();
+    }
+
     private function alreadyWarned(Worker $worker, CarbonImmutable $since): bool
     {
-        return Notice::where('worker_id', $worker->id)
+        return Notice::where('user_id', $worker->user_id)
             ->where('type', Notice::TYPE_INACTIVITY_WARNING)
             ->where('created_at', '>', $since)
             ->exists();
@@ -142,7 +174,7 @@ class Inactivity
             $worker->save();
 
             $this->notices->send(
-                array_merge([(int) $worker->id], $this->notices->itineraryChiefIds($itineraryId)),
+                array_merge([(int) $worker->user_id], $this->notices->itineraryChiefIds($itineraryId)),
                 Notice::TYPE_INACTIVITY_REMOVAL,
                 $application->id
             );

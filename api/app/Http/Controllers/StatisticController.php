@@ -10,7 +10,7 @@ use Illuminate\Http\Request;
 
 class StatisticController extends Controller
 {
-    const FILTERS = ['from', 'to', 'dates', 'last', 'itinerary', 'vehicle', 'driver', 'stop', 'worker', 'trip', 'by'];
+    const FILTERS = ['from', 'to', 'dates', 'last', 'entity', 'itinerary', 'vehicle', 'driver', 'stop', 'worker', 'trip', 'by', 'level'];
 
     public function show(Request $request, Statistics $statistics, string $name)
     {

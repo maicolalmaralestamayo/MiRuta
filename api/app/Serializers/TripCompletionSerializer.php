@@ -24,7 +24,7 @@ class TripCompletionSerializer extends Serializer
     {
         return [
             'trip' => ['trips', 'trip_id', 'trip'],
-            'worker' => ['workers', 'worker_id', 'worker'],
+            'user' => ['users', 'user_id', 'user'],
         ];
     }
 }

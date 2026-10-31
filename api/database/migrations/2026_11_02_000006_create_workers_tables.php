@@ -35,6 +35,7 @@ class CreateWorkersTables extends Migration
             $table->id();
             $table->foreignId('user_id')->comment('Cuenta que se activará')->constrained();
             $table->char('code_hash', 64);
+            $table->unsignedTinyInteger('failed_attempts')->default(0);
             $table->dateTime('expires_at');
             $table->foreignId('created_by')->constrained('users');
             $table->dateTime('used_at')->nullable();

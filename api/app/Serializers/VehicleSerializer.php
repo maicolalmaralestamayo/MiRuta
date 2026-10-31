@@ -24,6 +24,7 @@ class VehicleSerializer extends Serializer
     public function toOneRelationships(): array
     {
         return [
+            'entity' => ['entities', 'entity_id', 'entity'],
             'vehicleType' => ['vehicle-types', 'vehicle_type_id', 'vehicleType'],
             'driver' => ['drivers', 'driver_id', 'driver'],
         ];

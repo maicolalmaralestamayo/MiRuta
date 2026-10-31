@@ -4,7 +4,7 @@ namespace App\Services;
 
 use App\JsonApi\JsonApiException;
 use App\Models\RefreshToken;
-use App\Models\Worker;
+use App\Models\User;
 use App\Support\ExpiredJwtException;
 use App\Support\Jwt;
 use Carbon\Carbon;
@@ -34,7 +34,7 @@ class TokenService
      *
      * @return array [accessToken, refreshToken, expiresIn, refreshExpiresIn, refreshTokenModel]
      */
-    public function issue(Worker $worker, ?string $deviceName = null): array
+    public function issue(User $user, ?string $deviceName = null): array
     {
         $now = Carbon::now();
         $accessTtl = $this->settings->int('access_token_ttl_minutes') * 60;
@@ -42,17 +42,17 @@ class TokenService
         $refreshJti = Str::random(40);
 
         $refresh = RefreshToken::create([
-            'worker_id' => $worker->id,
+            'user_id' => $user->id,
             'token_hash' => hash('sha256', $refreshJti),
             'device_name' => $deviceName,
             'expires_at' => $now->copy()->addSeconds($refreshTtl),
         ]);
 
-        $access = Jwt::encode($this->claims($worker, $now, $accessTtl, self::TYPE_ACCESS, Str::random(40)) + [
+        $access = Jwt::encode($this->claims($user, $now, $accessTtl, self::TYPE_ACCESS, Str::random(40)) + [
             'sid' => $refresh->id,
         ], $this->key());
 
-        $refreshToken = Jwt::encode($this->claims($worker, $now, $refreshTtl, self::TYPE_REFRESH, $refreshJti), $this->key());
+        $refreshToken = Jwt::encode($this->claims($user, $now, $refreshTtl, self::TYPE_REFRESH, $refreshJti), $this->key());
 
         return [
             'accessToken' => $access,
@@ -72,26 +72,26 @@ class TokenService
         $claims = $this->decode($token, self::TYPE_REFRESH);
         $stored = RefreshToken::where('token_hash', hash('sha256', (string) $claims['jti']))->first();
 
-        if (! $stored || (int) $stored->worker_id !== (int) $claims['sub']) {
+        if (! $stored || (int) $stored->user_id !== (int) $claims['sub']) {
             throw $this->revoked();
         }
 
         if ($stored->revoked_at !== null) {
             if ($stored->replaced_by_id !== null) {
-                $this->revokeAll((int) $stored->worker_id);
+                $this->revokeAll((int) $stored->user_id);
             }
 
             throw $this->revoked();
         }
 
-        $worker = Worker::find($stored->worker_id);
+        $user = User::find($stored->user_id);
 
-        if (! $worker) {
+        if (! $user) {
             throw $this->revoked();
         }
 
-        return DB::transaction(function () use ($worker, $stored, $deviceName) {
-            $pair = $this->issue($worker, $deviceName ?: $stored->device_name);
+        return DB::transaction(function () use ($user, $stored, $deviceName) {
+            $pair = $this->issue($user, $deviceName ?: $stored->device_name);
             $stored->forceFill(['revoked_at' => Carbon::now(), 'replaced_by_id' => $pair['model']->id])->save();
 
             return $pair;
@@ -111,17 +111,17 @@ class TokenService
         RefreshToken::where('id', $refreshTokenId)->whereNull('revoked_at')->update(['revoked_at' => Carbon::now()]);
     }
 
-    public function revokeAll(int $workerId): void
+    public function revokeAll(int $userId): void
     {
-        RefreshToken::where('worker_id', $workerId)->whereNull('revoked_at')->update(['revoked_at' => Carbon::now()]);
+        RefreshToken::where('user_id', $userId)->whereNull('revoked_at')->update(['revoked_at' => Carbon::now()]);
     }
 
-    private function claims(Worker $worker, Carbon $now, int $ttl, string $type, string $jti): array
+    private function claims(User $user, Carbon $now, int $ttl, string $type, string $jti): array
     {
         return [
             'iss' => config('mitransporte.jwt.issuer'),
             'aud' => config('mitransporte.jwt.audience'),
-            'sub' => $worker->id,
+            'sub' => $user->id,
             'iat' => $now->getTimestamp(),
             'exp' => $now->getTimestamp() + $ttl,
             'jti' => $jti,

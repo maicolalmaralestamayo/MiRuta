@@ -5,6 +5,8 @@ namespace App\Services;
 use App\JsonApi\JsonApiException;
 use App\Models\Trip;
 use App\Models\TripCompletion;
+use App\Models\ItineraryStop;
+use App\Models\User;
 use App\Models\Worker;
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
@@ -32,19 +34,29 @@ class Trips
     /**
      * Viajes que el usuario puede ver.
      */
-    public function visibleTo(Worker $user): Builder
+    public function visibleTo(User $user): Builder
     {
         $query = Trip::query();
 
-        if ($user->managesTransport()) {
+        if ($user->isAdmin()) {
             return $query;
         }
 
-        return $query->where(function (Builder $query) use ($user) {
+        $entityId = $user->entityId();
+
+        if ($user->isTransportChief()) {
+            return $query->whereHas('itinerary', function (Builder $query) use ($entityId) {
+                $query->withTrashed()->where('entity_id', $entityId);
+            });
+        }
+
+        $worker = $user->workerModel();
+
+        return $query->where(function (Builder $query) use ($user, $worker) {
             $query->whereRaw('1 = 0');
 
-            if ($user->itinerary_id) {
-                $query->orWhere('itinerary_id', $user->itinerary_id);
+            if ($worker && $worker->itinerary_id) {
+                $query->orWhere('itinerary_id', $worker->itinerary_id);
             }
 
             if ($chiefOf = $user->chiefItineraryIds()) {
@@ -76,7 +88,7 @@ class Trips
      * Cambio de estado con sus dos reglas y efectos (7.11). Devuelve el viaje
      * sin guardar los cambios de estado de transición ya aplicados.
      */
-    public function applyStatusChange(Trip $trip, string $previousStatus, ?Worker $user): void
+    public function applyStatusChange(Trip $trip, string $previousStatus, ?User $user): void
     {
         $status = $trip->status;
 
@@ -100,7 +112,7 @@ class Trips
     /**
      * Efectos que necesitan el viaje ya guardado.
      */
-    public function afterStatusChange(Trip $trip, string $previousStatus, ?Worker $user): void
+    public function afterStatusChange(Trip $trip, string $previousStatus, ?User $user): void
     {
         if ($trip->status === $previousStatus) {
             return;
@@ -118,7 +130,7 @@ class Trips
     /**
      * Marca el viaje como realizado (7.14). $user null = el sistema.
      */
-    public function markCompleted(Trip $trip, ?Worker $user): TripCompletion
+    public function markCompleted(Trip $trip, ?User $user): TripCompletion
     {
         if ($trip->status === Trip::STATUS_CANCELLED) {
             throw $this->transitionNotAllowed('No se puede marcar como realizado un viaje cancelado.');
@@ -147,18 +159,18 @@ class Trips
     /**
      * Rol con el que el usuario puede marcar el viaje como realizado, o null.
      */
-    public function completionRole(Trip $trip, Worker $user): ?string
+    public function completionRole(Trip $trip, User $user): ?string
     {
         if ($user->isAdmin()) {
             return TripCompletion::ROLE_ADMINISTRATOR;
         }
 
-        if ($user->isTransportChief()) {
-            return TripCompletion::ROLE_TRANSPORT_CHIEF;
-        }
-
         if ($user->driverId() !== null && (int) $trip->driver_id === $user->driverId()) {
             return TripCompletion::ROLE_DRIVER;
+        }
+
+        if ($user->isTransportChief() && $user->isChiefOf((int) $trip->itinerary_id)) {
+            return TripCompletion::ROLE_TRANSPORT_CHIEF;
         }
 
         if ($user->isChiefOf((int) $trip->itinerary_id)) {
@@ -176,7 +188,7 @@ class Trips
      */
     public function expectedPassengers(Trip $trip): Collection
     {
-        $members = Worker::where('itinerary_id', $trip->itinerary_id)->with('rank')->get();
+        $members = Worker::where('itinerary_id', $trip->itinerary_id)->with('user', 'rank')->get();
         $absent = $this->absences->absentOn($trip->departs_at, $members->pluck('id')->all());
         $driverWorkerId = $trip->driver ? (int) $trip->driver->worker_id : null;
 
@@ -186,7 +198,12 @@ class Trips
     }
 
     /**
-     * @return array [esperados, niños esperados, capacidad, sobresaturado]
+     * Ocupación (docs/08-version-2.md §8.9). Solo cuentan los trabajadores:
+     * los niños van cargados, pero se informan.
+     *
+     * - normal: trabajadores ≤ asientos;
+     * - saturated (saturado): más que asientos, pero caben de pie;
+     * - overloaded (sobresaturado): más que asientos + capacidad de pie.
      */
     public function occupancy(Trip $trip): array
     {
@@ -195,24 +212,38 @@ class Trips
             $passengers->pluck('id')->all(),
             CarbonImmutable::instance($trip->departs_at)
         ));
-        $capacity = $trip->vehicle ? $trip->vehicle->totalCapacity() : 0;
+        $vehicle = $trip->vehicle;
+        $seats = $vehicle ? (int) $vehicle->seats : 0;
+        $capacity = $vehicle ? $vehicle->totalCapacity() : 0;
+        $count = $passengers->count();
 
         return [
-            'expectedPassengers' => $passengers->count(),
+            'expectedPassengers' => $count,
             'expectedChildren' => $children,
+            'seats' => $seats,
             'totalCapacity' => $capacity,
-            'overloaded' => $passengers->count() > $capacity,
+            'occupancyLevel' => self::occupancyLevel($count, $seats, $capacity),
+            'saturated' => $count > $seats && $count <= $capacity,
+            'overloaded' => $count > $capacity,
         ];
     }
 
+    public static function occupancyLevel(int $workers, int $seats, int $capacity): string
+    {
+        if ($workers > $capacity) {
+            return 'overloaded';
+        }
+
+        return $workers > $seats ? 'saturated' : 'normal';
+    }
+
     /**
-     * Pasajeros en orden de subida (7.21): primero los que suben con niños;
-     * después mujeres y luego hombres; dentro de cada grupo, por jerarquía y
-     * alfabéticamente.
+     * Pasajeros esperados por parada (en el orden del itinerario) y, dentro
+     * de cada parada, alfabéticamente (docs/08-version-2.md §8.10).
      *
-     * @return array lista de [worker, children, order]
+     * @return array lista de [worker, children]
      */
-    public function boardingOrder(Trip $trip, ?int $stopId = null): array
+    public function passengerList(Trip $trip, ?int $stopId = null): array
     {
         $passengers = $this->expectedPassengers($trip);
 
@@ -224,32 +255,29 @@ class Trips
             $passengers->pluck('id')->all(),
             CarbonImmutable::instance($trip->departs_at)
         );
+        $positions = ItineraryStop::where('itinerary_id', $trip->itinerary_id)->pluck('position', 'stop_id')->all();
 
         $list = $passengers->map(function (Worker $worker) use ($children) {
             return ['worker' => $worker, 'children' => $children[$worker->id]];
         })->all();
 
-        usort($list, function (array $a, array $b) {
-            return $this->boardingKey($a) <=> $this->boardingKey($b);
+        usort($list, function (array $a, array $b) use ($positions) {
+            return $this->listKey($a['worker'], $positions) <=> $this->listKey($b['worker'], $positions);
         });
-
-        foreach ($list as $index => &$item) {
-            $item['order'] = $index + 1;
-        }
 
         return $list;
     }
 
-    private function boardingKey(array $item): array
+    private function listKey(Worker $worker, array $positions): array
     {
-        $worker = $item['worker'];
+        $user = $worker->user;
 
         return [
-            $item['children'] > 0 ? 0 : 1,
-            $worker->sex === Worker::SEX_FEMALE ? 0 : 1,
-            $worker->rank ? $worker->rank->precedence : PHP_INT_MAX,
-            $this->collationKey($worker->last_name),
-            $this->collationKey($worker->first_name),
+            isset($positions[$worker->stop_id]) ? (int) $positions[$worker->stop_id] : PHP_INT_MAX,
+            $this->collationKey($user ? $user->first_surname : ''),
+            $this->collationKey($user ? $user->second_surname : ''),
+            $this->collationKey($user ? $user->first_name : ''),
+            $this->collationKey($user ? $user->middle_name : ''),
         ];
     }
 
@@ -299,11 +327,11 @@ class Trips
         }
     }
 
-    private function recordCompletion(Trip $trip, ?Worker $user, string $role): TripCompletion
+    private function recordCompletion(Trip $trip, ?User $user, string $role): TripCompletion
     {
         $completion = TripCompletion::withTrashed()
             ->where('trip_id', $trip->id)
-            ->where('worker_id', $user ? $user->id : null)
+            ->where('user_id', $user ? $user->id : null)
             ->first();
 
         if ($completion) {
@@ -314,15 +342,18 @@ class Trips
             return $completion;
         }
 
-        return TripCompletion::create(['trip_id' => $trip->id, 'worker_id' => $user ? $user->id : null, 'role' => $role]);
+        return TripCompletion::create(['trip_id' => $trip->id, 'user_id' => $user ? $user->id : null, 'role' => $role]);
     }
 
     /**
-     * El chat del viaje se borra al cancelarse o realizarse.
+     * El chat del viaje se borra al cancelarse o realizarse, salvo que
+     * trip_chat_retention_days lo conserve unos días (lo borra la tarea chats:purge-trips).
      */
     private function purgeChat(Trip $trip): void
     {
-        DB::table('trip_messages')->where('trip_id', $trip->id)->delete();
+        if (app(Settings::class)->int('trip_chat_retention_days') === 0) {
+            DB::table('trip_messages')->where('trip_id', $trip->id)->delete();
+        }
     }
 
     private function transitionNotAllowed(string $detail): JsonApiException

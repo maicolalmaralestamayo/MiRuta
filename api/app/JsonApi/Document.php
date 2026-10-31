@@ -122,8 +122,17 @@ class Document
 
         $relationships = [];
 
-        foreach ($serializer->toOneRelationships() as $name => list($type, $foreignKey)) {
-            $id = $model->getAttribute($foreignKey);
+        foreach ($serializer->toOneRelationships() as $name => $relationship) {
+            list($type, $foreignKey) = $relationship;
+
+            if ($foreignKey === null) {
+                // Relación "tiene uno" (hasOne): el id está en la otra tabla.
+                $related = $model->{$relationship[2]};
+                $id = $related instanceof Model ? $related->getKey() : null;
+            } else {
+                $id = $model->getAttribute($foreignKey);
+            }
+
             $relationships[$name] = [
                 'data' => $id === null ? null : ['type' => $type, 'id' => (string) $id],
             ];

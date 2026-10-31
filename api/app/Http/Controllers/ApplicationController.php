@@ -7,7 +7,8 @@ use App\JsonApi\JsonApiException;
 use App\JsonApi\JsonApiResponse;
 use App\JsonApi\QueryParameters;
 use App\Models\Application;
-use App\Rules\CardNumberRule;
+use App\Models\Worker;
+use App\Support\Tenancy;
 use App\Services\Applications;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -18,7 +19,7 @@ class ApplicationController extends Controller
 
     const FILTERABLE = ['status', 'type', 'mine', 'toResolve', 'worker'];
 
-    const INCLUDABLE = ['worker', 'resolvedBy', 'itinerary', 'stop', 'rank', 'child', 'absenceType'];
+    const INCLUDABLE = ['worker', 'createdBy', 'resolvedBy', 'itinerary', 'stop', 'child', 'absenceType'];
 
     /** @var Applications */
     private $applications;
@@ -32,7 +33,7 @@ class ApplicationController extends Controller
     {
         $user = $request->user();
         $parameters = QueryParameters::fromRequest($request, self::SORTABLE, self::FILTERABLE, self::INCLUDABLE, '-createdAt');
-        $query = $this->applications->visibleTo($user)->with('itineraryApplication', 'rankApplication', 'childApplication.child', 'absenceApplication');
+        $query = $this->applications->visibleTo($user)->with('itineraryApplication', 'childApplication.child', 'absenceApplication');
 
         if ($status = $parameters->filter('status')) {
             $query->whereIn('status', explode(',', $status));
@@ -47,7 +48,7 @@ class ApplicationController extends Controller
         }
 
         if ($parameters->filter('mine') === 'true') {
-            $query->where('worker_id', $user->id);
+            $query->where('worker_id', (int) $user->workerId());
         }
 
         if ($parameters->filter('toResolve') === 'true') {
@@ -71,11 +72,26 @@ class ApplicationController extends Controller
     {
         $type = $request->json('data.attributes.type');
         $data = $this->validateResource($request, 'applications', array_merge(
-            ['attributes.type' => ['required', 'in:'.implode(',', $this->creatableTypes())]],
+            [
+                'attributes.type' => ['required', 'in:'.implode(',', $this->creatableTypes())],
+                'relationships.worker.data.type' => ['sometimes', 'in:workers'],
+                'relationships.worker.data.id' => ['sometimes', 'integer'],
+            ],
             $this->rulesFor(is_string($type) ? $type : '')
         ));
 
-        $application = $this->applications->create($request->user(), $data);
+        $user = $request->user();
+        $workerId = isset($data['relationships']['worker']['data']['id']) ? (int) $data['relationships']['worker']['data']['id'] : $user->workerId();
+
+        if ($workerId === null) {
+            throw new JsonApiException(422, 'VALIDATION_ERROR', 'Falta el trabajador', 'Indica a qué trabajador se asigna (relationships.worker).', ['pointer' => '/data/relationships/worker']);
+        }
+
+        // Para otro trabajador es una asignación o retirada de un superior.
+        Tenancy::ensureVisible($user, 'workers', $workerId);
+        $worker = Worker::findOrFail($workerId);
+
+        $application = $this->applications->create($user, $worker, $data);
 
         return JsonApiResponse::make((new Document($request))->resource($application->fresh()), 201, [
             'Location' => url('api/v1/applications/'.$application->id),
@@ -124,7 +140,7 @@ class ApplicationController extends Controller
     {
         return [
             Application::TYPE_ITINERARY_MEMBERSHIP, Application::TYPE_ITINERARY_CHIEF, Application::TYPE_DRIVER,
-            Application::TYPE_TRANSPORT_CHIEF, Application::TYPE_RANK_CHANGE, Application::TYPE_CHILD_ADDITION,
+            Application::TYPE_TRANSPORT_CHIEF, Application::TYPE_CHILD_ADDITION,
             Application::TYPE_CHILD_REMOVAL, Application::TYPE_ABSENCE, Application::TYPE_ITINERARY_LEAVE,
             Application::TYPE_ITINERARY_CHIEF_LEAVE, Application::TYPE_DRIVER_LEAVE, Application::TYPE_TRANSPORT_CHIEF_LEAVE,
         ];
@@ -148,13 +164,9 @@ class ApplicationController extends Controller
                     'relationships.itinerary.data.type' => ['required', 'in:itineraries'],
                     'relationships.itinerary.data.id' => ['required', 'exists:itineraries,id'],
                 ];
-            case Application::TYPE_RANK_CHANGE:
-                return $relationship('rank', 'ranks', 'ranks');
             case Application::TYPE_CHILD_ADDITION:
-                return [
-                    'attributes.childFirstName' => ['required', 'string', 'max:100'],
-                    'attributes.childLastName' => ['required', 'string', 'max:150'],
-                    'attributes.childCardNumber' => ['required', 'string', new CardNumberRule()],
+                return UserController::nameRules('attributes.child') + [
+                    'attributes.childBirthDate' => ['required', 'date_format:Y-m-d'],
                 ];
             case Application::TYPE_CHILD_REMOVAL:
                 return [

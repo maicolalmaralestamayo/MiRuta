@@ -29,7 +29,7 @@ class TripSerializer extends Serializer
             'itinerary' => ['itineraries', 'itinerary_id', 'itinerary'],
             'vehicle' => ['vehicles', 'vehicle_id', 'vehicle'],
             'driver' => ['drivers', 'driver_id', 'driver'],
-            'createdBy' => ['workers', 'created_by', 'creator'],
+            'createdBy' => ['users', 'created_by', 'creator'],
         ];
     }
 

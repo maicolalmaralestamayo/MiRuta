@@ -15,7 +15,7 @@ class RankSerializer extends NomenclatorSerializer
     public function attributes(Model $rank, Request $request): array
     {
         return parent::attributes($rank, $request) + [
-            'precedence' => $rank->precedence,
+            'sortOrder' => $rank->sort_order,
             'iconUrl' => $rank->icon_path ? url($rank->icon_path) : null,
         ];
     }

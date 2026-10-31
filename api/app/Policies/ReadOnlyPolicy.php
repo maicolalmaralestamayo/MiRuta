@@ -2,15 +2,11 @@
 
 namespace App\Policies;
 
-use App\Models\Worker;
+use App\Models\User;
 
-/**
- * Se puede ver, pero no se crea ni modifica directamente: lo hacen las
- * solicitudes o el propio sistema. El Administrador sí puede (Gate::before).
- */
 class ReadOnlyPolicy extends ManagedPolicy
 {
-    protected function manages(Worker $worker): bool
+    protected function manages(User $user, $model = null): bool
     {
         return false;
     }

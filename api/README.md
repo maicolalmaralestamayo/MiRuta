@@ -21,10 +21,9 @@ En `.env`, completar:
 | Variable | Cómo generarla |
 |---|---|
 | `APP_KEY` | `php -r "echo 'base64:'.base64_encode(random_bytes(32)).PHP_EOL;"` |
-| `CARD_HASH_KEY` | `php -r "echo bin2hex(random_bytes(32)).PHP_EOL;"` |
 | `DB_*` | Base de datos y usuario de MariaDB (en el servidor, `DB_HOST=127.0.0.1`) |
 
-> **No cambiar `APP_KEY` ni `CARD_HASH_KEY` una vez haya datos.** Con otra `APP_KEY` no se podrían descifrar los carnés, y con otra `CARD_HASH_KEY` no se encontraría a nadie al iniciar sesión.
+> **No cambiar `APP_KEY` una vez haya datos.** Con otra `APP_KEY` no se podrían descifrar los teléfonos guardados ni validar los códigos de activación pendientes.
 
 Después:
 

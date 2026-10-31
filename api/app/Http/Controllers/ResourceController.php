@@ -45,6 +45,15 @@ abstract class ResourceController extends Controller
     protected $defaultSort = 'id';
 
     /**
+     * El recurso es de una Entidad (tabla raíz con entity_id): cada uno ve
+     * los de la suya y los crea en la suya; el Administrador ve todos
+     * (filter[entity]) y al crear indica relationships.entity.
+     *
+     * @var bool
+     */
+    protected $entityScoped = false;
+
+    /**
      * Reglas de validación con claves JSON:API ("attributes.name").
      * $model es null al crear.
      */
@@ -76,11 +85,23 @@ abstract class ResourceController extends Controller
     {
         $this->authorize('create', $this->model);
 
-        $data = $this->validateResource($request, $this->type, $this->rules($request, null));
+        $rules = $this->rules($request, null);
+
+        if ($this->entityScoped && $request->user()->isAdmin()) {
+            $rules += $this->relationshipRules('entity', 'entities', 'entities', true);
+        }
+
+        $data = $this->validateResource($request, $this->type, $rules);
 
         $model = DB::transaction(function () use ($data, $request) {
             $model = $this->restorable($data) ?: new $this->model();
             $this->fill($model, $data);
+
+            if ($this->entityScoped) {
+                $model->entity_id = $request->user()->isAdmin()
+                    ? (int) $data['relationships']['entity']['data']['id']
+                    : $request->user()->entityId();
+            }
             $this->beforeSave($model, $request, true);
             $model->save();
             $this->afterSave($model, $request, true);
@@ -137,7 +158,17 @@ abstract class ResourceController extends Controller
      */
     protected function newQuery(Request $request): Builder
     {
-        return $this->model::query();
+        $query = $this->model::query();
+
+        if ($this->entityScoped && $request->user()) {
+            $query->visibleTo($request->user());
+
+            if ($request->user()->isAdmin() && ($entity = $request->input('filter.entity'))) {
+                $query->where((new $this->model())->getTable().'.entity_id', $entity);
+            }
+        }
+
+        return $query;
     }
 
     protected function applyFilters(Builder $query, QueryParameters $parameters, Request $request): void

@@ -52,8 +52,12 @@ class TripBoardingController extends TrackingController
 
         switch ($attributes['method']) {
             case TripBoarding::METHOD_SELF:
-                $worker = $user;
+                $worker = $user->workerModel();
                 $markedBy = $user;
+
+                if (! $worker) {
+                    throw new JsonApiException(422, 'NOT_A_PASSENGER', 'No es pasajero', 'No eres pasajero de este viaje.');
+                }
                 break;
             default:
                 if (! $tracking->canOperate($leg->trip, $user)) {

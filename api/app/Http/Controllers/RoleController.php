@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\JsonApi\JsonApiException;
 use App\JsonApi\QueryParameters;
 use App\Models\Worker;
+use App\Support\Tenancy;
 use App\Services\Applications;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -31,27 +32,38 @@ abstract class RoleController extends ResourceController
     abstract protected function leaveType(): string;
 
     /**
-     * Quién, además del propio trabajador, puede quitar el rol (el Administrador siempre).
-     */
-    abstract protected function canRemoveOthers(Worker $user): bool;
-
-    /**
      * Darse de baja (el propio trabajador) o quitar el rol a otro (un superior).
      * Queda registrado como solicitud de baja aprobada.
      */
     public function destroy(Request $request, $id)
     {
-        $role = $this->model::findOrFail($id);
+        $role = $this->findOrFail($request, $id);
         $user = $request->user();
-        $isSelf = (int) $role->worker_id === (int) $user->id;
+        $worker = Worker::findOrFail($role->worker_id);
+        $applications = app(Applications::class);
+        $itineraryId = $role->itinerary_id ? (int) $role->itinerary_id : null;
+        $isSelf = (int) $role->worker_id === $user->workerId();
 
-        if (! $isSelf && ! $user->isAdmin() && ! $this->canRemoveOthers($user)) {
+        if (! $isSelf && ! $applications->canRemove($user, $worker, $this->leaveType(), $itineraryId)) {
             throw new JsonApiException(403, 'FORBIDDEN', 'Sin permiso', 'No puedes quitar este rol.');
         }
 
-        app(Applications::class)->leave(Worker::findOrFail($role->worker_id), $this->leaveType(), $role->itinerary_id, $user);
+        $applications->leave($worker, $this->leaveType(), $itineraryId, $user);
 
         return response('', 204);
+    }
+
+    /**
+     * Solo los de su Entidad (todos, para el Administrador).
+     */
+    protected function newQuery(Request $request): Builder
+    {
+        $user = $request->user();
+        $query = $this->model::query();
+
+        return $user->isAdmin() ? $query : $query->whereHas('worker', function (Builder $query) use ($user) {
+            $query->where('entity_id', $user->entityId());
+        });
     }
 
     protected function applyFilters(Builder $query, QueryParameters $parameters, Request $request): void

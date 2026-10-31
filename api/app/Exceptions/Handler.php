@@ -4,7 +4,6 @@ namespace App\Exceptions;
 
 use App\JsonApi\JsonApiException;
 use App\JsonApi\JsonApiResponse;
-use App\Rules\CardNumberRule;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\QueryException;
@@ -21,9 +20,7 @@ class Handler extends ExceptionHandler
      * Códigos de error JSON:API para las reglas de validación propias.
      * Las demás reglas producen VALIDATION_ERROR.
      */
-    const RULE_CODES = [
-        CardNumberRule::class => 'CARD_NUMBER_INVALID',
-    ];
+    const RULE_CODES = [];
 
     /**
      * A list of the exception types that should not be reported.
