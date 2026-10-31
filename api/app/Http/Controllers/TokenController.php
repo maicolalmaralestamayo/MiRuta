@@ -122,7 +122,7 @@ class TokenController extends Controller
                 'refreshExpiresIn' => $pair['refreshExpiresIn'],
             ],
             'relationships' => [
-                'worker' => ['data' => ['type' => 'workers', 'id' => (string) $pair['model']->worker_id]],
+                'user' => ['data' => ['type' => 'users', 'id' => (string) $pair['model']->user_id]],
             ],
         ]), 201);
     }

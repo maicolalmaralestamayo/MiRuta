@@ -25,7 +25,7 @@ class TripCompletionController extends Controller
 
     public function index(Request $request)
     {
-        $parameters = QueryParameters::fromRequest($request, ['createdAt' => 'created_at'], ['trip'], ['worker'], 'createdAt');
+        $parameters = QueryParameters::fromRequest($request, ['createdAt' => 'created_at'], ['trip'], ['user'], 'createdAt');
         $visibleTrips = $this->trips->visibleTo($request->user())->select('id');
         $query = TripCompletion::whereIn('trip_id', $visibleTrips);
 

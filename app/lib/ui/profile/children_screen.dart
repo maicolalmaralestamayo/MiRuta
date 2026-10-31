@@ -23,9 +23,10 @@ class _ChildrenScreenState extends State<ChildrenScreen> {
   Future<void> _remove(Child child) async {
     if (!await confirm(context, 'Quitar hijo', '¿Solicitar quitar a ${child.fullName}?')) return;
     if (!mounted) return;
-    await runAction(context, () => context.api.post('/applications', resourceData('applications', attributes: {'type': ApplicationType.childRemoval}, relationships: {
-          'child': ResourceId('children', child.id),
-        })), success: 'Solicitud enviada');
+    await context.api.post('/applications', resourceData('applications', attributes: {'type': ApplicationType.childRemoval}, relationships: {
+      'child': ResourceId('children', child.id),
+    }));
+    if (mounted) showMessage(context, 'Solicitud enviada');
   }
 
   @override
@@ -52,10 +53,11 @@ class _ChildrenScreenState extends State<ChildrenScreen> {
                     title: Text(child.fullName),
                     subtitle: Text([
                       if (!child.declared) 'Pendiente de aprobar',
+                      if (child.birthDate != null) 'Nació el ${formatDate(DateTime.parse(child.birthDate!))}',
                       if (child.eligibleUntil != null) 'Puede viajar hasta el ${formatDate(DateTime.parse(child.eligibleUntil!))}',
                       if (!child.eligible) 'Ya no tiene derecho a viajar',
                     ].join(' · ')),
-                    trailing: child.declared ? IconButton(icon: const Icon(Icons.remove_circle_outline), onPressed: () => _remove(child)) : null,
+                    trailing: child.declared ? BusyIconButton(icon: const Icon(Icons.remove_circle_outline), onPressed: () => _remove(child)) : null,
                   ),
               ]),
       ),

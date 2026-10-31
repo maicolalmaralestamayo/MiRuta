@@ -290,7 +290,7 @@ class Applications
         $self = ! $by || (int) $by->id === (int) $worker->user_id;
         $subject = $self ? 'No eres' : 'El trabajador no es';
 
-        return DB::transaction(function () use ($worker, $type, $itineraryId, $by) {
+        return DB::transaction(function () use ($worker, $type, $itineraryId, $by, $self, $subject) {
             $notify = [];
             $stopId = null;
 

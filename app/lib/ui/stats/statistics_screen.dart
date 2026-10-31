@@ -5,11 +5,10 @@ import '../../core/api_exception.dart';
 import '../../models/models.dart';
 import '../../services/templates.dart';
 import '../widgets/common.dart';
-import 'export.dart';
 import 'statistic.dart';
 
 /// Estadísticas con gráfico y tabla, periodo por rango, fechas sueltas o
-/// relativo, y exportación a PDF. Cada rol ve las suyas.
+/// relativo. Solo se ven en la app (no se exportan). Cada rol ve las suyas.
 class StatisticsScreen extends StatefulWidget {
   const StatisticsScreen({super.key});
 
@@ -23,7 +22,7 @@ const _titles = {
   'duration': 'Duración de los trayectos',
   'trips-by-driver': 'Viajes por chofer',
   'trips-by-vehicle': 'Viajes por vehículo',
-  'overloaded-trips': 'Viajes sobresaturados',
+  'overloaded-trips': 'Viajes saturados y sobresaturados',
   'occupancy': 'Ocupación',
   'attendance': 'Asistencia por parada',
   'children-transported': 'Niños transportados',
@@ -71,7 +70,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     super.initState();
     _name = _available.first;
     if (context.me.managesTransport || context.me.roles.isItineraryChief) {
-      context.api.getAll('/itineraries', query: {'sort': 'name'}).then((r) {
+      context.api.getAll('/itineraries', query: {'sort': 'name', ...context.entityFilter}).then((r) {
         if (mounted) setState(() => _itineraries = r.map(Itinerary.from).toList());
       }).catchError((_) {});
     }
@@ -86,6 +85,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
       if (_mode == _PeriodMode.dates && _dates.isNotEmpty) 'filter[dates]': (_dates.toList()..sort()).map(day).join(','),
       if (_by != null && _groupings[_name]?.containsKey(_by) == true) 'filter[by]': _by,
       if (_itineraryId != null) 'filter[itinerary]': _itineraryId,
+      ...context.entityFilter,
     };
   }
 
@@ -115,19 +115,10 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final title = _titles[_name]!;
     final result = _result;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Estadísticas'),
-        actions: [
-          if (result != null && result.rows.isNotEmpty)
-            IconButton(
-              tooltip: 'Exportar a PDF',
-              icon: const Icon(Icons.picture_as_pdf_outlined),
-              onPressed: () => runAction(context, () => StatisticExport.pdf(result, title)),
-            ),
-        ],
       ),
       body: ListView(padding: const EdgeInsets.all(12), children: [
         DropdownButtonFormField<String>(

@@ -59,9 +59,11 @@ class AccessRecoveryController extends Controller
      */
     public function showForInstallation(Request $request, $id)
     {
-        $recovery = $this->ownOrFail($request, $id);
+        $recovery = $this->recoveries->readByInstallation($this->ownOrFail($request, $id));
+        $document = (new Document($request))->resource($recovery);
+        $this->recoveries->completeIfOnlyUsername($recovery);
 
-        return JsonApiResponse::make((new Document($request))->resource($this->recoveries->readByInstallation($recovery)));
+        return JsonApiResponse::make($document);
     }
 
     /**

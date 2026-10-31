@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../models/models.dart';
 import '../../services/session.dart';
 import '../../services/templates.dart';
+import '../theme.dart';
 import '../widgets/common.dart';
 import 'application_forms.dart';
 
@@ -42,7 +43,6 @@ class ApplicationsScreen extends StatelessWidget {
       ApplicationType.itineraryChief,
       if (!me.roles.isDriver) ApplicationType.driver,
       if (!me.roles.isTransportChief) ApplicationType.transportChief,
-      ApplicationType.rankChange,
       ApplicationType.childAddition,
       ApplicationType.absence,
     ];
@@ -67,7 +67,7 @@ class _ApplicationListState extends State<_ApplicationList> {
     final document = await context.api.get('/applications', query: {
       if (widget.mine) 'filter[mine]': 'true',
       if (!widget.mine) 'filter[toResolve]': 'true',
-      'include': 'worker,resolvedBy,itinerary,stop,rank,absenceType',
+      'include': 'worker,resolvedBy,itinerary,stop,absenceType',
       'page[size]': 100,
     });
     return document.resources.map(Application.from).toList();
@@ -76,18 +76,19 @@ class _ApplicationListState extends State<_ApplicationList> {
   Future<void> _resolve(Application application, String status) async {
     final note = await promptText(context, status == 'approved' ? 'Aprobar' : 'Rechazar', label: 'Nota (opcional)', maxLines: 2);
     if (note == null || !mounted) return;
-    await runAction(context, () => context.api.patch('/applications/${application.id}', {
-          'data': {'type': 'applications', 'id': application.id, 'attributes': {'status': status, if (note.isNotEmpty) 'resolutionNote': note}},
-        }), success: status == 'approved' ? 'Solicitud aprobada' : 'Solicitud rechazada');
+    await context.api.patch('/applications/${application.id}', {
+      'data': {'type': 'applications', 'id': application.id, 'attributes': {'status': status, if (note.isNotEmpty) 'resolutionNote': note}},
+    });
+    if (mounted) showMessage(context, status == 'approved' ? 'Solicitud aprobada' : 'Solicitud rechazada');
     _view.currentState?.reload();
   }
 
   Future<void> _cancel(Application application) async {
     if (!await confirm(context, 'Cancelar solicitud', '¿Cancelar la solicitud de ${ApplicationType.label(application.type).toLowerCase()}?')) return;
     if (!mounted) return;
-    await runAction(context, () => context.api.patch('/applications/${application.id}', {
-          'data': {'type': 'applications', 'id': application.id, 'attributes': {'status': 'cancelled'}},
-        }));
+    await context.api.patch('/applications/${application.id}', {
+      'data': {'type': 'applications', 'id': application.id, 'attributes': {'status': 'cancelled'}},
+    });
     _view.currentState?.reload();
   }
 
@@ -116,22 +117,32 @@ class _ApplicationListState extends State<_ApplicationList> {
                   if (!widget.mine && a.worker != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 6),
-                      child: Row(children: [WorkerAvatar(a.worker!, radius: 14), const SizedBox(width: 8), Text(a.worker!.fullName)]),
+                      child: Row(children: [
+                        WorkerAvatar(a.worker!, radius: 14),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text('${a.worker!.fullName}${a.worker!.pass == null ? '' : ' · Pase ${a.worker!.pass}'}')),
+                      ]),
+                    ),
+                  if (a.assigned) Text('Asignado por un superior', style: Theme.of(context).textTheme.bodySmall),
+                  if (a.possibleDuplicate)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: StatusChip('Posible duplicado: ya hay un niño con el mismo nombre, apellido y fecha', color: saturatedColor, icon: Icons.warning_amber),
                     ),
                   if (a.summary.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 6), child: Text(a.summary)),
                   if (a.observation != null && a.observation!.isNotEmpty) Text(a.observation!, style: Theme.of(context).textTheme.bodySmall),
                   const SizedBox(height: 4),
                   Text('Enviada ${formatDateTime(a.createdAt)}', style: Theme.of(context).textTheme.bodySmall),
                   if (a.resolvedAt != null)
-                    Text('Resuelta ${formatDateTime(a.resolvedAt!)}${a.resolver == null ? '' : ' por ${a.resolver!.fullName}'}', style: Theme.of(context).textTheme.bodySmall),
+                    Text('Resuelta ${formatDateTime(a.resolvedAt!)}${a.resolverName == null ? '' : ' por ${a.resolverName}'}', style: Theme.of(context).textTheme.bodySmall),
                   if (a.resolutionNote != null) Text('Nota: ${a.resolutionNote}', style: Theme.of(context).textTheme.bodySmall),
                   if (a.isPending)
                     Align(
                       alignment: Alignment.centerRight,
                       child: Wrap(spacing: 8, children: [
-                        if (widget.mine) TextButton(onPressed: () => _cancel(a), child: const Text('Cancelar')),
-                        if (!widget.mine) TextButton(onPressed: () => _resolve(a, 'rejected'), child: const Text('Rechazar')),
-                        if (!widget.mine) FilledButton(onPressed: () => _resolve(a, 'approved'), child: const Text('Aprobar')),
+                        if (widget.mine) BusyButton.text(onPressed: () => _cancel(a), child: const Text('Cancelar')),
+                        if (!widget.mine) BusyButton.text(onPressed: () => _resolve(a, 'rejected'), child: const Text('Rechazar')),
+                        if (!widget.mine) BusyButton(onPressed: () => _resolve(a, 'approved'), child: const Text('Aprobar')),
                       ]),
                     ),
                 ]),

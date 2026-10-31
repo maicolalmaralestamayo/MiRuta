@@ -18,7 +18,7 @@ class TripMessageController extends Controller
     public function index(Request $request, Chats $chats, $id)
     {
         $trip = $chats->tripWithChat($request->user(), $id);
-        $parameters = QueryParameters::fromRequest($request, ['createdAt' => 'created_at'], ['since'], ['worker'], 'createdAt');
+        $parameters = QueryParameters::fromRequest($request, ['createdAt' => 'created_at'], ['since'], ['author'], 'createdAt');
         $query = TripMessage::where('trip_id', $trip->id);
 
         if ($since = $parameters->filter('since')) {

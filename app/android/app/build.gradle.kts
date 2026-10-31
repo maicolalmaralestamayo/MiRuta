@@ -40,9 +40,16 @@ android {
         versionName = flutter.versionName
 
         // Solo teléfonos reales (ARM): sin x86/x86_64, que solo usan los emuladores.
+        // Con --target-platform android-arm64 (o android-arm) el APK lleva solo
+        // ese tipo de procesador, también en las librerías de los plugins: así
+        // salen dos APK ligeros con el mismo código de versión
+        // (docs/08-version-2.md §8.1).
+        val targetPlatforms = (project.findProperty("target-platform") as String?)?.split(",") ?: emptyList()
+        val abis = mapOf("android-arm" to "armeabi-v7a", "android-arm64" to "arm64-v8a")
+        val selected = targetPlatforms.mapNotNull { abis[it.trim()] }
         ndk {
             abiFilters.clear()
-            abiFilters.addAll(listOf("armeabi-v7a", "arm64-v8a"))
+            abiFilters.addAll(selected.ifEmpty { listOf("armeabi-v7a", "arm64-v8a") })
         }
     }
 

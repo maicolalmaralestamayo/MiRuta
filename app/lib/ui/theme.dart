@@ -10,6 +10,9 @@ const navy = Color(0xFF000080);
 const orange = Color(0xFFFFA500);
 const overloadColor = Color(0xFFD32F2F);
 
+/// Saturado (van de pie): el naranja de la paleta.
+const saturatedColor = orange;
+
 ThemeData buildTheme(Brightness brightness) {
   final dark = brightness == Brightness.dark;
   final base = ColorScheme.fromSeed(seedColor: navy, brightness: brightness);

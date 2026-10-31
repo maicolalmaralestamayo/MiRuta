@@ -33,7 +33,7 @@ class _PlanningScreenState extends State<PlanningScreen> {
     final me = context.me;
     // Los Jefes de itinerario solo planifican el suyo.
     if (!me.managesTransport && me.roles.chiefOfItineraries.isNotEmpty) _itineraryId = me.roles.chiefOfItineraries.first;
-    context.api.getAll('/itineraries', query: {'sort': 'name'}).then((r) {
+    context.api.getAll('/itineraries', query: {'sort': 'name', ...context.entityFilter}).then((r) {
       if (mounted) setState(() => _itineraries = r.map(Itinerary.from).where((i) => me.canPlan(i.id)).toList());
     }).catchError((_) {});
   }

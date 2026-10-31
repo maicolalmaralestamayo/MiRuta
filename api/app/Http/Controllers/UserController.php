@@ -17,12 +17,12 @@ class UserController extends Controller
     /** Reglas de los cuatro nombres, todos obligatorios. */
     public static function nameRules(string $prefix = 'attributes.', bool $required = true): array
     {
-        $presence = $required ? 'required' : 'sometimes';
+        $presence = $required ? ['required'] : ['sometimes', 'required'];
         $rules = [];
 
         foreach (['firstName', 'middleName', 'firstSurname', 'secondSurname'] as $field) {
             $key = substr($prefix, -1) === '.' ? $prefix.$field : $prefix.ucfirst($field);
-            $rules[$key] = [$presence, 'string', 'max:50', 'regex:/\S/'];
+            $rules[$key] = array_merge($presence, ['string', 'max:50', 'regex:/\S/']);
         }
 
         return $rules;

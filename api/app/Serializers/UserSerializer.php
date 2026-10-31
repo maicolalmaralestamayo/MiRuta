@@ -38,6 +38,8 @@ class UserSerializer extends Serializer
                 'activated' => $user->isActivated(),
             ] + $attributes + [
                 'mustChangePassword' => $passwords->mustChange($user),
+                // Si caducó hay que dar la actual; tras recuperar el acceso, no.
+                'currentPasswordRequired' => ! $user->must_change_password,
                 'passwordExpiresAt' => $expiresAt ? $expiresAt->toIso8601String() : null,
                 'createdAt' => $this->date($user->created_at),
             ];

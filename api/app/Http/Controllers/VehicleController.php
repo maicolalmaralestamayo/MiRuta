@@ -31,7 +31,7 @@ class VehicleController extends ResourceController
 
     protected $entityScoped = true;
 
-    protected $includable = ['vehicleType', 'driver', 'driver.worker'];
+    protected $includable = ['vehicleType', 'driver', 'driver.worker', 'driver.worker.user', 'entity'];
 
     protected $defaultSort = 'plate';
 

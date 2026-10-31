@@ -30,14 +30,27 @@ class CatalogTest extends TestCase
         $this->jsonApiAs($worker, 'POST', '/api/v1/vehicle-types', $this->nomenclator('vehicle-types', 'Microbús'));
         $this->assertJsonApiError(403, 'FORBIDDEN');
 
+        // Los nomencladores son comunes a todas las Entidades: solo el Administrador.
         $this->jsonApiAs($chief, 'POST', '/api/v1/vehicle-types', $this->nomenclator('vehicle-types', 'Microbús'));
-        $this->assertResponseStatus(201);
-
-        $this->jsonApiAs($chief, 'POST', '/api/v1/ranks', $this->nomenclator('ranks', 'Nueva', ['precedence' => 19]));
         $this->assertJsonApiError(403, 'FORBIDDEN');
 
-        $this->jsonApiAs($admin, 'POST', '/api/v1/ranks', $this->nomenclator('ranks', 'Nueva', ['precedence' => 19]));
+        $this->jsonApiAs($admin, 'POST', '/api/v1/vehicle-types', $this->nomenclator('vehicle-types', 'Microbús'));
         $this->assertResponseStatus(201);
+
+        $this->jsonApiAs($chief, 'POST', '/api/v1/ranks', $this->nomenclator('ranks', 'Nueva', ['sortOrder' => 19]));
+        $this->assertJsonApiError(403, 'FORBIDDEN');
+
+        $this->jsonApiAs($admin, 'POST', '/api/v1/ranks', $this->nomenclator('ranks', 'Nueva', ['sortOrder' => 19]));
+        $this->assertResponseStatus(201);
+
+        $this->jsonApiAs($chief, 'POST', '/api/v1/forbidden-words', $this->nomenclator('forbidden-words', 'feo'));
+        $this->assertJsonApiError(403, 'FORBIDDEN');
+        $this->jsonApiAs($chief, 'GET', '/api/v1/forbidden-words');
+        $this->assertResponseStatus(403);
+
+        $this->jsonApiAs($admin, 'POST', '/api/v1/forbidden-words', $this->nomenclator('forbidden-words', ' Gusano '));
+        $this->assertResponseStatus(201);
+        $this->seeJson(['name' => 'gusano']);
 
         $this->jsonApiAs($worker, 'GET', '/api/v1/absence-types');
         $this->assertResponseOk();
@@ -46,7 +59,7 @@ class CatalogTest extends TestCase
 
     public function testDenominacionRepetidaYRestauracion()
     {
-        $chief = $this->createTransportChief();
+        $chief = $this->createAdmin();
 
         $this->jsonApiAs($chief, 'POST', '/api/v1/absence-types', $this->nomenclator('absence-types', 'Vacaciones'));
         $this->assertJsonApiError(422, 'VALIDATION_ERROR', '/data/attributes/name');
@@ -191,12 +204,13 @@ class CatalogTest extends TestCase
     {
         $admin = $this->createAdmin();
         $itinerary = $this->createItinerary();
-        $ana = $this->joinItinerary($this->createWorker(['first_name' => 'Ana', 'last_name' => 'Pérez']), $itinerary);
-        $luis = $this->createWorker(['first_name' => 'Luis', 'last_name' => 'Gómez']);
+        $ana = $this->joinItinerary($this->createWorker(['user' => ['first_name' => 'Ana', 'first_surname' => 'Pérez']]), $itinerary);
+        $luis = $this->createWorker(['user' => ['first_name' => 'Luis', 'first_surname' => 'Gómez']]);
 
         $this->jsonApiAs($luis, 'GET', '/api/v1/workers?filter[itinerary]='.$itinerary->id);
         $this->assertSame([(string) $ana->id], array_column($this->responseJson()['data'], 'id'));
-        $this->assertArrayNotHasKey('cardNumber', $this->responseJson()['data'][0]['attributes']);
+        $this->assertSame('Ana', $this->responseJson()['data'][0]['attributes']['firstName']);
+        $this->assertArrayNotHasKey('pass', $this->responseJson()['data'][0]['attributes']);
 
         $this->jsonApiAs($luis, 'GET', '/api/v1/workers?filter[search]=gómez');
         $this->assertSame(1, $this->responseJson()['meta']['total']);
@@ -209,38 +223,14 @@ class CatalogTest extends TestCase
         $this->assertResponseOk();
         $this->seeJson(['active' => false]);
         $this->assertTrue(Worker::withTrashed()->find($ana->id)->trashed());
+        $this->assertTrue($this->userOf($ana)->trashed());
 
         $this->jsonApiAs($admin, 'GET', '/api/v1/workers?filter[active]=false');
         $this->assertSame([(string) $ana->id], array_column($this->responseJson()['data'], 'id'));
-        $this->assertArrayHasKey('cardNumber', $this->responseJson()['data'][0]['attributes']);
+        $this->assertArrayHasKey('pass', $this->responseJson()['data'][0]['attributes']);
 
         $this->jsonApiAs($admin, 'PATCH', '/api/v1/workers/'.$ana->id, ['data' => ['type' => 'workers', 'id' => (string) $ana->id, 'attributes' => ['active' => true]]]);
         $this->seeJson(['active' => true]);
-    }
-
-    public function testAjustesGlobales()
-    {
-        $chief = $this->createTransportChief();
-        $worker = $this->createWorker();
-        $document = function (string $key, $value) {
-            return ['data' => ['type' => 'settings', 'id' => $key, 'attributes' => ['value' => $value]]];
-        };
-
-        $this->jsonApiAs($chief, 'PATCH', '/api/v1/settings/child_max_age', $document('child_max_age', 14));
-        $this->assertResponseOk();
-        $this->seeJson(['value' => '14', 'editable' => true]);
-
-        $this->jsonApiAs($chief, 'PATCH', '/api/v1/settings/access_token_ttl_minutes', $document('access_token_ttl_minutes', 60));
-        $this->assertJsonApiError(403, 'FORBIDDEN');
-
-        $this->jsonApiAs($worker, 'PATCH', '/api/v1/settings/child_max_age', $document('child_max_age', 10));
-        $this->assertJsonApiError(403, 'FORBIDDEN');
-
-        $this->jsonApiAs($this->createAdmin(), 'PATCH', '/api/v1/settings/access_token_ttl_minutes', $document('access_token_ttl_minutes', 1));
-        $this->assertJsonApiError(422, 'SETTING_OUT_OF_RANGE');
-
-        $this->jsonApiAs($worker, 'GET', '/api/v1/settings/child_max_age');
-        $this->seeJson(['value' => '14', 'editable' => false]);
     }
 
     public function testRoles()

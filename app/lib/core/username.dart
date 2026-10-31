@@ -1,42 +1,40 @@
-/// Nombre de usuario para iniciar sesión. Mismas reglas que la API
-/// (api/app/Support/Username.php): de 3 a 30 caracteres, empieza por letra,
-/// solo letras sin tilde, números, punto y guion bajo; en minúsculas.
+/// Nombre de usuario (docs/08-version-2.md §8.3). Mismas reglas de formato
+/// que la API (api/app/Support/Username.php); las palabras no permitidas y
+/// si ya existe solo los comprueba el servidor.
 class Username {
-  static final pattern = RegExp(r'^[a-z][a-z0-9._]{2,29}$');
-  static final _card = RegExp(r'^\d{11}$');
+  static const minLength = 4;
+  static const maxLength = 20;
+
+  /// Nadie puede hacerse pasar por la app o por su equipo.
+  static const reserved = [
+    'admin', 'administrador', 'administrator', 'soporte', 'support', 'sistema', 'system',
+    'mitransporte', 'root', 'moderador', 'moderator', 'desarrollador', 'developer', 'oficial',
+  ];
+
+  static const _leet = {'0': 'o', '1': 'i', '3': 'e', '4': 'a', '5': 's', '7': 't', '8': 'b', '9': 'g'};
 
   static String normalize(String value) => value.trim().toLowerCase();
 
-  static bool isValid(String value) => pattern.hasMatch(normalize(value));
+  static bool isValid(String value) => validateUsername(value) == null;
 
-  /// Lo escrito en "Usuario" es un carné (se admite como alternativa).
-  static bool isCardNumber(String value) => _card.hasMatch(value.trim());
-
-  /// Propuesta: primer nombre y primer apellido sin tildes ("María José
-  /// Pérez Díaz" → "maria.perez"). Si está ocupado, la API lo dirá.
-  static String suggest(String firstName, String lastName) {
-    final base = [firstName, lastName].map(_firstWord).map(_slug).where((part) => part.isNotEmpty).join('.');
-    var result = base.isEmpty || !RegExp('[a-z]').hasMatch(base[0]) ? 'usuario$base' : base;
-    if (result.length > 27) result = result.substring(0, 27);
-    return result.length < 3 ? result.padRight(3, '0') : result;
+  static bool containsReservedWord(String value) {
+    final plain = normalize(value).split('').map((char) => _leet[char] ?? char).join().replaceAll(RegExp('[^a-z]'), '');
+    return reserved.any(plain.contains);
   }
-
-  static String _firstWord(String text) {
-    final words = text.trim().split(RegExp(r'\s+'));
-    return words.isEmpty ? '' : words.first;
-  }
-
-  static const _accents = {'á': 'a', 'é': 'e', 'í': 'i', 'ó': 'o', 'ú': 'u', 'ü': 'u', 'ñ': 'n', 'à': 'a', 'è': 'e', 'ì': 'i', 'ò': 'o', 'ù': 'u', 'ç': 'c'};
-
-  static String _slug(String text) =>
-      text.toLowerCase().split('').map((char) => _accents[char] ?? char).join().replaceAll(RegExp('[^a-z0-9]'), '');
 }
 
 String? validateUsername(String? value) {
-  final text = value?.trim() ?? '';
+  final text = Username.normalize(value ?? '');
   if (text.isEmpty) return 'Escribe un usuario';
-  if (text.length < 3 || text.length > 30) return 'De 3 a 30 caracteres';
-  if (!RegExp('^[a-zA-Z]').hasMatch(text)) return 'Tiene que empezar por una letra';
-  if (!Username.isValid(text)) return 'Solo letras sin tilde, números, punto y guion bajo';
+  if (text.length < Username.minLength || text.length > Username.maxLength) {
+    return 'De ${Username.minLength} a ${Username.maxLength} caracteres';
+  }
+  if (!RegExp(r'^[a-z0-9._]+$').hasMatch(text)) return 'Solo letras sin tilde, números, punto y guion bajo';
+  if (!RegExp('^[a-z]').hasMatch(text)) return 'Tiene que empezar por una letra';
+  if (RegExp(r'[._]$').hasMatch(text)) return 'No puede terminar en punto ni en guion bajo';
+  if (RegExp(r'[._]{2}').hasMatch(text)) return 'No puede tener dos signos seguidos';
+  if (RegExp('[a-z]').allMatches(text).length < 3) return 'Tiene que tener al menos 3 letras';
+  if (RegExp(r'(.)\1{3}').hasMatch(text)) return 'No repitas un carácter más de 3 veces seguidas';
+  if (Username.containsReservedWord(text)) return 'No puede contener palabras reservadas de la app';
   return null;
 }

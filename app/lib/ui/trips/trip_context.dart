@@ -43,7 +43,7 @@ class TripContext {
   }
 
   /// Puede iniciar/finalizar el recorrido y registrar subidas de otros.
-  bool canOperate(Worker me) => me.managesTransport || me.roles.driverId == trip.driverId || me.isChiefOf(trip.itineraryId);
+  bool canOperate(Me me) => me.managesTransport || me.roles.driverId == trip.driverId || me.isChiefOf(trip.itineraryId);
 
-  bool isPassenger(Worker me) => me.itineraryId == trip.itineraryId && me.roles.driverId != trip.driverId;
+  bool isPassenger(Me me) => me.itineraryId == trip.itineraryId && me.roles.driverId != trip.driverId;
 }

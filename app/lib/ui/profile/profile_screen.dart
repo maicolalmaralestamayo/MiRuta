@@ -7,13 +7,15 @@ import '../../models/models.dart';
 import '../../services/session.dart';
 import '../applications/application_forms.dart';
 import '../widgets/common.dart';
+import '../../services/templates.dart';
+import 'account_screens.dart';
 import 'children_screen.dart';
 import 'username_dialog.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
-  Future<_ProfileData> _load(BuildContext context, Worker me) async {
+  Future<_ProfileData> _load(BuildContext context, Me me) async {
     final api = context.api;
     Itinerary? itinerary;
     Stop? stop;
@@ -43,27 +45,20 @@ class ProfileScreen extends StatelessWidget {
     await session.reloadMe();
   }
 
-  Future<void> _editName(BuildContext context, Worker me) async {
-    final first = await promptText(context, 'Nombre', initial: me.firstName, required: true);
-    if (first == null || !context.mounted) return;
-    final last = await promptText(context, 'Apellidos', initial: me.lastName, required: true);
-    if (last == null || !context.mounted) return;
-    await runAction(context, () => context.api.patch('/me', resourceData('workers', attributes: {'firstName': first, 'lastName': last})));
-    if (context.mounted) await context.session.reloadMe();
-  }
+  Future<void> _editNames(BuildContext context) =>
+      Navigator.push(context, MaterialPageRoute(builder: (_) => const EditNamesScreen()));
 
-  Future<void> _changePassword(BuildContext context) async {
-    final current = await promptText(context, 'Contraseña actual', required: true);
-    if (current == null || !context.mounted) return;
-    final next = await promptText(context, 'Contraseña nueva (mínimo 8 caracteres)', required: true);
-    if (next == null || !context.mounted) return;
-    final body = resourceData('workers', attributes: {'password': next})..['meta'] = {'currentPassword': current};
-    final ok = await runAction(context, () => context.api.patch('/me', body), success: 'Contraseña cambiada. Se cerró la sesión en los demás dispositivos.');
-    if (ok && context.mounted) {
-      // El servidor revocó todas las sesiones: se vuelve a entrar con la nueva contraseña.
-      final login = context.me.username ?? context.me.cardNumber;
-      if (login != null) await context.session.login(login, next);
-    }
+  Future<void> _changePassword(BuildContext context) =>
+      Navigator.push(context, MaterialPageRoute(builder: (_) => const ChangePasswordScreen()));
+
+  /// La jerarquía la cambia cada uno, sin solicitud (solo sirve para estadísticas).
+  Future<void> _changeRank(BuildContext context) async {
+    final ranks = (await context.api.getAll('/ranks', query: {'sort': 'sortOrder,name'})).map(Rank.from).toList();
+    if (!context.mounted) return;
+    final rank = await pickFrom<Rank>(context, 'Jerarquía', ranks, (r) => r.name);
+    if (rank == null || !context.mounted) return;
+    await runAction(context, () => context.api.patch('/me', resourceData('users', relationships: {'rank': ResourceId('ranks', rank.id)})), success: 'Jerarquía cambiada');
+    if (context.mounted) await context.session.reloadMe();
   }
 
   Future<void> _leave(BuildContext context, String title, Future<void> Function() action) async {
@@ -87,7 +82,7 @@ class ProfileScreen extends StatelessWidget {
             child: GestureDetector(
               onTap: () => _photo(context),
               child: Stack(children: [
-                WorkerAvatar(me, radius: 48),
+                WorkerAvatar.of(photoUrl: me.photoUrl, name: me.name, radius: 48),
                 const Positioned(right: 0, bottom: 0, child: CircleAvatar(radius: 14, child: Icon(Icons.camera_alt, size: 16))),
               ]),
             ),
@@ -103,23 +98,44 @@ class ProfileScreen extends StatelessWidget {
             trailing: const Icon(Icons.edit_outlined),
             onTap: () => editUsername(context),
           ),
-          ListTile(leading: const Icon(Icons.badge_outlined), title: Text(me.cardNumber ?? ''), subtitle: const Text('Carné (solo lo ves tú y el Administrador)')),
-          ListTile(leading: const Icon(Icons.edit_outlined), title: const Text('Cambiar nombre y apellidos'), onTap: () => _editName(context, me)),
-          ListTile(leading: const Icon(Icons.password), title: const Text('Cambiar contraseña'), onTap: () => _changePassword(context)),
+          if (me.hasWorker) ...[
+            ListTile(
+              leading: const Icon(Icons.apartment_outlined),
+              title: Text(me.entity?.abbreviation ?? ''),
+              subtitle: Text('Entidad${me.entity == null ? '' : ' · ${me.entity!.name}'}'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.badge_outlined),
+              title: Text('${me.pass ?? ''}'),
+              subtitle: const Text('Pase (lo ven tú, tus jefes y el Administrador)'),
+            ),
+          ],
+          ListTile(leading: const Icon(Icons.edit_outlined), title: const Text('Cambiar nombres y apellidos'), onTap: () => _editNames(context)),
           ListTile(
-            leading: const Icon(Icons.military_tech_outlined),
-            title: Text(me.rank?.name ?? ''),
-            subtitle: const Text('Jerarquía'),
-            trailing: TextButton(onPressed: () => showApplicationForm(context, ApplicationType.rankChange), child: const Text('Solicitar cambio')),
+            leading: const Icon(Icons.password),
+            title: const Text('Cambiar contraseña'),
+            subtitle: me.account.passwordExpiresAt == null ? null : Text('Caduca el ${formatDate(me.account.passwordExpiresAt!.toLocal())}'),
+            onTap: () => _changePassword(context),
           ),
+          if (me.hasWorker)
+            BusyListTile(
+              leading: const Icon(Icons.military_tech_outlined),
+              title: Text(me.rank?.name ?? ''),
+              subtitle: const Text('Jerarquía'),
+              trailing: const Icon(Icons.edit_outlined),
+              onTap: () => _changeRank(context),
+            ),
+          if (me.hasWorker)
           ListTile(
             leading: const Icon(Icons.child_care),
             title: Text('${me.childrenCount} hijo(s) con derecho a viajar'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ChildrenScreen())),
           ),
-          const SectionTitle('Mi itinerario'),
-          if (data.itinerary == null)
+          if (me.hasWorker) const SectionTitle('Mi itinerario'),
+          if (!me.hasWorker)
+            const SizedBox.shrink()
+          else if (data.itinerary == null)
             ListTile(
               leading: const Icon(Icons.route),
               title: const Text('Sin itinerario'),
@@ -139,7 +155,7 @@ class ProfileScreen extends StatelessWidget {
             ),
           ],
           const SectionTitle('Mis roles'),
-          if (me.isAdmin) const ListTile(leading: Icon(Icons.admin_panel_settings), title: Text('Administrador (y desarrollador)')),
+          if (me.isAdmin) const ListTile(leading: Icon(Icons.admin_panel_settings), title: Text('Administrador (y desarrollador)'), subtitle: Text('Ve y hace todo, en todas las Entidades')),
           if (data.transportChiefId != null)
             ListTile(
               leading: const Icon(Icons.directions_bus),

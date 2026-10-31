@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:ota_update/ota_update.dart';
 
 import '../../services/app_updates.dart';
+import '../widgets/common.dart';
 
 /// Descarga e instalación de una versión nueva. Si es obligatoria, no se puede
 /// cerrar: la versión instalada ya no puede usarse.
@@ -21,6 +22,26 @@ class _UpdateScreenState extends State<UpdateScreen> {
   double? _progress;
   String? _status;
   bool _running = false;
+
+  /// Solo Wi-Fi activado y con datos móviles: se avisa del tamaño antes.
+  bool _mobileWarning = false;
+
+  @override
+  void initState() {
+    super.initState();
+    AppUpdates.shouldWarnMobileData().then((warn) {
+      if (mounted) setState(() => _mobileWarning = warn);
+    });
+  }
+
+  Future<void> _confirmAndStart() async {
+    final update = widget.update;
+    if (_mobileWarning &&
+        !await confirm(context, 'Usarás datos móviles', 'La actualización ocupa ${update.sizeLabel}. ¿Descargarla ahora con datos móviles?', accept: 'Descargar')) {
+      return;
+    }
+    _start();
+  }
 
   void _start() {
     setState(() {
@@ -73,7 +94,12 @@ class _UpdateScreenState extends State<UpdateScreen> {
           Icon(Icons.system_update, size: 64, color: Theme.of(context).colorScheme.primary),
           const SizedBox(height: 12),
           Text('MiTransporte ${update.versionName}', textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineSmall),
-          Text(update.sizeLabel, textAlign: TextAlign.center),
+          Text('Descarga: ${update.sizeLabel} · ${update.abi == 'armeabi-v7a' ? '32 bits' : update.abi == 'arm64-v8a' ? '64 bits' : 'universal'}', textAlign: TextAlign.center),
+          if (_mobileWarning)
+            const Padding(
+              padding: EdgeInsets.only(top: 8),
+              child: Text('Estás con datos móviles y pediste actualizar solo con Wi-Fi.', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
           if (update.mandatory) ...[
             const SizedBox(height: 12),
             const Text('Esta actualización es obligatoria: hay que instalarla para seguir usando la app.', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold)),
@@ -88,7 +114,11 @@ class _UpdateScreenState extends State<UpdateScreen> {
           if (_progress != null) LinearProgressIndicator(value: _progress),
           if (_status != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text(_status!, textAlign: TextAlign.center)),
           const SizedBox(height: 16),
-          FilledButton.icon(onPressed: _running ? null : _start, icon: const Icon(Icons.download), label: const Text('Actualizar')),
+          FilledButton.icon(
+            onPressed: _running ? null : _confirmAndStart,
+            icon: _running ? const BusyIndicator() : const Icon(Icons.download),
+            label: Text(_mobileWarning ? 'Actualizar con datos móviles' : 'Actualizar'),
+          ),
           if (!update.mandatory) TextButton(onPressed: () => Navigator.pop(context), child: const Text('Más tarde')),
         ]),
       ),

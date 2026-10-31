@@ -18,9 +18,10 @@ class TripCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final overloaded = showOverload && trip.overloaded;
+    // Saturado (naranja) o sobresaturado (rojo): docs/08-version-2.md §8.9.
+    final levelColor = showOverload ? occupancyColor(trip.occupancyLevel) : null;
     return Card(
-      shape: overloaded ? RoundedRectangleBorder(side: const BorderSide(color: overloadColor, width: 2), borderRadius: BorderRadius.circular(12)) : null,
+      shape: levelColor != null ? RoundedRectangleBorder(side: BorderSide(color: levelColor, width: 2), borderRadius: BorderRadius.circular(12)) : null,
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: onTap ??
@@ -61,10 +62,16 @@ class TripCard extends StatelessWidget {
                 if (showOverload) ...[
                   const SizedBox(height: 4),
                   Row(children: [
-                    Icon(Icons.people_alt_outlined, size: 16, color: overloaded ? overloadColor : null),
+                    Icon(Icons.people_alt_outlined, size: 16, color: levelColor),
                     const SizedBox(width: 4),
-                    Text('${trip.expectedPassengers} / ${trip.totalCapacity} plazas · ${trip.expectedChildren} niños',
-                        style: TextStyle(color: overloaded ? overloadColor : null, fontWeight: overloaded ? FontWeight.bold : null)),
+                    Flexible(
+                      child: Text(occupancyText(trip.expectedPassengers, trip.expectedChildren, trip.totalCapacity),
+                          style: TextStyle(color: levelColor, fontWeight: levelColor != null ? FontWeight.bold : null)),
+                    ),
+                    if (levelColor != null) ...[
+                      const SizedBox(width: 6),
+                      StatusChip(occupancyLabel(trip.occupancyLevel), color: levelColor),
+                    ],
                     if (trip.needsReassignment) ...[
                       const SizedBox(width: 8),
                       const StatusChip('Sin chofer', color: overloadColor, icon: Icons.person_off),

@@ -19,7 +19,7 @@ class TripBoardingController extends TrackingController
 {
     public function index(Request $request)
     {
-        $parameters = QueryParameters::fromRequest($request, ['boardedAt' => 'boarded_at'], ['tripLeg', 'worker'], ['worker', 'markedBy'], 'boardedAt');
+        $parameters = QueryParameters::fromRequest($request, ['boardedAt' => 'boarded_at'], ['tripLeg', 'worker'], ['worker', 'worker.user', 'markedBy'], 'boardedAt');
         $query = TripBoarding::whereIn('trip_leg_id', $this->visibleLegs($request)->select('id'));
 
         if ($leg = $parameters->filter('tripLeg')) {

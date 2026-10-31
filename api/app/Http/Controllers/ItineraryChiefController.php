@@ -17,7 +17,7 @@ class ItineraryChiefController extends RoleController
 
     protected $filterable = ['worker', 'itinerary'];
 
-    protected $includable = ['worker', 'itinerary'];
+    protected $includable = ['worker', 'worker.user', 'itinerary'];
 
     protected function applyFilters(Builder $query, QueryParameters $parameters, Request $request): void
     {

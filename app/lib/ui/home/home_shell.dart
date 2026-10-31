@@ -9,7 +9,6 @@ import '../../services/sync.dart';
 import '../applications/applications_screen.dart';
 import '../chat/conversations_screen.dart';
 import '../trips/trips_screen.dart';
-import '../profile/username_dialog.dart';
 import 'home_screen.dart';
 import 'more_screen.dart';
 
@@ -36,10 +35,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     Notifications.requestPermissions();
     _startTimer();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final session = context.read<Session>();
-      if (mounted && session.showUsernameHint) showUsernameHint(context, session);
-    });
+
   }
 
   void _startTimer() {

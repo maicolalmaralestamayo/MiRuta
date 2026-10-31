@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
-import 'package:mitransporte/core/card_number.dart';
+import 'package:mitransporte/core/password_policy.dart';
 import 'package:mitransporte/core/json_api.dart';
 import 'package:mitransporte/services/app_pin.dart';
 import 'package:mitransporte/services/notifications.dart';
@@ -9,34 +9,6 @@ import 'package:mitransporte/services/user_settings.dart';
 
 void main() {
   setUpAll(() => initializeDateFormatting('es'));
-
-  group('Carné de identidad', () {
-    test('ejemplo de la documentación', () {
-      final card = CardNumber.tryParse('92071648863')!;
-      expect(card.birthDate, DateTime(1992, 7, 16));
-      expect(card.sex, 'M');
-    });
-
-    test('el séptimo dígito indica el siglo', () {
-      expect(CardNumber.tryParse('99123190011')!.birthDate.year, 1899);
-      expect(CardNumber.tryParse('85010150011')!.birthDate.year, 1985);
-      expect(CardNumber.tryParse('05031560011')!.birthDate.year, 2005);
-    });
-
-    test('fechas imposibles o futuras', () {
-      expect(CardNumber.isValid('92023048863'), isFalse);
-      expect(CardNumber.isValid('01022960011'), isFalse);
-      expect(CardNumber.tryParse('26110360011', today: DateTime(2026, 11, 2)), isNull);
-      expect(validateCard('123'), isNotNull);
-    });
-
-    test('derecho a viajar hasta el 31 de agosto siguiente', () {
-      expect(CardNumber.tryParse('11031060011')!.eligibleUntil(16), DateTime(2027, 8, 31));
-      expect(CardNumber.tryParse('11101560011')!.eligibleUntil(16), DateTime(2028, 8, 31));
-      expect(CardNumber.tryParse('11083160011')!.eligibleUntil(16), DateTime(2027, 8, 31));
-      expect(CardNumber.tryParse('12022960011')!.eligibleUntil(16), DateTime(2028, 8, 31));
-    });
-  });
 
   group('Momento del aviso (7.16)', () {
     final event = DateTime(2026, 11, 3, 17, 0);
@@ -84,5 +56,21 @@ void main() {
     expect(AppPin.isValidFormat('123'), isFalse);
     expect(AppPin.isValidFormat('1234567'), isFalse);
     expect(AppPin.isValidFormat('12a4'), isFalse);
+  });
+
+  test('PIN con PBKDF2 (vector de prueba del RFC 7914)', () {
+    // PBKDF2-HMAC-SHA256, P = "passwd", S = "salt", c = 1, 32 bytes.
+    expect(AppPin.pbkdf2('passwd', 'salt', 1), 'VawEblbjCJ/sFpHCJUS2BflBhSFt3gRl5oudV8INrLw=');
+    // Mismo resultado que hashlib.pbkdf2_hmac de Python con 1000 iteraciones.
+    expect(AppPin.pbkdf2('1234', 'c2FsdA==', 1000), '4KyVPjWH6bj+MdRc5m0u1mb/h6rSzx6bJMY9N05G28w=');
+  });
+
+  test('requisitos de la contraseña', () {
+    const policy = PasswordPolicy(minLength: 8, requiredClasses: 3);
+    expect(policy.validate('corta1A'), isNotNull);
+    expect(policy.validate('solominusculas'), isNotNull);
+    expect(policy.validate('Viaje.2026'), isNull);
+    expect(policy.validate('Maicol.2026', personal: ['maicol']), isNotNull);
+    expect(PasswordPolicy.classCount('aA1.'), 4);
   });
 }

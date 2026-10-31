@@ -42,7 +42,7 @@ class UserSettingsTest extends TestCase
         $keys = array_column($this->responseJson()['data'], 'id');
         $this->assertContains('departure_notice_minutes_before', $keys);
         $this->assertNotContains('child_max_age', $keys);
-        $this->assertSame(['value' => '60', 'isCustom' => false], $this->setting('departure_notice_minutes_before')['attributes']);
+        $this->assertSame(['value' => '60', 'inheritedValue' => '60', 'isCustom' => false], $this->setting('departure_notice_minutes_before')['attributes']);
     }
 
     public function testPersonalizarYVolverAlValorGlobal()

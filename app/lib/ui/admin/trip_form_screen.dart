@@ -51,10 +51,15 @@ class _TripFormScreenState extends State<TripFormScreen> {
     final api = context.api;
     try {
       final me = context.me;
-      final itineraries = (await api.getAll('/itineraries', query: {'sort': 'name'})).map(Itinerary.from).where((i) => me.canPlan(i.id)).toList();
-      final vehicles = (await api.getAll('/vehicles', query: {'include': 'vehicleType'})).map(Vehicle.from).toList();
+      // El Administrador planifica en la Entidad elegida en Gestión; los
+      // demás solo ven la suya.
+      final entityFilter = context.entityFilter;
+      final entityId = context.session.adminEntity?.id;
+      final itineraries = (await api.getAll('/itineraries', query: {'sort': 'name', ...entityFilter})).map(Itinerary.from).where((i) => me.canPlan(i.id)).toList();
+      final vehicles = (await api.getAll('/vehicles', query: {'include': 'vehicleType', ...entityFilter})).map(Vehicle.from).toList();
       final drivers = (await api.getAll('/drivers', query: {'include': 'worker'}))
-          .map((r) => (r.id, '${r.related('worker')?.string('firstName') ?? ''} ${r.related('worker')?.string('lastName') ?? ''}'))
+          .where((r) => entityId == null || r.related('worker')?.relId('entity')?.id == entityId)
+          .map((r) => (r.id, PersonName.from(r.related('worker')).full))
           .toList();
       setState(() {
         _itineraries = itineraries;

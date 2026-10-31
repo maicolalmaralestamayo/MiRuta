@@ -55,8 +55,8 @@ class _AppVersionsScreenState extends State<AppVersionsScreen> {
         builder: (context, document, reload) => ListView(padding: const EdgeInsets.only(bottom: 88), children: [
           ListTile(
             leading: const Icon(Icons.info_outline),
-            title: Text('${document.meta['workersWithoutVersion'] ?? 0} trabajador(es) sin versión registrada'),
-            subtitle: const Text('La versión se registra cuando el trabajador usa la app.'),
+            title: Text('${document.meta['usersWithoutVersion'] ?? 0} cuenta(s) sin versión registrada'),
+            subtitle: const Text('La versión se registra cuando se usa la app.'),
           ),
           if (document.resources.isEmpty) const ListTile(title: Text('Aún no se ha publicado ninguna versión.')),
           for (final v in document.resources)
@@ -65,7 +65,8 @@ class _AppVersionsScreenState extends State<AppVersionsScreen> {
               title: Text('${v.string('versionName')}${v.boolean('mandatory') ? ' · obligatoria' : ''}'),
               subtitle: Text([
                 'Publicada ${formatDateTime(v.date('publishedAt')!)}',
-                '${((v.integer('sizeBytes') ?? 0) / (1024 * 1024)).toStringAsFixed(1)} MB',
+                for (final file in (v.attributes['files'] as List? ?? const []).cast<Map>())
+                  '${_abiLabel(file['abi'] as String?)}: ${(((file['sizeBytes'] as num?) ?? 0) / (1024 * 1024)).toStringAsFixed(1)} MB',
                 '${v.meta['installedCount'] ?? 0} la tienen instalada',
                 if (v.string('notes') != null) v.string('notes')!,
               ].join('\n')),
@@ -77,6 +78,8 @@ class _AppVersionsScreenState extends State<AppVersionsScreen> {
     );
   }
 }
+
+String _abiLabel(String? abi) => const {'arm64-v8a': '64 bits', 'armeabi-v7a': '32 bits', 'universal': 'Universal'}[abi] ?? abi ?? '';
 
 class _PublishScreen extends StatefulWidget {
   final int? suggestedCode;
@@ -93,8 +96,9 @@ class _PublishScreenState extends State<_PublishScreen> {
   final _code = TextEditingController();
   final _notes = TextEditingController();
   bool _mandatory = false;
-  String? _filePath;
-  String? _fileName;
+
+  /// Campo del formulario → [ruta, nombre]: apkArm64, apkArm32 y apkUniversal.
+  final Map<String, (String, String)> _files = {};
   double? _progress;
   String? _error;
 
@@ -104,23 +108,20 @@ class _PublishScreenState extends State<_PublishScreen> {
     if (widget.suggestedCode != null) _code.text = '${widget.suggestedCode}';
   }
 
-  Future<void> _pick() async {
+  Future<void> _pick(String field) async {
     final files = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: ['apk']);
     if (files.isEmpty) return;
     final file = files.first;
     // Se copia a un archivo temporal: Android puede entregar el archivo sin ruta directa.
-    final copy = '${(await getTemporaryDirectory()).path}/${file.name}';
+    final copy = '${(await getTemporaryDirectory()).path}/$field-${file.name}';
     await file.xFile.saveTo(copy);
-    setState(() {
-      _filePath = copy;
-      _fileName = file.name;
-    });
+    setState(() => _files[field] = (copy, file.name));
   }
 
   Future<void> _publish() async {
     if (!_form.currentState!.validate()) return;
-    if (_filePath == null) {
-      setState(() => _error = 'Elige el archivo APK.');
+    if (_files.isEmpty) {
+      setState(() => _error = 'Elige al menos un APK.');
       return;
     }
     setState(() {
@@ -128,13 +129,15 @@ class _PublishScreenState extends State<_PublishScreen> {
       _error = null;
     });
     try {
-      await context.api.upload('/app-versions', 'apk', _filePath!, fields: {
+      await context.api.uploadFiles('/app-versions', {for (final entry in _files.entries) entry.key: entry.value.$1}, fields: {
         'versionName': _name.text.trim(),
         'versionCode': _code.text.trim(),
         'notes': _notes.text.trim(),
         'mandatory': _mandatory ? '1' : '0',
       }, onProgress: (sent, total) => setState(() => _progress = total > 0 ? sent / total : null));
-      await File(_filePath!).delete().catchError((_) => File(_filePath!));
+      for (final entry in _files.values) {
+        await File(entry.$1).delete().catchError((_) => File(entry.$1));
+      }
       if (mounted) {
         showMessage(context, 'Versión publicada');
         Navigator.pop(context, true);
@@ -155,7 +158,17 @@ class _PublishScreenState extends State<_PublishScreen> {
       body: Form(
         key: _form,
         child: ListView(padding: const EdgeInsets.all(16), children: [
-          OutlinedButton.icon(onPressed: uploading ? null : _pick, icon: const Icon(Icons.android), label: Text(_fileName ?? 'Elegir el archivo APK')),
+          const Text('Sube un APK por tipo de teléfono: cada uno descargará el suyo. Si solo subes uno, todos recibirán ese.'),
+          const SizedBox(height: 8),
+          for (final (field, label) in const [('apkArm64', '64 bits (la mayoría)'), ('apkArm32', '32 bits (teléfonos antiguos)'), ('apkUniversal', 'Universal (opcional)')])
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: OutlinedButton.icon(
+                onPressed: uploading ? null : () => _pick(field),
+                icon: Icon(_files.containsKey(field) ? Icons.check_circle : Icons.android),
+                label: Text(_files.containsKey(field) ? '$label: ${_files[field]!.$2}' : 'APK de $label', overflow: TextOverflow.ellipsis),
+              ),
+            ),
           const SizedBox(height: 12),
           TextFormField(
             controller: _name,
@@ -185,7 +198,7 @@ class _PublishScreenState extends State<_PublishScreen> {
             Text('Subiendo… ${((_progress ?? 0) * 100).toStringAsFixed(0)} %', textAlign: TextAlign.center),
           ],
           const SizedBox(height: 20),
-          FilledButton(onPressed: uploading ? null : _publish, child: const Text('Publicar')),
+          FilledButton(onPressed: uploading ? null : _publish, child: uploading ? const BusyIndicator() : const Text('Publicar')),
         ]),
       ),
     );

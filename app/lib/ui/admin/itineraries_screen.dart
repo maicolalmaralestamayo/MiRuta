@@ -15,13 +15,15 @@ class ItinerariesScreen extends StatefulWidget {
 class _ItinerariesScreenState extends State<ItinerariesScreen> {
   final _view = GlobalKey<AsyncViewState<List<Itinerary>>>();
 
-  Future<List<Itinerary>> _load() async => (await context.api.getAll('/itineraries', query: {'sort': 'name'})).map(Itinerary.from).toList();
+  Future<List<Itinerary>> _load() async => (await context.api.getAll('/itineraries', query: {'sort': 'name', ...context.entityFilter})).map(Itinerary.from).toList();
 
   Future<void> _create() async {
+    final entity = context.entityRelationship();
+    if (entity == null) return;
     final name = await promptText(context, 'Nuevo itinerario', label: 'Nombre', required: true);
     if (name == null || !mounted) return;
     try {
-      final itinerary = Itinerary.from((await context.api.post('/itineraries', resourceData('itineraries', attributes: {'name': name}))).resource);
+      final itinerary = Itinerary.from((await context.api.post('/itineraries', resourceData('itineraries', attributes: {'name': name}, relationships: entity))).resource);
       if (!mounted) return;
       await Navigator.push(context, MaterialPageRoute(builder: (_) => ItineraryEditor(itinerary: itinerary)));
       _view.currentState?.reload();
@@ -119,7 +121,7 @@ class _ItineraryEditorState extends State<ItineraryEditor> {
     if (choice == 'new') {
       stop = await editStop(context, null);
     } else {
-      final stops = (await context.api.getAll('/stops', query: {'sort': 'landmark'})).map(Stop.from).where((s) => !_links.any((l) => l.stopId == s.id)).toList();
+      final stops = (await context.api.getAll('/stops', query: {'sort': 'landmark', ...context.entityFilter})).map(Stop.from).where((s) => !_links.any((l) => l.stopId == s.id)).toList();
       if (!mounted) return;
       stop = await pickFrom<Stop>(context, 'Parada', stops, (s) => s.landmark, subtitle: (s) => s.address);
     }

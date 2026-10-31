@@ -1,7 +1,6 @@
 <?php
 
 use App\Services\ChildEligibility;
-use App\Support\CardNumber;
 use Carbon\CarbonImmutable;
 use Laravel\Lumen\Testing\DatabaseMigrations;
 
@@ -18,30 +17,38 @@ class ChildEligibilityTest extends TestCase
     /**
      * @dataProvider cases
      */
-    public function testHastaEl31DeAgostoSiguienteAlCumpleanos(string $card, string $until)
+    public function testHastaEl31DeAgostoSiguienteAlCumpleanos(string $birth, string $until)
     {
         $eligibility = app(ChildEligibility::class);
 
-        $this->assertSame($until, $eligibility->eligibleUntil(CardNumber::tryParse($card))->toDateString());
+        $this->assertSame($until, $eligibility->eligibleUntil($birth, null)->toDateString());
     }
 
     public function cases(): array
     {
         return [
-            'cumple 16 en marzo: hasta agosto de ese año' => ['11031060011', '2027-08-31'],
-            'cumple 16 en octubre: hasta agosto del año siguiente' => ['11101560011', '2028-08-31'],
-            'cumple 16 el 31 de agosto: ese mismo día' => ['11083160011', '2027-08-31'],
-            'cumple 16 el 1 de septiembre: año siguiente' => ['11090160011', '2028-08-31'],
-            '29 de febrero, año límite bisiesto' => ['12022960011', '2028-08-31'],
+            'cumple 16 en marzo: hasta agosto de ese año' => ['2011-03-10', '2027-08-31'],
+            'cumple 16 en octubre: hasta agosto del año siguiente' => ['2011-10-15', '2028-08-31'],
+            'cumple 16 el 31 de agosto: ese mismo día' => ['2011-08-31', '2027-08-31'],
+            'cumple 16 el 1 de septiembre: año siguiente' => ['2011-09-01', '2028-08-31'],
+            '29 de febrero, año límite bisiesto' => ['2012-02-29', '2028-08-31'],
         ];
     }
 
     public function testDerechoEnUnaFecha()
     {
         $eligibility = app(ChildEligibility::class);
-        $card = CardNumber::tryParse('11031060011');
+        $this->assertTrue($eligibility->isEligible('2011-03-10', null, CarbonImmutable::create(2027, 8, 31)));
+        $this->assertFalse($eligibility->isEligible('2011-03-10', null, CarbonImmutable::create(2027, 9, 1)));
+    }
 
-        $this->assertTrue($eligibility->isEligible($card, CarbonImmutable::create(2027, 8, 31)));
-        $this->assertFalse($eligibility->isEligible($card, CarbonImmutable::create(2027, 9, 1)));
+    public function testEdadMaximaDeLaEntidad()
+    {
+        $entity = $this->defaultEntity();
+        $definition = \App\Models\SettingDefinition::where('key', 'child_max_age')->first();
+        \App\Models\EntitySetting::create(['entity_id' => $entity->id, 'setting_definition_id' => $definition->id, 'value' => '12']);
+
+        $this->assertSame('2023-08-31', app(ChildEligibility::class)->eligibleUntil('2011-03-10', $entity->id)->toDateString());
+        $this->assertSame('2027-08-31', app(ChildEligibility::class)->eligibleUntil('2011-03-10', null)->toDateString());
     }
 }

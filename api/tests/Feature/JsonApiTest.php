@@ -13,7 +13,7 @@ class JsonApiTest extends TestCase
         $this->artisan('db:seed', ['--class' => \Database\Seeders\RankSeeder::class]);
     }
 
-    public function testColeccionOrdenadaPorPrioridadPorDefecto()
+    public function testColeccionOrdenadaPorOrdenDePresentacion()
     {
         $this->jsonApi('GET', '/api/v1/ranks');
 
@@ -43,7 +43,7 @@ class JsonApiTest extends TestCase
 
     public function testOrdenDescendente()
     {
-        $this->jsonApi('GET', '/api/v1/ranks?sort=-precedence&page[size]=1');
+        $this->jsonApi('GET', '/api/v1/ranks?sort=-sortOrder&page[size]=1');
 
         $this->assertSame('Otra categoría', $this->responseJson()['data'][0]['attributes']['name']);
     }
@@ -57,7 +57,7 @@ class JsonApiTest extends TestCase
 
     public function testNoIncluyeBorrados()
     {
-        Rank::where('precedence', 1)->first()->delete();
+        Rank::where('sort_order', 1)->first()->delete();
 
         $this->jsonApi('GET', '/api/v1/ranks');
 

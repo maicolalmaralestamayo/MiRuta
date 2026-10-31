@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\AppVersion;
+use App\Models\AppVersionFile;
 use Illuminate\Http\UploadedFile;
 use Laravel\Lumen\Testing\DatabaseMigrations;
 
@@ -22,11 +23,15 @@ class AppVersionsTest extends TestCase
         return new UploadedFile($path, 'mitransporte.apk', 'application/vnd.android.package-archive', null, true);
     }
 
-    private function publish($user, int $code, bool $mandatory = false, ?UploadedFile $file = null)
+    /**
+     * @param array $files [campo => UploadedFile]; por defecto 64 y 32 bits
+     */
+    private function publish($user, int $code, bool $mandatory = false, ?array $files = null)
     {
+        $files = $files === null ? ['apkArm64' => $this->apk("PK\x03\x04arm64"), 'apkArm32' => $this->apk("PK\x03\x04arm32")] : $files;
         $this->call('POST', '/api/v1/app-versions', [
             'versionName' => "1.{$code}.0", 'versionCode' => (string) $code, 'notes' => 'Novedades', 'mandatory' => $mandatory ? '1' : '0',
-        ], [], ['apk' => $file ?: $this->apk()], [
+        ], [], $files, [
             'HTTP_AUTHORIZATION' => 'Bearer '.$this->accessTokenFor($user),
             'HTTP_ACCEPT' => 'application/vnd.api+json',
             'CONTENT_TYPE' => 'multipart/form-data; boundary=x',
@@ -35,7 +40,7 @@ class AppVersionsTest extends TestCase
         return $this;
     }
 
-    public function testSoloElAdministradorPublica()
+    public function testSoloElAdministradorPublicaUnApkPorProcesador()
     {
         $this->publish($this->createTransportChief(), 2);
         $this->assertJsonApiError(403, 'FORBIDDEN');
@@ -44,17 +49,22 @@ class AppVersionsTest extends TestCase
         $this->assertResponseStatus(201);
         $attributes = $this->responseJson()['data']['attributes'];
         $this->assertSame(2, $attributes['versionCode']);
-        $this->assertSame(hash('sha256', "PK\x03\x04contenido"), $attributes['sha256']);
-        $this->assertStringEndsWith('.apk', $attributes['downloadUrl']);
-        $this->assertFileExists(base_path('public/'.AppVersion::first()->apk_path));
+        $files = collect($attributes['files'])->keyBy('abi');
+        $this->assertSame(['arm64-v8a', 'armeabi-v7a'], $files->keys()->sort()->values()->all());
+        $this->assertSame(hash('sha256', "PK\x03\x04arm64"), $files['arm64-v8a']['sha256']);
+        $this->assertStringEndsWith('.apk', $files['armeabi-v7a']['downloadUrl']);
+        $this->assertFileExists(base_path('public/'.AppVersionFile::first()->apk_path));
     }
 
     public function testValidaciones()
     {
         $admin = $this->createAdmin();
 
-        $this->publish($admin, 2, false, $this->apk('no es un apk'));
-        $this->assertJsonApiError(422, 'APK_INVALID');
+        $this->publish($admin, 2, false, ['apkArm64' => $this->apk('no es un apk')]);
+        $this->assertJsonApiError(422, 'APK_INVALID', '/apkArm64');
+
+        $this->publish($admin, 2, false, []);
+        $this->assertJsonApiError(422, 'APK_REQUIRED');
 
         $this->publish($admin, 5);
         $this->publish($admin, 5);
@@ -84,7 +94,36 @@ class AppVersionsTest extends TestCase
         $this->assertSame(['updateAvailable' => false, 'mandatory' => false], $this->responseJson()['meta']);
     }
 
-    public function testVersionInstaladaPorTrabajadorYRetirada()
+    public function testCadaTelefonoRecibeSuApk()
+    {
+        $admin = $this->createAdmin();
+        $this->publish($admin, 2);
+
+        // Un teléfono de 64 bits prefiere el suyo.
+        $this->jsonApi('GET', '/api/v1/app-versions/latest?filter[abis]=arm64-v8a,armeabi-v7a');
+        $this->assertSame('arm64-v8a', $this->responseJson()['meta']['file']['abi']);
+        $this->assertSame(hash('sha256', "PK\x03\x04arm64"), $this->responseJson()['meta']['file']['sha256']);
+
+        // Uno con Android de 32 bits recibe el de 32.
+        $this->jsonApi('GET', '/api/v1/app-versions/latest?filter[abis]=armeabi-v7a,armeabi');
+        $this->assertSame('armeabi-v7a', $this->responseJson()['meta']['file']['abi']);
+
+        // Uno que no admite ninguno no recibe nada.
+        $this->jsonApi('GET', '/api/v1/app-versions/latest?filter[abis]=x86_64');
+        $this->assertNull($this->responseJson()['meta']['file']);
+
+        // Con un solo APK, todos reciben ese.
+        $this->publish($admin, 3, false, ['apkArm64' => $this->apk()]);
+        $this->jsonApi('GET', '/api/v1/app-versions/latest?filter[abis]=armeabi-v7a');
+        $this->assertSame('arm64-v8a', $this->responseJson()['meta']['file']['abi']);
+
+        // El universal sirve para cualquiera.
+        $this->publish($admin, 4, false, ['apkArm64' => $this->apk(), 'apkUniversal' => $this->apk()]);
+        $this->jsonApi('GET', '/api/v1/app-versions/latest?filter[abis]=armeabi-v7a');
+        $this->assertSame('universal', $this->responseJson()['meta']['file']['abi']);
+    }
+
+    public function testVersionInstaladaYRetirada()
     {
         $admin = $this->createAdmin();
         $worker = $this->createWorker();
@@ -92,7 +131,7 @@ class AppVersionsTest extends TestCase
         $id = $this->responseJson()['data']['id'];
 
         $this->jsonApiAs($worker, 'GET', '/api/v1/me', null, ['X-App-Version-Code' => '2']);
-        $this->assertSame(2, (int) $worker->fresh()->app_version_code);
+        $this->assertSame(2, (int) $this->userOf($worker)->fresh()->app_version_code);
 
         $this->jsonApiAs($admin, 'GET', '/api/v1/app-versions');
         $this->assertSame(1, $this->responseJson()['data'][0]['meta']['installedCount']);
@@ -100,10 +139,13 @@ class AppVersionsTest extends TestCase
         $this->jsonApiAs($worker, 'GET', '/api/v1/app-versions');
         $this->assertJsonApiError(403, 'FORBIDDEN');
 
-        $path = AppVersion::first()->apk_path;
+        $paths = AppVersionFile::pluck('apk_path')->all();
         $this->jsonApiAs($admin, 'DELETE', '/api/v1/app-versions/'.$id);
         $this->assertResponseStatus(204);
-        $this->assertFileNotExists(base_path('public/'.$path));
+
+        foreach ($paths as $path) {
+            $this->assertFileNotExists(base_path('public/'.$path));
+        }
 
         $this->jsonApi('GET', '/api/v1/app-versions/latest');
         $this->assertNull($this->responseJson()['data']);

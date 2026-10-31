@@ -1,24 +1,28 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../../core/api_exception.dart';
-import '../../core/card_number.dart';
 import '../../core/json_api.dart';
 import '../../models/models.dart';
+import '../../services/session.dart';
 import '../../services/templates.dart';
+import '../auth/names_fields.dart';
 import '../widgets/common.dart';
 
 /// Formulario de una solicitud nueva. Devuelve true si se envió.
-Future<bool> showApplicationForm(BuildContext context, String type) async {
-  final sent = await Navigator.push<bool>(context, MaterialPageRoute(builder: (_) => ApplicationFormScreen(type: type)));
+///
+/// Con [worker] es una asignación directa de un superior a otro trabajador
+/// (docs/08-version-2.md §8.5): queda aprobada al instante.
+Future<bool> showApplicationForm(BuildContext context, String type, {Worker? worker}) async {
+  final sent = await Navigator.push<bool>(context, MaterialPageRoute(builder: (_) => ApplicationFormScreen(type: type, worker: worker)));
   if (sent == true && context.mounted) await context.session.reloadMe();
   return sent == true;
 }
 
 class ApplicationFormScreen extends StatefulWidget {
   final String type;
+  final Worker? worker;
 
-  const ApplicationFormScreen({super.key, required this.type});
+  const ApplicationFormScreen({super.key, required this.type, this.worker});
 
   @override
   State<ApplicationFormScreen> createState() => _ApplicationFormScreenState();
@@ -28,20 +32,22 @@ class _ApplicationFormScreenState extends State<ApplicationFormScreen> {
   final _form = GlobalKey<FormState>();
   List<Itinerary> _itineraries = [];
   List<Stop> _stops = [];
-  List<Rank> _ranks = [];
   List<Named> _absenceTypes = [];
   String? _itineraryId;
   String? _stopId;
-  String? _rankId;
   String? _absenceTypeId;
   DateTimeRange? _range;
   final _observation = TextEditingController();
   final _childFirst = TextEditingController();
-  final _childLast = TextEditingController();
-  final _childCard = TextEditingController();
+  final _childMiddle = TextEditingController();
+  final _childFirstSurname = TextEditingController();
+  final _childSecondSurname = TextEditingController();
+  late final _childNames = NamesFields(firstName: _childFirst, middleName: _childMiddle, firstSurname: _childFirstSurname, secondSurname: _childSecondSurname);
+  DateTime? _childBirthDate;
   int _childMaxAge = 16;
-  bool _busy = false;
   ApiException? _error;
+
+  bool get _assigning => widget.worker != null;
 
   bool get _needsItinerary => widget.type == ApplicationType.itineraryMembership || widget.type == ApplicationType.itineraryChief;
 
@@ -55,20 +61,25 @@ class _ApplicationFormScreenState extends State<ApplicationFormScreen> {
     final api = context.api;
     try {
       if (_needsItinerary) {
-        final resources = await api.getAll('/itineraries', query: {'sort': 'name'});
-        setState(() => _itineraries = resources.map(Itinerary.from).toList());
-      }
-      if (widget.type == ApplicationType.rankChange) {
-        final resources = await api.getAll('/ranks', query: {'sort': 'precedence'});
-        setState(() => _ranks = resources.map(Rank.from).toList());
+        final resources = await api.getAll('/itineraries', query: {'sort': 'name', 'filter[entity]': ?widget.worker?.entityId});
+        final me = context.me;
+        // Un Jefe de itinerario solo asigna en el suyo.
+        final itineraries = resources.map(Itinerary.from).where((i) => !_assigning || me.isChiefOf(i.id)).toList();
+        setState(() {
+          _itineraries = itineraries;
+          if (itineraries.length == 1) _itineraryId = itineraries.first.id;
+        });
+        if (_itineraryId != null) await _loadStops(_itineraryId!);
       }
       if (widget.type == ApplicationType.absence) {
         final resources = await api.getAll('/absence-types');
         setState(() => _absenceTypes = resources.map(Named.from).toList());
       }
       if (widget.type == ApplicationType.childAddition) {
-        final setting = await api.get('/settings/child_max_age');
-        setState(() => _childMaxAge = int.tryParse(setting.resource.string('value') ?? '') ?? 16);
+        // La edad máxima es un ajuste de cada Entidad.
+        final settings = await api.getAll('/entity-settings');
+        final setting = settings.where((s) => s.id == 'child_max_age').firstOrNull;
+        setState(() => _childMaxAge = int.tryParse(setting?.string('value') ?? '') ?? 16);
       }
     } catch (error) {
       if (mounted) showError(context, error);
@@ -91,18 +102,18 @@ class _ApplicationFormScreenState extends State<ApplicationFormScreen> {
       showMessage(context, 'Elige las fechas de la ausencia.');
       return;
     }
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
+    if (widget.type == ApplicationType.childAddition && _childBirthDate == null) {
+      showMessage(context, 'Elige la fecha de nacimiento del niño.');
+      return;
+    }
+    setState(() => _error = null);
     String day(DateTime d) => d.toIso8601String().substring(0, 10);
     try {
       await context.api.post('/applications', resourceData('applications', attributes: {
         'type': widget.type,
         if (widget.type == ApplicationType.childAddition) ...{
-          'childFirstName': _childFirst.text.trim(),
-          'childLastName': _childLast.text.trim(),
-          'childCardNumber': _childCard.text.trim(),
+          ...Session.nameAttributes(_childNames.value, prefix: 'child'),
+          'childBirthDate': day(_childBirthDate!),
         },
         if (widget.type == ApplicationType.absence) ...{
           'startsOn': day(_range!.start),
@@ -112,29 +123,41 @@ class _ApplicationFormScreenState extends State<ApplicationFormScreen> {
       }, relationships: {
         if (_needsItinerary) 'itinerary': ResourceId('itineraries', _itineraryId!),
         if (_needsItinerary) 'stop': ResourceId('stops', _stopId!),
-        if (widget.type == ApplicationType.rankChange) 'rank': ResourceId('ranks', _rankId!),
         if (widget.type == ApplicationType.absence) 'absenceType': ResourceId('absence-types', _absenceTypeId!),
+        if (_assigning) 'worker': ResourceId('workers', widget.worker!.id),
       }));
       if (mounted) {
-        showMessage(context, 'Solicitud enviada');
+        showMessage(context, _assigning ? 'Asignado' : 'Solicitud enviada');
         Navigator.pop(context, true);
       }
     } on ApiException catch (error) {
       setState(() => _error = error);
-    } finally {
-      if (mounted) setState(() => _busy = false);
     }
+  }
+
+  /// Último día con derecho a viajar: el 31 de agosto siguiente a cumplir la edad máxima.
+  DateTime _eligibleUntil(DateTime birth) {
+    final limit = DateTime(birth.year + _childMaxAge, birth.month, birth.day);
+    final endOfCourse = DateTime(limit.year, 8, 31);
+    return limit.isAfter(endOfCourse) ? DateTime(limit.year + 1, 8, 31) : endOfCourse;
   }
 
   @override
   Widget build(BuildContext context) {
-    final childCard = CardNumber.tryParse(_childCard.text);
+    final birth = _childBirthDate;
+    final today = DateTime.now();
+    final eligible = birth == null || !DateTime(today.year, today.month, today.day).isAfter(_eligibleUntil(birth));
     return Scaffold(
-      appBar: AppBar(title: Text(ApplicationType.label(widget.type))),
+      appBar: AppBar(title: Text(_assigning ? '${ApplicationType.label(widget.type)} · ${widget.worker!.name.short}' : ApplicationType.label(widget.type))),
       body: Form(
         key: _form,
         child: ListView(padding: const EdgeInsets.all(16), children: [
-          if (widget.type == ApplicationType.itineraryChief)
+          if (_assigning)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 12),
+              child: Text('Se asigna al momento, sin solicitud. El trabajador recibirá un aviso.'),
+            )
+          else if (widget.type == ApplicationType.itineraryChief)
             const Padding(
               padding: EdgeInsets.only(bottom: 12),
               child: Text('Si la aprueba un Jefe de Transporte, pasarás a viajar en ese itinerario y en esa parada.'),
@@ -157,14 +180,6 @@ class _ApplicationFormScreenState extends State<ApplicationFormScreen> {
               validator: (v) => v == null ? 'Elige la parada' : null,
             ),
           ],
-          if (widget.type == ApplicationType.rankChange)
-            DropdownButtonFormField<String>(
-              initialValue: _rankId,
-              decoration: const InputDecoration(labelText: 'Jerarquía nueva'),
-              items: [for (final r in _ranks) DropdownMenuItem(value: r.id, child: Text(r.name))],
-              onChanged: (value) => setState(() => _rankId = value),
-              validator: (v) => v == null ? 'Elige la jerarquía' : null,
-            ),
           if (widget.type == ApplicationType.childAddition) ...[
             const Card(
               child: ListTile(
@@ -173,30 +188,31 @@ class _ApplicationFormScreenState extends State<ApplicationFormScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            TextFormField(controller: _childFirst, decoration: const InputDecoration(labelText: 'Nombre del niño'), validator: (v) => v!.trim().isEmpty ? 'Obligatorio' : null),
-            const SizedBox(height: 12),
-            TextFormField(controller: _childLast, decoration: const InputDecoration(labelText: 'Apellidos del niño'), validator: (v) => v!.trim().isEmpty ? 'Obligatorio' : null),
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _childCard,
-              decoration: InputDecoration(
-                labelText: 'Carné del niño',
-                helperText: childCard == null
-                    ? 'Solo tú y el Administrador podrán verlo'
-                    : (childCard.isEligible(_childMaxAge)
-                        ? 'Puede viajar hasta el ${formatDate(childCard.eligibleUntil(_childMaxAge))}'
-                        : 'Ya no tiene derecho a viajar (hasta el ${formatDate(childCard.eligibleUntil(_childMaxAge))})'),
-                errorText: _error?.fieldError('/childCardNumber'),
-              ),
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(11)],
-              onChanged: (_) => setState(() {}),
-              validator: (value) {
-                final error = validateCard(value);
-                if (error != null) return error;
-                return CardNumber.tryParse(value)!.isEligible(_childMaxAge) ? null : 'El niño ya no tiene derecho a viajar';
+            _childNames,
+            OutlinedButton.icon(
+              icon: const Icon(Icons.cake_outlined),
+              label: Text(birth == null ? 'Fecha de nacimiento' : 'Nació el ${formatDate(birth)}'),
+              onPressed: () async {
+                final picked = await showDatePicker(
+                  context: context,
+                  initialDate: birth ?? DateTime(today.year - 5),
+                  firstDate: DateTime(today.year - 30),
+                  lastDate: today,
+                  helpText: 'Fecha de nacimiento del niño',
+                );
+                if (picked != null) setState(() => _childBirthDate = picked);
               },
             ),
+            if (birth != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  eligible
+                      ? 'Puede viajar hasta el ${formatDate(_eligibleUntil(birth))}. Solo tú, tus jefes y el Administrador verán la fecha.'
+                      : 'Ya no tiene derecho a viajar (lo tuvo hasta el ${formatDate(_eligibleUntil(birth))}).',
+                  style: TextStyle(color: eligible ? null : Theme.of(context).colorScheme.error),
+                ),
+              ),
           ],
           if (widget.type == ApplicationType.absence) ...[
             DropdownButtonFormField<String>(
@@ -228,7 +244,7 @@ class _ApplicationFormScreenState extends State<ApplicationFormScreen> {
             Text(_error!.message, style: TextStyle(color: Theme.of(context).colorScheme.error)),
           ],
           const SizedBox(height: 20),
-          FilledButton(onPressed: _busy ? null : _submit, child: const Text('Enviar solicitud')),
+          BusyButton(onPressed: (widget.type == ApplicationType.childAddition && !eligible) ? null : _submit, child: Text(_assigning ? 'Asignar' : 'Enviar solicitud')),
         ]),
       ),
     );

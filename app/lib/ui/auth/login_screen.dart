@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../../core/api_exception.dart';
 import '../../core/storage.dart';
+import '../guest/developer_chat_screen.dart';
 import '../widgets/common.dart';
-import 'forgot_password_screen.dart';
+import 'access_recovery_screen.dart';
+import 'activation_screen.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -17,7 +19,6 @@ class _LoginScreenState extends State<LoginScreen> {
   final _form = GlobalKey<FormState>();
   final _user = TextEditingController();
   final _password = TextEditingController();
-  bool _busy = false;
   bool _hidden = true;
   String? _error;
 
@@ -25,22 +26,18 @@ class _LoginScreenState extends State<LoginScreen> {
   void initState() {
     super.initState();
     Storage.lastLogin().then((login) {
-      if (login != null && mounted) setState(() => _user.text = login);
+      // Las versiones anteriores recordaban el carné: no sirve como usuario.
+      if (login != null && !RegExp(r'^\d+$').hasMatch(login) && mounted) setState(() => _user.text = login);
     });
   }
 
   Future<void> _login() async {
     if (!_form.currentState!.validate()) return;
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
+    setState(() => _error = null);
     try {
       await context.session.login(_user.text.trim(), _password.text);
     } on ApiException catch (error) {
       setState(() => _error = error.message);
-    } finally {
-      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -50,6 +47,8 @@ class _LoginScreenState extends State<LoginScreen> {
     await Storage.setApiUrl(url);
     if (mounted) context.api.setBaseUrl(url);
   }
+
+  void _open(Widget screen) => Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
 
   @override
   Widget build(BuildContext context) {
@@ -67,11 +66,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 32),
                 TextFormField(
                   controller: _user,
-                  decoration: const InputDecoration(
-                    labelText: 'Usuario',
-                    prefixIcon: Icon(Icons.person_outline),
-                    helperText: 'Si no lo recuerdas, también puedes entrar con tu carné',
-                  ),
+                  decoration: const InputDecoration(labelText: 'Usuario', prefixIcon: Icon(Icons.person_outline)),
                   keyboardType: TextInputType.visiblePassword,
                   autocorrect: false,
                   enableSuggestions: false,
@@ -95,18 +90,16 @@ class _LoginScreenState extends State<LoginScreen> {
                   Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
                 ],
                 const SizedBox(height: 20),
-                FilledButton(
-                  onPressed: _busy ? null : _login,
-                  child: _busy ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Entrar'),
-                ),
+                BusyButton(onPressed: _login, showErrors: false, child: const Text('Entrar')),
                 const SizedBox(height: 8),
-                TextButton(
-                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ForgotPasswordScreen(initialLogin: _user.text))),
-                  child: const Text('¿Olvidaste tu contraseña?'),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RegisterScreen())),
-                  child: const Text('¿No tienes cuenta? Regístrate'),
+                TextButton(onPressed: () => _open(const AccessRecoveryScreen()), child: const Text('No puedo entrar')),
+                TextButton(onPressed: () => _open(const RegisterScreen()), child: const Text('¿No tienes cuenta? Créala')),
+                TextButton(onPressed: () => _open(const ActivationScreen()), child: const Text('Ya me registró un superior')),
+                const Divider(height: 24),
+                TextButton.icon(
+                  onPressed: () => _open(const GuestConversationsScreen()),
+                  icon: const Icon(Icons.support_agent),
+                  label: const Text('Hablar con el desarrollador'),
                 ),
                 TextButton.icon(onPressed: _server, icon: const Icon(Icons.dns_outlined, size: 18), label: const Text('Servidor')),
               ]),

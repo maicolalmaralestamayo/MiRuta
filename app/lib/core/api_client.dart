@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'api_exception.dart';
 import 'json_api.dart';
 import 'storage.dart';
+import '../services/installation.dart';
 
 /// Cliente de la API JSON:API. Añade el token de acceso y, si caducó, lo
 /// renueva una sola vez (también entre la app y sus tareas en segundo plano,
@@ -48,6 +49,17 @@ class ApiClient {
       final token = await Storage.accessToken();
       if (token != null) options.headers['Authorization'] = 'Bearer $token';
     }
+    // Sin cuenta (o al iniciar sesión) se identifica la instalación.
+    if (options.extra['installation'] == true) {
+      try {
+        options.headers['X-Installation'] = await Installation.ensure(_dio);
+      } catch (_) {
+        // Sin conexión: la petición fallará igualmente y se informará.
+      }
+    } else if (options.extra['installation'] == 'ifRegistered') {
+      final header = await Installation.header();
+      if (header != null) options.headers['X-Installation'] = header;
+    }
     if (options.data != null && options.data is! FormData) {
       options.headers['Content-Type'] = options.extra['atomic'] == true ? atomic : jsonApi;
     }
@@ -56,8 +68,8 @@ class ApiClient {
 
   // Métodos
 
-  Future<JsonApiDocument> get(String path, {Map<String, dynamic>? query}) async =>
-      _document(await _send(() => _dio.get(path, queryParameters: query)));
+  Future<JsonApiDocument> get(String path, {Map<String, dynamic>? query, bool guest = false}) async =>
+      _document(await _send(() => _dio.get(path, queryParameters: query, options: guest ? Options(extra: {'auth': false, 'installation': true}) : null)));
 
   /// Todas las páginas de una colección.
   Future<List<Resource>> getAll(String path, {Map<String, dynamic>? query, int pageSize = 100}) async {
@@ -71,8 +83,12 @@ class ApiClient {
     }
   }
 
-  Future<JsonApiDocument> post(String path, Map<String, dynamic> body, {bool auth = true}) async =>
-      _document(await _send(() => _dio.post(path, data: body, options: Options(extra: {'auth': auth}))));
+  /// [guest]: sin sesión, identificando la instalación (X-Installation).
+  /// [withInstallation]: además de la sesión, la instalación (al iniciar
+  /// sesión o registrarse, para pasar a la cuenta lo hablado sin ella).
+  Future<JsonApiDocument> post(String path, Map<String, dynamic> body, {bool auth = true, bool guest = false, bool withInstallation = false}) async =>
+      _document(await _send(() => _dio.post(path,
+          data: body, options: Options(extra: {'auth': auth && !guest, 'installation': guest ? true : (withInstallation ? 'ifRegistered' : false)}))));
 
   Future<JsonApiDocument> patch(String path, Map<String, dynamic> body) async =>
       _document(await _send(() => _dio.patch(path, data: body)));
@@ -90,10 +106,17 @@ class ApiClient {
   }
 
   /// Subida de un archivo (multipart/form-data), con otros campos opcionales.
-  Future<JsonApiDocument> upload(String path, String field, String filePath, {Map<String, dynamic> fields = const {}, void Function(int sent, int total)? onProgress}) async {
+  Future<JsonApiDocument> upload(String path, String field, String filePath, {Map<String, dynamic> fields = const {}, void Function(int sent, int total)? onProgress}) =>
+      uploadFiles(path, {field: filePath}, fields: fields, onProgress: onProgress);
+
+  /// Varios archivos en una sola petición multipart ({campo: ruta}).
+  Future<JsonApiDocument> uploadFiles(String path, Map<String, String> files, {Map<String, dynamic> fields = const {}, void Function(int sent, int total)? onProgress}) async {
     return _document(await _send(() async => _dio.post(
           path,
-          data: FormData.fromMap({...fields, field: await MultipartFile.fromFile(filePath)}),
+          data: FormData.fromMap({
+            ...fields,
+            for (final entry in files.entries) entry.key: await MultipartFile.fromFile(entry.value),
+          }),
           options: Options(sendTimeout: const Duration(minutes: 30), receiveTimeout: const Duration(minutes: 5)),
           onSendProgress: onProgress,
         )));

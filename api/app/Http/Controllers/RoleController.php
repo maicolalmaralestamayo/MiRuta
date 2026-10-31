@@ -19,7 +19,7 @@ abstract class RoleController extends ResourceController
 {
     protected $filterable = ['worker'];
 
-    protected $includable = ['worker'];
+    protected $includable = ['worker', 'worker.user'];
 
     protected function rules(Request $request, ?Model $model): array
     {

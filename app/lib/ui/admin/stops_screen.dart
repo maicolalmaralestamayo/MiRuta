@@ -18,7 +18,7 @@ class _StopsScreenState extends State<StopsScreen> {
   String _search = '';
 
   Future<List<Stop>> _load() async =>
-      (await context.api.getAll('/stops', query: {if (_search.isNotEmpty) 'filter[search]': _search})).map(Stop.from).toList();
+      (await context.api.getAll('/stops', query: {...context.entityFilter, if (_search.isNotEmpty) 'filter[search]': _search})).map(Stop.from).toList();
 
   @override
   Widget build(BuildContext context) {
@@ -90,7 +90,9 @@ class _StopFormState extends State<_StopForm> {
       showMessage(context, 'Marca la parada en el mapa.');
       return;
     }
-    final body = resourceData('stops', id: widget.stop?.id, attributes: {
+    final entity = widget.stop == null ? context.entityRelationship() : const <String, ResourceId?>{};
+    if (entity == null) return;
+    final body = resourceData('stops', id: widget.stop?.id, relationships: entity.isEmpty ? null : entity, attributes: {
       'landmark': _landmark.text.trim(),
       'street': _street.text.trim(),
       'crossStreet1': _cross1.text.trim().isEmpty ? null : _cross1.text.trim(),

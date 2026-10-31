@@ -45,7 +45,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final meId = context.me.id;
+    final meId = context.me.userId;
     return Scaffold(
       appBar: AppBar(title: const Text('Mensajes')),
       floatingActionButton: FloatingActionButton.extended(onPressed: _new, icon: const Icon(Icons.edit), label: const Text('Escribir')),
@@ -59,13 +59,13 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                 itemCount: conversations.length,
                 itemBuilder: (context, index) {
                   final c = conversations[index];
-                  final incoming = c.openedBy != null && c.openedBy!.id != meId;
+                  final incoming = c.guest || (c.openedById != null && c.openedById != meId);
                   return ListTile(
                     leading: Icon(const {'itinerary_chiefs': Icons.groups, 'transport_chiefs': Icons.directions_bus, 'developer': Icons.code}[c.recipient] ?? Icons.forum),
                     title: Text(c.topicName ?? 'Conversación'),
                     subtitle: Text([
                       Conversation.recipientLabel(c.recipient),
-                      if (incoming) 'de ${c.openedBy!.fullName}',
+                      if (incoming) 'de ${c.guest ? '${c.guestName ?? ''} (sin cuenta)' : c.openedByName ?? ''}',
                       '${c.messageCount} mensaje(s)',
                       if (c.lastMessageAt != null) formatDateTime(c.lastMessageAt!),
                     ].join(' · ')),

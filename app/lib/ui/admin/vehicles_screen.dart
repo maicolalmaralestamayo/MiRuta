@@ -17,10 +17,11 @@ class _VehiclesScreenState extends State<VehiclesScreen> {
 
   Future<(List<Vehicle>, Map<String, String>)> _load() async {
     final api = context.api;
-    final vehicles = (await api.getAll('/vehicles', query: {'include': 'vehicleType'})).map(Vehicle.from).toList();
+    final vehicles = (await api.getAll('/vehicles', query: {'include': 'vehicleType', ...context.entityFilter})).map(Vehicle.from).toList();
+    final entityId = context.session.adminEntity?.id;
     final drivers = {
       for (final r in await api.getAll('/drivers', query: {'include': 'worker'}))
-        r.id: '${r.related('worker')?.string('firstName') ?? ''} ${r.related('worker')?.string('lastName') ?? ''}',
+        if (entityId == null || r.related('worker')?.relId('entity')?.id == entityId) r.id: PersonName.from(r.related('worker')).full,
     };
     return (vehicles, drivers);
   }
@@ -96,6 +97,8 @@ class _VehicleFormState extends State<_VehicleForm> {
 
   Future<void> _save() async {
     if (!_form.currentState!.validate()) return;
+    final entity = widget.vehicle == null ? context.entityRelationship() : const <String, ResourceId?>{};
+    if (entity == null) return;
     final body = resourceData('vehicles', id: widget.vehicle?.id, attributes: {
       'plate': _plate.text.trim(),
       'seats': int.parse(_seats.text),
@@ -103,6 +106,7 @@ class _VehicleFormState extends State<_VehicleForm> {
     }, relationships: {
       'vehicleType': ResourceId('vehicle-types', _typeId!),
       'driver': _driverId == null ? null : ResourceId('drivers', _driverId!),
+      ...entity,
     });
     final ok = await runAction(context, () => widget.vehicle == null ? context.api.post('/vehicles', body) : context.api.patch('/vehicles/${widget.vehicle!.id}', body));
     if (ok && mounted) Navigator.pop(context, true);

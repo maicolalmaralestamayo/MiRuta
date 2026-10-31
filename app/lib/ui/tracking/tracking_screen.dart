@@ -372,7 +372,7 @@ class _NextStopPanel extends StatelessWidget {
           ListTile(
             dense: true,
             title: Text('Próxima parada: ${stop.landmark}', style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text(direction == 'return' ? '${passengers.length} suben, en orden de subida' : '${passengers.length} se bajan'),
+            subtitle: Text(direction == 'return' ? '${passengers.length} suben' : '${passengers.length} se bajan'),
             trailing: IconButton(icon: const Icon(Icons.close), onPressed: onClose),
           ),
           Flexible(
@@ -380,7 +380,7 @@ class _NextStopPanel extends StatelessWidget {
               for (final p in passengers)
                 ListTile(
                   dense: true,
-                  leading: CircleAvatar(radius: 14, child: Text('${p.order}', style: const TextStyle(fontSize: 12))),
+                  leading: CircleAvatar(radius: 14, child: Text('${p.position}', style: const TextStyle(fontSize: 12))),
                   title: Text(p.worker.fullName),
                   subtitle: Text([if (p.worker.rank != null) p.worker.rank!.name, if (p.eligibleChildren > 0) '${p.eligibleChildren} niño(s)'].join(' · ')),
                   trailing: p.boarded ? const Icon(Icons.check_circle, color: Colors.green) : null,

@@ -106,22 +106,24 @@ class AccessRecoveries
     }
 
     /**
-     * La instalación consulta su solicitud. Si solo olvidó el usuario y ya
-     * se aprobó, al leerla se da por terminada.
+     * La instalación consulta su solicitud (cierra las caducadas).
      */
     public function readByInstallation(AccessRecovery $recovery): AccessRecovery
     {
         $this->expireIfNeeded($recovery);
 
-        if ($recovery->status === AccessRecovery::STATUS_APPROVED && ! $recovery->forgot_password) {
-            // El serializador muestra el usuario con el estado "approved"; se
-            // cierra después de responder.
-            app()->terminating(function () use ($recovery) {
-                $recovery->close(AccessRecovery::STATUS_COMPLETED);
-            });
-        }
-
         return $recovery;
+    }
+
+    /**
+     * Si solo olvidó el usuario y ya se aprobó, se da por terminada una vez
+     * que la instalación lo ha leído.
+     */
+    public function completeIfOnlyUsername(AccessRecovery $recovery): void
+    {
+        if ($recovery->status === AccessRecovery::STATUS_APPROVED && ! $recovery->forgot_password) {
+            $recovery->close(AccessRecovery::STATUS_COMPLETED);
+        }
     }
 
     /**

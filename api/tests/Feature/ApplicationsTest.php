@@ -62,7 +62,7 @@ class ApplicationsTest extends TestCase
     {
         ItineraryChief::create(['itinerary_id' => $itinerary->id, 'worker_id' => $worker->id]);
 
-        return $worker->refreshRoles();
+        return $worker->fresh();
     }
 
     private function stopId($itinerary, int $position): int
@@ -83,8 +83,8 @@ class ApplicationsTest extends TestCase
         $applicationId = $this->responseJson()['data']['id'];
         $this->seeJson(['status' => 'pending', 'type' => 'itinerary_membership']);
 
-        $this->assertTrue(Notice::where('worker_id', $eastChief->id)->where('type', 'application_received')->exists());
-        $this->assertFalse(Notice::where('worker_id', $westChief->id)->exists());
+        $this->assertTrue(Notice::where('user_id', $eastChief->user_id)->where('type', 'application_received')->exists());
+        $this->assertFalse(Notice::where('user_id', $westChief->user_id)->exists());
 
         $this->jsonApiAs($eastChief, 'GET', '/api/v1/applications?filter[toResolve]=true');
         $this->assertSame([$applicationId], array_column($this->responseJson()['data'], 'id'));
@@ -101,21 +101,28 @@ class ApplicationsTest extends TestCase
         $worker = $worker->fresh();
         $this->assertSame($east->id, (int) $worker->itinerary_id);
         $this->assertSame($this->stopId($east, 2), (int) $worker->stop_id);
-        $this->assertTrue(Notice::where('worker_id', $worker->id)->where('type', 'application_resolved')->exists());
+        $this->assertTrue(Notice::where('user_id', $worker->user_id)->where('type', 'application_resolved')->exists());
 
         $this->resolve($eastChief, $applicationId, 'rejected');
         $this->assertJsonApiError(409, 'APPLICATION_NOT_PENDING');
     }
 
-    public function testNadieResuelveSusPropiasSolicitudesNiSiquieraElAdministrador()
+    public function testNadieResuelveSusPropiasSolicitudes()
     {
         $itinerary = $this->createItinerary();
-        $admin = $this->createAdmin();
+        $transportChief = $this->createTransportChief();
 
-        $this->apply($admin, 'itinerary_membership', [], ['itinerary' => ['itineraries', $itinerary->id], 'stop' => ['stops', $this->stopId($itinerary, 1)]]);
-        $this->resolve($admin, $this->responseJson()['data']['id'], 'approved');
+        $this->apply($transportChief, 'itinerary_membership', [], ['itinerary' => ['itineraries', $itinerary->id], 'stop' => ['stops', $this->stopId($itinerary, 1)]]);
+        $this->resolve($transportChief, $this->responseJson()['data']['id'], 'approved');
 
         $this->assertJsonApiError(403, 'SELF_APPROVAL');
+    }
+
+    public function testElAdministradorNoTieneSolicitudesPropias()
+    {
+        $this->apply($this->createAdmin(), 'driver');
+
+        $this->assertJsonApiError(422, 'VALIDATION_ERROR', '/data/relationships/worker');
     }
 
     public function testLaParadaDebeSerDelItinerario()
@@ -170,17 +177,17 @@ class ApplicationsTest extends TestCase
         $this->resolve($transportChief, $chiefApplication, 'approved');
         $this->assertResponseOk();
 
-        $worker = $worker->fresh()->refreshRoles();
-        $this->assertTrue($worker->isChiefOf($east->id));
+        $worker = $worker->fresh();
+        $this->assertTrue($this->userOf($worker)->refreshRoles()->isChiefOf($east->id));
         $this->assertSame($east->id, (int) $worker->itinerary_id);
         $this->assertSame('cancelled', Application::find($pendingMembership)->status);
 
         // Sigue siendo jefe del Este aunque se cambie al Oeste
         $this->apply($worker, 'itinerary_membership', [], ['itinerary' => ['itineraries', $west->id], 'stop' => ['stops', $this->stopId($west, 1)]]);
         $this->resolve($transportChief, $this->responseJson()['data']['id'], 'approved');
-        $worker = $worker->fresh()->refreshRoles();
+        $worker = $worker->fresh();
         $this->assertSame($west->id, (int) $worker->itinerary_id);
-        $this->assertTrue($worker->isChiefOf($east->id));
+        $this->assertTrue($this->userOf($worker)->refreshRoles()->isChiefOf($east->id));
     }
 
     public function testJefeDeTransporteLoApruebaSoloElAdministrador()
@@ -190,7 +197,7 @@ class ApplicationsTest extends TestCase
 
         $this->apply($worker, 'transport_chief');
         $id = $this->responseJson()['data']['id'];
-        $this->assertTrue(Notice::where('worker_id', $admin->id)->where('type', 'application_received')->exists());
+        $this->assertTrue(Notice::where('user_id', $admin->id)->where('type', 'application_received')->exists());
 
         // El Jefe de Transporte la ve pero no puede resolverla
         $this->resolve($this->createTransportChief(), $id, 'approved');
@@ -198,13 +205,13 @@ class ApplicationsTest extends TestCase
 
         $this->resolve($admin, $id, 'approved');
         $this->assertResponseOk();
-        $this->assertTrue($worker->fresh()->isTransportChief());
+        $this->assertTrue($this->userOf($worker)->refreshRoles()->isTransportChief());
 
         $this->apply($worker, 'transport_chief');
         $this->assertJsonApiError(409, 'ALREADY_HAS_ROLE');
     }
 
-    public function testChoferYCambioDeJerarquia()
+    public function testChofer()
     {
         $itinerary = $this->createItinerary();
         $chief = $this->makeChief($this->createWorker(), $itinerary);
@@ -216,13 +223,11 @@ class ApplicationsTest extends TestCase
         $this->resolve($chief, $driverApplication, 'approved');
         $this->assertJsonApiError(404, 'NOT_FOUND');
         $this->resolve($transportChief, $driverApplication, 'approved');
-        $this->assertTrue($worker->fresh()->isDriver());
+        $this->assertTrue($this->userOf($worker)->refreshRoles()->isDriver());
 
-        $captain = Rank::where('name', 'Capitán')->first();
-        $this->apply($worker, 'rank_change', [], ['rank' => ['ranks', $captain->id]]);
-        $this->resolve($chief, $this->responseJson()['data']['id'], 'approved');
-        $this->assertResponseOk();
-        $this->assertSame($captain->id, (int) $worker->fresh()->rank_id);
+        // El cambio de jerarquía ya no es una solicitud.
+        $this->apply($worker, 'rank_change');
+        $this->assertJsonApiError(422, 'VALIDATION_ERROR', '/data/attributes/type');
     }
 
     public function testDeclararYQuitarHijos()
@@ -231,22 +236,32 @@ class ApplicationsTest extends TestCase
         $chief = $this->makeChief($this->createWorker(), $itinerary);
         $mother = $this->joinItinerary($this->createWorker(), $itinerary);
         $father = $this->joinItinerary($this->createWorker(), $itinerary);
-        $child = ['childFirstName' => 'Pepito', 'childLastName' => 'Pérez', 'childCardNumber' => '15030560011'];
+        $child = [
+            'childFirstName' => 'Pepito', 'childMiddleName' => 'Luis', 'childFirstSurname' => 'Pérez', 'childSecondSurname' => 'Gómez',
+            'childBirthDate' => '2015-03-05',
+        ];
 
-        $this->apply($mother, 'child_addition', ['childCardNumber' => '09120160011'] + $child);
-        $this->assertJsonApiError(422, 'CHILD_NOT_ELIGIBLE', '/data/attributes/childCardNumber');
+        $this->apply($mother, 'child_addition', ['childBirthDate' => '2009-12-01'] + $child);
+        $this->assertJsonApiError(422, 'CHILD_NOT_ELIGIBLE', '/data/attributes/childBirthDate');
 
-        $this->apply($mother, 'child_addition', ['childCardNumber' => '123'] + $child);
-        $this->assertJsonApiError(422, 'CARD_NUMBER_INVALID', '/data/attributes/childCardNumber');
+        $this->apply($mother, 'child_addition', ['childBirthDate' => '05/03/2015'] + $child);
+        $this->assertJsonApiError(422, 'VALIDATION_ERROR', '/data/attributes/childBirthDate');
+
+        $this->apply($mother, 'child_addition', ['childSecondSurname' => ''] + $child);
+        $this->assertJsonApiError(422, 'VALIDATION_ERROR', '/data/attributes/childSecondSurname');
 
         $this->apply($mother, 'child_addition', $child);
         $this->assertResponseStatus(201);
-        $this->seeJson(['childFirstName' => 'Pepito']);
-        $this->assertStringNotContainsString('15030560011', $this->response->getContent());
+        $this->seeJson(['childFullName' => 'Pepito Luis Pérez Gómez', 'possibleDuplicate' => false]);
+        $this->assertStringNotContainsString('2015-03-05', $this->response->getContent());
         $addition = $this->responseJson()['data']['id'];
 
-        $this->apply($father, 'child_addition', $child);
-        $this->assertJsonApiError(409, 'CHILD_ALREADY_DECLARED');
+        // El otro padre lo declara también: se avisa del posible duplicado, sin bloquear.
+        $this->apply($father, 'child_addition', ['childMiddleName' => 'José'] + $child);
+        $this->assertResponseStatus(201);
+        $this->seeJson(['possibleDuplicate' => true]);
+        $duplicate = $this->responseJson()['data']['id'];
+        $this->resolve($chief, $duplicate, 'rejected');
 
         $this->jsonApiAs($father, 'GET', '/api/v1/workers/'.$mother->id);
         $this->assertSame(0, $this->responseJson()['data']['meta']['childrenCount']);
@@ -260,21 +275,25 @@ class ApplicationsTest extends TestCase
         $this->jsonApiAs($father, 'GET', '/api/v1/children?filter[worker]='.$mother->id);
         $childResource = $this->responseJson()['data'][0];
         $this->assertSame('Pepito', $childResource['attributes']['firstName']);
-        $this->assertArrayNotHasKey('cardNumber', $childResource['attributes']);
+        $this->assertArrayNotHasKey('birthDate', $childResource['attributes']);
         $this->assertArrayNotHasKey('eligibleUntil', $childResource['meta']);
 
         $this->jsonApiAs($mother, 'GET', '/api/v1/children/'.$childResource['id']);
-        $this->seeJson(['cardNumber' => '15030560011', 'eligibleUntil' => '2031-08-31']);
+        $this->seeJson(['birthDate' => '2015-03-05', 'eligibleUntil' => '2031-08-31']);
+
+        // Sus jefes también ven la fecha.
+        $this->jsonApiAs($chief, 'GET', '/api/v1/children/'.$childResource['id']);
+        $this->seeJson(['birthDate' => '2015-03-05']);
 
         $this->apply($mother, 'child_removal', [], ['child' => ['children', $childResource['id']]]);
         $this->resolve($chief, $this->responseJson()['data']['id'], 'approved');
         $this->assertResponseOk();
         $this->assertTrue(Child::withTrashed()->find($childResource['id'])->trashed());
 
-        // Ahora puede declararlo el otro padre (se restaura la fila)
+        // Ahora puede declararlo el otro padre, sin aviso de duplicado.
         $this->apply($father, 'child_addition', $child);
         $this->assertResponseStatus(201);
-        $this->assertSame($father->id, (int) Child::find($childResource['id'])->worker_id);
+        $this->seeJson(['possibleDuplicate' => false]);
     }
 
     public function testAusencias()
@@ -310,7 +329,7 @@ class ApplicationsTest extends TestCase
         $this->assertResponseStatus(201);
         $this->seeJson(['status' => 'approved', 'type' => 'itinerary_leave']);
         $this->assertNull($worker->fresh()->itinerary_id);
-        $this->assertTrue(Notice::where('worker_id', $chief->id)->where('type', 'resignation')->exists());
+        $this->assertTrue(Notice::where('user_id', $chief->user_id)->where('type', 'resignation')->exists());
 
         $this->jsonApiAs($worker, 'GET', '/api/v1/applications?filter[mine]=true&include=itinerary,stop');
         $this->assertSame((string) $itinerary->id, $this->responseJson()['data'][0]['relationships']['itinerary']['data']['id']);
@@ -326,29 +345,26 @@ class ApplicationsTest extends TestCase
         $admin = $this->createAdmin();
         $driver = $this->createDriver();
         $otherDriver = $this->createDriver();
-        $vehicle = Vehicle::create([
-            'vehicle_type_id' => VehicleType::first()->id, 'plate' => 'B1', 'seats' => 4, 'standing_capacity' => 0,
-            'driver_id' => $driver->driverId(),
-        ]);
+        $vehicle = $this->createVehicle(Driver::find($driver->driverId()), 4, 0);
 
         $this->jsonApiAs($otherDriver, 'DELETE', '/api/v1/drivers/'.$driver->driverId());
         $this->assertJsonApiError(403, 'FORBIDDEN');
 
         $this->jsonApiAs($driver, 'DELETE', '/api/v1/drivers/'.$driver->driverId());
         $this->assertResponseStatus(204);
-        $this->assertFalse($driver->fresh()->isDriver());
+        $this->assertNull($driver->driverId());
         $this->assertNull($vehicle->fresh()->driver_id);
-        $this->assertTrue(Notice::where('worker_id', $transportChief->id)->where('type', 'resignation')->exists());
+        $this->assertTrue(Notice::where('user_id', $transportChief->user_id)->where('type', 'resignation')->exists());
 
         $this->jsonApiAs($transportChief, 'DELETE', '/api/v1/drivers/'.$otherDriver->driverId());
         $this->assertResponseStatus(204);
-        $this->assertSame($transportChief->id, (int) Application::where('worker_id', $otherDriver->id)->value('resolved_by'));
+        $this->assertSame($transportChief->user_id, (int) Application::where('worker_id', $otherDriver->id)->value('resolved_by'));
 
         $chiefRow = \App\Models\TransportChief::where('worker_id', $transportChief->id)->first();
         $this->jsonApiAs($transportChief, 'DELETE', '/api/v1/transport-chiefs/'.$chiefRow->id);
         $this->assertResponseStatus(204);
-        $this->assertTrue(Notice::where('worker_id', $admin->id)->where('type', 'resignation')->exists());
-        $this->assertFalse($transportChief->fresh()->isTransportChief());
+        $this->assertTrue(Notice::where('user_id', $admin->id)->where('type', 'resignation')->exists());
+        $this->assertFalse($this->userOf($transportChief)->refreshRoles()->isTransportChief());
     }
 
     public function testVisibilidadDeLasSolicitudes()
@@ -360,7 +376,8 @@ class ApplicationsTest extends TestCase
 
         $this->apply($member, 'driver');
         $driverApplication = $this->responseJson()['data']['id'];
-        $this->apply($member, 'rank_change', [], ['rank' => ['ranks', Rank::where('precedence', 1)->value('id')]]);
+        $vacation = \App\Models\AbsenceType::first();
+        $this->apply($member, 'absence', ['startsOn' => '2026-11-10', 'endsOn' => '2026-11-12'], ['absenceType' => ['absence-types', $vacation->id]]);
         $rankApplication = $this->responseJson()['data']['id'];
 
         $this->jsonApiAs($stranger, 'GET', '/api/v1/applications');

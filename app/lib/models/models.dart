@@ -6,14 +6,61 @@ import '../core/json_api.dart';
 class Rank {
   final String id;
   final String name;
-  final int precedence;
+  final int sortOrder;
   final String? iconUrl;
   final String? description;
 
-  Rank({required this.id, required this.name, required this.precedence, this.iconUrl, this.description});
+  Rank({required this.id, required this.name, this.sortOrder = 0, this.iconUrl, this.description});
 
   factory Rank.from(Resource r) =>
-      Rank(id: r.id, name: r.string('name') ?? '', precedence: r.integer('precedence') ?? 0, iconUrl: r.string('iconUrl'), description: r.string('description'));
+      Rank(id: r.id, name: r.string('name') ?? '', sortOrder: r.integer('sortOrder') ?? 0, iconUrl: r.string('iconUrl'), description: r.string('description'));
+}
+
+/// Los cuatro nombres de una persona (cuentas e hijos).
+class PersonName {
+  final String firstName;
+  final String middleName;
+  final String firstSurname;
+  final String secondSurname;
+
+  const PersonName({this.firstName = '', this.middleName = '', this.firstSurname = '', this.secondSurname = ''});
+
+  factory PersonName.from(Resource? r) => PersonName(
+        firstName: r?.string('firstName') ?? '',
+        middleName: r?.string('middleName') ?? '',
+        firstSurname: r?.string('firstSurname') ?? '',
+        secondSurname: r?.string('secondSurname') ?? '',
+      );
+
+  String get full => [firstName, middleName, firstSurname, secondSurname].where((part) => part.isNotEmpty).join(' ');
+
+  /// Primer nombre y primer apellido, para listas y chats.
+  String get short => [firstName, firstSurname].where((part) => part.isNotEmpty).join(' ');
+
+  String get initials => '${firstName.isEmpty ? '' : firstName[0]}${firstSurname.isEmpty ? '' : firstSurname[0]}'.toUpperCase();
+}
+
+/// Entidad: empresa que usa la app. Se muestra por su abreviatura.
+class Entity {
+  final String id;
+  final String abbreviation;
+  final String name;
+  final String? number;
+  final String? description;
+  final String? observation;
+  final bool active;
+
+  Entity({required this.id, required this.abbreviation, required this.name, this.number, this.description, this.observation, this.active = true});
+
+  factory Entity.from(Resource r) => Entity(
+        id: r.id,
+        abbreviation: r.string('abbreviation') ?? '',
+        name: r.string('name') ?? '',
+        number: r.string('number'),
+        description: r.string('description'),
+        observation: r.string('observation'),
+        active: r.attributes['active'] != false,
+      );
 }
 
 class Roles {
@@ -34,76 +81,182 @@ class Roles {
   bool get isItineraryChief => chiefOfItineraries.isNotEmpty;
 }
 
+/// Trabajador de una Entidad. Los nombres vienen de su cuenta.
 class Worker {
   final String id;
-  final String firstName;
-  final String lastName;
+  final String? userId;
+  final PersonName name;
   final String sex;
   final String? photoUrl;
-  final bool isAdmin;
   final bool active;
-  final String? username;
-  final String? cardNumber;
+  final int? pass;
+  final bool activated;
+  final String? entityId;
   final String? rankId;
   final String? itineraryId;
   final String? stopId;
   final int childrenCount;
   final Roles roles;
   final Rank? rank;
-  final bool mustChangePassword;
+  final Entity? entity;
 
   Worker({
     required this.id,
-    required this.firstName,
-    required this.lastName,
+    this.userId,
+    this.name = const PersonName(),
     required this.sex,
     this.photoUrl,
-    this.isAdmin = false,
     this.active = true,
-    this.username,
-    this.cardNumber,
+    this.pass,
+    this.activated = true,
+    this.entityId,
     this.rankId,
     this.itineraryId,
     this.stopId,
     this.childrenCount = 0,
     this.roles = const Roles(),
     this.rank,
-    this.mustChangePassword = false,
+    this.entity,
   });
 
   factory Worker.from(Resource r) {
     final rank = r.related('rank');
+    final entity = r.related('entity');
     return Worker(
       id: r.id,
-      firstName: r.string('firstName') ?? '',
-      lastName: r.string('lastName') ?? '',
+      userId: r.relId('user')?.id,
+      name: PersonName.from(r),
       sex: r.string('sex') ?? 'M',
       photoUrl: r.string('photoUrl'),
-      isAdmin: r.boolean('isAdmin'),
       active: r.attributes['active'] != false,
-      username: r.string('username'),
-      cardNumber: r.string('cardNumber'),
+      pass: r.integer('pass'),
+      activated: r.attributes['activated'] != false,
+      entityId: r.relId('entity')?.id,
       rankId: r.relId('rank')?.id,
       itineraryId: r.relId('itinerary')?.id,
       stopId: r.relId('stop')?.id,
       childrenCount: (r.meta['childrenCount'] as num?)?.toInt() ?? 0,
       roles: Roles.from(r.meta['roles'] as Map<String, dynamic>?),
       rank: rank == null ? null : Rank.from(rank),
-      mustChangePassword: r.boolean('mustChangePassword'),
+      entity: entity == null ? null : Entity.from(entity),
     );
   }
 
-  String get fullName => '$firstName $lastName';
+  String get fullName => name.full;
 
-  String get initials => '${firstName.isEmpty ? '' : firstName[0]}${lastName.isEmpty ? '' : lastName[0]}'.toUpperCase();
+  String get firstName => name.firstName;
+
+  String get initials => name.initials;
+}
+
+/// Cuenta de la app (recurso "users").
+class Account {
+  final String id;
+  final String? username;
+  final PersonName name;
+  final String? photoUrl;
+  final bool isAdmin;
+  final bool active;
+  final bool mustChangePassword;
+  final bool currentPasswordRequired;
+  final DateTime? passwordExpiresAt;
+  final String? workerId;
+
+  Account({
+    required this.id,
+    this.username,
+    this.name = const PersonName(),
+    this.photoUrl,
+    this.isAdmin = false,
+    this.active = true,
+    this.mustChangePassword = false,
+    this.currentPasswordRequired = true,
+    this.passwordExpiresAt,
+    this.workerId,
+  });
+
+  factory Account.from(Resource r) => Account(
+        id: r.id,
+        username: r.string('username'),
+        name: PersonName.from(r),
+        photoUrl: r.string('photoUrl'),
+        isAdmin: r.boolean('isAdmin'),
+        active: r.attributes['active'] != false,
+        mustChangePassword: r.boolean('mustChangePassword'),
+        currentPasswordRequired: r.attributes['currentPasswordRequired'] != false,
+        passwordExpiresAt: r.date('passwordExpiresAt'),
+        workerId: r.relId('worker')?.id,
+      );
+
+  String get fullName => name.full;
+}
+
+/// El usuario de la sesión: su cuenta y, si pertenece a una Entidad, su trabajador.
+///
+/// El Administrador no es trabajador: ve y hace todo, en todas las Entidades.
+class Me {
+  final Account account;
+  final Worker? worker;
+
+  Me(this.account, this.worker);
+
+  factory Me.from(Resource r) {
+    final worker = r.related('worker');
+    return Me(Account.from(r), worker == null ? null : Worker.from(worker));
+  }
+
+  /// Id del trabajador ('' para el Administrador, que no lo es).
+  String get id => worker?.id ?? '';
+
+  String get userId => account.id;
+
+  bool get hasWorker => worker != null;
+
+  bool get isAdmin => account.isAdmin;
+
+  /// Tiene que unirse a una Entidad antes de usar la app.
+  bool get needsEntity => !isAdmin && worker == null;
+
+  String? get username => account.username;
+
+  String get fullName => account.fullName;
+
+  String get firstName => account.name.firstName;
+
+  PersonName get name => account.name;
+
+  String? get photoUrl => account.photoUrl;
+
+  bool get mustChangePassword => account.mustChangePassword;
+
+  String? get entityId => worker?.entityId;
+
+  Entity? get entity => worker?.entity;
+
+  int? get pass => worker?.pass;
+
+  String? get sex => worker?.sex;
+
+  String? get itineraryId => worker?.itineraryId;
+
+  String? get stopId => worker?.stopId;
+
+  Rank? get rank => worker?.rank;
+
+  String? get rankId => worker?.rankId;
+
+  int get childrenCount => worker?.childrenCount ?? 0;
+
+  Roles get roles => worker?.roles ?? const Roles();
 
   bool get managesTransport => isAdmin || roles.isTransportChief;
 
-  /// El Administrador cuenta como Jefe de todos los itinerarios.
-  bool isChiefOf(String? itineraryId) => itineraryId != null && (isAdmin || roles.chiefOfItineraries.contains(itineraryId));
+  /// El Administrador cuenta como Jefe de todos los itinerarios, y el Jefe de
+  /// Transporte como Jefe de los de su Entidad (el servidor solo le muestra esos).
+  bool isChiefOf(String? itineraryId) => itineraryId != null && (managesTransport || roles.chiefOfItineraries.contains(itineraryId));
 
   /// Puede planificar viajes de ese itinerario.
-  bool canPlan(String? itineraryId) => managesTransport || isChiefOf(itineraryId);
+  bool canPlan(String? itineraryId) => isChiefOf(itineraryId);
 
   /// Puede planificar viajes de algún itinerario.
   bool get plansTrips => managesTransport || roles.isItineraryChief;
@@ -291,8 +444,11 @@ class Trip {
   final String driverId;
   final int expectedPassengers;
   final int expectedChildren;
+  final int seats;
   final int totalCapacity;
-  final bool overloaded;
+
+  /// normal, saturated (van de pie) u overloaded (no caben).
+  final String occupancyLevel;
   final bool needsReassignment;
   final String? departureStopId;
   final String? returnStopId;
@@ -315,8 +471,9 @@ class Trip {
     required this.driverId,
     this.expectedPassengers = 0,
     this.expectedChildren = 0,
+    this.seats = 0,
     this.totalCapacity = 0,
-    this.overloaded = false,
+    this.occupancyLevel = 'normal',
     this.needsReassignment = false,
     this.departureStopId,
     this.returnStopId,
@@ -344,26 +501,31 @@ class Trip {
       driverId: r.relId('driver')!.id,
       expectedPassengers: (r.meta['expectedPassengers'] as num?)?.toInt() ?? 0,
       expectedChildren: (r.meta['expectedChildren'] as num?)?.toInt() ?? 0,
+      seats: (r.meta['seats'] as num?)?.toInt() ?? 0,
       totalCapacity: (r.meta['totalCapacity'] as num?)?.toInt() ?? 0,
-      overloaded: r.meta['overloaded'] == true,
+      occupancyLevel: r.meta['occupancyLevel']?.toString() ?? (r.meta['overloaded'] == true ? 'overloaded' : 'normal'),
       needsReassignment: r.meta['needsReassignment'] == true,
       departureStopId: (r.meta['departurePoint'] as Map?)?['id']?.toString(),
       returnStopId: (r.meta['returnPoint'] as Map?)?['id']?.toString(),
       itineraryName: itinerary?.string('name'),
       vehiclePlate: vehicle?.string('plate'),
       vehicleTypeName: vehicleType?.string('name'),
-      driverName: driverWorker == null ? null : '${driverWorker.string('firstName')} ${driverWorker.string('lastName')}',
+      driverName: driverWorker == null ? null : PersonName.from(driverWorker).short,
       driverWorkerId: driver?.relId('worker')?.id,
     );
   }
 
   bool get isConfirmed => status == TripStatus.confirmed;
 
+  bool get overloaded => occupancyLevel == 'overloaded';
+
+  bool get saturated => occupancyLevel == 'saturated';
+
   Map<String, dynamic> toJson() => {
         'id': id, 'departsAt': departsAt.toIso8601String(), 'returnsAt': returnsAt.toIso8601String(), 'status': status,
         'updatedAt': updatedAt?.toIso8601String(), 'itineraryId': itineraryId, 'vehicleId': vehicleId, 'driverId': driverId,
-        'expectedPassengers': expectedPassengers, 'expectedChildren': expectedChildren, 'totalCapacity': totalCapacity,
-        'overloaded': overloaded, 'needsReassignment': needsReassignment, 'departureStopId': departureStopId,
+        'expectedPassengers': expectedPassengers, 'expectedChildren': expectedChildren, 'seats': seats, 'totalCapacity': totalCapacity,
+        'occupancyLevel': occupancyLevel, 'needsReassignment': needsReassignment, 'departureStopId': departureStopId,
         'returnStopId': returnStopId, 'itineraryName': itineraryName, 'vehiclePlate': vehiclePlate,
         'vehicleTypeName': vehicleTypeName, 'driverName': driverName, 'driverWorkerId': driverWorkerId,
       };
@@ -379,8 +541,9 @@ class Trip {
         driverId: j['driverId'] as String,
         expectedPassengers: j['expectedPassengers'] as int? ?? 0,
         expectedChildren: j['expectedChildren'] as int? ?? 0,
+        seats: j['seats'] as int? ?? 0,
         totalCapacity: j['totalCapacity'] as int? ?? 0,
-        overloaded: j['overloaded'] == true,
+        occupancyLevel: j['occupancyLevel'] as String? ?? (j['overloaded'] == true ? 'overloaded' : 'normal'),
         needsReassignment: j['needsReassignment'] == true,
         departureStopId: j['departureStopId'] as String?,
         returnStopId: j['returnStopId'] as String?,
@@ -455,7 +618,7 @@ class StopPass {
 class Passenger {
   final Worker worker;
   final String stopId;
-  final int order;
+  final int position;
   final int eligibleChildren;
   final bool boarded;
   final int? boardedChildren;
@@ -464,7 +627,7 @@ class Passenger {
   Passenger({
     required this.worker,
     required this.stopId,
-    required this.order,
+    required this.position,
     required this.eligibleChildren,
     required this.boarded,
     this.boardedChildren,
@@ -474,7 +637,7 @@ class Passenger {
   factory Passenger.from(Resource r) => Passenger(
         worker: Worker.from(r.related('worker')!),
         stopId: r.relId('stop')!.id,
-        order: r.integer('boardingOrder') ?? 0,
+        position: r.integer('position') ?? 0,
         eligibleChildren: r.integer('eligibleChildren') ?? 0,
         boarded: r.boolean('boarded'),
         boardedChildren: r.integer('boardedChildren'),
@@ -487,7 +650,6 @@ class ApplicationType {
   static const itineraryChief = 'itinerary_chief';
   static const driver = 'driver';
   static const transportChief = 'transport_chief';
-  static const rankChange = 'rank_change';
   static const childAddition = 'child_addition';
   static const childRemoval = 'child_removal';
   static const absence = 'absence';
@@ -502,7 +664,6 @@ class ApplicationType {
         itineraryChief: 'Jefe de itinerario',
         driver: 'Chofer',
         transportChief: 'Jefe de Transporte',
-        rankChange: 'Cambio de jerarquía',
         childAddition: 'Declarar hijo',
         childRemoval: 'Quitar hijo',
         absence: 'Ausencia temporal',
@@ -530,11 +691,12 @@ class Application {
   final DateTime createdAt;
   final String workerId;
   final Worker? worker;
-  final Worker? resolver;
+  final String? resolverName;
   final String? itineraryName;
   final String? stopName;
-  final String? rankName;
   final String? childName;
+  final bool possibleDuplicate;
+  final bool assigned;
   final String? absenceTypeName;
   final String? startsOn;
   final String? endsOn;
@@ -549,11 +711,12 @@ class Application {
     required this.createdAt,
     required this.workerId,
     this.worker,
-    this.resolver,
+    this.resolverName,
     this.itineraryName,
     this.stopName,
-    this.rankName,
     this.childName,
+    this.possibleDuplicate = false,
+    this.assigned = false,
     this.absenceTypeName,
     this.startsOn,
     this.endsOn,
@@ -563,7 +726,6 @@ class Application {
   factory Application.from(Resource r) {
     final worker = r.related('worker');
     final resolver = r.related('resolvedBy');
-    final childFirst = r.string('childFirstName');
     return Application(
       id: r.id,
       type: r.string('type')!,
@@ -573,11 +735,12 @@ class Application {
       createdAt: r.date('createdAt')!,
       workerId: r.relId('worker')!.id,
       worker: worker == null ? null : Worker.from(worker),
-      resolver: resolver == null ? null : Worker.from(resolver),
+      resolverName: resolver == null ? null : PersonName.from(resolver).short,
       itineraryName: r.related('itinerary')?.string('name'),
       stopName: r.related('stop')?.string('landmark'),
-      rankName: r.related('rank')?.string('name'),
-      childName: childFirst == null ? null : '$childFirst ${r.string('childLastName') ?? ''}',
+      childName: r.string('childFullName'),
+      possibleDuplicate: r.boolean('possibleDuplicate'),
+      assigned: r.boolean('assigned'),
       absenceTypeName: r.related('absenceType')?.string('name'),
       startsOn: r.string('startsOn'),
       endsOn: r.string('endsOn'),
@@ -591,7 +754,6 @@ class Application {
     final parts = <String>[
       ?itineraryName,
       ?stopName,
-      ?rankName,
       ?childName,
       ?absenceTypeName,
       if (startsOn != null) '$startsOn → $endsOn',
@@ -602,26 +764,24 @@ class Application {
 
 class Child {
   final String id;
-  final String firstName;
-  final String lastName;
-  final String? cardNumber;
+  final PersonName name;
+  final String? birthDate;
   final bool declared;
   final bool eligible;
   final String? eligibleUntil;
 
-  Child({required this.id, required this.firstName, required this.lastName, this.cardNumber, this.declared = false, this.eligible = false, this.eligibleUntil});
+  Child({required this.id, this.name = const PersonName(), this.birthDate, this.declared = false, this.eligible = false, this.eligibleUntil});
 
   factory Child.from(Resource r) => Child(
         id: r.id,
-        firstName: r.string('firstName') ?? '',
-        lastName: r.string('lastName') ?? '',
-        cardNumber: r.string('cardNumber'),
+        name: PersonName.from(r),
+        birthDate: r.string('birthDate'),
         declared: r.meta['declared'] == true,
         eligible: r.meta['eligible'] == true,
         eligibleUntil: r.meta['eligibleUntil']?.toString(),
       );
 
-  String get fullName => '$firstName $lastName';
+  String get fullName => name.full;
 }
 
 class Notice {
@@ -631,9 +791,9 @@ class Notice {
   final DateTime createdAt;
   final String? applicationId;
   final String? tripId;
-  final String? passwordResetId;
+  final String? accessRecoveryId;
 
-  Notice({required this.id, required this.type, this.readAt, required this.createdAt, this.applicationId, this.tripId, this.passwordResetId});
+  Notice({required this.id, required this.type, this.readAt, required this.createdAt, this.applicationId, this.tripId, this.accessRecoveryId});
 
   factory Notice.from(Resource r) => Notice(
         id: r.id,
@@ -642,7 +802,7 @@ class Notice {
         createdAt: r.date('createdAt')!,
         applicationId: r.relId('application')?.id,
         tripId: r.relId('trip')?.id,
-        passwordResetId: r.relId('passwordReset')?.id,
+        accessRecoveryId: r.relId('accessRecovery')?.id,
       );
 
   String get title => const {
@@ -652,7 +812,10 @@ class Notice {
         'inactivity_warning': 'Vas a perder tu plaza por inactividad',
         'inactivity_removal': 'Baja automática por inactividad',
         'trip_needs_reassignment': 'Un viaje se quedó sin chofer',
-        'password_reset_requested': 'Un trabajador pidió restablecer su contraseña',
+        'role_assigned': 'Un superior te asignó algo nuevo',
+        'role_removed': 'Un superior te quitó un rol o tu itinerario',
+        'access_recovery_requested': 'Alguien no puede entrar y pide ayuda',
+        'password_expiring': 'Tu contraseña caduca pronto',
       }[type] ?? type;
 }
 
@@ -660,19 +823,21 @@ class Message {
   final String id;
   final String body;
   final DateTime createdAt;
-  final String workerId;
-  final Worker? worker;
 
-  Message({required this.id, required this.body, required this.createdAt, required this.workerId, this.worker});
+  /// Cuenta que lo escribió; null = quien abrió la conversación sin cuenta.
+  final String? authorId;
+  final String? authorName;
+
+  Message({required this.id, required this.body, required this.createdAt, this.authorId, this.authorName});
 
   factory Message.from(Resource r) {
-    final worker = r.related('worker');
+    final author = r.related('author');
     return Message(
       id: r.id,
       body: r.string('body') ?? '',
       createdAt: r.date('createdAt')!,
-      workerId: r.relId('worker')!.id,
-      worker: worker == null ? null : Worker.from(worker),
+      authorId: r.relId('author')?.id,
+      authorName: author == null ? null : PersonName.from(author).short,
     );
   }
 }
@@ -684,9 +849,29 @@ class Conversation {
   final DateTime? lastMessageAt;
   final int messageCount;
   final String? topicName;
-  final Worker? openedBy;
+  final String? openedById;
+  final String? openedByName;
+  final bool guest;
+  final bool closed;
+  final String? guestName;
+  final String? guestPhone;
+  final String? installationId;
 
-  Conversation({required this.id, required this.recipient, required this.createdAt, this.lastMessageAt, this.messageCount = 0, this.topicName, this.openedBy});
+  Conversation({
+    required this.id,
+    required this.recipient,
+    required this.createdAt,
+    this.lastMessageAt,
+    this.messageCount = 0,
+    this.topicName,
+    this.openedById,
+    this.openedByName,
+    this.guest = false,
+    this.closed = false,
+    this.guestName,
+    this.guestPhone,
+    this.installationId,
+  });
 
   factory Conversation.from(Resource r) {
     final opener = r.related('openedBy');
@@ -697,7 +882,13 @@ class Conversation {
       lastMessageAt: r.date('lastMessageAt'),
       messageCount: (r.meta['messageCount'] as num?)?.toInt() ?? 0,
       topicName: r.related('topic')?.string('name'),
-      openedBy: opener == null ? null : Worker.from(opener),
+      openedById: r.relId('openedBy')?.id,
+      openedByName: opener == null ? null : PersonName.from(opener).full,
+      guest: r.boolean('guest'),
+      closed: r.boolean('closed'),
+      guestName: r.string('guestName'),
+      guestPhone: r.string('guestPhone'),
+      installationId: r.relId('installation')?.id,
     );
   }
 
@@ -717,7 +908,7 @@ class SettingDefinition {
   final int? minValue;
   final int? maxValue;
   final String? minSetting;
-  final String? editableBy;
+  final String? level;
   final bool userOverridable;
   final Map<String, String> options;
 
@@ -730,7 +921,7 @@ class SettingDefinition {
     this.minValue,
     this.maxValue,
     this.minSetting,
-    this.editableBy,
+    this.level,
     this.userOverridable = false,
     this.options = const {},
   });
@@ -744,7 +935,7 @@ class SettingDefinition {
         minValue: r.integer('minValue'),
         maxValue: r.integer('maxValue'),
         minSetting: r.string('minSetting'),
-        editableBy: r.string('editableBy'),
+        level: r.string('level'),
         userOverridable: r.boolean('userOverridable'),
         options: {for (final o in (r.attributes['options'] as List? ?? const [])) '${(o as Map)['value']}': '${o['name']}'},
       );

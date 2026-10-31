@@ -29,12 +29,12 @@ class ChatsTest extends TestCase
 
     private function createTrip($itinerary, string $status = Trip::STATUS_CONFIRMED): Trip
     {
-        $vehicle = Vehicle::create(['vehicle_type_id' => VehicleType::first()->id, 'plate' => 'B'.rand(1000, 9999), 'seats' => 10, 'standing_capacity' => 0]);
+        $vehicle = $this->createVehicle(null, 10, 0);
 
         return Trip::create([
             'itinerary_id' => $itinerary->id, 'vehicle_id' => $vehicle->id, 'driver_id' => $this->createDriver()->driverId(),
             'departs_at' => Carbon::now()->addDay(), 'returns_at' => Carbon::now()->addDays(2), 'status' => $status,
-            'created_by' => $this->createTransportChief()->id,
+            'created_by' => $this->createTransportChief()->user_id,
         ]);
     }
 
@@ -59,7 +59,7 @@ class ChatsTest extends TestCase
         $this->sendTripMessage($stranger, $trip, 'Hola');
         $this->assertJsonApiError(404, 'NOT_FOUND');
 
-        $this->jsonApiAs($member, 'GET', '/api/v1/trips/'.$trip->id.'/messages?include=worker');
+        $this->jsonApiAs($member, 'GET', '/api/v1/trips/'.$trip->id.'/messages?include=author');
         $this->assertSame('Hoy voy con mi hijo', $this->responseJson()['data'][0]['attributes']['body']);
 
         // Desconfirmado: oculto, pero no se borra
@@ -88,10 +88,8 @@ class ChatsTest extends TestCase
     public function testConversacionesConMotivo()
     {
         $itinerary = $this->createItinerary();
-        $chief = $this->createWorker();
-        ItineraryChief::create(['itinerary_id' => $itinerary->id, 'worker_id' => $chief->id]);
-        $otherChief = $this->createWorker();
-        ItineraryChief::create(['itinerary_id' => $this->createItinerary('Ruta Oeste')->id, 'worker_id' => $otherChief->id]);
+        $chief = $this->createItineraryChief($itinerary);
+        $otherChief = $this->createItineraryChief($this->createItinerary('Ruta Oeste'));
         $transportChief = $this->createTransportChief();
         $admin = $this->createAdmin();
         $member = $this->joinItinerary($this->createWorker(), $itinerary);
@@ -117,6 +115,17 @@ class ChatsTest extends TestCase
         $this->jsonApiAs($transportChief, 'GET', '/api/v1/conversations/'.$conversationId);
         $this->assertJsonApiError(404, 'NOT_FOUND');
 
+        // Las de los Jefes de Transporte solo las ven los de esa Entidad.
+        $toTransport = ConversationTopic::where('recipient', 'transport_chiefs')->first();
+        $this->jsonApiAs($member, 'POST', '/api/v1/conversations', ['data' => ['type' => 'conversations', 'relationships' => [
+            'topic' => ['data' => ['type' => 'conversation-topics', 'id' => (string) $toTransport->id]],
+        ]]]);
+        $transportConversation = $this->responseJson()['data']['id'];
+        $this->jsonApiAs($transportChief, 'GET', '/api/v1/conversations/'.$transportConversation);
+        $this->assertResponseOk();
+        $this->jsonApiAs($this->createTransportChief([], $this->createEntity('OTRA')), 'GET', '/api/v1/conversations/'.$transportConversation);
+        $this->assertJsonApiError(404, 'NOT_FOUND');
+
         $this->jsonApiAs($member, 'POST', '/api/v1/conversations', ['data' => ['type' => 'conversations', 'relationships' => [
             'topic' => ['data' => ['type' => 'conversation-topics', 'id' => (string) $idea->id]],
         ]]]);
@@ -133,6 +142,12 @@ class ChatsTest extends TestCase
             'topic' => ['data' => ['type' => 'conversation-topics', 'id' => (string) $complaint->id]],
         ]]]);
         $this->assertJsonApiError(422, 'NO_ITINERARY');
+
+        // Una cuenta sin Entidad sí puede escribir al desarrollador.
+        $this->jsonApiAs($this->createUser(), 'POST', '/api/v1/conversations', ['data' => ['type' => 'conversations', 'relationships' => [
+            'topic' => ['data' => ['type' => 'conversation-topics', 'id' => (string) $idea->id]],
+        ]]]);
+        $this->assertResponseStatus(201);
     }
 
     public function testCaducidadDeLasConversaciones()
@@ -140,12 +155,12 @@ class ChatsTest extends TestCase
         $member = $this->createWorker();
         $topic = ConversationTopic::where('recipient', 'developer')->first();
         Carbon::setTestNow(Carbon::create(2026, 10, 1, 10));
-        $old = Conversation::create(['conversation_topic_id' => $topic->id, 'opened_by' => $member->id]);
-        ConversationMessage::create(['conversation_id' => $old->id, 'worker_id' => $member->id, 'body' => 'Viejo']);
-        $active = Conversation::create(['conversation_topic_id' => $topic->id, 'opened_by' => $member->id]);
+        $old = Conversation::create(['conversation_topic_id' => $topic->id, 'opened_by' => $member->user_id]);
+        ConversationMessage::create(['conversation_id' => $old->id, 'user_id' => $member->user_id, 'body' => 'Viejo']);
+        $active = Conversation::create(['conversation_topic_id' => $topic->id, 'opened_by' => $member->user_id]);
 
         Carbon::setTestNow(Carbon::create(2026, 10, 25, 10));
-        ConversationMessage::create(['conversation_id' => $active->id, 'worker_id' => $member->id, 'body' => 'Reciente']);
+        ConversationMessage::create(['conversation_id' => $active->id, 'user_id' => $member->user_id, 'body' => 'Reciente']);
 
         Carbon::setTestNow(Carbon::create(2026, 11, 2, 10));
         $this->artisan('chats:purge-expired');

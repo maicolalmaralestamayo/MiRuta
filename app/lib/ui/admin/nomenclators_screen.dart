@@ -6,7 +6,7 @@ import '../../models/models.dart';
 import '../widgets/common.dart';
 
 /// Nomencladores: denominación, descripción y observación, más los campos
-/// propios de las jerarquías (prioridad e icono) y de los motivos (destinatario).
+/// propios de las jerarquías (orden de presentación e icono) y de los motivos (destinatario).
 class NomenclatorsScreen extends StatefulWidget {
   final String title;
   final String path;
@@ -19,7 +19,10 @@ class NomenclatorsScreen extends StatefulWidget {
 
   factory NomenclatorsScreen.absenceTypes() => const NomenclatorsScreen._('Tipos de ausencia', '/absence-types', 'absence-types', 'name');
 
-  factory NomenclatorsScreen.ranks() => const NomenclatorsScreen._('Jerarquías', '/ranks', 'ranks', 'precedence');
+  factory NomenclatorsScreen.ranks() => const NomenclatorsScreen._('Jerarquías', '/ranks', 'ranks', 'sortOrder,name');
+
+  /// Palabras que no puede contener un usuario (solo el Administrador).
+  factory NomenclatorsScreen.forbiddenWords() => const NomenclatorsScreen._('Palabras no permitidas', '/forbidden-words', 'forbidden-words', 'name');
 
   factory NomenclatorsScreen.conversationTopics() => const NomenclatorsScreen._('Motivos de conversación', '/conversation-topics', 'conversation-topics', 'name');
 
@@ -46,9 +49,9 @@ class _NomenclatorsScreenState extends State<NomenclatorsScreen> {
     final attributes = <String, dynamic>{'name': name, 'description': description.isEmpty ? null : description, 'observation': observation.isEmpty ? null : observation};
 
     if (_isRank) {
-      final precedence = await promptText(context, 'Orden (1 = la más alta)', initial: '${item?.extra['precedence'] ?? ''}', required: true);
-      if (precedence == null || !mounted) return;
-      attributes['precedence'] = int.tryParse(precedence) ?? 0;
+      final order = await promptText(context, 'Orden en las listas', initial: '${item?.extra['sortOrder'] ?? ''}');
+      if (order == null || !mounted) return;
+      attributes['sortOrder'] = int.tryParse(order) ?? 0;
     }
     if (_isTopic) {
       final recipient = await pickFrom<String>(context, 'Destinatario', ['itinerary_chiefs', 'transport_chiefs', 'developer'], Conversation.recipientLabel);
@@ -89,7 +92,7 @@ class _NomenclatorsScreenState extends State<NomenclatorsScreen> {
                   ? GestureDetector(
                       onTap: () => _icon(item),
                       child: item.extra['iconUrl'] == null
-                          ? CircleAvatar(child: Text('${item.extra['precedence']}'))
+                          ? CircleAvatar(child: Text('${item.extra['sortOrder']}'))
                           : CircleAvatar(backgroundImage: NetworkImage('${item.extra['iconUrl']}')),
                     )
                   : null,

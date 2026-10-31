@@ -73,6 +73,16 @@ class Worker extends Model
         return $this->hasMany(Application::class);
     }
 
+    /**
+     * Id de su fila de chofer, si lo es.
+     */
+    public function driverId(): ?int
+    {
+        $id = Driver::where('worker_id', $this->id)->value('id');
+
+        return $id === null ? null : (int) $id;
+    }
+
     public function fullName(): string
     {
         return $this->user ? $this->user->fullName() : '';

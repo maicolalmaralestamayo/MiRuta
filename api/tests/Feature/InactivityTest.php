@@ -29,13 +29,13 @@ class InactivityTest extends TestCase
         $this->artisan('db:seed');
         Carbon::setTestNow(Carbon::create(2026, 10, 1, 8));
         $this->itinerary = $this->createItinerary();
-        $this->vehicle = Vehicle::create(['vehicle_type_id' => VehicleType::first()->id, 'plate' => 'B1', 'seats' => 10, 'standing_capacity' => 0]);
+        $this->vehicle = $this->createVehicle(null, 10, 0);
         $this->driver = $this->createDriver();
         $this->chief = $this->createTransportChief();
 
-        // 5 días sin viajar para la baja; aviso 2 días antes
+        // 5 días sin viajar para la baja; aviso 2 días antes (ajustes de la Entidad)
         foreach (['inactivity_days' => '5', 'inactivity_warning_days' => '2'] as $key => $value) {
-            Setting::create(['setting_definition_id' => SettingDefinition::where('key', $key)->value('id'), 'value' => $value]);
+            \App\Models\EntitySetting::create(['entity_id' => $this->defaultEntity()->id, 'setting_definition_id' => SettingDefinition::where('key', $key)->value('id'), 'value' => $value]);
         }
     }
 
@@ -50,13 +50,13 @@ class InactivityTest extends TestCase
         return Trip::create([
             'itinerary_id' => $this->itinerary->id, 'vehicle_id' => $this->vehicle->id, 'driver_id' => $this->driver->driverId(),
             'departs_at' => Carbon::create(2026, 10, $day, 17), 'returns_at' => Carbon::create(2026, 10, $day + 1, 6),
-            'status' => Trip::STATUS_COMPLETED, 'created_by' => $this->chief->id,
+            'status' => Trip::STATUS_COMPLETED, 'created_by' => $this->chief->user_id,
         ]);
     }
 
     private function boarded($worker, Trip $trip): void
     {
-        $leg = TripLeg::create(['trip_id' => $trip->id, 'direction' => 'return', 'started_at' => $trip->returns_at, 'started_by' => $this->driver->id]);
+        $leg = TripLeg::create(['trip_id' => $trip->id, 'direction' => 'return', 'started_at' => $trip->returns_at, 'started_by' => $this->driver->user_id]);
         TripBoarding::create(['trip_leg_id' => $leg->id, 'worker_id' => $worker->id, 'method' => 'self', 'children_count' => 0, 'boarded_at' => $trip->returns_at]);
     }
 
@@ -72,12 +72,12 @@ class InactivityTest extends TestCase
         // Día 4: 3 días sin viajar = 5 - 2 → aviso
         Carbon::setTestNow(Carbon::create(2026, 10, 4, 23));
         $this->artisan('workers:inactivity');
-        $this->assertTrue(Notice::where('worker_id', $absent->id)->where('type', 'inactivity_warning')->exists());
-        $this->assertFalse(Notice::where('worker_id', $regular->id)->exists());
+        $this->assertTrue(Notice::where('user_id', $absent->user_id)->where('type', 'inactivity_warning')->exists());
+        $this->assertFalse(Notice::where('user_id', $regular->user_id)->exists());
 
         // Repetir no avisa dos veces
         $this->artisan('workers:inactivity');
-        $this->assertSame(1, Notice::where('worker_id', $absent->id)->where('type', 'inactivity_warning')->count());
+        $this->assertSame(1, Notice::where('user_id', $absent->user_id)->where('type', 'inactivity_warning')->count());
 
         foreach ([5, 6] as $day) {
             $this->boarded($regular, $this->completedTrip($day));
@@ -91,7 +91,7 @@ class InactivityTest extends TestCase
         $removal = Application::where('worker_id', $absent->id)->where('type', 'itinerary_removal')->first();
         $this->assertSame('approved', $removal->status);
         $this->assertSame($this->itinerary->id, (int) $removal->itineraryApplication->itinerary_id);
-        $this->assertTrue(Notice::where('worker_id', $absent->id)->where('type', 'inactivity_removal')->exists());
+        $this->assertTrue(Notice::where('user_id', $absent->user_id)->where('type', 'inactivity_removal')->exists());
     }
 
     public function testDiasSinViajesYAusenciasNoCuentan()
@@ -109,6 +109,55 @@ class InactivityTest extends TestCase
         $this->artisan('workers:inactivity');
 
         $this->assertSame($this->itinerary->id, (int) $worker->fresh()->itinerary_id);
-        $this->assertFalse(Notice::where('worker_id', $worker->id)->exists());
+        $this->assertFalse(Notice::where('user_id', $worker->user_id)->exists());
+    }
+
+    private function completedTripDrivenBy($driverWorker, int $day): Trip
+    {
+        return Trip::create([
+            'itinerary_id' => $this->createItinerary('Otra '.$day)->id, 'vehicle_id' => $this->vehicle->id, 'driver_id' => $driverWorker->driverId(),
+            'departs_at' => Carbon::create(2026, 10, $day, 7), 'returns_at' => Carbon::create(2026, 10, $day, 9),
+            'status' => Trip::STATUS_COMPLETED, 'created_by' => $this->chief->user_id,
+        ]);
+    }
+
+    public function testConducirUnViajeRealizadoCuentaComoActividad()
+    {
+        // Un chofer miembro del itinerario que no sube como pasajero pero conduce.
+        $driver = $this->joinItinerary($this->createDriver(), $this->itinerary);
+
+        foreach (range(2, 7) as $day) {
+            $this->completedTrip($day);
+            $this->completedTripDrivenBy($driver, $day);
+        }
+
+        Carbon::setTestNow(Carbon::create(2026, 10, 7, 23));
+        $this->artisan('workers:inactivity');
+
+        $this->assertSame($this->itinerary->id, (int) $driver->fresh()->itinerary_id);
+        $this->assertFalse(Notice::where('user_id', $driver->user_id)->exists());
+    }
+
+    public function testLosPlazosSonDeCadaEntidad()
+    {
+        $other = $this->createEntity('OTRA');
+        $foreignItinerary = $this->createItinerary('Ajena', 2, $other);
+        $foreign = $this->joinItinerary($this->createWorker([], $other), $foreignItinerary);
+        $foreignDriver = $this->createDriver([], $other);
+        $foreignVehicle = $this->createVehicle(null, 10, 0, $other);
+
+        foreach (range(2, 7) as $day) {
+            Trip::create([
+                'itinerary_id' => $foreignItinerary->id, 'vehicle_id' => $foreignVehicle->id, 'driver_id' => $foreignDriver->driverId(),
+                'departs_at' => Carbon::create(2026, 10, $day, 17), 'returns_at' => Carbon::create(2026, 10, $day + 1, 6),
+                'status' => Trip::STATUS_COMPLETED, 'created_by' => $this->chief->user_id,
+            ]);
+        }
+
+        Carbon::setTestNow(Carbon::create(2026, 10, 8, 23));
+        $this->artisan('workers:inactivity');
+
+        // La otra Entidad usa los 30 días de la app: sigue en su itinerario.
+        $this->assertSame($foreignItinerary->id, (int) $foreign->fresh()->itinerary_id);
     }
 }

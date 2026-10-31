@@ -70,7 +70,8 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
               subtitle: Text(TripStatus.label(trip.status)),
               trailing: StatusChip(TripStatus.label(trip.status), color: tripStatusColor(trip.status)),
             ),
-            if ((operate || me.managesTransport) && trip.overloaded) OverloadBanner(expected: trip.expectedPassengers, capacity: trip.totalCapacity),
+            if ((operate || me.managesTransport) && trip.occupancyLevel != 'normal')
+              OverloadBanner(level: trip.occupancyLevel, expected: trip.expectedPassengers, children: trip.expectedChildren, seats: trip.seats, capacity: trip.totalCapacity),
             if (me.managesTransport && trip.needsReassignment)
               const ListTile(leading: Icon(Icons.person_off, color: Colors.red), title: Text('El chofer de este viaje se dio de baja. Hay que reasignarlo.')),
             Card(
@@ -89,12 +90,12 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
             ),
             Card(
               child: Column(children: [
-                ListTile(leading: const Icon(Icons.directions_bus), title: Text('${trip.vehicleTypeName ?? ''} ${trip.vehiclePlate ?? ''}'), subtitle: Text('Capacidad: ${trip.totalCapacity} pasajeros')),
+                ListTile(leading: const Icon(Icons.directions_bus), title: Text('${trip.vehicleTypeName ?? ''} ${trip.vehiclePlate ?? ''}'), subtitle: Text('${trip.seats} asientos · ${trip.totalCapacity - trip.seats} de pie · capacidad ${trip.totalCapacity}')),
                 ListTile(leading: const Icon(Icons.person), title: Text(trip.driverName ?? 'Sin chofer'), subtitle: const Text('Chofer')),
                 ListTile(
                   leading: const Icon(Icons.people_alt_outlined),
-                  title: Text('${trip.expectedPassengers} pasajeros esperados'),
-                  subtitle: Text('${trip.expectedChildren} niños'),
+                  title: Text('${trip.expectedPassengers} trabajadores esperados'),
+                  subtitle: Text('${trip.expectedChildren} niños (van cargados: no ocupan plaza) · ${occupancyLabel(trip.occupancyLevel)}'),
                 ),
               ]),
             ),

@@ -25,6 +25,9 @@ const _groups = <String, List<String>>{
   'Aviso de regreso': ['return_notice_mode', 'return_notice_minutes_before', 'return_notice_fixed_time', 'return_notice_fixed_days_before', 'return_notice_fallback', 'return_notice_template'],
   'Paso por paradas': ['stop_notice_scope', 'stop_notice_after_boarding', 'stop_notice_template'],
   'Cambios y cancelaciones': ['change_notice_template', 'cancel_notice_template', 'notify_during_absence'],
+  'Saturación del transporte': [
+    'saturation_notice_enabled', 'saturation_notice_level', 'saturation_notice_scope', 'saturation_notice_when', 'saturation_notice_minutes_before',
+  ],
   'Recorrido': ['trip_view', 'tts_enabled', 'share_location', 'location_interval_seconds'],
   'Frecuencias': [
     'background_sync_enabled', 'trips_poll_foreground_seconds', 'trips_poll_background_minutes', 'tracking_poll_foreground_seconds',
@@ -37,6 +40,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _view = GlobalKey<AsyncViewState<(Map<String, SettingDefinition>, UserSettings)>>();
   bool _pin = false;
   bool _rememberLogin = true;
+  bool _wifiOnly = false;
   String _version = '';
 
   @override
@@ -45,6 +49,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     AppPin.isEnabled().then((v) => setState(() => _pin = v));
     Storage.getBool(Session.rememberLoginKey, fallback: true).then((v) => setState(() => _rememberLogin = v));
     AppUpdates.currentVersionName().then((v) => setState(() => _version = v));
+    Storage.getBool(AppUpdates.wifiOnlyKey, fallback: false).then((v) => setState(() => _wifiOnly = v));
   }
 
   Future<(Map<String, SettingDefinition>, UserSettings)> _load() async {
@@ -127,7 +132,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             for (final group in _groups.entries) ...[
               SectionTitle(group.key),
               for (final key in group.value)
-                if (definitions[key] != null && (key != 'tts_enabled' || operator))
+                if (definitions[key] != null && (key != 'tts_enabled' || operator) && (key != 'saturation_notice_scope' || operator))
                   ListTile(
                     title: Text(definitions[key]!.name),
                     subtitle: Text(describeSetting(definitions[key]!, settings.string(key))),
@@ -140,23 +145,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ],
             const Padding(
               padding: EdgeInsets.all(16),
-              child: Text('Mantén pulsado un ajuste para volver a su valor general.'),
+              child: Text('Mantén pulsado un ajuste para volver al valor de tu Entidad.'),
             ),
-            ListTile(
+            const SectionTitle('Actualizaciones'),
+            SwitchListTile(
+              title: const Text('Descargar actualizaciones solo con Wi-Fi'),
+              subtitle: const Text('Con datos móviles avisa del tamaño antes de descargar. Las obligatorias se descargan siempre.'),
+              value: _wifiOnly,
+              onChanged: (value) async {
+                await Storage.setBool(AppUpdates.wifiOnlyKey, value);
+                setState(() => _wifiOnly = value);
+              },
+            ),
+            BusyListTile(
               leading: const Icon(Icons.system_update),
               title: const Text('Buscar actualizaciones'),
               subtitle: Text('Versión instalada: $_version'),
               onTap: () async {
-                try {
-                  final update = await AppUpdates.check(context.api);
-                  if (!context.mounted) return;
-                  if (update == null) {
-                    showMessage(context, 'Tienes la última versión.');
-                  } else {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => UpdateScreen(update: update)));
-                  }
-                } catch (error) {
-                  if (context.mounted) showError(context, error);
+                final update = await AppUpdates.check(context.api);
+                if (!context.mounted) return;
+                if (update == null) {
+                  showMessage(context, 'Tienes la última versión.');
+                } else {
+                  await Navigator.push(context, MaterialPageRoute(builder: (_) => UpdateScreen(update: update)));
                 }
               },
             ),
@@ -164,10 +175,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               const Divider(),
               ListTile(
                 leading: const Icon(Icons.tune),
-                title: const Text('Ajustes generales'),
+                title: Text(me.isAdmin ? 'Ajustes de la app' : 'Ajustes de la Entidad'),
                 subtitle: const Text('Valores para todos los usuarios'),
                 trailing: const Icon(Icons.chevron_right),
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const GlobalSettingsScreen())),
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => me.isAdmin ? const GlobalSettingsScreen.app() : const GlobalSettingsScreen.entity())),
               ),
             ],
           ]);

@@ -19,13 +19,13 @@ class Session extends ChangeNotifier {
   /// Recordar el usuario en este teléfono (la clave conserva su nombre antiguo).
   static const rememberLoginKey = 'security.remember_card';
 
-  /// Entró con el carné: hay que decirle cuál es su usuario.
-  bool showUsernameHint = false;
-
   final ApiClient api;
   SessionState state = SessionState.loading;
-  Worker? me;
+  Me? me;
   UserSettings settings = UserSettings({});
+
+  /// Entidad que el Administrador está mirando (null = todas).
+  Entity? adminEntity;
 
   Session(this.api) {
     api.onSessionExpired = () {
@@ -45,51 +45,85 @@ class Session extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Inicio de sesión con el usuario o, como alternativa, con el carné.
-  Future<void> login(String login, String password) async {
+  /// Inicio de sesión con usuario y contraseña.
+  Future<void> login(String username, String password) async {
     final document = await api.post('/tokens', resourceData('tokens', attributes: {
-      'username': login.trim(),
+      'username': Username.normalize(username),
       'password': password,
       'deviceName': 'Android',
-    }), auth: false);
+    }), auth: false, withInstallation: true);
+    await _start(document);
+  }
+
+  /// Guarda los tokens devueltos por el servidor y entra.
+  Future<void> _start(JsonApiDocument document) async {
     final attributes = document.resource.attributes;
     await Storage.saveTokens(attributes['accessToken'] as String, attributes['refreshToken'] as String);
-    showUsernameHint = Username.isCardNumber(login);
     await SyncService.reset();
     await _enter();
     await _rememberLogin();
   }
 
-  /// Se recuerda el usuario, aunque haya entrado con el carné.
+  /// Se recuerda el usuario en el teléfono (si el ajuste está activado).
   Future<void> _rememberLogin() async {
     final remember = await Storage.getBool(rememberLoginKey, fallback: true);
     await Storage.saveLastLogin(remember ? me?.username : null);
   }
 
   Future<void> changeUsername(String username) async {
-    await api.patch('/me', resourceData('workers', attributes: {'username': Username.normalize(username)}));
+    await api.patch('/me', resourceData('users', attributes: {'username': Username.normalize(username)}));
     await reloadMe();
     await _rememberLogin();
     notifyListeners();
   }
 
-  /// Entrar con el código de restablecimiento que envió el Administrador.
-  /// Después la app obliga a elegir una contraseña nueva.
-  Future<void> loginWithResetCode(String login, String code) async {
-    final document = await api.post('/tokens/reset-code', resourceData('tokens', attributes: {
-      'username': login.trim(),
-      'resetCode': code,
-      'deviceName': 'Android',
-    }), auth: false);
-    final attributes = document.resource.attributes;
-    await Storage.saveTokens(attributes['accessToken'] as String, attributes['refreshToken'] as String);
-    await SyncService.reset();
+  /// Paso 1 del registro: crear la cuenta. La primera es la del Administrador.
+  Future<void> register({required PersonName name, required String username, required String password}) async {
+    await api.post('/users', resourceData('users', attributes: {
+      ...nameAttributes(name),
+      'username': Username.normalize(username),
+      'password': password,
+    }), auth: false, withInstallation: true);
+    await login(username, password);
+  }
+
+  /// Paso 2 del registro: unirse a la Entidad.
+  Future<void> joinEntity({required String abbreviation, required int pass, required String sex, required String rankId}) async {
+    await api.post('/me/worker', resourceData('workers', attributes: {
+      'entityAbbreviation': abbreviation.trim(),
+      'pass': pass,
+      'sex': sex,
+    }, relationships: {'rank': ResourceId('ranks', rankId)}));
     await _enter();
   }
 
-  /// Contraseña nueva tras entrar con un código (no pide la actual).
-  Future<void> setNewPassword(String password) async {
-    await api.patch('/me', resourceData('workers', attributes: {'password': password}));
+  /// "Ya me registró un superior": elige usuario y contraseña con su código.
+  Future<void> activate({required String abbreviation, required int pass, required String code, required String username, required String password}) async {
+    final document = await api.post('/activations', resourceData('activations', attributes: {
+      'entityAbbreviation': abbreviation.trim(),
+      'pass': pass,
+      'code': code.trim(),
+      'username': Username.normalize(username),
+      'password': password,
+      'deviceName': 'Android',
+    }), auth: false, withInstallation: true);
+    await _start(document);
+  }
+
+  /// "No puedo entrar": contraseña nueva tras la aprobación del Administrador.
+  Future<void> recoverWithNewPassword(String recoveryId, String password) async {
+    final document = await api.post('/guest/access-recoveries/$recoveryId/password',
+        resourceData('access-recoveries', attributes: {'password': password, 'deviceName': 'Android'}),
+        guest: true);
+    await _start(document);
+  }
+
+  /// Contraseña nueva cuando caducó o tras recuperar el acceso. Si caducó,
+  /// el servidor pide también la actual.
+  Future<void> setNewPassword(String password, {String? currentPassword}) async {
+    final body = resourceData('users', attributes: {'password': password});
+    if (currentPassword != null) body['meta'] = {'currentPassword': currentPassword};
+    await api.patch('/me', body);
     await reloadMe();
     settings = await UserSettings.refresh(api);
     notifyListeners();
@@ -97,15 +131,14 @@ class Session extends ChangeNotifier {
     SyncService.run(api).catchError((_) {});
   }
 
-  Future<void> register({required String cardNumber, required String username, required String firstName, required String lastName, required String rankId, required String password}) async {
-    await api.post('/workers', resourceData('workers', attributes: {
-      'cardNumber': cardNumber,
-      'username': Username.normalize(username),
-      'firstName': firstName,
-      'lastName': lastName,
-      'password': password,
-    }, relationships: {'rank': ResourceId('ranks', rankId)}), auth: false);
-    await login(username, password);
+  static Map<String, dynamic> nameAttributes(PersonName name, {String prefix = ''}) {
+    String key(String field) => prefix.isEmpty ? field : '$prefix${field[0].toUpperCase()}${field.substring(1)}';
+    return {
+      key('firstName'): name.firstName.trim(),
+      key('middleName'): name.middleName.trim(),
+      key('firstSurname'): name.firstSurname.trim(),
+      key('secondSurname'): name.secondSurname.trim(),
+    };
   }
 
   /// Desbloqueo con el PIN de la app.
@@ -133,8 +166,9 @@ class Session extends ChangeNotifier {
   Future<void> _enter() async {
     try {
       await reloadMe();
-      if (me!.mustChangePassword) {
-        // Hasta cambiar la contraseña, la API solo permite el perfil propio.
+      if (me!.mustChangePassword || me!.needsEntity) {
+        // Hasta cambiar la contraseña o unirse a la Entidad, la API solo
+        // permite el perfil propio.
         state = SessionState.ready;
         notifyListeners();
         return;
@@ -151,7 +185,7 @@ class Session extends ChangeNotifier {
   }
 
   Future<void> reloadMe() async {
-    me = Worker.from((await api.get('/me', query: {'include': 'rank'})).resource);
+    me = Me.from((await api.get('/me', query: {'include': 'worker,worker.entity,worker.rank'})).resource);
     await SyncService.rememberMe(me!);
     notifyListeners();
   }
@@ -197,6 +231,7 @@ class Session extends ChangeNotifier {
     await AppPin.remove();
     await Storage.clearUserData();
     me = null;
+    adminEntity = null;
     state = SessionState.loggedOut;
     notifyListeners();
   }

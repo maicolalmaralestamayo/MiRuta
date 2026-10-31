@@ -20,10 +20,10 @@ class AuthTest extends TestCase
         parent::tearDown();
     }
 
-    private function login(string $card, string $password = 'secreto123')
+    private function login(string $username, string $password = self::PASSWORD)
     {
         return $this->jsonApi('POST', '/api/v1/tokens', ['data' => ['type' => 'tokens', 'attributes' => [
-            'cardNumber' => $card, 'password' => $password, 'deviceName' => 'Teléfono de pruebas',
+            'username' => $username, 'password' => $password, 'deviceName' => 'Teléfono de pruebas',
         ]]]);
     }
 
@@ -34,32 +34,31 @@ class AuthTest extends TestCase
 
     public function testInicioDeSesion()
     {
-        $card = $this->uniqueCardNumber();
-        $worker = $this->createWorker(['card_number' => $card]);
+        $worker = $this->createWorker(['user' => ['username' => 'maria.perez']]);
 
-        $this->login($card);
+        $this->login('Maria.Perez');
 
         $this->assertResponseStatus(201);
         $attributes = $this->responseJson()['data']['attributes'];
         $this->assertSame('Bearer', $attributes['tokenType']);
         $this->assertSame(1800, $attributes['expiresIn']);
         $this->assertSame(90 * 86400, $attributes['refreshExpiresIn']);
-        $this->assertSame((string) $worker->id, $this->responseJson()['data']['relationships']['worker']['data']['id']);
+        $this->assertSame((string) $worker->user_id, $this->responseJson()['data']['relationships']['user']['data']['id']);
         $this->assertSame('Teléfono de pruebas', RefreshToken::first()->device_name);
 
         $this->jsonApi('GET', '/api/v1/me', null, ['Authorization' => 'Bearer '.$attributes['accessToken']]);
         $this->assertResponseOk();
-        $this->seeJson(['cardNumber' => $card]);
+        $this->seeJson(['username' => 'maria.perez']);
     }
 
     /**
      * @dataProvider wrongCredentials
      */
-    public function testCredencialesIncorrectas(string $card, string $password)
+    public function testCredencialesIncorrectas(string $username, string $password)
     {
-        $this->createWorker(['card_number' => '80010100020']);
+        $this->createWorker(['user' => ['username' => 'maria']]);
 
-        $this->login($card, $password);
+        $this->login($username, $password);
 
         $this->assertJsonApiError(401, 'INVALID_CREDENTIALS');
     }
@@ -67,18 +66,18 @@ class AuthTest extends TestCase
     public function wrongCredentials(): array
     {
         return [
-            'contraseña incorrecta' => ['80010100020', 'otra-clave'],
-            'carné inexistente' => ['80010200020', 'secreto123'],
-            'carné mal formado' => ['123', 'secreto123'],
+            'contraseña incorrecta' => ['maria', 'Otra.Clave1'],
+            'usuario inexistente' => ['mario', self::PASSWORD],
+            'usuario mal formado' => ['1', self::PASSWORD],
         ];
     }
 
     public function testTrabajadorInactivoNoPuedeEntrar()
     {
-        $card = $this->uniqueCardNumber();
-        $this->createWorker(['card_number' => $card])->delete();
+        $worker = $this->createWorker(['user' => ['username' => 'maria']]);
+        $this->userOf($worker)->delete();
 
-        $this->login($card);
+        $this->login('maria');
 
         $this->assertJsonApiError(401, 'INVALID_CREDENTIALS');
     }
@@ -114,8 +113,8 @@ class AuthTest extends TestCase
 
     public function testElTokenDeRenovacionNoSirveComoAcceso()
     {
-        $card = $this->uniqueCardNumber();
-        $this->createWorker(['card_number' => $card]);
+        $card = 'maria';
+        $this->createWorker(['user' => ['username' => $card]]);
         $refreshToken = $this->login($card)->responseJson()['data']['attributes']['refreshToken'];
 
         $this->jsonApi('GET', '/api/v1/me', null, ['Authorization' => 'Bearer '.$refreshToken]);
@@ -125,8 +124,8 @@ class AuthTest extends TestCase
 
     public function testRenovacionConRotacion()
     {
-        $card = $this->uniqueCardNumber();
-        $this->createWorker(['card_number' => $card]);
+        $card = 'maria';
+        $this->createWorker(['user' => ['username' => $card]]);
         $first = $this->login($card)->responseJson()['data']['attributes']['refreshToken'];
 
         $this->refresh($first);
@@ -142,8 +141,8 @@ class AuthTest extends TestCase
 
     public function testReutilizarUnTokenDeRenovacionRevocaTodasLasSesiones()
     {
-        $card = $this->uniqueCardNumber();
-        $this->createWorker(['card_number' => $card]);
+        $card = 'maria';
+        $this->createWorker(['user' => ['username' => $card]]);
         $otherDevice = $this->login($card)->responseJson()['data']['attributes']['refreshToken'];
         $stolen = $this->login($card)->responseJson()['data']['attributes']['refreshToken'];
         $this->refresh($stolen);
@@ -160,8 +159,8 @@ class AuthTest extends TestCase
 
     public function testTokenDeRenovacionCaducado()
     {
-        $card = $this->uniqueCardNumber();
-        $this->createWorker(['card_number' => $card]);
+        $card = 'maria';
+        $this->createWorker(['user' => ['username' => $card]]);
         $token = $this->login($card)->responseJson()['data']['attributes']['refreshToken'];
 
         Carbon::setTestNow(Carbon::now()->addDays(91));
@@ -172,8 +171,8 @@ class AuthTest extends TestCase
 
     public function testCerrarSesionEnEsteDispositivo()
     {
-        $card = $this->uniqueCardNumber();
-        $this->createWorker(['card_number' => $card]);
+        $card = 'maria';
+        $this->createWorker(['user' => ['username' => $card]]);
         $other = $this->login($card)->responseJson()['data']['attributes'];
         $current = $this->login($card)->responseJson()['data']['attributes'];
 
@@ -188,8 +187,8 @@ class AuthTest extends TestCase
 
     public function testCerrarSesionEnTodosLosDispositivos()
     {
-        $card = $this->uniqueCardNumber();
-        $this->createWorker(['card_number' => $card]);
+        $card = 'maria';
+        $this->createWorker(['user' => ['username' => $card]]);
         $other = $this->login($card)->responseJson()['data']['attributes'];
         $current = $this->login($card)->responseJson()['data']['attributes'];
 
@@ -200,11 +199,11 @@ class AuthTest extends TestCase
         $this->assertJsonApiError(401, 'TOKEN_REVOKED');
     }
 
-    public function testTrabajadorDesactivadoConTokenValido()
+    public function testCuentaDesactivadaConTokenValido()
     {
         $worker = $this->createWorker();
         $token = $this->accessTokenFor($worker);
-        $worker->delete();
+        $this->userOf($worker)->delete();
 
         $this->jsonApi('GET', '/api/v1/me', null, ['Authorization' => 'Bearer '.$token]);
 
@@ -217,11 +216,58 @@ class AuthTest extends TestCase
             'setting_definition_id' => \App\Models\SettingDefinition::where('key', 'access_token_ttl_minutes')->value('id'),
             'value' => '10',
         ]);
-        $card = $this->uniqueCardNumber();
-        $this->createWorker(['card_number' => $card]);
+        $card = 'maria';
+        $this->createWorker(['user' => ['username' => $card]]);
 
         $this->login($card);
 
         $this->assertSame(600, $this->responseJson()['data']['attributes']['expiresIn']);
+    }
+
+    public function testCuentaSinActivarNoPuedeEntrar()
+    {
+        $this->createWorker(['user' => ['username' => null, 'password' => null]]);
+
+        $this->login('usuario');
+
+        $this->assertJsonApiError(401, 'INVALID_CREDENTIALS');
+    }
+
+    public function testContrasenaCaducadaObligaACambiarla()
+    {
+        $worker = $this->createWorker(['user' => ['password_changed_at' => Carbon::now()->subDays(366)]]);
+
+        $this->jsonApiAs($worker, 'GET', '/api/v1/trips');
+        $this->assertJsonApiError(403, 'PASSWORD_CHANGE_REQUIRED');
+
+        $this->jsonApiAs($worker, 'GET', '/api/v1/me');
+        $this->assertResponseOk();
+        $this->assertTrue($this->responseJson()['data']['attributes']['mustChangePassword']);
+
+        $this->jsonApiAs($worker, 'PATCH', '/api/v1/me', ['data' => ['type' => 'users', 'attributes' => ['password' => 'Nueva.Clave9']], 'meta' => ['currentPassword' => self::PASSWORD]]);
+        $this->assertResponseOk();
+
+        $this->jsonApiAs($worker, 'GET', '/api/v1/trips');
+        $this->assertResponseOk();
+    }
+
+    public function testElLoginEnlazaLaInstalacionYSusConversacionesSinCuenta()
+    {
+        $this->createWorker(['user' => ['username' => 'maria']]);
+        $installation = $this->jsonApi('POST', '/api/v1/installations', ['data' => ['type' => 'installations', 'attributes' => ['deviceModel' => 'Moto G']]])
+            ->responseJson()['data'];
+        $header = $installation['meta']['header'];
+        $topic = \App\Models\ConversationTopic::where('recipient', 'developer')->first();
+        $this->jsonApi('POST', '/api/v1/guest/conversations', ['data' => ['type' => 'conversations',
+            'attributes' => ['guestName' => 'María', 'guestPhone' => '+53 5 123 4567', 'body' => 'Hola'],
+            'relationships' => ['topic' => ['data' => ['type' => 'conversation-topics', 'id' => (string) $topic->id]]]]], ['X-Installation' => $header]);
+        $this->assertResponseStatus(201);
+
+        $this->jsonApi('POST', '/api/v1/tokens', ['data' => ['type' => 'tokens', 'attributes' => ['username' => 'maria', 'password' => self::PASSWORD]]], ['X-Installation' => $header]);
+        $this->assertResponseStatus(201);
+
+        $user = \App\Models\User::where('username', 'maria')->first();
+        $this->assertSame($user->id, (int) \App\Models\Installation::find($installation['id'])->user_id);
+        $this->assertSame($user->id, (int) \App\Models\Conversation::first()->opened_by);
     }
 }

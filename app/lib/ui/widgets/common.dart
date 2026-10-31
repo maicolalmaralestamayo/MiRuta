@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/api_client.dart';
 import '../../core/api_exception.dart';
+import '../../core/json_api.dart';
 import '../../models/models.dart';
 import '../../services/session.dart';
 import '../theme.dart';
@@ -12,7 +13,27 @@ extension SessionContext on BuildContext {
 
   ApiClient get api => read<Session>().api;
 
-  Worker get me => read<Session>().me!;
+  Me get me => read<Session>().me!;
+
+  /// filter[entity] de la Entidad elegida por el Administrador (nada para los demás:
+  /// el servidor ya les muestra solo la suya).
+  Map<String, dynamic> get entityFilter {
+    final entity = read<Session>().adminEntity;
+    return entity == null ? const {} : {'filter[entity]': entity.id};
+  }
+
+  /// Relación "entity" para crear algo como Administrador. Si no eligió una
+  /// Entidad, avisa y devuelve null.
+  Map<String, ResourceId?>? entityRelationship() {
+    final session = read<Session>();
+    if (!session.me!.isAdmin) return const {};
+    final entity = session.adminEntity;
+    if (entity == null) {
+      showMessage(this, 'Elige primero una Entidad en Gestión.');
+      return null;
+    }
+    return {'entity': ResourceId('entities', entity.id)};
+  }
 }
 
 /// Muestra el error en una barra inferior.
@@ -164,18 +185,23 @@ class EmptyView extends StatelessWidget {
 }
 
 class WorkerAvatar extends StatelessWidget {
-  final Worker worker;
+  final String? photoUrl;
+  final String initials;
   final double radius;
 
-  const WorkerAvatar(this.worker, {super.key, this.radius = 20});
+  WorkerAvatar(Worker worker, {super.key, this.radius = 20})
+      : photoUrl = worker.photoUrl,
+        initials = worker.initials;
+
+  WorkerAvatar.of({super.key, required this.photoUrl, required PersonName name, this.radius = 20}) : initials = name.initials;
 
   @override
   Widget build(BuildContext context) {
-    final photo = worker.photoUrl;
+    final photo = photoUrl;
     return CircleAvatar(
       radius: radius,
       backgroundImage: photo == null ? null : NetworkImage(photo),
-      child: photo == null ? (worker.initials.isEmpty ? const Icon(Icons.person) : Text(worker.initials)) : null,
+      child: photo == null ? (initials.isEmpty ? const Icon(Icons.person) : Text(initials)) : null,
     );
   }
 }
@@ -227,30 +253,244 @@ Color tripStatusColor(String status) => const {
       TripStatus.cancelled: overloadColor,
     }[status] ?? Colors.grey;
 
-/// Aviso llamativo de sobresaturación.
+/// Color de cada nivel de ocupación (docs/08-version-2.md §8.9).
+Color? occupancyColor(String level) => const {'saturated': saturatedColor, 'overloaded': overloadColor}[level];
+
+String occupancyLabel(String level) => const {'saturated': 'Saturado', 'overloaded': 'Sobresaturado'}[level] ?? 'Normal';
+
+/// "35 trabajadores (+10 niños) · capacidad 40". Los niños van cargados:
+/// no cuentan para la ocupación, pero se informan.
+String occupancyText(int workers, int children, int capacity) =>
+    '$workers trabajadores${children > 0 ? ' (+$children niños)' : ''} · capacidad $capacity';
+
+/// Aviso llamativo de saturación (naranja: van de pie) o sobresaturación (rojo: no caben).
 class OverloadBanner extends StatelessWidget {
+  final String level;
   final int expected;
+  final int children;
+  final int seats;
   final int capacity;
 
-  const OverloadBanner({super.key, required this.expected, required this.capacity});
+  const OverloadBanner({super.key, required this.level, required this.expected, this.children = 0, required this.seats, required this.capacity});
 
   @override
   Widget build(BuildContext context) {
+    final overloaded = level == 'overloaded';
+    final color = occupancyColor(level) ?? overloadColor;
+    final text = overloaded
+        ? 'Transporte sobresaturado: ${expected - capacity} trabajadores no caben (${occupancyText(expected, children, capacity)}).'
+        : 'Transporte saturado: ${expected - seats} trabajadores irán de pie (${occupancyText(expected, children, capacity)}, $seats asientos).';
+    final foreground = overloaded ? Colors.white : Colors.black;
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: overloadColor, borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(12)),
       child: Row(children: [
-        const Icon(Icons.warning_amber_rounded, color: Colors.white),
+        Icon(Icons.warning_amber_rounded, color: foreground),
         const SizedBox(width: 8),
-        Expanded(
-          child: Text('Transporte sobresaturado: $expected pasajeros esperados para $capacity plazas.',
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        ),
+        Expanded(child: Text(text, style: TextStyle(color: foreground, fontWeight: FontWeight.bold))),
       ]),
     );
   }
+}
+
+/// Botón que, mientras espera al servidor, muestra el indicador de carga
+/// dentro de él y queda desactivado (docs/08-version-2.md §8.12). Si la
+/// acción falla, muestra el error (salvo que [showErrors] sea false).
+class BusyButton extends StatefulWidget {
+  final Future<void> Function()? onPressed;
+  final Widget child;
+  final Widget? icon;
+  final BusyButtonStyle style;
+  final bool showErrors;
+  final ButtonStyle? buttonStyle;
+
+  const BusyButton({super.key, required this.onPressed, required this.child, this.icon, this.style = BusyButtonStyle.filled, this.showErrors = true, this.buttonStyle});
+
+  const BusyButton.tonal({super.key, required this.onPressed, required this.child, this.icon, this.showErrors = true, this.buttonStyle})
+      : style = BusyButtonStyle.tonal;
+
+  const BusyButton.text({super.key, required this.onPressed, required this.child, this.icon, this.showErrors = true, this.buttonStyle})
+      : style = BusyButtonStyle.text;
+
+  const BusyButton.outlined({super.key, required this.onPressed, required this.child, this.icon, this.showErrors = true, this.buttonStyle})
+      : style = BusyButtonStyle.outlined;
+
+  @override
+  State<BusyButton> createState() => _BusyButtonState();
+}
+
+enum BusyButtonStyle { filled, tonal, text, outlined }
+
+class _BusyButtonState extends State<BusyButton> {
+  bool _busy = false;
+
+  Future<void> _run() async {
+    setState(() => _busy = true);
+    try {
+      await widget.onPressed!();
+    } catch (error) {
+      // Con showErrors = false, la propia acción muestra sus errores.
+      if (widget.showErrors && mounted) showError(context, error);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final onPressed = widget.onPressed == null || _busy ? null : _run;
+    final child = _busy ? const BusyIndicator() : widget.child;
+    final icon = _busy ? null : widget.icon;
+    switch (widget.style) {
+      case BusyButtonStyle.filled:
+        return icon == null
+            ? FilledButton(style: widget.buttonStyle, onPressed: onPressed, child: child)
+            : FilledButton.icon(style: widget.buttonStyle, onPressed: onPressed, icon: icon, label: child);
+      case BusyButtonStyle.tonal:
+        return icon == null
+            ? FilledButton.tonal(style: widget.buttonStyle, onPressed: onPressed, child: child)
+            : FilledButton.tonalIcon(style: widget.buttonStyle, onPressed: onPressed, icon: icon, label: child);
+      case BusyButtonStyle.text:
+        return icon == null
+            ? TextButton(style: widget.buttonStyle, onPressed: onPressed, child: child)
+            : TextButton.icon(style: widget.buttonStyle, onPressed: onPressed, icon: icon, label: child);
+      case BusyButtonStyle.outlined:
+        return icon == null
+            ? OutlinedButton(style: widget.buttonStyle, onPressed: onPressed, child: child)
+            : OutlinedButton.icon(style: widget.buttonStyle, onPressed: onPressed, icon: icon, label: child);
+    }
+  }
+}
+
+/// Icono de acción con indicador de carga en su lugar mientras espera.
+class BusyIconButton extends StatefulWidget {
+  final Future<void> Function()? onPressed;
+  final Widget icon;
+  final String? tooltip;
+
+  const BusyIconButton({super.key, required this.onPressed, required this.icon, this.tooltip});
+
+  @override
+  State<BusyIconButton> createState() => _BusyIconButtonState();
+}
+
+class _BusyIconButtonState extends State<BusyIconButton> {
+  bool _busy = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: widget.tooltip,
+      icon: _busy ? const BusyIndicator() : widget.icon,
+      onPressed: widget.onPressed == null || _busy
+          ? null
+          : () async {
+              setState(() => _busy = true);
+              try {
+                await widget.onPressed!();
+              } catch (error) {
+                if (mounted) showError(context, error);
+              } finally {
+                if (mounted) setState(() => _busy = false);
+              }
+            },
+    );
+  }
+}
+
+/// Elemento de lista que lanza una acción: el indicador de carga sustituye
+/// al icono final mientras espera.
+class BusyListTile extends StatefulWidget {
+  final Widget? leading;
+  final Widget title;
+  final Widget? subtitle;
+  final Widget? trailing;
+  final Future<void> Function()? onTap;
+
+  const BusyListTile({super.key, this.leading, required this.title, this.subtitle, this.trailing, this.onTap});
+
+  @override
+  State<BusyListTile> createState() => _BusyListTileState();
+}
+
+class _BusyListTileState extends State<BusyListTile> {
+  bool _busy = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: widget.leading,
+      title: widget.title,
+      subtitle: widget.subtitle,
+      trailing: _busy ? const BusyIndicator() : widget.trailing,
+      enabled: widget.onTap != null,
+      onTap: widget.onTap == null || _busy
+          ? null
+          : () async {
+              setState(() => _busy = true);
+              try {
+                await widget.onTap!();
+              } catch (error) {
+                if (mounted) showError(context, error);
+              } finally {
+                if (mounted) setState(() => _busy = false);
+              }
+            },
+    );
+  }
+}
+
+/// Interruptor que muestra el indicador de carga mientras guarda.
+class BusySwitchListTile extends StatefulWidget {
+  final Widget title;
+  final Widget? subtitle;
+  final bool value;
+  final Future<void> Function(bool value)? onChanged;
+
+  const BusySwitchListTile({super.key, required this.title, this.subtitle, required this.value, this.onChanged});
+
+  @override
+  State<BusySwitchListTile> createState() => _BusySwitchListTileState();
+}
+
+class _BusySwitchListTileState extends State<BusySwitchListTile> {
+  bool _busy = false;
+
+  @override
+  Widget build(BuildContext context) {
+    if (_busy) {
+      return ListTile(title: widget.title, subtitle: widget.subtitle, trailing: const BusyIndicator());
+    }
+    return SwitchListTile(
+      title: widget.title,
+      subtitle: widget.subtitle,
+      value: widget.value,
+      onChanged: widget.onChanged == null
+          ? null
+          : (value) async {
+              setState(() => _busy = true);
+              try {
+                await widget.onChanged!(value);
+              } catch (error) {
+                if (mounted) showError(context, error);
+              } finally {
+                if (mounted) setState(() => _busy = false);
+              }
+            },
+    );
+  }
+}
+
+/// Indicador de carga pequeño, para dentro de botones y controles.
+class BusyIndicator extends StatelessWidget {
+  final double size;
+
+  const BusyIndicator({super.key, this.size = 20});
+
+  @override
+  Widget build(BuildContext context) => SizedBox(height: size, width: size, child: const CircularProgressIndicator(strokeWidth: 2));
 }
 
 class SectionTitle extends StatelessWidget {

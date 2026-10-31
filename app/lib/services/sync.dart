@@ -36,11 +36,14 @@ class SyncService {
   static const tripInclude = 'itinerary,vehicle.vehicleType,driver.worker';
 
   /// Guarda los datos del usuario que necesitan las tareas en segundo plano.
-  static Future<void> rememberMe(Worker me) => Storage.setJson(meKey, {
+  static Future<void> rememberMe(Me me) => Storage.setJson(meKey, {
         'id': me.id,
+        'userId': me.userId,
         'itineraryId': me.itineraryId,
         'stopId': me.stopId,
         'driverId': me.roles.driverId,
+        'managesTransport': me.managesTransport,
+        'chiefOf': me.roles.chiefOfItineraries,
       });
 
   static Future<Map<String, dynamic>> cachedMe() => Storage.getJson(meKey);
@@ -74,7 +77,7 @@ class SyncService {
       await _notifyUpdate(api);
     }
     if (parts.contains(SyncPart.conversations)) await _syncConversations(api);
-    if (parts.contains(SyncPart.tripChats)) await _syncTripChats(api, me['id'] as String);
+    if (parts.contains(SyncPart.tripChats)) await _syncTripChats(api, (me['userId'] ?? '') as String);
   }
 
   static Future<void> _syncStops(ApiClient api, String? itineraryId) async {
@@ -99,11 +102,13 @@ class SyncService {
     final cache = await Storage.getJson(_tripsKey);
     final stops = await cachedStops();
     final absences = await _myAbsences(api);
+    final levels = await Storage.getJson(_levelsKey);
     String? newest = lastSync;
 
     for (final resource in resources) {
       final trip = Trip.from(resource);
       if (trip.updatedAt != null) newest = trip.updatedAt!.toUtc().toIso8601String();
+      await _checkSaturation(trip, me, settings, levels, notifyChanges);
       if (!_isMine(trip, me)) continue;
 
       final previousJson = cache[trip.id];
@@ -128,7 +133,37 @@ class SyncService {
     cache.removeWhere((_, value) => DateTime.parse((value as Map)['returnsAt'] as String).isBefore(limit));
 
     await Storage.setJson(_tripsKey, cache);
+    // Solo se recuerdan los viajes que siguen en el teléfono o acaban de llegar.
+    if (levels.length > 1000) levels.removeWhere((id, _) => !cache.containsKey(id) && !resources.any((r) => r.id == id));
+    await Storage.setJson(_levelsKey, levels);
     if (newest != null) await Storage.setString(_lastSyncKey, newest);
+  }
+
+  static const _levelsKey = 'sync.occupancy_levels';
+
+  /// Avisos de saturación (docs/08-version-2.md §8.9), según los ajustes del
+  /// usuario: nivel, de qué viajes y cuándo (al cambiar, antes de la salida o los dos).
+  static Future<void> _checkSaturation(Trip trip, Map<String, dynamic> me, UserSettings settings, Map<String, dynamic> levels, bool notifyChanges) async {
+    final previous = levels[trip.id] as String?;
+    levels[trip.id] = trip.occupancyLevel;
+
+    final pending = trip.status == TripStatus.confirmed || trip.status == TripStatus.unconfirmed;
+    final managed = me['managesTransport'] == true || ((me['chiefOf'] as List?) ?? const []).contains(trip.itineraryId);
+    final inScope = _isMine(trip, me) || (settings.string('saturation_notice_scope', 'managed') == 'managed' && managed);
+    final wanted = settings.boolean('saturation_notice_enabled', true) && pending && inScope && trip.departsAt.isAfter(DateTime.now());
+    final qualifies = settings.string('saturation_notice_level', 'overloaded') == 'saturated' ? trip.occupancyLevel != 'normal' : trip.overloaded;
+    final when = settings.string('saturation_notice_when', 'change');
+
+    if (wanted && qualifies && notifyChanges && previous != null && previous != trip.occupancyLevel && when != 'before') {
+      await Notifications.showSaturation(trip);
+    }
+
+    if (wanted && qualifies && when != 'change') {
+      final at = trip.departsAt.subtract(Duration(minutes: settings.integer('saturation_notice_minutes_before', 120)));
+      if (at.isAfter(DateTime.now())) await Notifications.scheduleSaturation(trip, at);
+    } else {
+      await Notifications.cancelSaturation(trip);
+    }
   }
 
   static Future<void> _notifyChange(Trip previous, Trip trip, UserSettings settings, Map<String, Stop> stops) async {
@@ -225,11 +260,11 @@ class SyncService {
 
     for (final trip in trips) {
       final since = seen[trip.id] as String?;
-      final messages = (await api.getAll('/trips/${trip.id}/messages', query: {'include': 'worker', 'filter[since]': ?since})).map(Message.from).toList();
+      final messages = (await api.getAll('/trips/${trip.id}/messages', query: {'include': 'author', 'filter[since]': ?since})).map(Message.from).toList();
       if (messages.isEmpty) continue;
       if (since != null) {
-        for (final message in messages.where((m) => m.workerId != meId)) {
-          await Notifications.showMessage('${message.worker?.firstName ?? 'Mensaje'} · ${trip.itineraryName ?? 'Viaje'}', message.body, payload: 'trip:${trip.id}');
+        for (final message in messages.where((m) => m.authorId != meId)) {
+          await Notifications.showMessage('${message.authorName ?? 'Mensaje'} · ${trip.itineraryName ?? 'Viaje'}', message.body, payload: 'trip:${trip.id}');
         }
       }
       seen[trip.id] = messages.last.createdAt.toUtc().toIso8601String();

@@ -12,7 +12,6 @@ use App\Models\Trip;
 use App\Models\TripCompletion;
 use App\Models\Vehicle;
 use App\Models\VehicleType;
-use App\Support\CardNumber;
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
 use Laravel\Lumen\Testing\DatabaseMigrations;
@@ -36,7 +35,7 @@ class TripsTest extends TestCase
         $this->chief = $this->createTransportChief();
         $this->itinerary = $this->createItinerary();
         $this->driver = $this->createDriver();
-        $this->vehicle = $this->createVehicle('B100', 2, 1);
+        $this->vehicle = $this->createVehicle(null, 2, 1);
     }
 
     protected function tearDown(): void
@@ -46,13 +45,6 @@ class TripsTest extends TestCase
         parent::tearDown();
     }
 
-    private function createVehicle(string $plate, int $seats, int $standing): Vehicle
-    {
-        return Vehicle::create([
-            'vehicle_type_id' => VehicleType::where('name', 'Guagua')->value('id'),
-            'plate' => $plate, 'seats' => $seats, 'standing_capacity' => $standing,
-        ]);
-    }
 
     private function tripDocument(string $departs, string $returns, string $status = 'unconfirmed', $vehicle = null, $driver = null, $itinerary = null): array
     {
@@ -67,7 +59,7 @@ class TripsTest extends TestCase
     {
         return Trip::create([
             'itinerary_id' => $this->itinerary->id, 'vehicle_id' => $this->vehicle->id, 'driver_id' => $this->driver->driverId(),
-            'departs_at' => Carbon::parse($departs), 'returns_at' => Carbon::parse($returns), 'status' => $status, 'created_by' => $this->chief->id,
+            'departs_at' => Carbon::parse($departs), 'returns_at' => Carbon::parse($returns), 'status' => $status, 'created_by' => $this->chief->user_id,
         ]);
     }
 
@@ -113,7 +105,7 @@ class TripsTest extends TestCase
     public function testSolapamientoSoloEntreConfirmados()
     {
         $first = $this->createTrip('2026-11-03 17:00', '2026-11-04 06:30', 'confirmed');
-        $otherVehicle = $this->createVehicle('B200', 10, 0);
+        $otherVehicle = $this->createVehicle(null, 10, 0);
 
         // Mismo chofer, otro vehículo, se solapa: no confirmado sí se permite
         $this->jsonApiAs($this->chief, 'POST', '/api/v1/trips', ['data' => $this->tripDocument('2026-11-04T05:00:00Z', '2026-11-04T08:00:00Z', 'unconfirmed', $otherVehicle)]);
@@ -161,8 +153,7 @@ class TripsTest extends TestCase
     {
         $trip = $this->createTrip();
         $member = $this->joinItinerary($this->createWorker(), $this->itinerary);
-        $itineraryChief = $this->createWorker();
-        ItineraryChief::create(['itinerary_id' => $this->itinerary->id, 'worker_id' => $itineraryChief->id]);
+        $itineraryChief = $this->createItineraryChief($this->itinerary);
         $mark = function ($user) use ($trip) {
             return $this->jsonApiAs($user, 'POST', '/api/v1/trip-completions', ['data' => ['type' => 'trip-completions', 'relationships' => [
                 'trip' => ['data' => ['type' => 'trips', 'id' => (string) $trip->id]],
@@ -181,7 +172,7 @@ class TripsTest extends TestCase
         $this->seeJson(['role' => 'itinerary_chief']);
         $mark($itineraryChief);
 
-        $this->jsonApiAs($member, 'GET', '/api/v1/trip-completions?filter[trip]='.$trip->id.'&include=worker');
+        $this->jsonApiAs($member, 'GET', '/api/v1/trip-completions?filter[trip]='.$trip->id.'&include=user');
         $this->assertSame(2, $this->responseJson()['meta']['total']);
     }
 
@@ -211,13 +202,19 @@ class TripsTest extends TestCase
         $application = Application::create(['worker_id' => $absent->id, 'type' => 'absence', 'status' => 'approved']);
         AbsenceApplication::create(['application_id' => $application->id, 'absence_type_id' => AbsenceType::first()->id, 'starts_on' => '2026-11-01', 'ends_on' => '2026-11-05']);
 
+        // 2 asientos y 1 de pie: 3 trabajadores van de pie (saturado), pero caben.
         $this->jsonApiAs($this->chief, 'GET', '/api/v1/trips/'.$trip->id);
-        $this->assertSame(3, $this->responseJson()['data']['meta']['expectedPassengers']);
-        $this->assertFalse($this->responseJson()['data']['meta']['overloaded']);
+        $meta = $this->responseJson()['data']['meta'];
+        $this->assertSame(3, $meta['expectedPassengers']);
+        $this->assertSame(2, $meta['seats']);
+        $this->assertSame('saturated', $meta['occupancyLevel']);
+        $this->assertTrue($meta['saturated']);
+        $this->assertFalse($meta['overloaded']);
 
         $this->joinItinerary($this->createWorker(), $this->itinerary);
         $this->jsonApiAs($this->chief, 'GET', '/api/v1/trips/'.$trip->id);
         $this->assertTrue($this->responseJson()['data']['meta']['overloaded']);
+        $this->assertSame('overloaded', $this->responseJson()['data']['meta']['occupancyLevel']);
 
         $this->jsonApiAs($this->chief, 'GET', '/api/v1/trips?filter[overloaded]=true');
         $this->assertSame([(string) $trip->id], array_column($this->responseJson()['data'], 'id'));
@@ -290,7 +287,7 @@ class TripsTest extends TestCase
     public function testRangoConDiasQueChocanNoCreaNinguno()
     {
         $this->createTrip('2026-11-04 17:00', '2026-11-05 06:30', 'confirmed');
-        $otherVehicle = $this->createVehicle('B300', 10, 0);
+        $otherVehicle = $this->createVehicle(null, 10, 0);
         $operations = [];
         foreach (['03', '04', '05'] as $day) {
             $next = str_pad((string) ((int) $day + 1), 2, '0', STR_PAD_LEFT);
@@ -317,41 +314,54 @@ class TripsTest extends TestCase
         $this->assertJsonApiError(400, 'BAD_REQUEST');
     }
 
-    public function testOrdenDeSubida()
+    public function testLosNinosNoCuentanParaLaOcupacion()
     {
         $trip = $this->createTrip();
-        $colonel = Rank::where('precedence', 1)->value('id');
-        $civil = Rank::where('precedence', 17)->value('id');
-        $make = function (string $first, string $last, string $sex, int $rank) {
-            return $this->joinItinerary($this->createWorker([
-                'card_number' => $this->uniqueCardNumber($sex), 'first_name' => $first, 'last_name' => $last, 'rank_id' => $rank,
-            ]), $this->itinerary);
+        $parent = $this->joinItinerary($this->createWorker(), $this->itinerary);
+        $this->joinItinerary($this->createWorker(), $this->itinerary);
+
+        foreach (['Pepe', 'Juan', 'Rosa'] as $name) {
+            $child = Child::create(['worker_id' => $parent->id, 'first_name' => $name, 'middle_name' => 'X', 'first_surname' => 'Pérez', 'second_surname' => 'Y', 'birth_date' => '2018-05-05']);
+            $application = Application::create(['worker_id' => $parent->id, 'type' => 'child_addition', 'status' => 'approved']);
+            ChildApplication::create(['application_id' => $application->id, 'child_id' => $child->id]);
+        }
+
+        $this->jsonApiAs($this->chief, 'GET', '/api/v1/trips/'.$trip->id);
+        $meta = $this->responseJson()['data']['meta'];
+        $this->assertSame(2, $meta['expectedPassengers']);
+        $this->assertSame(3, $meta['expectedChildren']);
+        $this->assertSame('normal', $meta['occupancyLevel']);
+    }
+
+    public function testListaDePasajerosPorParadaYAlfabetica()
+    {
+        $trip = $this->createTrip();
+        $make = function (string $first, string $surname, int $stop) {
+            return $this->joinItinerary($this->createWorker(['user' => ['first_name' => $first, 'first_surname' => $surname]]), $this->itinerary, $stop);
         };
 
-        $manCivil = $make('Juan', 'Zayas', 'M', $civil);
-        $manColonel = $make('Pedro', 'Álvarez', 'M', $colonel);
-        $womanCivilB = $make('Ana', 'Nuñez', 'F', $civil);
-        $womanCivilA = $make('Ana', 'Núñez', 'F', $civil);
-        $womanCivilC = $make('Eva', 'Ñúñez', 'F', $civil);
-        $manWithChild = $make('Luis', 'Pérez', 'M', $civil);
-        $womanColonel = $make('María', 'Rodríguez', 'F', $colonel);
+        $zayas = $make('Juan', 'Zayas', 1);
+        $alvarez = $make('Pedro', 'Álvarez', 2);
+        $nunezB = $make('Ana', 'Nuñez', 1);
+        $nunezE = $make('Eva', 'Ñúñez', 1);
+        $perez = $make('Luis', 'Pérez', 3);
+        $rodriguez = $make('María', 'Rodríguez', 2);
 
-        $card = CardNumber::tryParse('15030560011');
-        $child = Child::create(['worker_id' => $manWithChild->id, 'first_name' => 'Pepe', 'last_name' => 'Pérez', 'card_number_encrypted' => $card->encrypt(), 'card_number_hash' => $card->hash()]);
-        $application = Application::create(['worker_id' => $manWithChild->id, 'type' => 'child_addition', 'status' => 'approved']);
+        $child = Child::create(['worker_id' => $perez->id, 'first_name' => 'Pepe', 'middle_name' => 'Luis', 'first_surname' => 'Pérez', 'second_surname' => 'Gómez', 'birth_date' => '2015-03-05']);
+        $application = Application::create(['worker_id' => $perez->id, 'type' => 'child_addition', 'status' => 'approved']);
         ChildApplication::create(['application_id' => $application->id, 'child_id' => $child->id]);
 
         $this->jsonApiAs($this->driver, 'GET', '/api/v1/trips/'.$trip->id.'/passengers');
 
         $this->assertResponseOk();
+        $data = $this->responseJson()['data'];
         $order = array_map(function ($passenger) {
             return explode('-', $passenger['id'])[1];
-        }, $this->responseJson()['data']);
-        $expected = array_map('strval', [
-            $manWithChild->id, $womanColonel->id, $womanCivilB->id, $womanCivilA->id, $womanCivilC->id, $manColonel->id, $manCivil->id,
-        ]);
+        }, $data);
+        $expected = array_map('strval', [$nunezB->id, $nunezE->id, $zayas->id, $alvarez->id, $rodriguez->id, $perez->id]);
         $this->assertSame($expected, $order);
-        $this->assertSame(1, $this->responseJson()['data'][0]['attributes']['eligibleChildren']);
-        $this->assertSame(1, $this->responseJson()['data'][0]['attributes']['boardingOrder']);
+        $this->assertSame(1, $data[5]['attributes']['eligibleChildren']);
+        $this->assertSame(6, $data[5]['attributes']['position']);
+        $this->assertArrayNotHasKey('boardingOrder', $data[0]['attributes']);
     }
 }

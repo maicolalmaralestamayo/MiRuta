@@ -92,6 +92,35 @@ class Notifications {
     await _plugin.cancel(id: _tripId(trip, 2));
   }
 
+  /// Texto del aviso de saturación (docs/08-version-2.md §8.9).
+  static String saturationText(Trip trip) => trip.overloaded
+      ? '${trip.expectedPassengers - trip.totalCapacity} trabajadores no caben: ${trip.expectedPassengers} trabajadores (+${trip.expectedChildren} niños) para ${trip.totalCapacity} plazas.'
+      : '${trip.expectedPassengers - trip.seats} trabajadores irán de pie: ${trip.expectedPassengers} trabajadores (+${trip.expectedChildren} niños), ${trip.seats} asientos.';
+
+  static String saturationTitle(Trip trip) =>
+      '${trip.overloaded ? 'Sobresaturado' : 'Saturado'}: ${trip.itineraryName ?? 'viaje'} ${formatDateTime(trip.departsAt)}';
+
+  static Future<void> showSaturation(Trip trip) => _plugin.show(
+        id: _tripId(trip, 3),
+        title: saturationTitle(trip),
+        body: saturationText(trip),
+        notificationDetails: const NotificationDetails(android: _changes),
+        payload: 'trip:${trip.id}',
+      );
+
+  /// Aviso de saturación a una hora (X minutos antes de la salida).
+  static Future<void> scheduleSaturation(Trip trip, DateTime at) => _plugin.zonedSchedule(
+        id: _tripId(trip, 4),
+        title: saturationTitle(trip),
+        body: saturationText(trip),
+        scheduledDate: tz.TZDateTime.from(at, tz.local),
+        notificationDetails: const NotificationDetails(android: _changes),
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        payload: 'trip:${trip.id}',
+      );
+
+  static Future<void> cancelSaturation(Trip trip) => _plugin.cancel(id: _tripId(trip, 4));
+
   static Future<void> cancelAll() => _plugin.cancelAll();
 
   static final _random = Random();

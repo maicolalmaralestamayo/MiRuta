@@ -74,9 +74,9 @@ class WorkerController extends ResourceController
             'relationships.entity.data.type' => [$user->isAdmin() ? 'required' : 'sometimes', 'in:entities'],
             'relationships.entity.data.id' => [$user->isAdmin() ? 'required' : 'sometimes', 'exists:entities,id,deleted_at,NULL'],
             'relationships.itinerary.data.type' => ['sometimes', 'in:itineraries'],
-            'relationships.itinerary.data.id' => ['required_with:relationships.stop.data.id', 'exists:itineraries,id,deleted_at,NULL'],
+            'relationships.itinerary.data.id' => ['sometimes', 'exists:itineraries,id,deleted_at,NULL'],
             'relationships.stop.data.type' => ['sometimes', 'in:stops'],
-            'relationships.stop.data.id' => ['required_with:relationships.itinerary.data.id', 'exists:stops,id,deleted_at,NULL'],
+            'relationships.stop.data.id' => ['sometimes', 'exists:stops,id,deleted_at,NULL'],
         ]);
         $attributes = $data['attributes'];
         $relationships = isset($data['relationships']) ? $data['relationships'] : [];
@@ -93,6 +93,14 @@ class WorkerController extends ResourceController
         }
 
         Tenancy::ensureSame($entity->id, 'itineraries', $itineraryId, '/data/relationships/itinerary');
+
+        if ($itineraryId === null && isset($relationships['stop']['data']['id'])) {
+            throw new JsonApiException(422, 'VALIDATION_ERROR', 'Falta el itinerario', 'Indica el itinerario de la parada.', ['pointer' => '/data/relationships/itinerary/data/id']);
+        }
+
+        if ($itineraryId !== null && ! isset($relationships['stop']['data']['id'])) {
+            throw new JsonApiException(422, 'VALIDATION_ERROR', 'Falta la parada', 'Indica la parada del trabajador en el itinerario.', ['pointer' => '/data/relationships/stop/data/id']);
+        }
 
         list($worker, $code) = DB::transaction(function () use ($user, $entity, $attributes, $relationships, $itineraryId) {
             list($worker, $code) = app(Accounts::class)->registerBySuperior(

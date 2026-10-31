@@ -39,6 +39,11 @@ class AuthenticateInstallation
 
         $request->attributes->set('installation', $installation);
 
+        // Sin sesión: nadie autenticado (lo que vea depende solo de la instalación).
+        $request->setUserResolver(function () {
+            return null;
+        });
+
         return $next($request);
     }
 

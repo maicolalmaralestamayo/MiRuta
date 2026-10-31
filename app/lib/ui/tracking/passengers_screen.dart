@@ -7,8 +7,8 @@ import '../trips/trip_context.dart';
 import '../widgets/common.dart';
 import 'boarding.dart';
 
-/// Pasajeros en orden de subida, agrupados por parada (en el orden del
-/// trayecto), con el registro de subida manual o por QR.
+/// Pasajeros por parada (en el orden del trayecto) y, dentro de cada una,
+/// alfabéticamente; con el registro de subida manual o por QR.
 class PassengersScreen extends StatefulWidget {
   final TripContext context;
   final String direction;
@@ -84,12 +84,15 @@ class _PassengersScreenState extends State<PassengersScreen> {
             builder: (context, passengers, reload) {
               final boarded = passengers.where((p) => p.boarded).length;
               return ListView(children: [
-                ListTile(title: Text('$boarded de ${passengers.length} registrados'), subtitle: const Text('Orden: con niños primero; luego mujeres y hombres por jerarquía y alfabético')),
+                ListTile(
+                  title: Text('$boarded de ${passengers.length} registrados'),
+                  subtitle: Text('${passengers.fold<int>(0, (sum, p) => sum + p.eligibleChildren)} niño(s) con derecho a viajar (van cargados)'),
+                ),
                 for (final stop in stops) ...[
                   if (passengers.any((p) => p.stopId == stop.id)) SectionTitle(stop.landmark),
                   for (final p in passengers.where((p) => p.stopId == stop.id))
                     ListTile(
-                      leading: CircleAvatar(child: Text('${p.order}')),
+                      leading: CircleAvatar(child: Text('${p.position}')),
                       title: Text(p.worker.fullName),
                       subtitle: Text([
                         if (p.worker.rank != null) p.worker.rank!.name,

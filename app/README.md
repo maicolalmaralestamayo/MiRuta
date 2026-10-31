@@ -19,23 +19,31 @@ flutter run --dart-define=API_URL=https://mi-servidor/api/v1
 
 Con el emulador de Android y la API en el propio ordenador: `--dart-define=API_URL=http://10.0.2.2:8000/api/v1`. Las direcciones `http://` solo se permiten en las versiones de depuración; en producción hace falta HTTPS.
 
-## Compilar el APK
+## Compilar los APK
+
+Cada versión se publica con **dos APK**: uno para teléfonos de 64 bits (la mayoría) y otro para los de 32 bits. Cada teléfono descarga el suyo (docs/08-version-2.md §8.1).
 
 ```bash
-flutter build apk --release \
-  --target-platform android-arm,android-arm64 \
-  --obfuscate --split-debug-info=build/symbols/1.2.0+4 \
-  --dart-define=API_URL=https://mi-servidor/api/v1
-# Resultado: build/app/outputs/flutter-apk/app-release.apk
+./build_release.sh https://mi-servidor/api/v1
+# Resultado: build/release/<versión>/MiTransporte-<versión>-64bits.apk y -32bits.apk
+```
+
+El script compila dos veces:
+
+```bash
+flutter build apk --release --target-platform android-arm64 \
+  --obfuscate --split-debug-info=build/symbols/<versión> --dart-define=API_URL=…
+flutter build apk --release --target-platform android-arm \
+  --obfuscate --split-debug-info=build/symbols/<versión> --dart-define=API_URL=…
 ```
 
 Qué hace cada opción para bajar el peso:
 
-- `--target-platform android-arm,android-arm64` deja fuera la parte para emuladores (`x86_64`): un solo APK para todos los teléfonos reales.
-- Las librerías nativas van **comprimidas** dentro del APK (`useLegacyPackaging` en `android/app/build.gradle.kts`). Android las descomprime al instalar.
+- `--target-platform` deja solo un tipo de procesador en cada APK (también en las librerías de los plugins, ver `android/app/build.gradle.kts`). Los dos APK tienen el **mismo código de versión**.
+- Las librerías nativas van **comprimidas** dentro del APK (`useLegacyPackaging`). Android las descomprime al instalar.
 - `--obfuscate --split-debug-info=…` quita del APK la información de depuración del código Dart y la guarda aparte. **Guarda la carpeta `build/symbols/<versión>`** de cada versión publicada: sin ella no se pueden leer los errores que lleguen de esa versión (`flutter symbolize -i <traza> -d build/symbols/<versión>/app.android-arm64.symbols`).
 
-Con todo esto el APK queda en torno a 27 MB (antes 86 MB).
+Cada APK queda en torno a 12–13 MB (antes uno solo de 25 MB, y al principio 86 MB).
 
 ### Firma
 
@@ -58,8 +66,8 @@ Guárdalos en un lugar seguro y con copia de respaldo. Sin `key.properties` se f
 ## Publicar una actualización
 
 1. Sube el número de versión en `pubspec.yaml`, por ejemplo de `1.0.0+1` a `1.1.0+2`. El número después del `+` es el **código de versión** y tiene que ser mayor que el anterior.
-2. Compila el APK firmado con el comando de [Compilar el APK](#compilar-el-apk), cambiando la carpeta de `--split-debug-info` por la nueva versión.
-3. En la app, como Administrador: **Más → Gestión → Actualizaciones de la app → Publicar versión**. Elige el APK y escribe la versión, el código, las novedades y si es obligatoria.
+2. Compila los dos APK firmados con `./build_release.sh` (ver [Compilar los APK](#compilar-los-apk)).
+3. En la app, como Administrador: **Más → Gestión → Actualizaciones de la app → Publicar versión**. Elige los dos APK (64 y 32 bits) y escribe la versión, el código, las novedades y si es obligatoria.
 
 Los teléfonos lo detectan al abrir la app o en la siguiente sincronización.
 
