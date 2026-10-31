@@ -24,7 +24,7 @@
 | E14 | Baja automática por inactividad | S | 5 | 2 |
 | E12 | Chats | C | 14 | 2–3 |
 | E13 | Estadísticas | C | 28 | 3 |
-| | **Total** | | **274** | |
+| | **Total** | | **272** | |
 
 ---
 
@@ -354,7 +354,7 @@
 
 ### HU-124 · Estadísticas de paradas y recorrido · C · 5 pts
 
-### HU-125 · Exportar a Excel y PDF · C · 5 pts
+### HU-125 · Exportar a PDF · C · 3 pts
 - El PDF incluye los gráficos. Los archivos se pueden guardar o compartir.
 
 ### HU-126 · Visibilidad por rol · C · 2 pts

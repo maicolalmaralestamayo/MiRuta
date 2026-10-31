@@ -50,13 +50,15 @@ class _TripFormScreenState extends State<TripFormScreen> {
   Future<void> _load() async {
     final api = context.api;
     try {
-      final itineraries = (await api.getAll('/itineraries', query: {'sort': 'name'})).map(Itinerary.from).toList();
+      final me = context.me;
+      final itineraries = (await api.getAll('/itineraries', query: {'sort': 'name'})).map(Itinerary.from).where((i) => me.canPlan(i.id)).toList();
       final vehicles = (await api.getAll('/vehicles', query: {'include': 'vehicleType'})).map(Vehicle.from).toList();
       final drivers = (await api.getAll('/drivers', query: {'include': 'worker'}))
           .map((r) => (r.id, '${r.related('worker')?.string('firstName') ?? ''} ${r.related('worker')?.string('lastName') ?? ''}'))
           .toList();
       setState(() {
         _itineraries = itineraries;
+        if (_itineraryId == null && itineraries.length == 1) _itineraryId = itineraries.first.id;
         _vehicles = vehicles;
         _drivers = drivers;
       });

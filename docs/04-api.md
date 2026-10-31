@@ -167,7 +167,7 @@ Leyenda: **A** Administrador · **JT** Jefe de Transporte · **JI** Jefe de itin
 
 ## 4.6 Estadísticas
 
-`GET /statistics/{name}` devuelve un recurso `statistics` con `attributes.columns` (definición de columnas) y `attributes.rows` (filas). La app dibuja los gráficos y genera el Excel o el PDF a partir de esos datos.
+`GET /statistics/{name}` devuelve un recurso `statistics` con `attributes.columns` (definición de columnas) y `attributes.rows` (filas). La app dibuja los gráficos y genera el PDF a partir de esos datos.
 
 **Filtros de periodo** (uno de los tres):
 

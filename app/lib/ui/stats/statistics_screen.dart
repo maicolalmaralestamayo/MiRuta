@@ -9,7 +9,7 @@ import 'export.dart';
 import 'statistic.dart';
 
 /// Estadísticas con gráfico y tabla, periodo por rango, fechas sueltas o
-/// relativo, y exportación a Excel o PDF. Cada rol ve las suyas.
+/// relativo, y exportación a PDF. Cada rol ve las suyas.
 class StatisticsScreen extends StatefulWidget {
   const StatisticsScreen({super.key});
 
@@ -122,13 +122,10 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
         title: const Text('Estadísticas'),
         actions: [
           if (result != null && result.rows.isNotEmpty)
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.ios_share),
-              onSelected: (format) => runAction(context, () => format == 'xlsx' ? StatisticExport.excel(result, title) : StatisticExport.pdf(result, title)),
-              itemBuilder: (_) => const [
-                PopupMenuItem(value: 'xlsx', child: Text('Exportar a Excel')),
-                PopupMenuItem(value: 'pdf', child: Text('Exportar a PDF')),
-              ],
+            IconButton(
+              tooltip: 'Exportar a PDF',
+              icon: const Icon(Icons.picture_as_pdf_outlined),
+              onPressed: () => runAction(context, () => StatisticExport.pdf(result, title)),
             ),
         ],
       ),

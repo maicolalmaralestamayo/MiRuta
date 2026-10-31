@@ -57,6 +57,14 @@ android {
         }
     }
 
+    // Las librerías nativas van comprimidas dentro del APK: la descarga pesa
+    // menos (Android las descomprime al instalar).
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+
     buildTypes {
         release {
             // Sin key.properties se firma con la clave de depuración (solo para pruebas).

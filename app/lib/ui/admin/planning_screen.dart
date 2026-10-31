@@ -30,8 +30,11 @@ class _PlanningScreenState extends State<PlanningScreen> {
     super.initState();
     final today = DateTime.now();
     _range = DateTimeRange(start: DateTime(today.year, today.month, today.day), end: DateTime(today.year, today.month, today.day + 14));
+    final me = context.me;
+    // Los Jefes de itinerario solo planifican el suyo.
+    if (!me.managesTransport && me.roles.chiefOfItineraries.isNotEmpty) _itineraryId = me.roles.chiefOfItineraries.first;
     context.api.getAll('/itineraries', query: {'sort': 'name'}).then((r) {
-      if (mounted) setState(() => _itineraries = r.map(Itinerary.from).toList());
+      if (mounted) setState(() => _itineraries = r.map(Itinerary.from).where((i) => me.canPlan(i.id)).toList());
     }).catchError((_) {});
   }
 
@@ -115,7 +118,7 @@ class _PlanningScreenState extends State<PlanningScreen> {
                 isExpanded: true,
                 decoration: const InputDecoration(isDense: true, labelText: 'Itinerario'),
                 items: [
-                  const DropdownMenuItem<String?>(value: null, child: Text('Todos')),
+                  if (context.me.managesTransport) const DropdownMenuItem<String?>(value: null, child: Text('Todos')),
                   for (final i in _itineraries) DropdownMenuItem<String?>(value: i.id, child: Text(i.name)),
                 ],
                 onChanged: (value) {

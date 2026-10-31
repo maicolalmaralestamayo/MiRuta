@@ -96,7 +96,14 @@ class Worker {
 
   bool get managesTransport => isAdmin || roles.isTransportChief;
 
-  bool isChiefOf(String? itineraryId) => itineraryId != null && roles.chiefOfItineraries.contains(itineraryId);
+  /// El Administrador cuenta como Jefe de todos los itinerarios.
+  bool isChiefOf(String? itineraryId) => itineraryId != null && (isAdmin || roles.chiefOfItineraries.contains(itineraryId));
+
+  /// Puede planificar viajes de ese itinerario.
+  bool canPlan(String? itineraryId) => managesTransport || isChiefOf(itineraryId);
+
+  /// Puede planificar viajes de algún itinerario.
+  bool get plansTrips => managesTransport || roles.isItineraryChief;
 }
 
 class Stop {

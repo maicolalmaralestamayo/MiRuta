@@ -44,7 +44,7 @@ Sustituye la coordinación manual (listas, llamadas, mensajes sueltos) por un si
 - Seguimiento del recorrido en tiempo real, con varios teléfonos como sensores, mapa o línea de hitos, y voz.
 - Registro de subida al transporte (automático, "Ya subí", QR o manual) y orden de subida.
 - Chats: del viaje, con los Jefes de itinerario, con los Jefes de Transporte y con el desarrollador.
-- Estadísticas con gráficos y tablas, exportables a Excel y PDF.
+- Estadísticas con gráficos y tablas, exportables a PDF.
 - Baja automática por inactividad y ausencias temporales.
 
 **Fuera de alcance (por ahora):**

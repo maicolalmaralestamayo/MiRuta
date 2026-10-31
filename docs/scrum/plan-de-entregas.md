@@ -37,8 +37,8 @@
 | 16 | 15–19 feb | Próxima parada, inactividad y chat del viaje — **Entrega 2** | HU-105, HU-130, HU-110 | 13 |
 | 17 | 22–26 feb | Conversaciones y base de estadísticas | HU-111, HU-112, HU-113, HU-120, HU-126 | 14 |
 | 18 | 1–5 mar | Estadísticas de viajes, ocupación y trabajadores | HU-121, HU-122, HU-123 | 13 |
-| 19 | 8–12 mar | Estadísticas de paradas y exportación — **Entrega 3** | HU-124, HU-125 | 10 |
+| 19 | 8–12 mar | Estadísticas de paradas y exportación — **Entrega 3** | HU-124, HU-125 | 8 |
 
-**Total:** 274 puntos en 19 sprints.
+**Total:** 272 puntos en 19 sprints.
 
 El sprint 19 tiene menos carga a propósito: deja margen para estabilizar antes de la entrega final.

@@ -21,8 +21,9 @@ class AdminMenu extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Gestión')),
       body: ListView(children: [
-        if (me.roles.isItineraryChief) ...[
-          const SectionTitle('Mis itinerarios'),
+        if (me.roles.isItineraryChief && !me.managesTransport) ...[
+          const SectionTitle('Mi itinerario'),
+          ListTile(leading: const Icon(Icons.edit_calendar), title: const Text('Planificación de viajes'), onTap: () => open(const PlanningScreen())),
           ListTile(leading: const Icon(Icons.groups), title: const Text('Miembros'), onTap: () => open(WorkersScreen(itineraryIds: me.roles.chiefOfItineraries))),
         ],
         if (me.managesTransport) ...[

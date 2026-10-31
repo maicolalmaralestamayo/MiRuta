@@ -338,7 +338,7 @@ Al salir de una parada, el chofer y los Jefes de itinerario ven la lista de la s
 
 ## 2.11 Estadísticas
 
-- **Formato:** gráficos y tablas, exportables a **Excel** y **PDF**. Los archivos se generan en la app.
+- **Formato:** gráficos y tablas, exportables a **PDF**. Los archivos se generan en la app.
 - **Periodo:** rango de fechas, fechas explícitas (días sueltos), o relativo (últimos X días, semanas, meses o años).
 - **Visibilidad:** cada rol ve las que le corresponden:
   - Administrador y Jefes de Transporte: todas;

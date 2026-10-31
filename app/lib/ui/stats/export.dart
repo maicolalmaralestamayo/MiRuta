@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'dart:math';
 
-import 'package:excel/excel.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -9,32 +8,9 @@ import 'package:share_plus/share_plus.dart';
 
 import 'statistic.dart';
 
-/// Exportación de una estadística a Excel o a PDF (con su gráfico), para
+/// Exportación de una estadística a PDF (con su gráfico y su tabla), para
 /// guardar o compartir desde el teléfono.
 class StatisticExport {
-  static Future<void> excel(Statistic statistic, String title) async {
-    final workbook = Excel.createExcel();
-    final sheet = workbook['Estadística'];
-    workbook.setDefaultSheet('Estadística');
-    workbook.delete('Sheet1');
-    sheet.appendRow([TextCellValue(title)]);
-    sheet.appendRow([TextCellValue(statistic.periodLabel)]);
-    sheet.appendRow([]);
-    sheet.appendRow([for (final column in statistic.columns) TextCellValue(column.label)]);
-    for (final row in statistic.rows) {
-      sheet.appendRow([
-        for (final column in statistic.columns)
-          switch (row[column.key]) {
-            int value => IntCellValue(value),
-            double value => DoubleCellValue(value),
-            null => null,
-            final value => TextCellValue(statistic.format(column, value)),
-          },
-      ]);
-    }
-    await _share(workbook.encode()!, '${_fileName(title)}.xlsx');
-  }
-
   static Future<void> pdf(Statistic statistic, String title) async {
     final document = pw.Document();
     final chart = statistic.chartSeries();

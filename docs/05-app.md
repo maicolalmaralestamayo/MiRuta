@@ -20,7 +20,7 @@ Interfaz en **español**. Las opciones de menú solo aparecen si el rol del usua
 | PIN propio | Guardado como huella SHA-256 con sal en `flutter_secure_storage`; no depende de la huella ni del bloqueo del teléfono |
 | Actualizaciones | `ota_update` (descarga con verificación SHA-256 e instalación), `package_info_plus`, `file_picker` (publicar el APK) |
 | Gráficos | `fl_chart` |
-| Exportación | `excel` y `pdf`, y `share_plus` para compartir el archivo |
+| Exportación | `pdf` y `share_plus` para compartir el archivo |
 
 ## 5.2 Pantallas comunes
 
@@ -40,7 +40,7 @@ Interfaz en **español**. Las opciones de menú solo aparecen si el rol del usua
 | **Hijos** | Lista de hijos declarados con su fecha límite de viaje. Declarar uno nuevo (la app comprueba la edad antes de enviar). Incluye la nota para parejas |
 | **Conversaciones** | Con los Jefes de mi itinerario, con los Jefes de Transporte y con el desarrollador. Al abrir una se elige el motivo |
 | **Avisos** | Avisos del servidor (solicitudes, bajas, inactividad…) |
-| **Estadísticas** | Las que le corresponden por su rol. Selector de periodo (rango, fechas explícitas o relativo), gráfico + tabla, exportar a Excel o PDF |
+| **Estadísticas** | Las que le corresponden por su rol. Selector de periodo (rango, fechas explícitas o relativo), gráfico + tabla, exportar a PDF |
 | **Ajustes** | Ver 5.4 |
 
 ## 5.3 Pantallas por rol

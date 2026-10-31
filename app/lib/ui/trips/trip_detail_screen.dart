@@ -150,7 +150,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
               if (trip.status != TripStatus.cancelled && trip.status != TripStatus.completed)
                 ListTile(leading: const Icon(Icons.task_alt), title: const Text('Marcar como realizado'), onTap: () => _markCompleted(data)),
             ],
-            if (me.managesTransport)
+            if (me.canPlan(trip.itineraryId))
               ListTile(
                 leading: const Icon(Icons.edit_calendar),
                 title: const Text('Editar viaje'),
