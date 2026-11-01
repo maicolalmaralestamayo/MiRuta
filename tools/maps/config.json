@@ -1,0 +1,13 @@
+{
+  "options": {
+    "paths": { "root": "/data", "mbtiles": "/data/data", "styles": "/data/styles" },
+    "maxScaleFactor": 2,
+    "serveAllFonts": true
+  },
+  "styles": {
+    "miruta": { "style": "miruta/style.json", "tilejson": { "bounds": [-85.2, 19.6, -73.9, 23.45] } }
+  },
+  "data": {
+    "openmaptiles": { "mbtiles": "cuba.mbtiles" }
+  }
+}

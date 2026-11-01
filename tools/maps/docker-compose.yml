@@ -1,0 +1,15 @@
+# Servidor de mapas propio: dibuja las imágenes del mapa de Cuba con el estilo
+# sencillo de MiRuta (calles con nombres, edificios y PDI).
+# Las sirve en http://<servidor>:8081/styles/miruta/{z}/{x}/{y}.png; el servidor
+# web las publica en /tiles/{z}/{x}/{y}.png (ver nginx-tiles.conf).
+services:
+  tiles:
+    image: maptiler/tileserver-gl:v4.13.2
+    restart: unless-stopped
+    command: ["--config", "/data/config.json", "--public_url", "/tiles-server/"]
+    ports:
+      - "127.0.0.1:8081:8080"
+    volumes:
+      - ./data:/data/data:ro
+      - ./config.json:/data/config.json:ro
+      - ./style:/data/styles/miruta:ro
