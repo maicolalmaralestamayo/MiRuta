@@ -1,0 +1,72 @@
+# Servidor de MiRuta para probarlo en un PC (docs: api/README.md, "Probar en un PC con Docker").
+#
+#   docker compose -f docker/dev/compose.yml up --build
+#
+# - API:            http://localhost:8000/api/v1   (desde un teléfono: http://IP-DEL-PC:8000)
+# - Documentación:  http://localhost:8000/docs
+# - Base de datos:  MariaDB en el puerto 3307 del PC (usuario y contraseña: miruta)
+#
+# Las claves de abajo son SOLO para pruebas. No usar en el servidor real.
+name: miruta-dev
+
+services:
+  db:
+    image: mariadb:10.6
+    environment:
+      MARIADB_ROOT_PASSWORD: root
+      MARIADB_DATABASE: miruta
+      MARIADB_USER: miruta
+      MARIADB_PASSWORD: miruta
+    ports:
+      - "3307:3306"
+    volumes:
+      - db:/var/lib/mysql
+
+  # Instala las dependencias de PHP (api/vendor) la primera vez.
+  composer:
+    image: composer:2.2
+    working_dir: /repo/api
+    command: sh -c '[ -f vendor/autoload.php ] || composer install --no-interaction --prefer-dist --ignore-platform-reqs'
+    volumes:
+      - ../..:/repo
+
+  api:
+    build: .
+    command: sh /repo/docker/dev/start-api.sh
+    environment: &env
+      APP_NAME: MiRuta
+      APP_ENV: local
+      APP_DEBUG: "true"
+      APP_URL: http://localhost:8000
+      APP_TIMEZONE: America/Havana
+      APP_KEY: base64:bWlydXRhLWRldi1jbGF2ZS1kZS1wcnVlYmFzLTEyMzQ=
+      JWT_SECRET: miruta-dev-jwt-solo-para-pruebas-0123456789abcdef
+      DOCS_ENABLED: "true"
+      DB_CONNECTION: mysql
+      DB_HOST: db
+      DB_PORT: "3306"
+      DB_DATABASE: miruta
+      DB_USERNAME: miruta
+      DB_PASSWORD: miruta
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../..:/repo
+    depends_on:
+      db:
+        condition: service_started
+      composer:
+        condition: service_completed_successfully
+
+  # Tareas programadas (viajes realizados, atrasos, avisos, chats…), cada minuto.
+  scheduler:
+    build: .
+    command: sh -c 'until [ -f /repo/api/vendor/autoload.php ]; do sleep 5; done; while true; do php artisan schedule:run; sleep 60; done'
+    environment: *env
+    volumes:
+      - ../..:/repo
+    depends_on:
+      - api
+
+volumes:
+  db:
