@@ -56,7 +56,7 @@ class _GlobalSettingsScreenState extends State<GlobalSettingsScreen> {
     if (widget.entityLevel && me.isAdmin && context.session.adminEntity == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Ajustes de la Entidad')),
-        body: const EmptyView(icon: Icons.apartment_outlined, message: 'Elige primero una Entidad en Gestión.'),
+        body: const EmptyView(icon: Icons.apartment_outlined, message: 'Elija primero una Entidad en Gestión.'),
       );
     }
     return Scaffold(

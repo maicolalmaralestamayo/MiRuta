@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../core/api_exception.dart';
 import '../../models/models.dart';
 import '../../services/sync.dart';
-import '../../services/templates.dart';
 import '../trips/trip_card.dart';
 import '../widgets/common.dart';
 import 'trip_form_screen.dart';
@@ -100,8 +99,9 @@ class _PlanningScreenState extends State<PlanningScreen> {
       body: Column(children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-          child: Row(children: [
-            Expanded(
+          child: Column(children: [
+            SizedBox(
+              width: double.infinity,
               child: DateRangeField(
                 label: 'Fechas',
                 value: _range,
@@ -112,8 +112,9 @@ class _PlanningScreenState extends State<PlanningScreen> {
                 },
               ),
             ),
-            const SizedBox(width: 8),
-            Expanded(
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
               child: DropdownButtonFormField<String?>(
                 initialValue: _itineraryId,
                 isExpanded: true,
