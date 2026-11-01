@@ -88,7 +88,7 @@ class Settings
     public function definitions(): array
     {
         if ($this->definitions === null) {
-            $this->definitions = SettingDefinition::with('options', 'minSettingDefinition')->orderBy('key')->get()->keyBy('key')->all();
+            $this->definitions = SettingDefinition::with('options', 'minSettingDefinition', 'maxSettingDefinition')->orderBy('key')->get()->keyBy('key')->all();
         }
 
         return $this->definitions;
@@ -120,8 +120,13 @@ class Settings
                 if ($min !== null && $value < $min) {
                     throw $fail("El valor no puede ser menor que {$min}.");
                 }
-                if ($definition->max_value !== null && $value > $definition->max_value) {
-                    throw $fail("El valor no puede ser mayor que {$definition->max_value}.");
+                $max = $definition->max_value;
+                if ($definition->maxSettingDefinition) {
+                    $globalMax = $this->int($definition->maxSettingDefinition->key);
+                    $max = $max === null ? $globalMax : min($max, $globalMax);
+                }
+                if ($max !== null && $value > $max) {
+                    throw $fail("El valor no puede ser mayor que {$max}.");
                 }
 
                 return (string) $value;
@@ -219,11 +224,18 @@ class Settings
 
     private function applyMinimum(SettingDefinition $definition, string $raw): string
     {
-        if ($definition->value_type !== SettingDefinition::TYPE_INTEGER || ! $definition->minSettingDefinition) {
+        if ($definition->value_type !== SettingDefinition::TYPE_INTEGER) {
             return $raw;
         }
+        $value = (int) $raw;
+        if ($definition->minSettingDefinition) {
+            $value = max($value, $this->int($definition->minSettingDefinition->key));
+        }
+        if ($definition->maxSettingDefinition) {
+            $value = min($value, $this->int($definition->maxSettingDefinition->key));
+        }
 
-        return (string) max((int) $raw, $this->int($definition->minSettingDefinition->key));
+        return (string) $value;
     }
 
     private function globals(): array

@@ -16,6 +16,8 @@ class NoticeSerializer extends Serializer
     {
         return [
             'type' => $notice->type,
+            'message' => \App\Support\NoticeText::for($notice),
+            'payload' => $notice->payload,
             'readAt' => $this->date($notice->read_at),
             'createdAt' => $this->date($notice->created_at),
         ];

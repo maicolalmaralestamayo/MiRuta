@@ -10,8 +10,9 @@ use Carbon\Carbon;
 use Illuminate\Console\Command;
 
 /**
- * Avisa password_expiry_warning_days días antes de que caduque la
- * contraseña (una vez por periodo).
+ * Avisa cada día, durante los últimos password_expiry_notice_days días (ajuste
+ * de cada usuario), de que la contraseña está a punto de caducar
+ * (docs/09-repaso-pantallas.md §14).
  */
 class WarnPasswordExpiry extends Command
 {
@@ -21,26 +22,23 @@ class WarnPasswordExpiry extends Command
 
     public function handle(Passwords $passwords, Settings $settings)
     {
-        $days = $settings->int('password_expiry_warning_days');
+        $now = Carbon::now();
         $warned = 0;
 
-        if ($days > 0) {
-            $now = Carbon::now();
+        foreach (User::whereNotNull('password_changed_at')->cursor() as $user) {
+            $expiresAt = $passwords->expiresAt($user);
+            $days = (int) $settings->get('password_expiry_notice_days', $user);
 
-            foreach (User::whereNotNull('password_changed_at')->cursor() as $user) {
-                $expiresAt = $passwords->expiresAt($user);
+            if ($days <= 0 || ! $expiresAt || $expiresAt->lte($now) || $expiresAt->gt($now->copy()->addDays($days))) {
+                continue;
+            }
 
-                if (! $expiresAt || $expiresAt->lte($now) || $expiresAt->gt($now->copy()->addDays($days))) {
-                    continue;
-                }
+            $today = Notice::where('user_id', $user->id)->where('type', Notice::TYPE_PASSWORD_EXPIRING)
+                ->where('created_at', '>=', $now->copy()->startOfDay())->exists();
 
-                $already = Notice::where('user_id', $user->id)->where('type', Notice::TYPE_PASSWORD_EXPIRING)
-                    ->where('created_at', '>=', $user->password_changed_at)->exists();
-
-                if (! $already) {
-                    Notice::create(['user_id' => $user->id, 'type' => Notice::TYPE_PASSWORD_EXPIRING]);
-                    $warned++;
-                }
+            if (! $today) {
+                Notice::create(['user_id' => $user->id, 'type' => Notice::TYPE_PASSWORD_EXPIRING]);
+                $warned++;
             }
         }
 

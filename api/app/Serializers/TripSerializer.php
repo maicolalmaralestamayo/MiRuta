@@ -2,6 +2,8 @@
 
 namespace App\Serializers;
 
+use App\Models\TripLeg;
+use App\Services\TripTimeliness;
 use App\Services\Trips;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -19,6 +21,11 @@ class TripSerializer extends Serializer
             'departsAt' => $this->date($trip->departs_at),
             'returnsAt' => $this->date($trip->returns_at),
             'status' => $trip->status,
+            // Atraso (docs/09): minutos de atraso al comenzar o hasta ahora; NULL si no hay.
+            'outboundDelayed' => app(TripTimeliness::class)->isDelayed($trip, TripLeg::DIRECTION_OUTBOUND),
+            'returnDelayed' => app(TripTimeliness::class)->isDelayed($trip, TripLeg::DIRECTION_RETURN),
+            'outboundDelayMinutes' => app(TripTimeliness::class)->delayMinutes($trip, TripLeg::DIRECTION_OUTBOUND),
+            'returnDelayMinutes' => app(TripTimeliness::class)->delayMinutes($trip, TripLeg::DIRECTION_RETURN),
             'updatedAt' => $this->date($trip->updated_at),
         ];
     }

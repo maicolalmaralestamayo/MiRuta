@@ -89,7 +89,8 @@ class Inactivity
             }
 
             foreach ($absences as $absence) {
-                if ($day >= $absence->starts_on && $day <= $absence->ends_on) {
+                // Sin fechas = ausencia indefinida: cubre todos los días.
+                if (($absence->starts_on === null || $day >= $absence->starts_on) && ($absence->ends_on === null || $day <= $absence->ends_on)) {
                     return false;
                 }
             }

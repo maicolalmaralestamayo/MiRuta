@@ -7,6 +7,9 @@ use App\Models\Trip;
 use App\Models\TripBoarding;
 use App\Models\TripLeg;
 use App\Models\TripPosition;
+use App\Models\Notice;
+use App\Models\Stop;
+use App\Models\TripLegIncident;
 use App\Models\TripStopPass;
 use App\Models\User;
 use App\Models\Worker;
@@ -59,12 +62,16 @@ class Tracking
             throw JsonApiException::conflict('LEG_ALREADY_STARTED', 'Ese trayecto ya se inició.');
         }
 
-        return TripLeg::create([
+        $leg = TripLeg::create([
             'trip_id' => $trip->id,
             'direction' => $direction,
             'started_at' => Carbon::now(),
             'started_by' => $user->id,
         ]);
+        $leg->setRelation('trip', $trip->load('legs'));
+        app(TripTimeliness::class)->notifyStarted($leg);
+
+        return $leg;
     }
 
     /**
@@ -113,7 +120,17 @@ class Tracking
                 $combined = $this->combinedPosition($leg, $recordedAt);
 
                 if ($combined['position']) {
-                    $this->detectStopPasses($leg, $combined['position']['latitude'], $combined['position']['longitude'], $recordedAt);
+                    $latitude = (float) $combined['position']['latitude'];
+                    $longitude = (float) $combined['position']['longitude'];
+                    $isNewest = ! $leg->last_position_at || $recordedAt->greaterThan($leg->last_position_at);
+                    $speed = $isNewest ? $this->speedKmh($leg, $latitude, $longitude, $recordedAt) : null;
+
+                    $this->detectStopPasses($leg, $latitude, $longitude, $recordedAt, $speed);
+                    $this->detectDeviation($leg, $latitude, $longitude, $recordedAt);
+
+                    if ($isNewest && $leg->exists) {
+                        $leg->forceFill(['last_latitude' => $latitude, 'last_longitude' => $longitude, 'last_position_at' => $recordedAt])->save();
+                    }
                 }
 
                 $this->detectAutomaticBoarding($leg, $sensor);
@@ -185,33 +202,201 @@ class Tracking
     }
 
     /**
-     * Paso por paradas (7.18). Recorre todas las pendientes, para detectar la
-     * siguiente aunque el vehículo se salte alguna.
+     * Paso por paradas (7.18) y paradas no realizadas (docs/09 §8):
+     * - al entrar en el radio de una parada se registra la llegada;
+     * - al salir se decide si se detuvo: estuvo al menos stop_min_dwell_seconds
+     *   o bajó de stop_pass_speed_kmh; si no, "pasó de largo";
+     * - si llega a una parada sin haber pasado por alguna anterior, esas se
+     *   marcan como "saltadas".
+     * La parada de salida no cuenta para estas incidencias.
      */
-    private function detectStopPasses(TripLeg $leg, float $latitude, float $longitude, CarbonInterface $at): void
+    private function detectStopPasses(TripLeg $leg, float $latitude, float $longitude, CarbonInterface $at, ?float $speed): void
     {
+        $trip = $leg->trip;
+        $entityId = $trip->itinerary ? (int) $trip->itinerary->entity_id : null;
         $radius = $this->settings->int('stop_detection_radius_m');
-        $stops = $leg->orderedStops();
-        $passed = TripStopPass::where('trip_leg_id', $leg->id)->pluck('stop_id')->map(function ($id) {
-            return (int) $id;
-        })->all();
+        $stops = $leg->orderedStops()->values();
+        $passes = TripStopPass::where('trip_leg_id', $leg->id)->get()->keyBy('stop_id');
+        $first = $stops->first();
         $last = $stops->last();
 
-        foreach ($stops as $stop) {
-            if (in_array((int) $stop->id, $passed, true)) {
+        // Parada en la que está ahora: ¿sigue dentro o ya salió?
+        foreach ($passes as $pass) {
+            if ($pass->status !== TripStopPass::STATUS_ARRIVED) {
                 continue;
             }
 
-            if (Geo::distance($latitude, $longitude, $stop->latitude, $stop->longitude) <= $radius) {
-                TripStopPass::create(['trip_leg_id' => $leg->id, 'stop_id' => $stop->id, 'passed_at' => $at]);
+            $stop = $stops->firstWhere('id', $pass->stop_id);
+            $inside = $stop && Geo::distance($latitude, $longitude, $stop->latitude, $stop->longitude) <= $radius;
 
-                if ((int) $stop->id === (int) $last->id) {
-                    $leg->forceFill(['ended_at' => $at, 'end_reason' => TripLeg::END_LAST_STOP])->save();
+            if ($inside) {
+                if ($speed !== null) {
+                    $pass->min_speed_kmh = $pass->min_speed_kmh === null ? $speed : min($pass->min_speed_kmh, $speed);
+                    $pass->save();
                 }
+                continue;
+            }
 
-                return;
+            $dwell = $at->getTimestamp() - $pass->passed_at->getTimestamp();
+            $stopped = $dwell >= $this->settings->int('stop_min_dwell_seconds', null, $entityId)
+                || ($pass->min_speed_kmh !== null && $pass->min_speed_kmh <= $this->settings->int('stop_pass_speed_kmh', null, $entityId))
+                || ($first && (int) $pass->stop_id === (int) $first->id);
+            $pass->forceFill([
+                'left_at' => $at,
+                'status' => $stopped ? TripStopPass::STATUS_STOPPED : TripStopPass::STATUS_NOT_STOPPED,
+            ])->save();
+
+            if (! $stopped) {
+                $this->recordIncident($leg, TripLegIncident::TYPE_NOT_STOPPED, $stop, $at);
             }
         }
+
+        foreach ($stops as $index => $stop) {
+            if ($passes->has($stop->id)) {
+                continue;
+            }
+
+            if (Geo::distance($latitude, $longitude, $stop->latitude, $stop->longitude) > $radius) {
+                continue;
+            }
+
+            $isLast = (int) $stop->id === (int) $last->id;
+            TripStopPass::create([
+                'trip_leg_id' => $leg->id,
+                'stop_id' => $stop->id,
+                'passed_at' => $at,
+                'min_speed_kmh' => $speed,
+                'status' => $isLast ? TripStopPass::STATUS_STOPPED : TripStopPass::STATUS_ARRIVED,
+            ]);
+
+            // Las anteriores sin paso (salvo la de salida) se las saltó.
+            foreach ($stops->slice(1, max(0, $index - 1)) as $skipped) {
+                if (! $passes->has($skipped->id)) {
+                    TripStopPass::create([
+                        'trip_leg_id' => $leg->id, 'stop_id' => $skipped->id, 'passed_at' => $at,
+                        'status' => TripStopPass::STATUS_SKIPPED,
+                    ]);
+                    $this->recordIncident($leg, TripLegIncident::TYPE_SKIPPED, $skipped, $at);
+                }
+            }
+
+            if ($isLast) {
+                $leg->forceFill(['ended_at' => $at, 'end_reason' => TripLeg::END_LAST_STOP])->save();
+            }
+
+            return;
+        }
+    }
+
+    /**
+     * Desvío (opción B, docs/09 §8): distancia al recorrido de referencia del
+     * itinerario para este sentido. Se avisa al salir y se cierra al volver.
+     */
+    private function detectDeviation(TripLeg $leg, float $latitude, float $longitude, CarbonInterface $at): void
+    {
+        $trip = $leg->trip;
+        $itinerary = $trip->itinerary;
+        $referenceId = $itinerary ? $itinerary->referenceLegId($leg->direction) : null;
+
+        if (! $referenceId || $referenceId === (int) $leg->id) {
+            return;
+        }
+
+        $line = $this->referenceLine($referenceId);
+
+        if (count($line) < 2) {
+            return;
+        }
+
+        $distance = Geo::distanceToPolyline($latitude, $longitude, $line);
+        $limit = $this->settings->int('route_deviation_m', null, (int) $itinerary->entity_id);
+        $open = $leg->deviating
+            ? TripLegIncident::where('trip_leg_id', $leg->id)->where('type', TripLegIncident::TYPE_DEVIATION)->whereNull('ended_at')->latest('id')->first()
+            : null;
+
+        if ($distance > $limit) {
+            if ($open) {
+                $open->distance_m = max((int) $open->distance_m, (int) round($distance));
+                $open->save();
+            } elseif (! $leg->deviating) {
+                $leg->forceFill(['deviating' => true])->save();
+                $this->recordIncident($leg, TripLegIncident::TYPE_DEVIATION, null, $at, $latitude, $longitude, (int) round($distance));
+            }
+        } elseif ($leg->deviating) {
+            $leg->forceFill(['deviating' => false])->save();
+
+            if ($open) {
+                $open->forceFill(['ended_at' => $at])->save();
+            }
+        }
+    }
+
+    /** @var array Recorridos de referencia ya leídos (por id del viaje de ida o de regreso). */
+    private $referenceLines = [];
+
+    /**
+     * Puntos del recorrido de referencia, como mucho unos 1000.
+     */
+    private function referenceLine(int $legId): array
+    {
+        if (! isset($this->referenceLines[$legId])) {
+            $points = TripPosition::where('trip_leg_id', $legId)->orderBy('recorded_at')->get(['latitude', 'longitude']);
+            $step = max(1, (int) ceil($points->count() / 1000));
+            $line = [];
+
+            foreach ($points->values() as $index => $point) {
+                if ($index % $step === 0) {
+                    $line[] = [(float) $point->latitude, (float) $point->longitude];
+                }
+            }
+
+            $this->referenceLines[$legId] = $line;
+        }
+
+        return $this->referenceLines[$legId];
+    }
+
+    private function recordIncident(TripLeg $leg, string $type, ?Stop $stop, CarbonInterface $at, ?float $latitude = null, ?float $longitude = null, ?int $distance = null): void
+    {
+        TripLegIncident::create([
+            'trip_leg_id' => $leg->id,
+            'type' => $type,
+            'stop_id' => $stop ? $stop->id : null,
+            'latitude' => $latitude !== null ? $latitude : ($stop ? $stop->latitude : null),
+            'longitude' => $longitude !== null ? $longitude : ($stop ? $stop->longitude : null),
+            'distance_m' => $distance,
+            'started_at' => $at,
+        ]);
+
+        $trip = $leg->trip;
+        $itinerary = $trip->itinerary;
+        $notices = app(Notices::class);
+        $notices->send(
+            array_merge($notices->itineraryChiefIds((int) $trip->itinerary_id), $notices->transportChiefIds($itinerary ? (int) $itinerary->entity_id : null)),
+            Notice::TYPE_TRIP_INCIDENT,
+            null,
+            (int) $trip->id,
+            null,
+            ['direction' => $leg->direction, 'type' => $type, 'stop' => $stop ? $stop->landmark : null]
+        );
+    }
+
+    /**
+     * Velocidad desde la última posición combinada (km/h), o NULL.
+     */
+    private function speedKmh(TripLeg $leg, float $latitude, float $longitude, CarbonInterface $at): ?float
+    {
+        if ($leg->last_latitude === null || ! $leg->last_position_at) {
+            return null;
+        }
+
+        $seconds = $at->getTimestamp() - $leg->last_position_at->getTimestamp();
+
+        if ($seconds <= 0) {
+            return null;
+        }
+
+        return Geo::distance($leg->last_latitude, $leg->last_longitude, $latitude, $longitude) / $seconds * 3.6;
     }
 
     /**

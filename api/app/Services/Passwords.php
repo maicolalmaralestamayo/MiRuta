@@ -5,7 +5,6 @@ namespace App\Services;
 use App\JsonApi\JsonApiException;
 use App\Models\PasswordHistory;
 use App\Models\User;
-use App\Support\CommonPasswords;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Hash;
 
@@ -46,7 +45,7 @@ class Passwords
     public function problems($password, array $context = [], ?User $user = null): array
     {
         if (! is_string($password) || $password === '') {
-            return ['Escribe una contraseña.'];
+            return ['Escriba una contraseña.'];
         }
 
         $problems = [];
@@ -66,17 +65,9 @@ class Passwords
             $problems[] = "Debe combinar al menos {$required} de estos tipos: mayúsculas, minúsculas, números y símbolos.";
         }
 
-        if ($this->settings->get('password_forbid_personal_data') && $this->containsPersonalData($password, $context)) {
-            $problems[] = 'No puede contener tu usuario ni tus nombres o apellidos.';
-        }
-
-        if ($this->settings->get('password_forbid_common') && CommonPasswords::contains($password)) {
-            $problems[] = 'Es una de las contraseñas más usadas; elige otra.';
-        }
-
         if ($user && $this->wasUsedBefore($user, $password)) {
             $count = $this->settings->int('password_history_count');
-            $problems[] = "No puede ser igual a ninguna de tus {$count} contraseñas anteriores.";
+            $problems[] = "No puede ser igual a ninguna de sus {$count} contraseñas anteriores.";
         }
 
         return $problems;
@@ -133,8 +124,6 @@ class Passwords
             'minLength' => $this->settings->int('password_min_length'),
             'maxLength' => self::MAX_LENGTH,
             'requiredClasses' => $this->settings->int('password_required_classes'),
-            'forbidPersonalData' => (bool) $this->settings->get('password_forbid_personal_data'),
-            'forbidCommon' => (bool) $this->settings->get('password_forbid_common'),
             'historyCount' => $this->settings->int('password_history_count'),
             'expiryDays' => $this->settings->int('password_expiry_days'),
         ];
@@ -148,21 +137,6 @@ class Passwords
             + (int) (bool) preg_match('/[^\p{L}\d]/u', $password);
     }
 
-    private function containsPersonalData(string $password, array $context): bool
-    {
-        $haystack = self::plain($password);
-
-        foreach ($context as $value) {
-            $needle = self::plain((string) $value);
-
-            // Palabras de 3 letras o más (para no rechazar por un nombre de dos letras).
-            if (mb_strlen($needle) >= 3 && mb_strpos($haystack, $needle) !== false) {
-                return true;
-            }
-        }
-
-        return false;
-    }
 
     private function wasUsedBefore(User $user, string $password): bool
     {

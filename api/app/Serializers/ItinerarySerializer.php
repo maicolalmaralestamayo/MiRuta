@@ -29,6 +29,10 @@ class ItinerarySerializer extends NomenclatorSerializer
 
     public function toOneRelationships(): array
     {
-        return ['entity' => ['entities', 'entity_id', 'entity']];
+        return [
+            'entity' => ['entities', 'entity_id', 'entity'],
+            'referenceOutboundLeg' => ['trip-legs', 'reference_outbound_leg_id', 'referenceOutboundLeg'],
+            'referenceReturnLeg' => ['trip-legs', 'reference_return_leg_id', 'referenceReturnLeg'],
+        ];
     }
 }

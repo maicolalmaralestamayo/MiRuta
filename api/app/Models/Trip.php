@@ -44,6 +44,11 @@ class Trip extends Model
         return $this->belongsTo(Driver::class)->withTrashed();
     }
 
+    public function legs()
+    {
+        return $this->hasMany(TripLeg::class);
+    }
+
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by')->withTrashed();

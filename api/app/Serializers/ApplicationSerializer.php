@@ -17,6 +17,7 @@ class ApplicationSerializer extends Serializer
         $attributes = [
             'type' => $application->type,
             'status' => $application->status,
+            'groupId' => $application->group_id ? (string) $application->group_id : null,
             'resolutionNote' => $application->resolution_note,
             'resolvedAt' => $this->date($application->resolved_at),
             'assigned' => $application->created_by !== null && $application->worker && (int) $application->created_by !== (int) $application->worker->user_id,
@@ -30,8 +31,9 @@ class ApplicationSerializer extends Serializer
         }
 
         if ($absence = $application->absenceApplication) {
-            $attributes['startsOn'] = $absence->starts_on->toDateString();
-            $attributes['endsOn'] = $absence->ends_on->toDateString();
+            $attributes['indefinite'] = $absence->starts_on === null;
+            $attributes['startsOn'] = $absence->starts_on ? $absence->starts_on->toDateString() : null;
+            $attributes['endsOn'] = $absence->ends_on ? $absence->ends_on->toDateString() : null;
             $attributes['observation'] = $absence->observation;
         }
 

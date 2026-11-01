@@ -35,16 +35,50 @@ class VehicleController extends ResourceController
 
     protected $defaultSort = 'plate';
 
+    /**
+     * Nomenclatura cubana (docs/09 §9): una letra de las permitidas en el ajuste
+     * plate_letters y 6 dígitos. Se guarda junta y en mayúsculas.
+     */
+    public static function normalizePlate(string $plate): string
+    {
+        return strtoupper((string) preg_replace('/[\s-]+/', '', $plate));
+    }
+
+    /**
+     * @return string[]
+     */
+    public static function plateLetters(): array
+    {
+        $letters = array_map('trim', explode(',', strtoupper((string) app(\App\Services\Settings::class)->get('plate_letters'))));
+
+        return array_values(array_filter($letters, function ($letter) {
+            return preg_match('/^[A-Z]$/', $letter) === 1;
+        }));
+    }
+
     protected function rules(Request $request, ?Model $model): array
     {
         $presence = $model ? 'sometimes' : 'required';
+
+        $plate = $request->json('data.attributes.plate');
+        if (is_string($plate)) {
+            $data = $request->json('data');
+            $data['attributes']['plate'] = self::normalizePlate($plate);
+            $request->json()->set('data', $data);
+        }
+        $letters = self::plateLetters();
+        $format = function ($attribute, $value, $fail) use ($letters) {
+            if (! is_string($value) || ! preg_match('/^['.implode('', $letters).']\d{6}$/', $value)) {
+                $fail('La matrícula debe ser una letra ('.implode(', ', $letters).') seguida de 6 dígitos.');
+            }
+        };
         // La matrícula es única dentro de la Entidad.
         $unique = \Illuminate\Validation\Rule::unique('vehicles', 'plate')
             ->where('entity_id', ItineraryController::targetEntityId($request, $model))
             ->whereNull('deleted_at')->ignore($model ? $model->id : null);
 
         return array_merge([
-            'attributes.plate' => [$presence, 'string', 'max:20', $unique],
+            'attributes.plate' => [$presence, 'string', 'max:20', $format, $unique],
             'attributes.seats' => [$presence, 'integer', 'min:0', 'max:500'],
             'attributes.standingCapacity' => [$presence, 'integer', 'min:0', 'max:500'],
         ],

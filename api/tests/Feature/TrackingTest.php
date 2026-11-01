@@ -104,7 +104,10 @@ class TrackingTest extends TestCase
         Carbon::setTestNow(Carbon::create(2026, 11, 3, 17, 10));
         $this->sendPosition($this->driver, $legId, 23.1199);
 
-        $this->assertSame([$stops[0], $stops[2]], TripStopPass::orderBy('id')->pluck('stop_id')->all());
+        // La segunda queda marcada como saltada (docs/09 §8) y se avisa a los Jefes.
+        $this->assertSame([$stops[0], $stops[2], $stops[1]], TripStopPass::orderBy('id')->pluck('stop_id')->all());
+        $this->assertSame('skipped', TripStopPass::where('stop_id', $stops[1])->value('status'));
+        $this->assertSame(1, \App\Models\TripLegIncident::where('type', 'skipped')->where('stop_id', $stops[1])->count());
         $leg = TripLeg::find($legId);
         $this->assertSame('last_stop', $leg->end_reason);
         $this->assertNotNull($leg->ended_at);

@@ -14,7 +14,7 @@ use Illuminate\Http\Request;
  */
 class UserController extends Controller
 {
-    /** Reglas de los cuatro nombres, todos obligatorios. */
+    /** Reglas de los nombres: todos obligatorios menos el segundo nombre (docs/09 §3). */
     public static function nameRules(string $prefix = 'attributes.', bool $required = true): array
     {
         $presence = $required ? ['required'] : ['sometimes', 'required'];
@@ -22,7 +22,9 @@ class UserController extends Controller
 
         foreach (['firstName', 'middleName', 'firstSurname', 'secondSurname'] as $field) {
             $key = substr($prefix, -1) === '.' ? $prefix.$field : $prefix.ucfirst($field);
-            $rules[$key] = array_merge($presence, ['string', 'max:50', 'regex:/\S/']);
+            $rules[$key] = $field === 'middleName'
+                ? ['sometimes', 'nullable', 'string', 'max:50']
+                : array_merge($presence, ['string', 'max:50', 'regex:/\S/']);
         }
 
         return $rules;
@@ -37,7 +39,8 @@ class UserController extends Controller
 
         foreach (['firstName' => 'first_name', 'middleName' => 'middle_name', 'firstSurname' => 'first_surname', 'secondSurname' => 'second_surname'] as $field => $column) {
             if (array_key_exists($field, $attributes)) {
-                $names[$column] = preg_replace('/\s+/u', ' ', trim($attributes[$field]));
+                $value = preg_replace('/\s+/u', ' ', trim((string) $attributes[$field]));
+                $names[$column] = $value === '' ? null : $value;
             }
         }
 

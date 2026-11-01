@@ -26,6 +26,9 @@ class CreateSettingsTables extends Migration
             $table->foreignId('min_setting_definition_id')->nullable()
                 ->comment('Ajuste de la app que fija el valor mínimo de este')
                 ->constrained('setting_definitions');
+            $table->foreignId('max_setting_definition_id')->nullable()
+                ->comment('Ajuste de la app que fija el valor máximo de este')
+                ->constrained('setting_definitions');
             $table->enum('level', ['app', 'entity'])
                 ->comment('app: solo el Administrador; entity: el Administrador fija el valor de la app y cada Jefe de Transporte el de su Entidad');
             $table->boolean('user_overridable')->default(false);

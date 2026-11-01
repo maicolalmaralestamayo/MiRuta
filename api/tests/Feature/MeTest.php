@@ -59,8 +59,10 @@ class MeTest extends TestCase
         $this->seeJson(['firstName' => 'Ana', 'secondSurname' => 'Díaz']);
         $this->assertSame('Ana', $this->userOf($worker)->fresh()->first_name);
 
+        // El segundo nombre es opcional: en blanco se queda sin él.
         $this->patchMe($worker, ['middleName' => '  ']);
-        $this->assertJsonApiError(422, 'VALIDATION_ERROR', '/data/attributes/middleName');
+        $this->assertResponseOk();
+        $this->assertNull($this->userOf($worker)->fresh()->middle_name);
     }
 
     public function testCambiarLaJerarquiaEnElPerfil()
@@ -131,9 +133,6 @@ class MeTest extends TestCase
             'corta' => ['Ab.1'],
             'un solo tipo' => ['abcdefghij'],
             'dos tipos' => ['abcdefgh12'],
-            'contiene el usuario' => ['Maria.2024x'],
-            'contiene un nombre' => ['Gertrudis.99'],
-            'común' => ['Password123'],
             'la actual' => [self::PASSWORD],
         ];
     }

@@ -132,7 +132,7 @@ class EntitiesTest extends TestCase
         $this->jsonApiAs($this->createTransportChief([], $other), 'POST', '/api/v1/itineraries', ['data' => ['type' => 'itineraries', 'attributes' => ['name' => 'Ruta Norte']]]);
         $this->assertResponseStatus(201);
 
-        $this->jsonApiAs($chief, 'POST', '/api/v1/vehicles', ['data' => ['type' => 'vehicles', 'attributes' => ['plate' => 'B1', 'seats' => 10, 'standingCapacity' => 0], 'relationships' => [
+        $this->jsonApiAs($chief, 'POST', '/api/v1/vehicles', ['data' => ['type' => 'vehicles', 'attributes' => ['plate' => 'B000001', 'seats' => 10, 'standingCapacity' => 0], 'relationships' => [
             'vehicleType' => ['data' => ['type' => 'vehicle-types', 'id' => (string) $type->id]],
             'driver' => ['data' => ['type' => 'drivers', 'id' => (string) $foreignDriver->driverId()]],
         ]]]);

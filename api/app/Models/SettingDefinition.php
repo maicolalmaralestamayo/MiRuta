@@ -20,7 +20,7 @@ class SettingDefinition extends Model
 
     protected $fillable = [
         'key', 'name', 'description', 'observation', 'value_type', 'default_value',
-        'min_value', 'max_value', 'min_setting_definition_id', 'level', 'user_overridable',
+        'min_value', 'max_value', 'min_setting_definition_id', 'max_setting_definition_id', 'level', 'user_overridable',
     ];
 
     protected $casts = [
@@ -40,5 +40,13 @@ class SettingDefinition extends Model
     public function minSettingDefinition()
     {
         return $this->belongsTo(self::class, 'min_setting_definition_id');
+    }
+
+    /**
+     * Ajuste global que fija el valor máximo de este (p. ej. remember_password_max_days).
+     */
+    public function maxSettingDefinition()
+    {
+        return $this->belongsTo(self::class, 'max_setting_definition_id');
     }
 }

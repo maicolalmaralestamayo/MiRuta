@@ -27,7 +27,6 @@ return [
         App\Models\ItineraryStop::class => App\Serializers\ItineraryStopSerializer::class,
         App\Models\AccessRecovery::class => App\Serializers\AccessRecoverySerializer::class,
         App\Models\Entity::class => App\Serializers\EntitySerializer::class,
-        App\Models\ForbiddenWord::class => App\Serializers\ForbiddenWordSerializer::class,
         App\Models\Installation::class => App\Serializers\InstallationSerializer::class,
         App\Models\User::class => App\Serializers\UserSerializer::class,
         App\Models\Rank::class => App\Serializers\RankSerializer::class,

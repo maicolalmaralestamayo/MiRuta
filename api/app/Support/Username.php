@@ -2,7 +2,6 @@
 
 namespace App\Support;
 
-use App\Models\ForbiddenWord;
 use App\Models\ReleasedUsername;
 use App\Services\Settings;
 use Carbon\Carbon;
@@ -26,14 +25,11 @@ final class Username
     /** Nadie puede hacerse pasar por la app o por su equipo. */
     const RESERVED = [
         'admin', 'administrador', 'administrator', 'soporte', 'support', 'sistema', 'system',
-        'mitransporte', 'root', 'moderador', 'moderator', 'desarrollador', 'developer', 'oficial',
+        'mitransporte', 'miruta', 'root', 'moderador', 'moderator', 'desarrollador', 'developer', 'oficial',
     ];
 
     /** Números que se usan para camuflar letras. */
     const LEET = ['0' => 'o', '1' => 'i', '3' => 'e', '4' => 'a', '5' => 's', '7' => 't', '8' => 'b', '9' => 'g'];
-
-    /** Las palabras no permitidas de esta longitud o más se buscan dentro de todo el usuario. */
-    const SUBSTRING_MIN_LENGTH = 7;
 
     public static function normalize($value): string
     {
@@ -103,10 +99,6 @@ final class Username
             return 'El usuario no puede contener palabras reservadas de la app.';
         }
 
-        if (self::containsForbiddenWord($username)) {
-            return 'El usuario contiene una palabra no permitida.';
-        }
-
         return null;
     }
 
@@ -151,25 +143,6 @@ final class Username
         return false;
     }
 
-    public static function containsForbiddenWord(string $username): bool
-    {
-        $plain = self::plain($username);
-        $parts = preg_split('/[._]+/', self::deLeet($username));
-
-        foreach (ForbiddenWord::pluck('name') as $word) {
-            $word = self::plain($word);
-
-            if ($word === '') {
-                continue;
-            }
-
-            if (strlen($word) >= self::SUBSTRING_MIN_LENGTH ? strpos($plain, $word) !== false : in_array($word, $parts, true)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
 
     /**
      * Sin tildes, sin signos y con los números camuflados convertidos en letras.

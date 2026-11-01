@@ -81,7 +81,7 @@ class User extends Model implements AuthenticatableContract, AuthorizableContrac
 
     public function fullName(): string
     {
-        return trim(implode(' ', [$this->first_name, $this->middle_name, $this->first_surname, $this->second_surname]));
+        return implode(' ', array_filter([$this->first_name, $this->middle_name, $this->first_surname, $this->second_surname], 'strlen'));
     }
 
     public function isAdmin(): bool

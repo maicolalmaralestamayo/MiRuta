@@ -25,7 +25,7 @@ class CreateApplicationsTables extends Migration
             $table->id();
             $table->foreignId('worker_id')->constrained();
             $table->string('first_name', 50);
-            $table->string('middle_name', 50);
+            $table->string('middle_name', 50)->nullable();
             $table->string('first_surname', 50);
             $table->string('second_surname', 50);
             $table->date('birth_date')->comment('Privada: el padre o la madre, sus jefes al aprobar y el Administrador');
@@ -37,6 +37,8 @@ class CreateApplicationsTables extends Migration
         Schema::create('applications', function (Blueprint $table) {
             $table->id();
             $table->foreignId('worker_id')->comment('Trabajador al que se refiere')->constrained();
+            $table->unsignedBigInteger('group_id')->nullable()
+                ->comment('Solicitudes enviadas juntas (p. ej. varios hijos): el id de la primera');
             $table->enum('type', self::TYPES);
             $table->enum('status', ['pending', 'approved', 'rejected', 'cancelled']);
             $table->foreignId('created_by')->nullable()->comment('Quien la creó: el trabajador, un superior (asignación) o NULL (el sistema)')->constrained('users');
@@ -47,6 +49,7 @@ class CreateApplicationsTables extends Migration
             $table->softDeletes();
             $table->index(['status', 'type']);
             $table->index(['worker_id', 'created_at']);
+            $table->foreign('group_id')->references('id')->on('applications');
         });
 
         Schema::create('itinerary_applications', function (Blueprint $table) {
@@ -69,8 +72,8 @@ class CreateApplicationsTables extends Migration
         Schema::create('absence_applications', function (Blueprint $table) {
             $table->foreignId('application_id')->primary()->constrained();
             $table->foreignId('absence_type_id')->constrained();
-            $table->date('starts_on');
-            $table->date('ends_on');
+            $table->date('starts_on')->nullable()->comment('NULL = ausencia indefinida, sin fechas');
+            $table->date('ends_on')->nullable();
             $table->text('observation')->nullable();
             $table->timestamps();
             $table->softDeletes();

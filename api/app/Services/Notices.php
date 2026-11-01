@@ -16,7 +16,7 @@ class Notices
     /**
      * @param int[] $userIds
      */
-    public function send(array $userIds, string $type, ?int $applicationId = null, ?int $tripId = null, ?int $exceptUserId = null): void
+    public function send(array $userIds, string $type, ?int $applicationId = null, ?int $tripId = null, ?int $exceptUserId = null, ?array $payload = null): void
     {
         foreach (array_unique(array_filter($userIds)) as $userId) {
             if ($exceptUserId !== null && (int) $userId === $exceptUserId) {
@@ -28,6 +28,7 @@ class Notices
                 'type' => $type,
                 'application_id' => $applicationId,
                 'trip_id' => $tripId,
+                'payload' => $payload,
             ]);
         }
     }

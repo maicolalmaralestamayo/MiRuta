@@ -30,6 +30,7 @@ tags:
 - name: Perfil
 - name: Nomencladores
 - name: Itinerarios y paradas
+- name: Mapas
 - name: Roles
 - name: Vehículos
 - name: Viajes
@@ -834,133 +835,6 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '404':
           $ref: '#/components/responses/NotFound'
-  /forbidden-words:
-    get:
-      tags:
-      - Nomencladores
-      summary: Listar forbidden-words
-      description: Solo el Administrador.
-      parameters:
-      - $ref: '#/components/parameters/PageNumber'
-      - $ref: '#/components/parameters/PageSize'
-      - $ref: '#/components/parameters/Sort'
-      - $ref: '#/components/parameters/Include'
-      responses:
-        '200':
-          description: Correcto
-          content:
-            application/vnd.api+json:
-              schema:
-                $ref: '#/components/schemas/ForbiddenWordCollection'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-    post:
-      tags:
-      - Nomencladores
-      summary: Crear forbidden-words
-      description: Solo el Administrador.
-      requestBody:
-        required: true
-        content:
-          application/vnd.api+json:
-            schema:
-              $ref: '#/components/schemas/ForbiddenWordDocument'
-      responses:
-        '201':
-          description: Creado
-          content:
-            application/vnd.api+json:
-              schema:
-                $ref: '#/components/schemas/ForbiddenWordDocument'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/Conflict'
-        '415':
-          $ref: '#/components/responses/UnsupportedMediaType'
-        '422':
-          $ref: '#/components/responses/Unprocessable'
-  /forbidden-words/{id}:
-    get:
-      tags:
-      - Nomencladores
-      summary: Obtener forbidden-words
-      parameters:
-      - $ref: '#/components/parameters/Id'
-      - $ref: '#/components/parameters/Include'
-      responses:
-        '200':
-          description: Correcto
-          content:
-            application/vnd.api+json:
-              schema:
-                $ref: '#/components/schemas/ForbiddenWordDocument'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-    patch:
-      tags:
-      - Nomencladores
-      summary: Modificar forbidden-words
-      description: Solo el Administrador.
-      parameters:
-      - $ref: '#/components/parameters/Id'
-      requestBody:
-        required: true
-        content:
-          application/vnd.api+json:
-            schema:
-              $ref: '#/components/schemas/ForbiddenWordDocument'
-      responses:
-        '200':
-          description: Correcto
-          content:
-            application/vnd.api+json:
-              schema:
-                $ref: '#/components/schemas/ForbiddenWordDocument'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/Conflict'
-        '415':
-          $ref: '#/components/responses/UnsupportedMediaType'
-        '422':
-          $ref: '#/components/responses/Unprocessable'
-    delete:
-      tags:
-      - Nomencladores
-      summary: Eliminar forbidden-words (borrado lógico)
-      description: Solo el Administrador.
-      parameters:
-      - $ref: '#/components/parameters/Id'
-      responses:
-        '204':
-          description: Sin contenido
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/Conflict'
   /workers:
     post:
       tags:
@@ -3852,6 +3726,7 @@ paths:
           - stop-pass-times
           - distance
           - live-trip
+          - trip-incidents
       - name: filter[from]
         in: query
         required: false
@@ -3948,6 +3823,61 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+  /map:
+    get:
+      tags:
+      - Mapas
+      summary: Configuración del mapa propio
+      description: Límites de Cuba y zona de la Entidad para usar el mapa sin conexión. El Administrador puede indicar `filter[entity]`.
+      parameters:
+      - name: filter[entity]
+        in: query
+        required: false
+        description: Entidad (solo el Administrador)
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Configuración
+          content:
+            application/vnd.api+json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                        enum:
+                        - map-configs
+                      id:
+                        type: string
+                      attributes:
+                        type: object
+                        properties:
+                          tilesUrl:
+                            type: string
+                            description: Plantilla de las imágenes del mapa ({z}/{x}/{y}); relativa a la dirección del servidor
+                          minZoom:
+                            type: integer
+                          maxZoom:
+                            type: integer
+                          downloadMinZoom:
+                            type: integer
+                          downloadMaxZoom:
+                            type: integer
+                          bounds:
+                            $ref: '#/components/schemas/BoundingBox'
+                          area:
+                            allOf:
+                            - $ref: '#/components/schemas/BoundingBox'
+                            nullable: true
+                            description: Zona de las paradas de la Entidad con margen, para descargarla
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
   /app-versions/latest:
     get:
       tags:
@@ -4000,17 +3930,15 @@ paths:
       tags:
       - Actualizaciones
       summary: Publicar una versión
-      description: Solo el Administrador. `multipart/form-data`. Un APK por tipo de procesador (al menos uno). El versionCode
-        debe ser mayor que el de cualquier versión anterior.
+      description: Solo el Administrador. `multipart/form-data`. Un APK por tipo de procesador (al menos uno). La versión
+        y el código se leen del propio APK (todos deben coincidir); el versionCode debe ser mayor que el de cualquier versión
+        anterior.
       requestBody:
         required: true
         content:
           multipart/form-data:
             schema:
               type: object
-              required:
-              - versionName
-              - versionCode
               properties:
                 apkArm64:
                   type: string
@@ -4025,8 +3953,10 @@ paths:
                   format: binary
                 versionName:
                   type: string
+                  description: Solo si no se puede leer del APK
                 versionCode:
                   type: integer
+                  description: Solo si no se puede leer del APK
                 notes:
                   type: string
                 mandatory:
@@ -4238,6 +4168,17 @@ components:
         at:
           type: string
           format: date-time
+    BoundingBox:
+      type: object
+      properties:
+        south:
+          type: number
+        west:
+          type: number
+        north:
+          type: number
+        east:
+          type: number
     Error:
       type: object
       properties:
@@ -4332,8 +4273,7 @@ components:
               type: string
               pattern: ^[a-z][a-z0-9._]{3,19}$
               description: De 4 a 20 caracteres, empieza por letra, sin signos al final ni seguidos, al menos 3 letras, sin
-                palabras reservadas ni no permitidas. Único en toda la app; el anterior queda bloqueado `username_reuse_block_days`
-                días.
+                palabras reservadas. Único en toda la app; el anterior queda bloqueado `username_reuse_block_days` días.
             password:
               type: string
               format: password
@@ -4345,6 +4285,8 @@ components:
             middleName:
               type: string
               maxLength: 50
+              nullable: true
+              description: Opcional
             firstSurname:
               type: string
               maxLength: 50
@@ -4395,7 +4337,6 @@ components:
           - username
           - password
           - firstName
-          - middleName
           - firstSurname
           - secondSurname
         relationships:
@@ -4462,6 +4403,8 @@ components:
             middleName:
               type: string
               maxLength: 50
+              nullable: true
+              description: Opcional
             firstSurname:
               type: string
               maxLength: 50
@@ -4497,7 +4440,6 @@ components:
               readOnly: true
           required:
           - firstName
-          - middleName
           - firstSurname
           - secondSurname
           - pass
@@ -4660,67 +4602,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Entity'
-        included:
-          type: array
-          items:
-            type: object
-            additionalProperties: true
-        links:
-          $ref: '#/components/schemas/Links'
-        meta:
-          $ref: '#/components/schemas/PageMeta'
-    ForbiddenWord:
-      type: object
-      description: Palabra que no puede contener un usuario (solo el Administrador).
-      required:
-      - type
-      properties:
-        type:
-          type: string
-          enum:
-          - forbidden-words
-        id:
-          type: string
-        attributes:
-          type: object
-          properties:
-            name:
-              type: string
-              maxLength: 100
-              description: Denominación
-            description:
-              type: string
-              nullable: true
-              description: Descripción
-            observation:
-              type: string
-              nullable: true
-              description: Observación
-          required:
-          - name
-        links:
-          $ref: '#/components/schemas/Links'
-    ForbiddenWordDocument:
-      type: object
-      required:
-      - data
-      properties:
-        data:
-          $ref: '#/components/schemas/ForbiddenWord'
-        included:
-          type: array
-          items:
-            type: object
-            additionalProperties: true
-    ForbiddenWordCollection:
-      type: object
-      required:
-      - data
-      properties:
-        data:
-          type: array
-          items:
-            $ref: '#/components/schemas/ForbiddenWord'
         included:
           type: array
           items:
@@ -5022,10 +4903,6 @@ components:
               type: integer
               minimum: 1
               maximum: 4
-            forbidPersonalData:
-              type: boolean
-            forbidCommon:
-              type: boolean
             historyCount:
               type: integer
             expiryDays:
@@ -5379,6 +5256,20 @@ components:
                   type: array
                   items:
                     $ref: '#/components/schemas/ResourceIdentifier'
+            referenceOutboundLeg:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
+            referenceReturnLeg:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/ResourceIdentifier'
+                  nullable: true
         meta:
           type: object
           readOnly: true
@@ -5886,6 +5777,23 @@ components:
               - confirmed
               - completed
               - cancelled
+            outboundDelayed:
+              type: boolean
+              readOnly: true
+              description: El viaje de ida no ha comenzado y ya pasó su hora más la tolerancia de la Entidad
+            returnDelayed:
+              type: boolean
+              readOnly: true
+              description: Igual para el viaje de regreso
+            outboundDelayMinutes:
+              type: integer
+              nullable: true
+              readOnly: true
+              description: Minutos de atraso al comenzar (o hasta ahora si está atrasado)
+            returnDelayMinutes:
+              type: integer
+              nullable: true
+              readOnly: true
             updatedAt:
               type: string
               format: date-time
@@ -6145,6 +6053,46 @@ components:
                   passedAt:
                     type: string
                     format: date-time
+                  status:
+                    type: string
+                    enum:
+                    - arrived
+                    - stopped
+                    - not_stopped
+                    - skipped
+            deviating:
+              type: boolean
+              description: Ahora mismo fuera del recorrido de referencia
+            incidents:
+              type: array
+              items:
+                type: object
+                properties:
+                  type:
+                    type: string
+                    enum:
+                    - not_stopped
+                    - skipped
+                    - deviation
+                  stopId:
+                    type: string
+                    nullable: true
+                  latitude:
+                    type: number
+                    nullable: true
+                  longitude:
+                    type: number
+                    nullable: true
+                  distanceM:
+                    type: integer
+                    nullable: true
+                  startedAt:
+                    type: string
+                    format: date-time
+                  endedAt:
+                    type: string
+                    format: date-time
+                    nullable: true
         links:
           $ref: '#/components/schemas/Links'
     TripLegDocument:
@@ -6274,6 +6222,20 @@ components:
               type: string
               format: date-time
               readOnly: true
+            leftAt:
+              type: string
+              format: date-time
+              nullable: true
+              readOnly: true
+            status:
+              type: string
+              enum:
+              - arrived
+              - stopped
+              - not_stopped
+              - skipped
+              readOnly: true
+              description: 'arrived: está en la parada; stopped: se detuvo; not_stopped: pasó de largo; skipped: se la saltó'
         relationships:
           type: object
           properties:
@@ -6658,6 +6620,8 @@ components:
             middleName:
               type: string
               maxLength: 50
+              nullable: true
+              description: Opcional
             firstSurname:
               type: string
               maxLength: 50
@@ -6768,6 +6732,7 @@ components:
             resolutionNote:
               type: string
               nullable: true
+              description: Obligatorio al rechazar
             resolvedAt:
               type: string
               format: date-time
@@ -6798,6 +6763,45 @@ components:
               format: date
               writeOnly: true
               description: Solo child_addition
+            children:
+              type: array
+              writeOnly: true
+              maxItems: 10
+              description: 'Solo child_addition: varios hijos en una misma solicitud (una solicitud por hijo con el mismo
+                groupId)'
+              items:
+                type: object
+                required:
+                - firstName
+                - firstSurname
+                - secondSurname
+                - birthDate
+                properties:
+                  firstName:
+                    type: string
+                    maxLength: 50
+                  middleName:
+                    type: string
+                    maxLength: 50
+                    nullable: true
+                    description: Opcional
+                  firstSurname:
+                    type: string
+                    maxLength: 50
+                  secondSurname:
+                    type: string
+                    maxLength: 50
+                  birthDate:
+                    type: string
+                    format: date
+            groupId:
+              type: string
+              nullable: true
+              readOnly: true
+              description: 'Solicitudes enviadas juntas: el id de la primera'
+            indefinite:
+              type: boolean
+              description: 'Solo absence: ausencia indefinida, sin fechas'
             childFullName:
               type: string
               readOnly: true
@@ -6812,10 +6816,12 @@ components:
             startsOn:
               type: string
               format: date
-              description: Solo absence
+              nullable: true
+              description: Solo absence; NULL si es indefinida. El trabajador puede ponerlas después (PATCH sin status)
             endsOn:
               type: string
               format: date
+              nullable: true
               description: Solo absence
             observation:
               type: string
@@ -7131,7 +7137,20 @@ components:
               - trip_needs_reassignment
               - access_recovery_requested
               - password_expiring
+              - trip_started
+              - trip_delayed
+              - trip_incident
               readOnly: true
+            message:
+              type: string
+              readOnly: true
+              description: 'Texto del aviso: qué fue, quién lo hizo y, si se rechazó, el motivo'
+            payload:
+              type: object
+              nullable: true
+              readOnly: true
+              additionalProperties: true
+              description: Datos del aviso (p. ej. direction, delayMinutes, type, stop)
             readAt:
               type: string
               format: date-time
@@ -7238,6 +7257,10 @@ components:
               type: string
               nullable: true
               description: Clave del ajuste global que fija el mínimo
+            maxSetting:
+              type: string
+              nullable: true
+              description: Clave del ajuste global que fija el máximo
             level:
               type: string
               enum:

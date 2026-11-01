@@ -62,6 +62,7 @@ $router->group(['prefix' => 'api/v1', 'middleware' => 'jsonapi'], function () us
 
     // Con sesión del Administrador o de un trabajador de una Entidad
     $router->group(['middleware' => 'auth:member'], function () use ($router) {
+        $router->get('map', 'MapController@show');
         $router->get('setting-definitions', 'SettingDefinitionController@index');
         $router->get('setting-definitions/{id}', 'SettingDefinitionController@show');
         $router->get('settings', 'SettingController@index');
@@ -87,7 +88,6 @@ $router->group(['prefix' => 'api/v1', 'middleware' => 'jsonapi'], function () us
         };
 
         $resource('entities', 'EntityController');
-        $resource('forbidden-words', 'ForbiddenWordController');
         $resource('ranks', 'RankController', ['store', 'update', 'destroy']);
         $resource('vehicle-types', 'VehicleTypeController');
         $resource('absence-types', 'AbsenceTypeController');

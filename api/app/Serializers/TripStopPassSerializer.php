@@ -14,7 +14,11 @@ class TripStopPassSerializer extends Serializer
 
     public function attributes(Model $pass, Request $request): array
     {
-        return ['passedAt' => $this->date($pass->passed_at)];
+        return [
+            'passedAt' => $this->date($pass->passed_at),
+            'leftAt' => $this->date($pass->left_at),
+            'status' => $pass->status,
+        ];
     }
 
     public function toOneRelationships(): array

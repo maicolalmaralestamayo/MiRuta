@@ -69,12 +69,16 @@ class RegistrationTest extends TestCase
         $this->assertResponseOk();
     }
 
-    public function testLosCuatroNombresSonObligatorios()
+    public function testLosNombresSonObligatoriosMenosElSegundoNombre()
     {
         $this->register(['middleName' => '', 'secondSurname' => null]);
 
-        $this->assertJsonApiError(422, 'VALIDATION_ERROR', '/data/attributes/middleName');
         $this->assertJsonApiError(422, 'VALIDATION_ERROR', '/data/attributes/secondSurname');
+        $this->assertSame(1, count($this->responseJson()['errors']));
+
+        $this->register(['middleName' => '']);
+        $this->assertResponseStatus(201);
+        $this->assertNull(User::first()->middle_name);
     }
 
     /**
@@ -101,17 +105,7 @@ class RegistrationTest extends TestCase
             'repetido' => ['maaaaria'],
             'reservada' => ['el_admin'],
             'reservada camuflada' => ['s0porte1'],
-            'no permitida' => ['juan.puta'],
-            'no permitida camuflada' => ['p3nd3jo'],
-            'no permitida larga dentro' => ['elpendejo'],
         ];
-    }
-
-    public function testPalabraCortaDentroDeOtraSiSePermite()
-    {
-        $this->register(['username' => 'computadora']);
-
-        $this->assertResponseStatus(201);
     }
 
     public function testUsuarioRepetidoSinImportarMayusculas()

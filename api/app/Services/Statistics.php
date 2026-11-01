@@ -28,7 +28,7 @@ class Statistics
     const NAMES = [
         'trips-by-status', 'punctuality', 'duration', 'trips-by-driver', 'trips-by-vehicle', 'overloaded-trips',
         'occupancy', 'attendance', 'children-transported', 'workers-distribution', 'worker-trips',
-        'applications-summary', 'stop-activity', 'stop-pass-times', 'distance', 'live-trip',
+        'applications-summary', 'stop-activity', 'stop-pass-times', 'distance', 'live-trip', 'trip-incidents',
     ];
 
     /** Las que puede pedir cualquier trabajador (limitadas a lo suyo). */
@@ -37,7 +37,7 @@ class Statistics
     /** Las que puede pedir un chofer (limitadas a sus viajes). */
     const DRIVER_NAMES = [
         'trips-by-status', 'punctuality', 'duration', 'overloaded-trips', 'occupancy', 'attendance',
-        'children-transported', 'stop-activity', 'stop-pass-times', 'distance', 'worker-trips', 'live-trip',
+        'children-transported', 'stop-activity', 'stop-pass-times', 'distance', 'worker-trips', 'live-trip', 'trip-incidents',
     ];
 
     /** @var Trips */
@@ -576,6 +576,7 @@ class Statistics
 
         foreach (DB::table('trip_stop_passes')->join('stops', 'stops.id', '=', 'trip_stop_passes.stop_id')
             ->whereIn('trip_leg_id', $legIds->keys())->whereNull('trip_stop_passes.deleted_at')
+            ->where('trip_stop_passes.status', '!=', 'skipped')
             ->get(['trip_leg_id', 'stop_id', 'landmark', 'passed_at']) as $pass) {
             $direction = $legIds[$pass->trip_leg_id];
             $key = $pass->stop_id.'-'.$direction;
@@ -598,6 +599,31 @@ class Statistics
         return [[
             ['stop', 'Parada', 'string'], ['direction', 'Trayecto', 'string'], ['passes', 'Pasos', 'integer'],
             ['avgTime', 'Hora media de paso', 'string'],
+        ], $rows];
+    }
+
+    /**
+     * Incidencias del recorrido por itinerario (docs/09 §8): paradas donde no
+     * se detuvo, paradas saltadas y desvíos del recorrido de referencia.
+     */
+    private function tripIncidents(): array
+    {
+        $labels = ['not_stopped' => 'No se detuvo en la parada', 'skipped' => 'Se saltó la parada', 'deviation' => 'Se desvió del recorrido'];
+        $rows = DB::table('trip_leg_incidents')
+            ->join('trip_legs', 'trip_legs.id', '=', 'trip_leg_incidents.trip_leg_id')
+            ->join('trips', 'trips.id', '=', 'trip_legs.trip_id')
+            ->join('itineraries', 'itineraries.id', '=', 'trips.itinerary_id')
+            ->whereIn('trips.id', $this->tripQuery()->select('trips.id'))
+            ->whereNull('trip_leg_incidents.deleted_at')
+            ->groupBy('itineraries.name', 'trip_leg_incidents.type')
+            ->orderBy('itineraries.name')
+            ->get(['itineraries.name as itinerary', 'trip_leg_incidents.type as type', DB::raw('COUNT(*) as total')])
+            ->map(function ($row) use ($labels) {
+                return ['itinerary' => $row->itinerary, 'type' => $labels[$row->type], 'total' => (int) $row->total];
+            })->all();
+
+        return [[
+            ['itinerary', 'Itinerario', 'string'], ['type', 'Incidencia', 'string'], ['total', 'Cantidad', 'integer'],
         ], $rows];
     }
 
@@ -658,6 +684,8 @@ class Statistics
                     return $boarding->children_count;
                 }, $boardings)),
                 'stopsPassed' => count($passedIds),
+                'stopsNotStopped' => $leg->stopPasses()->where('status', 'not_stopped')->count(),
+                'stopsSkipped' => $leg->stopPasses()->where('status', 'skipped')->count(),
                 'stopsRemaining' => $stops->count() - count($passedIds),
                 'startDelayMinutes' => $this->minutesBetween($planned, $leg->started_at),
                 'traveledKm' => round($this->legDistance($leg) / 1000, 2),
@@ -669,7 +697,7 @@ class Statistics
         return [[
             ['direction', 'Trayecto', 'string'], ['active', 'En curso', 'string'], ['boarded', 'A bordo', 'integer'],
             ['expected', 'Esperados', 'integer'], ['capacity', 'Capacidad', 'integer'], ['children', 'Niños a bordo', 'integer'],
-            ['stopsPassed', 'Paradas pasadas', 'integer'], ['stopsRemaining', 'Paradas restantes', 'integer'],
+            ['stopsPassed', 'Paradas pasadas', 'integer'], ['stopsRemaining', 'Paradas restantes', 'integer'], ['stopsNotStopped', 'Paradas donde no se detuvo', 'integer'], ['stopsSkipped', 'Paradas saltadas', 'integer'],
             ['startDelayMinutes', 'Retraso al iniciar (min)', 'number'], ['traveledKm', 'Recorrido (km)', 'number'],
             ['remainingKm', 'Restante (km)', 'number'], ['activeSensors', 'Sensores activos', 'integer'],
         ], $rows];

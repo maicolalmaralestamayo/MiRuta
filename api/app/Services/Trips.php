@@ -277,7 +277,7 @@ class Trips
             $this->collationKey($user ? $user->first_surname : ''),
             $this->collationKey($user ? $user->second_surname : ''),
             $this->collationKey($user ? $user->first_name : ''),
-            $this->collationKey($user ? $user->middle_name : ''),
+            $this->collationKey($user ? (string) $user->middle_name : ''),
         ];
     }
 

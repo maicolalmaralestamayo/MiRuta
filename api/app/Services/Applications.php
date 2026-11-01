@@ -139,6 +139,11 @@ class Applications
             $this->ensureNoPendingDuplicate($worker, $type, $relatedId('itinerary'));
         }
 
+        // Varios hijos en una misma solicitud: una por hijo, agrupadas (docs/09 §11).
+        if ($type === Application::TYPE_CHILD_ADDITION && isset($attributes['children']) && is_array($attributes['children'])) {
+            return $this->declareChildren($worker, $attributes['children'], $assignedBy);
+        }
+
         return DB::transaction(function () use ($worker, $type, $attributes, $relatedId, $assignedBy) {
             $application = Application::create([
                 'worker_id' => $worker->id,
@@ -176,11 +181,12 @@ class Applications
                     ChildApplication::create(['application_id' => $application->id, 'child_id' => $child->id]);
                     break;
                 case Application::TYPE_ABSENCE:
+                    $indefinite = ! empty($attributes['indefinite']);
                     AbsenceApplication::create([
                         'application_id' => $application->id,
                         'absence_type_id' => $relatedId('absenceType'),
-                        'starts_on' => $attributes['startsOn'],
-                        'ends_on' => $attributes['endsOn'],
+                        'starts_on' => $indefinite ? null : $attributes['startsOn'],
+                        'ends_on' => $indefinite ? null : $attributes['endsOn'],
                         'observation' => isset($attributes['observation']) ? $attributes['observation'] : null,
                     ]);
                     break;
@@ -618,6 +624,75 @@ class Applications
     /**
      * Crea la fila del niño. Cuenta cuando se aprueba la solicitud.
      */
+    /**
+     * Declara varios hijos a la vez: una solicitud por hijo con el mismo
+     * group_id (el id de la primera). Se aprueban o rechazan por separado.
+     */
+    private function declareChildren(Worker $worker, array $children, ?User $assignedBy): Application
+    {
+        return DB::transaction(function () use ($worker, $children, $assignedBy) {
+            $first = null;
+
+            foreach (array_values($children) as $index => $child) {
+                $application = Application::create([
+                    'worker_id' => $worker->id,
+                    'group_id' => $first ? $first->id : null,
+                    'type' => Application::TYPE_CHILD_ADDITION,
+                    'status' => Application::STATUS_PENDING,
+                    'created_by' => $assignedBy ? $assignedBy->id : $worker->user_id,
+                ]);
+
+                if (! $first) {
+                    $first = $application;
+                    $application->forceFill(['group_id' => $application->id])->save();
+                }
+
+                try {
+                    $declared = $this->declareChild($worker, [
+                        'childFirstName' => $child['firstName'],
+                        'childMiddleName' => isset($child['middleName']) ? $child['middleName'] : null,
+                        'childFirstSurname' => $child['firstSurname'],
+                        'childSecondSurname' => $child['secondSurname'],
+                        'childBirthDate' => $child['birthDate'],
+                    ]);
+                } catch (JsonApiException $exception) {
+                    // El error se refiere al hijo concreto dentro de la lista.
+                    $error = $exception->toError();
+                    $pointer = isset($error['source']['pointer']) ? $error['source']['pointer'] : '';
+                    $field = lcfirst((string) preg_replace('#^/data/attributes/child#', '', $pointer));
+                    throw new JsonApiException($exception->getStatus(), $error['code'], $error['title'], $error['detail'],
+                        ['pointer' => "/data/attributes/children/{$index}/".($field ?: 'birthDate')]);
+                }
+                ChildApplication::create(['application_id' => $application->id, 'child_id' => $declared->id]);
+            }
+
+            if (! $assignedBy) {
+                $this->notices->send($this->resolverIds($first), Notice::TYPE_APPLICATION_RECEIVED, $first->id, null, (int) $worker->user_id);
+            }
+
+            return $first;
+        });
+    }
+
+    /**
+     * El trabajador pone o cambia las fechas de su ausencia indefinida ya
+     * aprobada (no hace falta volver a aprobarla).
+     */
+    public function setAbsenceDates(Application $application, User $user, string $startsOn, string $endsOn): Application
+    {
+        if ((int) $application->worker_id !== (int) $user->workerId()) {
+            throw new JsonApiException(403, 'FORBIDDEN', 'Sin permiso', 'Solo el propio trabajador puede cambiar las fechas de su ausencia.');
+        }
+
+        if ($application->status !== Application::STATUS_APPROVED || $application->absenceApplication->starts_on !== null) {
+            throw $this->conflict('ABSENCE_NOT_INDEFINITE', 'Solo se pueden poner fechas a una ausencia indefinida aprobada.');
+        }
+
+        $application->absenceApplication->forceFill(['starts_on' => $startsOn, 'ends_on' => $endsOn])->save();
+
+        return $application;
+    }
+
     private function declareChild(Worker $worker, array $attributes): Child
     {
         $birthDate = CarbonImmutable::parse($attributes['childBirthDate'])->startOfDay();
@@ -637,16 +712,18 @@ class Applications
         return Child::create([
             'worker_id' => $worker->id,
             'first_name' => self::cleanName($attributes['childFirstName']),
-            'middle_name' => self::cleanName($attributes['childMiddleName']),
+            'middle_name' => isset($attributes['childMiddleName']) ? self::cleanName($attributes['childMiddleName']) : null,
             'first_surname' => self::cleanName($attributes['childFirstSurname']),
             'second_surname' => self::cleanName($attributes['childSecondSurname']),
             'birth_date' => $birthDate->toDateString(),
         ]);
     }
 
-    private static function cleanName(string $name): string
+    private static function cleanName(?string $name): ?string
     {
-        return preg_replace('/\s+/u', ' ', trim($name));
+        $name = preg_replace('/\s+/u', ' ', trim((string) $name));
+
+        return $name === '' ? null : $name;
     }
 
     /**

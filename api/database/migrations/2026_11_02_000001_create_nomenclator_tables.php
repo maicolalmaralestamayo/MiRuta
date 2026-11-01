@@ -47,14 +47,6 @@ class CreateNomenclatorTables extends Migration
             $table->unique(['name', 'recipient']);
         });
 
-        Schema::create('forbidden_words', function (Blueprint $table) {
-            $table->id();
-            $table->string('name', 50)->unique()->comment('Palabra que no puede aparecer en un usuario (en minúsculas, sin tildes)');
-            $table->text('description')->nullable();
-            $table->text('observation')->nullable();
-            $table->timestamps();
-            $table->softDeletes();
-        });
     }
 
     /**
@@ -62,7 +54,7 @@ class CreateNomenclatorTables extends Migration
      */
     public function down()
     {
-        foreach (['forbidden_words', 'conversation_topics', 'absence_types', 'vehicle_types', 'ranks'] as $name) {
+        foreach (['conversation_topics', 'absence_types', 'vehicle_types', 'ranks'] as $name) {
             Schema::dropIfExists($name);
         }
     }

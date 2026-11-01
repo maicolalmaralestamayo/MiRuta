@@ -9,10 +9,17 @@ class TripStopPass extends Model
 {
     use SoftDeletes;
 
-    protected $fillable = ['trip_leg_id', 'stop_id', 'passed_at'];
+    const STATUS_ARRIVED = 'arrived';
+    const STATUS_STOPPED = 'stopped';
+    const STATUS_NOT_STOPPED = 'not_stopped';
+    const STATUS_SKIPPED = 'skipped';
+
+    protected $fillable = ['trip_leg_id', 'stop_id', 'passed_at', 'left_at', 'min_speed_kmh', 'status'];
 
     protected $casts = [
         'passed_at' => 'datetime',
+        'left_at' => 'datetime',
+        'min_speed_kmh' => 'float',
     ];
 
     public function tripLeg()

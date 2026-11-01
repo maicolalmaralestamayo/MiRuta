@@ -39,7 +39,23 @@ class TripLegSerializer extends Serializer
             'currentPosition' => $combined['position'],
             'activeSensors' => $combined['activeSensors'],
             'stopPasses' => $leg->stopPasses()->orderBy('passed_at')->get()->map(function ($pass) {
-                return ['stopId' => (string) $pass->stop_id, 'passedAt' => $pass->passed_at->toIso8601String()];
+                return [
+                    'stopId' => (string) $pass->stop_id,
+                    'passedAt' => $pass->passed_at->toIso8601String(),
+                    'status' => $pass->status,
+                ];
+            })->all(),
+            'deviating' => (bool) $leg->deviating,
+            'incidents' => $leg->incidents()->orderBy('started_at')->get()->map(function ($incident) {
+                return [
+                    'type' => $incident->type,
+                    'stopId' => $incident->stop_id ? (string) $incident->stop_id : null,
+                    'latitude' => $incident->latitude,
+                    'longitude' => $incident->longitude,
+                    'distanceM' => $incident->distance_m,
+                    'startedAt' => $incident->started_at->toIso8601String(),
+                    'endedAt' => $incident->ended_at ? $incident->ended_at->toIso8601String() : null,
+                ];
             })->all(),
         ];
     }

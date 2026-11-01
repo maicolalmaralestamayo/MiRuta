@@ -43,15 +43,6 @@ class CatalogTest extends TestCase
         $this->jsonApiAs($admin, 'POST', '/api/v1/ranks', $this->nomenclator('ranks', 'Nueva', ['sortOrder' => 19]));
         $this->assertResponseStatus(201);
 
-        $this->jsonApiAs($chief, 'POST', '/api/v1/forbidden-words', $this->nomenclator('forbidden-words', 'feo'));
-        $this->assertJsonApiError(403, 'FORBIDDEN');
-        $this->jsonApiAs($chief, 'GET', '/api/v1/forbidden-words');
-        $this->assertResponseStatus(403);
-
-        $this->jsonApiAs($admin, 'POST', '/api/v1/forbidden-words', $this->nomenclator('forbidden-words', ' Gusano '));
-        $this->assertResponseStatus(201);
-        $this->seeJson(['name' => 'gusano']);
-
         $this->jsonApiAs($worker, 'GET', '/api/v1/absence-types');
         $this->assertResponseOk();
         $this->assertSame(4, $this->responseJson()['meta']['total']);
@@ -193,10 +184,10 @@ class CatalogTest extends TestCase
         $this->jsonApiAs($chief, 'POST', '/api/v1/vehicles', $document(['plate' => 'B123456', 'seats' => 4, 'standingCapacity' => 0], null));
         $this->assertJsonApiError(422, 'VALIDATION_ERROR', '/data/attributes/plate');
 
-        $this->jsonApiAs($chief, 'POST', '/api/v1/vehicles', $document(['plate' => 'C1', 'seats' => 4, 'standingCapacity' => 0], '999'));
+        $this->jsonApiAs($chief, 'POST', '/api/v1/vehicles', $document(['plate' => 'P100001', 'seats' => 4, 'standingCapacity' => 0], '999'));
         $this->assertJsonApiError(422, 'VALIDATION_ERROR', '/data/relationships/driver/data/id');
 
-        $this->jsonApiAs($this->createWorker(), 'POST', '/api/v1/vehicles', $document(['plate' => 'C1', 'seats' => 4, 'standingCapacity' => 0], null));
+        $this->jsonApiAs($this->createWorker(), 'POST', '/api/v1/vehicles', $document(['plate' => 'P100001', 'seats' => 4, 'standingCapacity' => 0], null));
         $this->assertJsonApiError(403, 'FORBIDDEN');
     }
 

@@ -31,6 +31,7 @@ class SettingDefinitionSerializer extends Serializer
             'minValue' => $definition->min_value,
             'maxValue' => $definition->max_value,
             'minSetting' => $definition->minSettingDefinition ? $definition->minSettingDefinition->key : null,
+            'maxSetting' => $definition->maxSettingDefinition ? $definition->maxSettingDefinition->key : null,
             'level' => $definition->level,
             'userOverridable' => $definition->user_overridable,
             'options' => $definition->options->map(function ($option) {

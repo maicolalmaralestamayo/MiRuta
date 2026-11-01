@@ -19,6 +19,7 @@ class Kernel extends ConsoleKernel
         Commands\RemoveInactiveWorkers::class,
         Commands\ExpireAccessRecoveries::class,
         Commands\WarnPasswordExpiry::class,
+        Commands\NotifyTripDelays::class,
     ];
 
     /**
@@ -31,6 +32,7 @@ class Kernel extends ConsoleKernel
     protected function schedule(Schedule $schedule)
     {
         $schedule->command('trips:auto-complete')->everyMinute()->withoutOverlapping();
+        $schedule->command('trips:notify-delays')->everyMinute()->withoutOverlapping();
         $schedule->command('chats:purge-trips')->everyMinute()->withoutOverlapping();
         $schedule->command('chats:purge-expired')->dailyAt('02:10');
         $schedule->command('workers:inactivity')->dailyAt('02:20');

@@ -10,6 +10,7 @@ use App\Models\AppVersionFile;
 use App\Models\User;
 use App\Services\Settings;
 use App\Services\Uploads;
+use App\Support\ApkInfo;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -92,8 +93,9 @@ class AppVersionController extends Controller
             'apkArm64' => ['nullable', 'file', 'max:'.$max],
             'apkArm32' => ['nullable', 'file', 'max:'.$max],
             'apkUniversal' => ['nullable', 'file', 'max:'.$max],
-            'versionName' => ['required', 'string', 'max:20'],
-            'versionCode' => ['required', 'integer', 'min:1'],
+            // Se leen del propio APK (docs/09 §33); solo hacen falta si no se puede leer.
+            'versionName' => ['nullable', 'string', 'max:20'],
+            'versionCode' => ['nullable', 'integer', 'min:1'],
             'notes' => ['nullable', 'string', 'max:5000'],
             'mandatory' => ['nullable', 'in:0,1,true,false'],
         ]);
@@ -118,7 +120,29 @@ class AppVersionController extends Controller
             throw new JsonApiException(422, 'APK_REQUIRED', 'Falta el APK', 'Sube al menos un APK (64 bits, 32 bits o universal).', ['pointer' => '/apkArm64']);
         }
 
-        $code = (int) $request->input('versionCode');
+        $name = $request->input('versionName');
+        $code = $request->input('versionCode') !== null ? (int) $request->input('versionCode') : null;
+
+        foreach ($files as $abi => $file) {
+            $info = ApkInfo::read($file->getRealPath());
+            $field = array_search($abi, self::FILE_FIELDS, true);
+
+            if (! $info || ! $info['versionCode']) {
+                continue;
+            }
+            if ($code !== null && $code !== (int) $info['versionCode'] || $name !== null && $info['versionName'] !== null && trim($name) !== $info['versionName']) {
+                throw new JsonApiException(422, 'APK_VERSION_MISMATCH', 'Versiones distintas',
+                    'Los APK deben ser de la misma versión (este es la '.$info['versionName'].', código '.$info['versionCode'].').', ['pointer' => '/'.$field]);
+            }
+            $code = (int) $info['versionCode'];
+            $name = $info['versionName'] ?: $name;
+        }
+
+        if ($code === null || $name === null || trim($name) === '') {
+            throw new JsonApiException(422, 'VALIDATION_ERROR', 'Falta la versión',
+                'No se pudo leer la versión del APK; escríbala a mano.', ['pointer' => '/versionName']);
+        }
+
         $latest = AppVersion::withTrashed()->max('version_code');
 
         if ($latest !== null && $code <= $latest) {
@@ -126,9 +150,9 @@ class AppVersionController extends Controller
                 "El versionCode debe ser mayor que el de la última versión publicada ({$latest}).", ['pointer' => '/versionCode']);
         }
 
-        $version = DB::transaction(function () use ($request, $uploads, $files, $code) {
+        $version = DB::transaction(function () use ($request, $uploads, $files, $code, $name) {
             $version = AppVersion::create([
-                'version_name' => trim($request->input('versionName')),
+                'version_name' => trim($name),
                 'version_code' => $code,
                 'notes' => $request->input('notes'),
                 'mandatory' => in_array($request->input('mandatory'), ['1', 'true', 1, true], true),

@@ -103,7 +103,7 @@ class ApplicationsTest extends TestCase
         $this->assertSame($this->stopId($east, 2), (int) $worker->stop_id);
         $this->assertTrue(Notice::where('user_id', $worker->user_id)->where('type', 'application_resolved')->exists());
 
-        $this->resolve($eastChief, $applicationId, 'rejected');
+        $this->resolve($eastChief, $applicationId, 'rejected', 'Sin plazas');
         $this->assertJsonApiError(409, 'APPLICATION_NOT_PENDING');
     }
 
@@ -261,7 +261,7 @@ class ApplicationsTest extends TestCase
         $this->assertResponseStatus(201);
         $this->seeJson(['possibleDuplicate' => true]);
         $duplicate = $this->responseJson()['data']['id'];
-        $this->resolve($chief, $duplicate, 'rejected');
+        $this->resolve($chief, $duplicate, 'rejected', 'Ya lo declaró la madre');
 
         $this->jsonApiAs($father, 'GET', '/api/v1/workers/'.$mother->id);
         $this->assertSame(0, $this->responseJson()['data']['meta']['childrenCount']);

@@ -36,7 +36,6 @@ class DatabaseSchemaTest extends TestCase
         $this->assertSame('Funcionarios', Rank::where('sort_order', 4)->value('name'));
         $this->assertSame('Otra categoría', Rank::where('sort_order', 18)->value('name'));
         $this->assertSame(9, ConversationTopic::count());
-        $this->assertGreaterThan(20, \App\Models\ForbiddenWord::count());
         $this->assertSame('16', SettingDefinition::where('key', 'child_max_age')->value('default_value'));
         $this->assertSame('entity', SettingDefinition::where('key', 'child_max_age')->value('level'));
         $this->assertSame('app', SettingDefinition::where('key', 'conversation_retention_days')->value('level'));

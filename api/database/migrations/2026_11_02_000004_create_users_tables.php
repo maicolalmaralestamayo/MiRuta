@@ -22,7 +22,7 @@ class CreateUsersTables extends Migration
             $table->dateTime('password_changed_at')->nullable()->comment('Para la caducidad anual');
             $table->boolean('must_change_password')->default(false);
             $table->string('first_name', 50);
-            $table->string('middle_name', 50);
+            $table->string('middle_name', 50)->nullable();
             $table->string('first_surname', 50);
             $table->string('second_surname', 50);
             $table->string('photo_path')->nullable();

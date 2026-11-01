@@ -16,7 +16,7 @@ DATE = lambda **kw: STR(format="date", **kw)
 NUM = lambda **kw: S("number", **kw)
 RO = dict(readOnly=True)
 
-NAMES = {f: STR(maxLength=50) for f in ["firstName", "middleName", "firstSurname", "secondSurname"]}
+NAMES = {f: STR(maxLength=50, **({"nullable": True, "description": "Opcional"} if f == "middleName" else {})) for f in ["firstName", "middleName", "firstSurname", "secondSurname"]}
 
 NOMEN = {
     "name": STR(maxLength=100, description="Denominación"),
@@ -33,7 +33,7 @@ def res(rtype, name, tag, desc, attrs, rels=None, meta=None, required=None):
 
 
 res("users", "User", "Cuentas", "Cuenta de la app. El Administrador es una cuenta sin trabajador. El usuario y los datos de la contraseña solo los ven la propia cuenta y el Administrador.", {
-    "username": STR(pattern=r"^[a-z][a-z0-9._]{3,19}$", description="De 4 a 20 caracteres, empieza por letra, sin signos al final ni seguidos, al menos 3 letras, sin palabras reservadas ni no permitidas. Único en toda la app; el anterior queda bloqueado `username_reuse_block_days` días."),
+    "username": STR(pattern=r"^[a-z][a-z0-9._]{3,19}$", description="De 4 a 20 caracteres, empieza por letra, sin signos al final ni seguidos, al menos 3 letras, sin palabras reservadas. Único en toda la app; el anterior queda bloqueado `username_reuse_block_days` días."),
     "password": STR(format="password", writeOnly=True, description="Según la política de contraseñas (GET /password-policy)"),
     **NAMES,
     "fullName": STR(**RO),
@@ -46,7 +46,7 @@ res("users", "User", "Cuentas", "Cuenta de la app. El Administrador es una cuent
     "passwordExpiresAt": DT(nullable=True, **RO),
     "appVersionCode": INT(nullable=True, readOnly=True, description="Solo para el Administrador"),
     "createdAt": DT(**RO),
-}, {"worker": ("workers", False)}, required=["username", "password", "firstName", "middleName", "firstSurname", "secondSurname"])
+}, {"worker": ("workers", False)}, required=["username", "password", "firstName", "firstSurname", "secondSurname"])
 res("workers", "Worker", "Trabajadores", "Trabajador de una Entidad. Los nombres y la foto vienen de su cuenta. El Pase lo ven el propio trabajador, el Jefe de su itinerario, los Jefes de Transporte de su Entidad y el Administrador.", {
     **NAMES,
     "fullName": STR(**RO),
@@ -62,7 +62,7 @@ res("workers", "Worker", "Trabajadores", "Trabajador de una Entidad. Los nombres
                                                 "chiefOfItineraries": S("array", items=STR())}},
      "activationCode": STR(description="Solo al registrarlo un superior o al generar uno nuevo"),
      "activationExpiresAt": DT(nullable=True)},
-    ["firstName", "middleName", "firstSurname", "secondSurname", "pass", "sex"])
+    ["firstName", "firstSurname", "secondSurname", "pass", "sex"])
 res("entities", "Entity", "Entidades", "Entidad: empresa que usa la app. Solo el Administrador las gestiona; se muestra por su abreviatura.", {
     "abbreviation": STR(pattern=r"^[A-Z0-9]{2,15}$", description="Obligatoria y única (también entre inactivas); en mayúsculas"),
     "number": STR(pattern=r"^\d{4}$", nullable=True, description="Opcional; único si se pone"),
@@ -70,7 +70,6 @@ res("entities", "Entity", "Entidades", "Entidad: empresa que usa la app. Solo el
     "description": STR(nullable=True), "observation": STR(nullable=True),
     "active": BOOL(description="En PATCH: desactivar o reactivar"),
 }, required=["abbreviation", "name"])
-res("forbidden-words", "ForbiddenWord", "Nomencladores", "Palabra que no puede contener un usuario (solo el Administrador).", dict(NOMEN), required=["name"])
 res("installations", "Installation", "Sin cuenta", "Instalación de la app en un teléfono. Al crearla se devuelve su secreto (meta.header) para la cabecera X-Installation.", {
     "deviceModel": STR(nullable=True), "androidVersion": STR(nullable=True), "appVersionCode": INT(nullable=True),
     "blocked": BOOL(description="Solo el Administrador; bloqueada no puede escribir sin cuenta ni pedir recuperación"),
@@ -91,14 +90,14 @@ res("activations", "Activation", "Cuentas", "\"Ya me registró un superior\": ac
     "username": STR(), "password": STR(format="password"), "deviceName": STR(nullable=True),
 }, required=["entityAbbreviation", "pass", "code", "username", "password"])
 res("password-policies", "PasswordPolicy", "Cuentas", "Requisitos actuales de la contraseña y del usuario.", {
-    "minLength": INT(), "maxLength": INT(), "requiredClasses": INT(minimum=1, maximum=4), "forbidPersonalData": BOOL(),
-    "forbidCommon": BOOL(), "historyCount": INT(), "expiryDays": INT(), "usernameMinLength": INT(), "usernameMaxLength": INT(),
+    "minLength": INT(), "maxLength": INT(), "requiredClasses": INT(minimum=1, maximum=4), "historyCount": INT(), "expiryDays": INT(), "usernameMinLength": INT(), "usernameMaxLength": INT(),
 })
 res("ranks", "Rank", "Nomencladores", "Jerarquía, común a todas las Entidades. Solo sirve para las estadísticas.", {**NOMEN, "sortOrder": INT(minimum=0, description="Orden de presentación"), "iconUrl": STR(format="uri", nullable=True, readOnly=True)}, required=["name"])
 res("vehicle-types", "VehicleType", "Nomencladores", "Tipo de vehículo.", dict(NOMEN), required=["name"])
 res("absence-types", "AbsenceType", "Nomencladores", "Tipo de ausencia.", dict(NOMEN), required=["name"])
 res("conversation-topics", "ConversationTopic", "Nomencladores", "Motivo de conversación.", {**NOMEN, "recipient": STR(enum=["itinerary_chiefs", "transport_chiefs", "developer"])}, required=["name", "recipient"])
-res("itineraries", "Itinerary", "Itinerarios y paradas", "Itinerario de una Entidad (nombre único dentro de ella).", dict(NOMEN), {"entity": ("entities", False), "itineraryStops": ("itinerary-stops", True), "chiefs": ("itinerary-chiefs", True)},
+res("itineraries", "Itinerary", "Itinerarios y paradas", "Itinerario de una Entidad (nombre único dentro de ella).", dict(NOMEN), {"entity": ("entities", False), "itineraryStops": ("itinerary-stops", True), "chiefs": ("itinerary-chiefs", True),
+     "referenceOutboundLeg": ("trip-legs", False), "referenceReturnLeg": ("trip-legs", False)},
     {"departurePoint": {"$ref": "#/components/schemas/ResourceIdentifier"}, "returnPoint": {"$ref": "#/components/schemas/ResourceIdentifier"}, "memberCount": INT()}, ["name"])
 res("stops", "Stop", "Itinerarios y paradas", "Parada de una Entidad. Dos Entidades pueden usar el mismo lugar, pero cada una registra la suya.", {
     "landmark": STR(maxLength=255, description="Punto de referencia"),
@@ -122,6 +121,10 @@ res("trips", "Trip", "Viajes", "Viaje planificado.", {
     "departsAt": DT(),
     "returnsAt": DT(description="Debe ser posterior a departsAt"),
     "status": STR(enum=["unconfirmed", "confirmed", "completed", "cancelled"]),
+    "outboundDelayed": BOOL(readOnly=True, description="El viaje de ida no ha comenzado y ya pasó su hora más la tolerancia de la Entidad"),
+    "returnDelayed": BOOL(readOnly=True, description="Igual para el viaje de regreso"),
+    "outboundDelayMinutes": INT(nullable=True, readOnly=True, description="Minutos de atraso al comenzar (o hasta ahora si está atrasado)"),
+    "returnDelayMinutes": INT(nullable=True, readOnly=True),
     "updatedAt": DT(**RO),
 }, {"itinerary": ("itineraries", False), "vehicle": ("vehicles", False), "driver": ("drivers", False), "completions": ("trip-completions", True), "legs": ("trip-legs", True)},
     {"expectedPassengers": INT(description="Trabajadores esperados (los niños van cargados y no cuentan)"), "expectedChildren": INT(),
@@ -141,11 +144,19 @@ res("trip-legs", "TripLeg", "Recorrido", "Trayecto de un viaje (salida o regreso
     "endReason": STR(enum=["last_stop", "manual"], nullable=True, readOnly=True),
 }, {"trip": ("trips", False), "startedBy": ("users", False)},
     {"currentPosition": {"$ref": "#/components/schemas/Position"}, "activeSensors": INT(),
-     "stopPasses": S("array", items={"type": "object", "properties": {"stopId": STR(), "passedAt": DT()}})}, ["direction"])
+     "stopPasses": S("array", items={"type": "object", "properties": {"stopId": STR(), "passedAt": DT(),
+         "status": STR(enum=["arrived", "stopped", "not_stopped", "skipped"])}}),
+     "deviating": BOOL(description="Ahora mismo fuera del recorrido de referencia"),
+     "incidents": S("array", items={"type": "object", "properties": {
+         "type": STR(enum=["not_stopped", "skipped", "deviation"]), "stopId": STR(nullable=True), "latitude": NUM(nullable=True),
+         "longitude": NUM(nullable=True), "distanceM": INT(nullable=True), "startedAt": DT(), "endedAt": DT(nullable=True)}})}, ["direction"])
 res("trip-positions", "TripPosition", "Recorrido", "Posición enviada por un sensor.", {
     "latitude": NUM(), "longitude": NUM(), "accuracyM": NUM(nullable=True), "recordedAt": DT(),
 }, {"tripLeg": ("trip-legs", False), "worker": ("workers", False)}, required=["latitude", "longitude", "recordedAt"])
-res("trip-stop-passes", "TripStopPass", "Recorrido", "Paso del vehículo por una parada (lo genera el servidor).", {"passedAt": DT(**RO)},
+res("trip-stop-passes", "TripStopPass", "Recorrido", "Paso del vehículo por una parada (lo genera el servidor).", {
+    "passedAt": DT(**RO), "leftAt": DT(nullable=True, **RO),
+    "status": STR(enum=["arrived", "stopped", "not_stopped", "skipped"], readOnly=True,
+                  description="arrived: está en la parada; stopped: se detuvo; not_stopped: pasó de largo; skipped: se la saltó")},
     {"tripLeg": ("trip-legs", False), "stop": ("stops", False)})
 res("trip-boardings", "TripBoarding", "Subida", "Registro de subida al vehículo.", {
     "method": STR(enum=["automatic", "self", "qr", "manual"]),
@@ -171,15 +182,19 @@ res("applications", "Application", "Solicitudes", "Solicitud. Los atributos y re
     "type": STR(enum=["itinerary_membership", "itinerary_chief", "driver", "transport_chief", "child_addition", "child_removal", "absence",
                       "itinerary_leave", "itinerary_chief_leave", "driver_leave", "transport_chief_leave", "itinerary_removal"]),
     "status": STR(enum=["pending", "approved", "rejected", "cancelled"], description="En PATCH: approved, rejected o cancelled"),
-    "resolutionNote": STR(nullable=True),
+    "resolutionNote": STR(nullable=True, description="Obligatorio al rechazar"),
     "resolvedAt": DT(nullable=True, **RO),
     **{"child" + k[0].upper() + k[1:]: STR(maxLength=50, writeOnly=True, description="Solo child_addition") for k in NAMES},
     "childBirthDate": DATE(writeOnly=True, description="Solo child_addition"),
+    "children": S("array", writeOnly=True, maxItems=10, description="Solo child_addition: varios hijos en una misma solicitud (una solicitud por hijo con el mismo groupId)",
+                  items={"type": "object", "required": ["firstName", "firstSurname", "secondSurname", "birthDate"], "properties": {**NAMES, "birthDate": DATE()}}),
+    "groupId": STR(nullable=True, readOnly=True, description="Solicitudes enviadas juntas: el id de la primera"),
+    "indefinite": BOOL(description="Solo absence: ausencia indefinida, sin fechas"),
     "childFullName": STR(readOnly=True),
     "possibleDuplicate": BOOL(readOnly=True, description="Pendiente de un niño que coincide con otro de la Entidad en fecha, primer nombre y primer apellido"),
     "assigned": BOOL(readOnly=True, description="La creó un superior (asignación o retirada directa)"),
-    "startsOn": DATE(description="Solo absence"),
-    "endsOn": DATE(description="Solo absence"),
+    "startsOn": DATE(nullable=True, description="Solo absence; NULL si es indefinida. El trabajador puede ponerlas después (PATCH sin status)"),
+    "endsOn": DATE(nullable=True, description="Solo absence"),
     "observation": STR(nullable=True, description="Solo absence"),
     "createdAt": DT(**RO),
 }, {"worker": ("workers", False), "createdBy": ("users", False), "resolvedBy": ("users", False), "itinerary": ("itineraries", False), "stop": ("stops", False),
@@ -194,7 +209,11 @@ res("conversation-messages", "ConversationMessage", "Chats", "Mensaje de una con
     {"conversation": ("conversations", False), "author": ("users", False)}, required=["body"])
 res("notices", "Notice", "Avisos", "Aviso del servidor.", {
     "type": STR(enum=["application_received", "application_resolved", "role_assigned", "role_removed", "resignation", "inactivity_warning", "inactivity_removal",
-                      "trip_needs_reassignment", "access_recovery_requested", "password_expiring"], readOnly=True),
+                      "trip_needs_reassignment", "access_recovery_requested", "password_expiring", "trip_started", "trip_delayed",
+                      "trip_incident"], readOnly=True),
+    "message": STR(readOnly=True, description="Texto del aviso: qué fue, quién lo hizo y, si se rechazó, el motivo"),
+    "payload": {"type": "object", "nullable": True, "readOnly": True, "additionalProperties": True,
+                "description": "Datos del aviso (p. ej. direction, delayMinutes, type, stop)"},
     "readAt": DT(nullable=True), "createdAt": DT(**RO),
 }, {"application": ("applications", False), "trip": ("trips", False), "accessRecovery": ("access-recoveries", False)})
 res("setting-definitions", "SettingDefinition", "Ajustes", "Definición de un ajuste.", {
@@ -202,6 +221,7 @@ res("setting-definitions", "SettingDefinition", "Ajustes", "Definición de un aj
     "valueType": STR(enum=["integer", "boolean", "string", "time", "option"]),
     "defaultValue": STR(), "minValue": INT(nullable=True), "maxValue": INT(nullable=True),
     "minSetting": STR(nullable=True, description="Clave del ajuste global que fija el mínimo"),
+    "maxSetting": STR(nullable=True, description="Clave del ajuste global que fija el máximo"),
     "level": STR(enum=["app", "entity"], description="app: solo el Administrador; entity: el Administrador fija el de la app y cada Jefe de Transporte el de su Entidad"),
     "userOverridable": BOOL(),
     "options": S("array", items={"type": "object", "properties": {"value": STR(), "name": STR()}}),
@@ -237,6 +257,7 @@ schemas = {
     "Links": {"type": "object", "properties": {k: STR(format="uri", nullable=True) for k in ["self", "first", "prev", "next", "last"]}},
     "PageMeta": {"type": "object", "properties": {"total": INT(), "page": INT(), "size": INT()}},
     "Position": {"type": "object", "nullable": True, "properties": {"latitude": NUM(), "longitude": NUM(), "at": DT()}},
+    "BoundingBox": {"type": "object", "properties": {"south": NUM(), "west": NUM(), "north": NUM(), "east": NUM()}},
     "Error": {"type": "object", "properties": {
         "status": STR(), "code": STR(), "title": STR(), "detail": STR(),
         "source": {"type": "object", "properties": {"pointer": STR(), "parameter": STR()}},
@@ -425,7 +446,6 @@ crud("entities", notes={"L": "Solo el Administrador ve todas; los demás, la suy
 paths["/entities/lookup"] = {"get": op("Entidades", "Buscar una Entidad por su abreviatura", resp(200, "EntityDocument"),
     "Con sesión o con X-Installation. Abreviatura exacta, sin distinguir mayúsculas; devuelve solo abreviatura y nombre. 404 ENTITY_NOT_FOUND.",
     [{"name": "abbreviation", "in": "query", "required": True, "schema": STR()}], errs=("401", "404"))}
-crud("forbidden-words", notes={"L": "Solo el Administrador.", "C": "Solo el Administrador.", "U": "Solo el Administrador.", "D": "Solo el Administrador."})
 
 # Trabajadores
 paths["/workers"] = {
@@ -546,7 +566,7 @@ paths["/statistics/{name}"] = {"get": op("Estadísticas", "Obtener una estadíst
                                          [{"name": "name", "in": "path", "required": True, "schema": STR(enum=[
                                              "trips-by-status", "punctuality", "duration", "trips-by-driver", "trips-by-vehicle", "overloaded-trips", "occupancy",
                                              "attendance", "children-transported", "workers-distribution", "worker-trips", "applications-summary", "stop-activity",
-                                             "stop-pass-times", "distance", "live-trip"])},
+                                             "stop-pass-times", "distance", "live-trip", "trip-incidents"])},
                                           filt("from", "Desde", DATE()), filt("to", "Hasta", DATE()),
                                           filt("dates", "Fechas explícitas separadas por comas"),
                                           filt("last", "Relativo: número + d/w/m/y (p. ej. 7d, 3m)", STR(pattern=r"^\d+[dwmy]$")),
@@ -557,6 +577,13 @@ paths["/statistics/{name}"] = {"get": op("Estadísticas", "Obtener una estadíst
                                          errs=("400", "401", "403", "404"))}
 
 # Actualizaciones de la app
+paths["/map"] = {"get": op("Mapas", "Configuración del mapa propio", {"200": {"description": "Configuración", "content": {"application/vnd.api+json": {"schema": {
+    "type": "object", "properties": {"data": {"type": "object", "properties": {"type": STR(enum=["map-configs"]), "id": STR(), "attributes": {"type": "object", "properties": {
+        "tilesUrl": STR(description="Plantilla de las imágenes del mapa ({z}/{x}/{y}); relativa a la dirección del servidor"),
+        "minZoom": INT(), "maxZoom": INT(), "downloadMinZoom": INT(), "downloadMaxZoom": INT(),
+        "bounds": {"$ref": "#/components/schemas/BoundingBox"},
+        "area": {"allOf": [{"$ref": "#/components/schemas/BoundingBox"}], "nullable": True, "description": "Zona de las paradas de la Entidad con margen, para descargarla"}}}}}}}}}}},
+    "Límites de Cuba y zona de la Entidad para usar el mapa sin conexión. El Administrador puede indicar `filter[entity]`.", [filt("entity", "Entidad (solo el Administrador)")], errs=("401", "403"))}
 paths["/app-versions/latest"] = {"get": op("Actualizaciones", "Última versión de la app", resp(200, "AppVersionDocument"),
     "Público. `data` es null si no hay ninguna. Con `filter[currentVersionCode]`, `meta.updateAvailable` y `meta.mandatory`. "
     "Con `filter[abis]` (los que admite el teléfono, por preferencia), `meta.file` trae el APK que le corresponde: el suyo, si no el universal, si no el único publicado.",
@@ -564,10 +591,10 @@ paths["/app-versions/latest"] = {"get": op("Actualizaciones", "Última versión 
 paths["/app-versions"] = {
     "get": op("Actualizaciones", "Versiones publicadas", resp(200, "AppVersionCollection"), "Solo el Administrador. `meta.usersWithoutVersion`.", errs=("401", "403")),
     "post": {"tags": ["Actualizaciones"], "summary": "Publicar una versión",
-             "description": "Solo el Administrador. `multipart/form-data`. Un APK por tipo de procesador (al menos uno). El versionCode debe ser mayor que el de cualquier versión anterior.",
-             "requestBody": {"required": True, "content": {"multipart/form-data": {"schema": {"type": "object", "required": ["versionName", "versionCode"], "properties": {
+             "description": "Solo el Administrador. `multipart/form-data`. Un APK por tipo de procesador (al menos uno). La versión y el código se leen del propio APK (todos deben coincidir); el versionCode debe ser mayor que el de cualquier versión anterior.",
+             "requestBody": {"required": True, "content": {"multipart/form-data": {"schema": {"type": "object", "properties": {
                  "apkArm64": STR(format="binary", description="64 bits"), "apkArm32": STR(format="binary", description="32 bits"), "apkUniversal": STR(format="binary"),
-                 "versionName": STR(), "versionCode": INT(), "notes": STR(), "mandatory": BOOL()}}}}},
+                 "versionName": STR(description="Solo si no se puede leer del APK"), "versionCode": INT(description="Solo si no se puede leer del APK"), "notes": STR(), "mandatory": BOOL()}}}}},
              "responses": {**resp(201, "AppVersionDocument"), "401": ERR["401"], "403": ERR["403"], "422": ERR["422"]}},
 }
 paths["/app-versions/{id}"] = {"delete": op("Actualizaciones", "Retirar una versión", resp(204), "Solo el Administrador. Borra también el archivo.", [ID], errs=("401", "403", "404"))}
@@ -595,7 +622,7 @@ spec = {
     },
     "servers": [{"url": "https://{host}/api/v1", "variables": {"host": {"default": "localhost"}}}],
     "security": [{"bearerAuth": []}],
-    "tags": [{"name": t} for t in ["Autenticación", "Cuentas", "Sin cuenta", "Entidades", "Trabajadores", "Perfil", "Nomencladores", "Itinerarios y paradas", "Roles", "Vehículos", "Viajes",
+    "tags": [{"name": t} for t in ["Autenticación", "Cuentas", "Sin cuenta", "Entidades", "Trabajadores", "Perfil", "Nomencladores", "Itinerarios y paradas", "Mapas", "Roles", "Vehículos", "Viajes",
                                    "Recorrido", "Subida", "Hijos", "Solicitudes", "Chats", "Avisos", "Ajustes", "Estadísticas", "Actualizaciones", "Lote"]],
     "paths": paths,
     "components": {

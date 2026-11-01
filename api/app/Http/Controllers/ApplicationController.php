@@ -104,11 +104,26 @@ class ApplicationController extends Controller
     public function update(Request $request, $id)
     {
         $application = $this->findVisible($request, $id);
+        $user = $request->user();
+
+        // El trabajador pone (o cambia) las fechas de su ausencia indefinida ya aprobada.
+        if ($request->json('data.attributes.status') === null && $application->type === Application::TYPE_ABSENCE) {
+            $data = $this->validateResource($request, 'applications', [
+                'attributes.startsOn' => ['required', 'date_format:Y-m-d'],
+                'attributes.endsOn' => ['required', 'date_format:Y-m-d', 'after_or_equal:data.attributes.startsOn'],
+            ]);
+            $application = $this->applications->setAbsenceDates($application, $user, $data['attributes']['startsOn'], $data['attributes']['endsOn']);
+
+            return JsonApiResponse::make((new Document($request))->resource($application->fresh()));
+        }
+
         $data = $this->validateResource($request, 'applications', [
             'attributes.status' => ['required', 'in:approved,rejected,cancelled'],
-            'attributes.resolutionNote' => ['sometimes', 'nullable', 'string', 'max:1000'],
+            // Al rechazar, el motivo es obligatorio (docs/09 §16).
+            'attributes.resolutionNote' => $request->json('data.attributes.status') === Application::STATUS_REJECTED
+                ? ['required', 'string', 'min:3', 'max:1000', 'regex:/\S/']
+                : ['sometimes', 'nullable', 'string', 'max:1000'],
         ]);
-        $user = $request->user();
         $note = isset($data['attributes']['resolutionNote']) ? $data['attributes']['resolutionNote'] : null;
 
         switch ($data['attributes']['status']) {
@@ -165,6 +180,18 @@ class ApplicationController extends Controller
                     'relationships.itinerary.data.id' => ['required', 'exists:itineraries,id'],
                 ];
             case Application::TYPE_CHILD_ADDITION:
+                // Varios hijos en una misma solicitud (docs/09 §11) o uno solo (forma anterior).
+                if (is_array(request()->json('data.attributes.children'))) {
+                    return [
+                        'attributes.children' => ['required', 'array', 'min:1', 'max:10'],
+                        'attributes.children.*.firstName' => ['required', 'string', 'max:50', 'regex:/\S/'],
+                        'attributes.children.*.middleName' => ['sometimes', 'nullable', 'string', 'max:50'],
+                        'attributes.children.*.firstSurname' => ['required', 'string', 'max:50', 'regex:/\S/'],
+                        'attributes.children.*.secondSurname' => ['required', 'string', 'max:50', 'regex:/\S/'],
+                        'attributes.children.*.birthDate' => ['required', 'date_format:Y-m-d'],
+                    ];
+                }
+
                 return UserController::nameRules('attributes.child') + [
                     'attributes.childBirthDate' => ['required', 'date_format:Y-m-d'],
                 ];
@@ -174,9 +201,13 @@ class ApplicationController extends Controller
                     'relationships.child.data.id' => ['required', 'integer'],
                 ];
             case Application::TYPE_ABSENCE:
+                // Indefinida: sin fechas, hasta que el trabajador se las ponga o la quite (docs/09 §38).
+                $indefinite = request()->json('data.attributes.indefinite') === true;
+
                 return array_merge($relationship('absenceType', 'absence-types', 'absence_types'), [
-                    'attributes.startsOn' => ['required', 'date_format:Y-m-d'],
-                    'attributes.endsOn' => ['required', 'date_format:Y-m-d', 'after_or_equal:data.attributes.startsOn'],
+                    'attributes.indefinite' => ['sometimes', 'boolean'],
+                    'attributes.startsOn' => $indefinite ? ['sometimes', 'nullable', 'in:'] : ['required', 'date_format:Y-m-d'],
+                    'attributes.endsOn' => $indefinite ? ['sometimes', 'nullable', 'in:'] : ['required', 'date_format:Y-m-d', 'after_or_equal:data.attributes.startsOn'],
                     'attributes.observation' => ['sometimes', 'nullable', 'string', 'max:1000'],
                 ]);
             default:

@@ -22,11 +22,15 @@ class Notice extends Model
     const TYPE_ROLE_REMOVED = 'role_removed';
     const TYPE_ACCESS_RECOVERY_REQUESTED = 'access_recovery_requested';
     const TYPE_PASSWORD_EXPIRING = 'password_expiring';
+    const TYPE_TRIP_STARTED = 'trip_started';
+    const TYPE_TRIP_DELAYED = 'trip_delayed';
+    const TYPE_TRIP_INCIDENT = 'trip_incident';
 
-    protected $fillable = ['user_id', 'type', 'application_id', 'trip_id', 'access_recovery_id', 'read_at'];
+    protected $fillable = ['user_id', 'type', 'application_id', 'trip_id', 'access_recovery_id', 'payload', 'read_at'];
 
     protected $casts = [
         'read_at' => 'datetime',
+        'payload' => 'array',
     ];
 
     public function user()
@@ -41,6 +45,11 @@ class Notice extends Model
 
     public function application()
     {
-        return $this->belongsTo(Application::class);
+        return $this->belongsTo(Application::class)->withTrashed();
+    }
+
+    public function trip()
+    {
+        return $this->belongsTo(Trip::class)->withTrashed();
     }
 }

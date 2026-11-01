@@ -18,7 +18,6 @@ class AuthServiceProvider extends ServiceProvider
         \App\Models\ConversationTopic::class => \App\Policies\AdminManagedPolicy::class,
         \App\Models\VehicleType::class => \App\Policies\AdminManagedPolicy::class,
         \App\Models\AbsenceType::class => \App\Policies\AdminManagedPolicy::class,
-        \App\Models\ForbiddenWord::class => \App\Policies\AdminManagedPolicy::class,
         \App\Models\Entity::class => \App\Policies\AdminManagedPolicy::class,
         \App\Models\Itinerary::class => \App\Policies\TransportManagedPolicy::class,
         \App\Models\Stop::class => \App\Policies\TransportManagedPolicy::class,

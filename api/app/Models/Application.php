@@ -47,7 +47,7 @@ class Application extends Model
         self::TYPE_ITINERARY_REMOVAL,
     ];
 
-    protected $fillable = ['worker_id', 'type', 'status', 'created_by', 'resolved_by', 'resolved_at', 'resolution_note'];
+    protected $fillable = ['worker_id', 'group_id', 'type', 'status', 'created_by', 'resolved_by', 'resolved_at', 'resolution_note'];
 
     protected $casts = [
         'resolved_at' => 'datetime',

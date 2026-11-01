@@ -24,8 +24,14 @@ class Absences
             ->where('applications.type', Application::TYPE_ABSENCE)
             ->where('applications.status', Application::STATUS_APPROVED)
             ->whereNull('applications.deleted_at')
-            ->where('absence_applications.starts_on', '<=', $date->toDateString())
-            ->where('absence_applications.ends_on', '>=', $date->toDateString());
+            // Sin fechas = ausencia indefinida.
+            ->where(function ($query) use ($date) {
+                $query->whereNull('absence_applications.starts_on')
+                    ->orWhere(function ($query) use ($date) {
+                        $query->where('absence_applications.starts_on', '<=', $date->toDateString())
+                            ->where('absence_applications.ends_on', '>=', $date->toDateString());
+                    });
+            });
 
         if ($workerIds !== null) {
             $query->whereIn('applications.worker_id', $workerIds);
