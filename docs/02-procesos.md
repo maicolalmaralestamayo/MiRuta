@@ -56,7 +56,7 @@
 
 ### Olvidé algo
 
-Sustituye a la contraseña olvidada (antes se llamaba "No puedo entrar"). No hay correos, SMS ni WhatsApp.
+Sustituye a la contraseña olvidada (antes se llamaba "No puedo entrar"). La app no envía correos, SMS ni WhatsApp por su cuenta.
 
 1. En el inicio de sesión, **"Olvidé algo"**: la persona marca qué olvidó (usuario, contraseña o los dos) y escribe la **abreviatura de su Entidad**, su **Pase** y un **teléfono**. La respuesta es siempre "Solicitud enviada", coincidan o no los datos.
 2. El Administrador recibe un aviso. Ve los datos escritos y, si coinciden, **con quién**. Lo **verifica por su cuenta** (por ejemplo, llamándolo o escribiéndole por WhatsApp desde la propia tarjeta) y la **aprueba** o la **rechaza**.

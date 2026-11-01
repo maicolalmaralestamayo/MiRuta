@@ -1,6 +1,6 @@
-# MiTransporte
+# MiRuta
 
-Gestión del transporte de los trabajadores de la empresa: itinerarios, paradas, vehículos, choferes, planificación de viajes, avisos y seguimiento de los recorridos en tiempo real.
+(Antes MiTransporte.) Gestión del transporte de los trabajadores de la empresa: itinerarios, paradas, vehículos, choferes, planificación de viajes, avisos (también de viajes atrasados, paradas no realizadas y desvíos) y seguimiento de los recorridos en tiempo real con un mapa propio.
 
 | Capa | Tecnología |
 |---|---|
@@ -14,4 +14,4 @@ Gestión del transporte de los trabajadores de la empresa: itinerarios, paradas,
 | [`app/`](app/README.md) | App Android (Flutter) |
 | [`docs/`](docs/README.md) | Documentación funcional, técnica y Scrum; especificación OpenAPI |
 | `docker/` | PHP 7.2 y MariaDB para ejecutar las pruebas de la API (`docker/test-api.sh`) |
-| `tools/` | Generador de `docs/openapi.yaml` |
+| `tools/` | Generador de `docs/openapi.yaml` (`tools/openapi`) y servidor de mapas propio de Cuba (`tools/maps`) |

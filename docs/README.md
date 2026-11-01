@@ -1,15 +1,17 @@
-# Documentación de MiTransporte
+# Documentación de MiRuta
+
+MiRuta se llamaba antes MiTransporte.
 
 | Documento | Contenido |
 |---|---|
 | [01-vision.md](01-vision.md) | Visión, stack, alcance, roles de la app, roles Scrum y glosario |
-| [02-procesos.md](02-procesos.md) | Reglas de negocio: registro, solicitudes, hijos, vehículos, itinerarios, viajes, notificaciones, recorrido, subida, chats, estadísticas y tareas programadas |
-| [03-datos.md](03-datos.md) | Modelo de datos: diagrama entidad-relación, diagrama de tablas, restricciones y normalización (3FN) |
+| [02-procesos.md](02-procesos.md) | Reglas de negocio: registro, contraseñas y recordar contraseña, solicitudes, hijos, vehículos, itinerarios, viajes (atrasos), notificaciones, recorrido (paradas no realizadas y desvíos), subida, chats, estadísticas, actualizaciones, tareas programadas y mapa propio |
+| [03-datos.md](03-datos.md) | Modelo de datos: diagrama entidad-relación, diagrama de tablas, restricciones, normalización (3FN) y cambios de la versión 2.1 |
 | [04-api.md](04-api.md) | API JSON:API: arquitectura, autenticación JWT, recursos, permisos, estadísticas y errores |
 | [openapi.yaml](openapi.yaml) | Especificación OpenAPI 3.0.3 para importar en Swagger, Postman o Insomnia |
-| [05-app.md](05-app.md) | App Flutter: arquitectura, pantallas por rol y ajustes del usuario |
-| [06-ajustes.md](06-ajustes.md) | Todos los ajustes, con sus valores por defecto y sus límites |
-| [07-algoritmos.md](07-algoritmos.md) | Diagramas de flujo de los 28 algoritmos que no son CRUD |
+| [05-app.md](05-app.md) | App Flutter: arquitectura, reglas comunes de la interfaz, pantallas por rol y ajustes del usuario |
+| [06-ajustes.md](06-ajustes.md) | Todos los ajustes por nivel, con su nombre, su explicación de una línea, su valor por defecto y sus límites |
+| [07-algoritmos.md](07-algoritmos.md) | Diagramas de flujo de los 35 algoritmos que no son CRUD |
 | [08-version-2.md](08-version-2.md) | Acuerdos de la versión 2: varias Entidades, cuentas, contraseñas, recuperación de acceso, ocupación |
 | [09-repaso-pantallas.md](09-repaso-pantallas.md) | Repaso de las pantallas (versión 2.1): MiRuta, textos, campos, viajes atrasados, paradas no realizadas, desvíos, mapas propios |
 

@@ -21,9 +21,9 @@ Diagramas de flujo de los algoritmos que van más allá de crear, leer, modifica
 | 7.13 Trabajadores esperados y ocupación | ✔ | ✔ | |
 | 7.14 Marcar un viaje como realizado | ✔ | | ✔ |
 | 7.15 Sincronización y detección de cambios | | ✔ | |
-| 7.16 Programación de avisos de salida y regreso | | ✔ | |
+| 7.16 Programación de avisos de viaje de ida y de regreso | | ✔ | |
 | 7.17 Combinación de sensores | ✔ | | |
-| 7.18 Paso por paradas y fin del trayecto | ✔ | | |
+| 7.18 Paso por paradas, paradas no realizadas y fin del trayecto | ✔ | | |
 | 7.19 Eventos del recorrido: voz y lista de la próxima parada | | ✔ | |
 | 7.20 Avisos de paso por paradas | | ✔ | |
 | 7.21 Lista de pasajeros | ✔ | | |
@@ -34,8 +34,13 @@ Diagramas de flujo de los algoritmos que van más allá de crear, leer, modifica
 | 7.26 Baja automática por inactividad | | | ✔ |
 | 7.27 Borrado de chats | | | ✔ |
 | 7.28 Periodo de una estadística | ✔ | ✔ | |
-| 7.29 No puedo entrar | ✔ | ✔ | ✔ |
+| 7.29 Olvidé algo | ✔ | ✔ | ✔ |
 | 7.30 Compartimentación por Entidad | ✔ | | |
+| 7.31 Viajes atrasados y aviso de comienzo | ✔ | ✔ | ✔ |
+| 7.32 Recordar contraseña | | ✔ | |
+| 7.33 Desvío del recorrido de referencia | ✔ | | |
+| 7.34 Lectura de la versión del APK y comprobación de actualizaciones | ✔ | ✔ | |
+| 7.35 Aviso diario de caducidad de la contraseña | | | ✔ |
 
 ---
 
@@ -43,28 +48,28 @@ Diagramas de flujo de los algoritmos que van más allá de crear, leer, modifica
 
 ```mermaid
 flowchart TD
-    A(["Inicio: usuario U, contraseña P, nombres de la cuenta"]) --> B["u = U en minúsculas, sin espacios"]
+    A(["Inicio: usuario U, contraseña P"]) --> B["u = U en minúsculas, sin espacios"]
     B --> C{"¿4 a 20 caracteres de a-z, 0-9, punto y guion bajo; empieza por letra; no termina en signo; sin dos signos seguidos; al menos 3 letras; sin un carácter repetido 4 veces?"}
     C -->|No| X1["422 USERNAME_INVALID"]
     C -->|Sí| D["plano = u sin signos, con los números camuflados convertidos en letras"]
-    D --> E{"¿plano contiene una palabra reservada?"}
+    D --> E{"¿plano contiene una palabra reservada (admin, soporte, miruta, mitransporte…)?"}
     E -->|Sí| X1
-    E -->|No| F{"¿Contiene una palabra no permitida? (de 7 letras o más, en cualquier parte; más cortas, como parte separada por punto o guion bajo)"}
-    F -->|Sí| X1
-    F -->|No| G{"¿Otra cuenta usa u, o la dejó hace menos de username_reuse_block_days días?"}
+    E -->|No| G{"¿Otra cuenta usa u, o la dejó hace menos de username_reuse_block_days días?"}
     G -->|Sí| X2["409 USERNAME_TAKEN"]
-    G -->|No| H{"¿P cumple longitud mínima, tipos de carácter exigidos, no contiene u ni los nombres, no es común y no es una de las password_history_count anteriores?"}
+    G -->|No| H{"¿P cumple la longitud mínima y los tipos de carácter exigidos, y no es una de las password_history_count anteriores?"}
     H -->|No| X3["422 PASSWORD_POLICY con todos los motivos"]
     H -->|Sí| Z(["Fin: se guarda u y el hash bcrypt de P; la anterior pasa al historial; password_changed_at = ahora"])
 ```
 
-**Caducidad:** la contraseña caduca a los `password_expiry_days` días de `password_changed_at`. A partir de ahí, y tras recuperar el acceso, la API solo permite el perfil propio (`PASSWORD_CHANGE_REQUIRED`). La tarea `passwords:warn-expiry` avisa `password_expiry_warning_days` días antes.
+**Caducidad:** la contraseña caduca a los `password_expiry_days` días de `password_changed_at`. A partir de ahí, y tras recuperar el acceso, la API solo permite el perfil propio (`PASSWORD_CHANGE_REQUIRED`). La tarea `passwords:warn-expiry` avisa cada día durante los últimos `password_expiry_notice_days` días de cada usuario (7.35).
+
+**Desde la versión 2.1** ya no se comprueban palabras no permitidas en el usuario, ni contraseñas comunes, ni que la contraseña contenga el usuario o los nombres. Los mensajes de error tratan de usted.
 
 ## 7.2 Registro en dos pasos y activación
 
 ```mermaid
 flowchart TD
-    A(["Inicio: cuatro nombres, usuario, contraseña"]) --> B["Validar usuario y contraseña (7.1)"]
+    A(["Inicio: nombres (segundo nombre opcional), usuario, contraseña"]) --> B["Validar usuario y contraseña (7.1)"]
     B --> C["Abrir transacción y bloquear la tabla users para el conteo"]
     C --> D{"¿Hay alguna cuenta?"}
     D -->|No| E["is_admin = verdadero: es el Administrador, sin trabajador"]
@@ -85,7 +90,7 @@ flowchart TD
 
 **Registro por un superior** (trabajador sin teléfono): se crea la cuenta **sin usuario ni contraseña** y su trabajador, y un **código de activación** (8 caracteres sin los que se confunden, guardado como HMAC) que caduca a los `activation_code_ttl_days` días. Generar otro anula el anterior.
 
-**Activación** ("Ya me registró un superior"): se busca el trabajador por Entidad y Pase; su cuenta tiene que estar sin activar y su último código, vigente, con menos de 5 intentos fallidos. Si el código no coincide se suma un intento. Si todo es correcto, se validan usuario y contraseña (7.1), se guardan, se marca el código como usado y se devuelven los tokens. Cualquier dato incorrecto responde igual: `422 ACTIVATION_INVALID`.
+**Activación** ("Me registró un superior"): se busca el trabajador por Entidad y Pase; su cuenta tiene que estar sin activar y su último código, vigente, con menos de 5 intentos fallidos. Si el código no coincide se suma un intento. Si todo es correcto, se validan usuario y contraseña (7.1), se guardan, se marca el código como usado y se devuelven los tokens. Cualquier dato incorrecto responde igual: `422 ACTIVATION_INVALID`.
 
 ## 7.3 Inicio de sesión
 
@@ -145,12 +150,15 @@ flowchart TD
     F2 --> H
     G --> H
     H -->|Sí| I["valor = máximo entre valor y el mínimo"]
-    H -->|No| J["Convertir según value_type"]
-    I --> J
+    H -->|No| H2{"¿Tiene un ajuste máximo asociado, p. ej. remember_password_max_days?"}
+    I --> H2
+    H2 -->|Sí| I2["valor = mínimo entre valor y el máximo"]
+    H2 -->|No| J["Convertir según value_type"]
+    I2 --> J
     J --> Z(["Fin: valor"])
 ```
 
-**Al guardar un ajuste** se valida que el valor sea del tipo correcto y esté entre `min_value` y `max_value` (o en `setting_options`). Los valores de la app (`settings`) solo los cambia el Administrador; los de una Entidad (`entity_settings`), su Jefe de Transporte o el Administrador. Si no, `SETTING_OUT_OF_RANGE` o `FORBIDDEN`.
+**Al guardar un ajuste** se valida que el valor sea del tipo correcto y esté entre `min_value` y `max_value` (o en `setting_options`); si tiene ajuste máximo asociado, tampoco puede superar su valor actual. Los valores de la app (`settings`) solo los cambia el Administrador; los de una Entidad (`entity_settings`), su Jefe de Transporte o el Administrador. Si no, `SETTING_OUT_OF_RANGE` o `FORBIDDEN`.
 
 ## 7.6 Permiso para resolver o asignar una solicitud
 
@@ -200,7 +208,7 @@ flowchart TD
     C -->|transport_chief| G["Crear o restaurar transport_chiefs (trabajador)"]
     C -->|child_addition| I["El niño queda declarado (se deriva de la solicitud aprobada)"]
     C -->|child_removal| J["Borrado lógico del niño"]
-    C -->|absence| K["Sin cambios en tablas: la ausencia aprobada se consulta por fechas"]
+    C -->|absence| K["Sin cambios en tablas: la ausencia aprobada se consulta por fechas (sin fechas = indefinida, cubre todos los días)"]
     D --> N["Crear notice application_resolved para la cuenta del trabajador (role_assigned si fue una asignación)"]
     E5 --> N
     F --> N
@@ -211,9 +219,13 @@ flowchart TD
     N --> Z(["Fin"])
 ```
 
-**Al rechazar:** solo se cambia el estado y se avisa al solicitante. **Al cancelar:** solo se cambia el estado. Una solicitud `child_addition` rechazada o cancelada aplica además borrado lógico al niño, para que pueda volver a declararse.
+**Al rechazar:** el motivo (`resolution_note`) es obligatorio; se cambia el estado y se avisa al solicitante con el motivo. **Al cancelar:** solo se cambia el estado. Una solicitud `child_addition` rechazada o cancelada aplica además borrado lógico al niño, para que pueda volver a declararse.
 
 **Al crear una solicitud** se buscan todos los usuarios que podrían resolverla (7.6) y se crea un `notice` `application_received` para cada uno.
+
+**Varios hijos a la vez** (`children[]`): dentro de una transacción se crea una solicitud `child_addition` por hijo; la primera toma su propio id como `group_id` y las demás, el de la primera. Cada hijo se valida (7.9); si uno falla, no se crea ninguna y el error apunta a ese hijo. Se envía un único `application_received` (el de la primera). Después cada solicitud se aprueba o se rechaza por separado.
+
+**Ausencia indefinida:** se crea sin `starts_on` ni `ends_on`. Una vez aprobada, solo el propio trabajador puede ponerle fechas (`PATCH` sin `status`); se guardan sin nueva aprobación. Si la ausencia no es indefinida o no está aprobada: `409 ABSENCE_NOT_INDEFINITE`.
 
 ## 7.8 Bajas y retiradas
 
@@ -436,9 +448,9 @@ flowchart TD
 
 Se usa la **hora del servidor** y no la del teléfono, para no perder cambios si el reloj del teléfono está mal.
 
-## 7.16 Programación de avisos de salida y regreso (app)
+## 7.16 Programación de avisos de viaje de ida y de regreso (app)
 
-Se ejecuta para cada viaje confirmado, una vez para la salida y otra para el regreso.
+Se ejecuta para cada viaje confirmado, una vez para el viaje de ida y otra para el de regreso.
 
 ```mermaid
 flowchart TD
@@ -483,32 +495,46 @@ flowchart TD
 
 Se usa la **mediana** y no la media porque un teléfono con mala señal no desplaza el resultado.
 
-## 7.18 Paso por paradas y fin del trayecto
+## 7.18 Paso por paradas, paradas no realizadas y fin del trayecto
 
-Se ejecuta en la API cada vez que cambia la posición combinada de un trayecto activo.
+Se ejecuta en la API cada vez que cambia la posición combinada p de un trayecto activo. Antes se calcula la **velocidad** v desde la última posición combinada guardada en el trayecto (`last_latitude`, `last_longitude`, `last_position_at`): distancia haversine / segundos × 3,6. Los umbrales son ajustes de la Entidad: N = `stop_min_dwell_seconds`, V = `stop_pass_speed_kmh`.
 
 ```mermaid
 flowchart TD
-    A(["Inicio: trayecto T activo, posición combinada p"]) --> B["Paradas del itinerario en orden de T: ascendente en la salida, descendente en el regreso"]
-    B --> C["Pendientes = paradas sin trip_stop_passes en T, en ese orden"]
-    C --> D["Para cada parada pendiente s, en orden"]
-    D --> E{"¿Distancia de p a s es menor o igual que stop_detection_radius_m?"}
-    E -->|Sí| F["Crear trip_stop_passes (T, s, ahora)"]
-    F --> G{"¿s es la última parada del trayecto?"}
-    G -->|Sí| H["T.ended_at = ahora, end_reason = last_stop"]
-    H --> Z(["Fin"])
-    G -->|No| Z
-    E -->|No| I{"¿Quedan pendientes?"}
-    I -->|Sí| D
-    I -->|No| Z
+    A(["Inicio: trayecto T activo, posición combinada p, velocidad v"]) --> B["Paradas del itinerario en el orden de T: ascendente en la ida, descendente en el regreso"]
+    B --> C{"¿Hay un paso en estado arrived (está en una parada s)?"}
+    C -->|No| G
+    C -->|Sí| D{"¿p sigue a menos de stop_detection_radius_m de s?"}
+    D -->|Sí| E["min_speed_kmh = mínimo entre el guardado y v"]
+    E --> G
+    D -->|No| F{"¿Estuvo al menos N segundos, o bajó de V km/h, o s es la parada de salida?"}
+    F -->|Sí| F1["left_at = ahora; status = stopped"]
+    F -->|No| F2["left_at = ahora; status = not_stopped"]
+    F2 --> F3["Incidencia not_stopped y aviso trip_incident a los Jefes"]
+    F1 --> G
+    F3 --> G["Para cada parada s sin paso en T, en orden"]
+    G --> H{"¿Distancia de p a s menor o igual que stop_detection_radius_m?"}
+    H -->|No| I{"¿Quedan paradas sin paso?"}
+    I -->|Sí| G
+    I -->|No| Z(["Fin"])
+    H -->|Sí| J["Crear trip_stop_passes (T, s, passed_at = ahora, min_speed_kmh = v, status = arrived; stopped si s es la última)"]
+    J --> K["Para cada parada anterior a s sin paso, salvo la de salida"]
+    K --> L["Crear paso con status = skipped e incidencia skipped, con aviso a los Jefes"]
+    L --> M{"¿s es la última parada del trayecto?"}
+    M -->|Sí| N["T.ended_at = ahora, end_reason = last_stop"]
+    M -->|No| Z
+    N --> Z
 ```
 
-- Se recorren **todas** las pendientes, no solo la siguiente. Así, si el vehículo se salta una parada (por ejemplo, porque nadie sube), se detecta igualmente la siguiente.
+- Se recorren **todas** las paradas sin paso, no solo la siguiente: si el vehículo se salta una parada, se detecta la siguiente y la saltada queda marcada como `skipped`.
+- **La parada de salida** no genera incidencias: se da por detenida aunque arranque sin parar, y nunca se marca como saltada. La última se da por detenida al llegar, porque ahí termina el trayecto.
+- **Incidencia:** se crea una fila en `trip_leg_incidents` (tipo, parada, coordenadas, `started_at`) y un aviso `trip_incident` (con `payload` `direction`, `type` y `stop`) para los **Jefes del itinerario y los Jefes de Transporte de la Entidad**. A los pasajeros no se les avisa.
+- Después se comprueba el desvío (7.33) y se guarda p como última posición del trayecto.
 - **Finalizar a mano** (`PATCH /trip-legs/{id}` con `endedAt`) pone `end_reason = manual`. Gana lo que ocurra primero.
 
 ## 7.19 Eventos del recorrido: voz y lista de la próxima parada (app)
 
-La app compara cada nueva posición combinada con la anterior y genera estos eventos.
+La app compara cada nueva posición combinada con la anterior y genera estos eventos. En la voz y en la lista, "ida" y "regreso" son el viaje de ida y el viaje de regreso.
 
 ```mermaid
 flowchart TD
@@ -729,7 +755,7 @@ flowchart TD
     J --> Z(["Fin: conjunto de días y filtros efectivos"])
 ```
 
-## 7.29 No puedo entrar
+## 7.29 Olvidé algo
 
 ```mermaid
 flowchart TD
@@ -768,3 +794,138 @@ flowchart TD
     F -->|No| X3["422 ENTITY_MISMATCH"]
     F -->|Sí| OK2(["Se aplican los permisos del rol"])
 ```
+
+## 7.31 Viajes atrasados y aviso de comienzo
+
+Servicio `TripTimeliness`. H = hora planificada del tramo (`departs_at` para la ida, `returns_at` para el regreso); tol = `trip_delay_tolerance_minutes` de la Entidad del itinerario.
+
+```mermaid
+flowchart TD
+    A(["Inicio: viaje V, sentido S, ahora"]) --> B{"¿V está confirmed?"}
+    B -->|No| N0(["No atrasado"])
+    B -->|Sí| C{"¿Ya hay trip_legs de V en el sentido S (comenzó)?"}
+    C -->|Sí| D["atraso = minutos entre H y started_at"]
+    D --> E{"¿atraso > tol?"}
+    E -->|Sí| F(["Comenzó con atraso: delayMinutes = atraso"])
+    E -->|No| G(["Comenzó a tiempo: delayMinutes = NULL"])
+    C -->|No| H{"¿ahora > H + tol?"}
+    H -->|No| N0
+    H -->|Sí| I(["Atrasado: delayed = verdadero, delayMinutes = minutos desde H hasta ahora"])
+```
+
+La API lo expone en cada viaje como `outboundDelayed`, `returnDelayed`, `outboundDelayMinutes` y `returnDelayMinutes`; no se guarda.
+
+**Aviso de atraso** (tarea `trips:notify-delays`, cada minuto):
+
+```mermaid
+flowchart TD
+    A(["Inicio: tarea cada minuto"]) --> B["Viajes confirmed con salida entre hace 2 días y ahora"]
+    B --> C["Para cada viaje V y cada sentido S"]
+    C --> D{"¿V está atrasado en S?"}
+    D -->|No| K
+    D -->|Sí| E{"¿Ya hay un notice trip_delayed de V con direction = S?"}
+    E -->|Sí| K
+    E -->|No| F["Destinatarios: pasajeros esperados, chofer y Jefes del itinerario"]
+    F --> G["Quitar a quien tiene trip_delay_notice_enabled desactivado, y a quien tiene ausencia ese día sin notify_during_absence"]
+    G --> H["notice trip_delayed con payload direction y scheduledAt"]
+    H --> K{"¿Quedan?"}
+    K -->|Sí| C
+    K -->|No| Z(["Fin"])
+```
+
+**Aviso de comienzo:** al iniciar un trayecto (`POST /trip-legs`) se calcula su atraso y se envía `trip_started` (payload `direction` y `delayMinutes`) a los mismos destinatarios, filtrados por `trip_start_notice_enabled`, salvo a quien lo inició. Texto: *"Comenzó el viaje de ida de Ruta Este a tiempo."* o *"… (12 min de atraso)."*
+
+## 7.32 Recordar contraseña (app)
+
+Sustituye al PIN propio de la app. **La contraseña nunca se guarda**: solo la fecha en que se escribió por última vez en el teléfono.
+
+```mermaid
+flowchart TD
+    A(["Inicio: se abre la app con una sesión guardada"]) --> B{"¿remember_password está activado?"}
+    B -->|No| P["Pedir la contraseña (estado locked; la sesión sigue y los avisos llegan)"]
+    B -->|Sí| C{"¿Hay fecha de la última vez que se escribió?"}
+    C -->|No| D["Guardar ahora como fecha (sesiones de versiones anteriores)"]
+    D --> OK(["Entrar sin pedirla"])
+    C -->|Sí| E{"¿Pasaron más de remember_password_days días? (como mucho remember_password_max_days, 7.5)"}
+    E -->|No| OK
+    E -->|Sí| P
+    P --> F{"¿La contraseña es correcta (POST /tokens)?"}
+    F -->|Sí| G["Guardar ahora como fecha de la última vez"]
+    G --> OK
+    F -->|No| P
+```
+
+Al iniciar sesión también se guarda la fecha; al cerrar sesión se borra. Por defecto: activado, 7 días; el Administrador fija el máximo (30).
+
+## 7.33 Desvío del recorrido de referencia
+
+Se ejecuta en la API tras el paso por paradas (7.18), con cada posición combinada p de un trayecto activo T. La referencia R es el trayecto que el itinerario tiene como `reference_outbound_leg_id` o `reference_return_leg_id`, según el sentido de T.
+
+```mermaid
+flowchart TD
+    A(["Inicio: trayecto T, posición combinada p"]) --> B{"¿El itinerario tiene recorrido de referencia R en ese sentido y R no es T?"}
+    B -->|No| Z(["Fin"])
+    B -->|Sí| C["L = posiciones de R en orden, reducidas a unos 1000 puntos (polilínea)"]
+    C --> D{"¿L tiene al menos 2 puntos?"}
+    D -->|No| Z
+    D -->|Sí| E["d = distancia de p a la polilínea L"]
+    E --> F{"¿d > route_deviation_m?"}
+    F -->|Sí| G{"¿T.deviating?"}
+    G -->|Sí| H["Incidencia abierta: distance_m = máximo entre la guardada y d"]
+    G -->|No| I["T.deviating = verdadero; incidencia deviation (coordenadas de p, distance_m = d) y aviso trip_incident a los Jefes del itinerario y de Transporte"]
+    F -->|No| J{"¿T.deviating?"}
+    J -->|Sí| K["T.deviating = falso; ended_at de la incidencia abierta = ahora"]
+    J -->|No| Z
+    H --> Z
+    I --> Z
+    K --> Z
+```
+
+**Distancia a la polilínea** (`Geo::distanceToPolyline`): se proyectan los puntos en un plano local equirectangular centrado en p (x = Δlongitud · cos(latitud) · R⊕, y = Δlatitud · R⊕), y para cada segmento AB se calcula la distancia de p al punto más cercano del segmento (proyección t = −(A·AB)/|AB|², limitada a [0, 1]). El resultado es la menor de todas. Es suficiente a escala de ciudad.
+
+**Marcar la referencia:** el Jefe del itinerario o un Jefe de Transporte elige un trayecto **terminado** de un viaje de ese itinerario y del mismo sentido; si no lo es, `422 INVALID_REFERENCE_LEG`. Mientras no haya referencia no se vigilan desvíos.
+
+## 7.34 Lectura de la versión del APK y comprobación de actualizaciones
+
+**En la API, al publicar una versión** (`POST /app-versions`), sin extensiones de PHP (`ApkInfo`):
+
+```mermaid
+flowchart TD
+    A(["Inicio: APK subidos (64 bits, 32 bits, universal), versión escrita a mano (opcional)"]) --> B["Para cada APK"]
+    B --> C["Buscar el fin del directorio central del ZIP (firma PK 05 06) y en él la entrada AndroidManifest.xml"]
+    C --> D["Extraerla (almacenada o deflate)"]
+    D --> E["Leer el XML binario de Android: tabla de cadenas y atributos versionName y versionCode del elemento manifest"]
+    E --> F{"¿Se pudo leer?"}
+    F -->|No| H
+    F -->|Sí| G{"¿Coincide con lo leído de los APK anteriores y con lo escrito a mano?"}
+    G -->|No| X1["422 APK_VERSION_MISMATCH"]
+    G -->|Sí| H{"¿Quedan APK?"}
+    H -->|Sí| B
+    H -->|No| I{"¿Hay versión y código?"}
+    I -->|No| X2["422 VALIDATION_ERROR: no se pudo leer la versión; escríbala a mano"]
+    I -->|Sí| J{"¿versionCode es mayor que el de la última versión?"}
+    J -->|No| X3["422 VERSION_CODE_TOO_LOW"]
+    J -->|Sí| Z(["Fin: se guarda la versión"])
+```
+
+**En la app, comprobación periódica:** la sincronización en segundo plano (`workmanager`) consulta `GET /app-versions/latest` cada `update_check_hours` horas (24 por defecto). Si hay una versión con `versionCode` mayor que la instalada y aún no se avisó de ella, muestra una notificación; al tocarla se abre la pantalla de actualización. Si es obligatoria, al abrir la app no se puede seguir sin instalarla. Además se comprueba al abrir la app y desde Ajustes.
+
+## 7.35 Aviso diario de caducidad de la contraseña
+
+**Tarea `passwords:warn-expiry`**, una vez al día.
+
+```mermaid
+flowchart TD
+    A(["Inicio: tarea diaria"]) --> B["Para cada cuenta U con password_changed_at"]
+    B --> C["caduca = password_changed_at + password_expiry_days; N = password_expiry_notice_days de U (7.5)"]
+    C --> D{"¿N > 0 y ahora < caduca ≤ ahora + N días?"}
+    D -->|No| K
+    D -->|Sí| E{"¿Ya tiene hoy un notice password_expiring?"}
+    E -->|Sí| K
+    E -->|No| F["Crear notice password_expiring: Su contraseña caduca el sáb. 14/03/26. Cámbiela en Mi perfil."]
+    F --> K{"¿Quedan cuentas?"}
+    K -->|Sí| B
+    K -->|No| Z(["Fin"])
+```
+
+Antes era un único aviso a los 15 días (ajuste de la app `password_expiry_warning_days`); ahora es uno por día durante los últimos N días, y N es un ajuste de cada usuario (15 por defecto; 0 = sin avisos).

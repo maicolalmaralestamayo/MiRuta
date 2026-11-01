@@ -95,7 +95,7 @@ Cada persona tiene una **cuenta**. Salvo el **Administrador**, que está fuera d
 | **Recorrido de referencia** | Viaje de ida o de regreso ya realizado que un Jefe marca como el trazado habitual del itinerario; sirve para detectar desvíos y dibujar el recorrido en el mapa |
 | **Incidencia del recorrido** | Parada donde no se detuvo (pasó de largo), parada que se saltó o desvío del recorrido de referencia |
 | **Punto de salida / regreso** | La primera y la última parada del itinerario. Se calculan, no se guardan en el viaje |
-| **Saturación** | Los trabajadores esperados superan los asientos, pero caben de pie |
+| **Saturación** | Los trabajadores esperados superan la capacidad sentados, pero caben de pie |
 | **Sobresaturación** | Los trabajadores esperados superan la capacidad total (sentados + de pie). Los niños no cuentan |
 | **Sensor** | Teléfono que envía su ubicación durante un trayecto |
 | **Jerarquía** | Categoría del trabajador, común a todas las Entidades. Solo sirve para las estadísticas; cada uno la cambia en su perfil |
