@@ -31,8 +31,10 @@ app/
   Serializers/      Capa de "vista": convierte modelos en recursos JSON:API
   Policies/         Permisos por recurso y rol (el Administrador siempre tiene permiso)
   Services/         Lógica que abarca varios modelos: registro, aprobación de solicitudes, solapamiento,
-                    combinación de sensores, ocupación, estadísticas
-  Support/          Reglas comunes (Username, Tenancy para la compartimentación por Entidad, contraseñas comunes, JWT)
+                    combinación de sensores, paradas no realizadas y desvíos (Tracking), atrasos (TripTimeliness),
+                    ocupación, estadísticas
+  Support/          Reglas comunes (Username, Tenancy para la compartimentación por Entidad, JWT, Geo para distancias,
+                    NoticeText para el texto de los avisos, ApkInfo para leer la versión del APK, SpanishDate)
   Rules/            Reglas de validación propias
   Console/Commands/ Tareas programadas (ver 02-procesos.md §2.13)
 config/             mitransporte.php, jsonapi.php (modelo → serializador)
@@ -49,27 +51,28 @@ database/
   - `jti`.
 
   El token de renovación lleva su propio `jti`. Se guarda solo su huella SHA-256 en `refresh_tokens`, y caduca a los 90 días.
-- **HTTPS obligatorio.**
+- **HTTPS recomendado.** La app deja elegir `https` (por defecto) o `http` en la pantalla Servidor y acepta certificados del sistema y del usuario.
 
 ## 4.3 Autenticación, cuentas y acceso sin cuenta
 
 | Método | Ruta | Descripción | Acceso |
 |---|---|---|---|
-| `POST` | `/users` | Crear la cuenta (paso 1 del registro). La primera es la del Administrador | Público |
+| `POST` | `/users` | Crear la cuenta (paso 1 del registro; `middleName` opcional). La primera es la del Administrador | Público |
 | `POST` | `/tokens` | Inicio de sesión con usuario y contraseña | Público |
 | `POST` | `/tokens/refresh` | Renovación con rotación | Con token de renovación |
 | `DELETE` | `/tokens/current` | Cerrar sesión en este dispositivo | Autenticado |
 | `DELETE` | `/tokens` | Cerrar sesión en todos los dispositivos | Autenticado |
 | `GET` | `/password-policy` | Requisitos de la contraseña y del usuario | Público |
 | `POST` | `/me/worker` | Unirse a la Entidad (paso 2 del registro): abreviatura, Pase, sexo y jerarquía | Autenticado |
-| `POST` | `/activations` | "Ya me registró un superior": Entidad, Pase, código, usuario y contraseña; devuelve los tokens | Público |
+| `POST` | `/activations` | "Me registró un superior": Entidad, Pase, código, usuario y contraseña; devuelve los tokens | Público |
 | `POST` | `/installations` | Registrar la instalación de la app; devuelve el valor de la cabecera `X-Installation` | Público |
 | `GET` | `/entities/lookup?abbreviation=` | Buscar una Entidad por su abreviatura exacta (abreviatura y nombre) | Con sesión o instalación |
-| `POST`, `GET` | `/guest/access-recoveries`, `/guest/access-recoveries/{id}` | "No puedo entrar": pedir ayuda y consultar el estado (con el usuario, si se aprobó) | Instalación |
+| `POST`, `GET` | `/guest/access-recoveries`, `/guest/access-recoveries/{id}` | "Olvidé algo": pedir ayuda y consultar el estado (con el usuario, si se aprobó) | Instalación |
 | `POST` | `/guest/access-recoveries/{id}/password` | Contraseña nueva tras la aprobación; devuelve los tokens | Instalación |
 | `GET`, `PATCH` | `/access-recoveries`, `/access-recoveries/{id}` | Ver las solicitudes y aprobarlas o rechazarlas | Administrador |
 | `GET`, `POST` | `/guest/conversations`, `/guest/conversations/{id}/messages` | Hablar con el desarrollador sin cuenta | Instalación |
 | `GET`, `PATCH` | `/installations/{id}` | Ver una instalación y bloquearla o desbloquearla | Administrador |
+| `GET` | `/map` | Configuración del mapa propio (ver 4.4) | Autenticado |
 
 - **Con sesión:** `Authorization: Bearer <token de acceso>`.
 - **Sin cuenta:** `X-Installation: <id>.<secreto>`. Una instalación bloqueada solo puede leer.
@@ -86,29 +89,29 @@ database/
 | `entities` | CRUD | Solo el Administrador. Los demás ven la suya |
 | `workers` | `GET`, `GET /{id}`, `POST`, `PATCH /{id}`, `POST /{id}/activation-codes` | `POST`: un superior registra a un trabajador sin teléfono (devuelve `meta.activationCode`). `PATCH`: activar o desactivar (Administrador). `meta`: `childrenCount`, `roles` |
 | `ranks` | CRUD + `POST /ranks/{id}/icon` | Comunes. Gestión: Administrador. `sortOrder` = orden de presentación |
-| `vehicle-types`, `absence-types`, `conversation-topics`, `forbidden-words` | CRUD | Comunes. Gestión: Administrador |
-| `itineraries` | CRUD | De una Entidad. `meta`: `departurePoint`, `returnPoint`, `memberCount` |
+| `vehicle-types`, `absence-types`, `conversation-topics` | CRUD | Comunes. Gestión: Administrador. `/forbidden-words` se **eliminó** en la versión 2.1 |
+| `itineraries` | CRUD | De una Entidad. `meta`: `departurePoint`, `returnPoint`, `memberCount`. Relaciones `referenceOutboundLeg` y `referenceReturnLeg` (`trip-legs`, o `null`): recorrido de referencia, un trayecto **terminado** de un viaje de ese itinerario y del mismo sentido (si no, `422 INVALID_REFERENCE_LEG`). El Jefe de ese itinerario puede hacer `PATCH` solo de esas dos relaciones; el resto, el Jefe de Transporte |
 | `stops` | CRUD | De una Entidad |
 | `itinerary-stops` | CRUD | `position` dentro del itinerario. La parada tiene que ser de la misma Entidad |
 | `itinerary-chiefs`, `drivers`, `transport-chiefs` | `GET`, `DELETE` | `DELETE` lo hace el propio trabajador (baja) o un superior (retirada) |
-| `vehicles` | CRUD | De una Entidad. `meta`: `totalCapacity` |
-| `trips` | CRUD | `filter[updatedSince]` para sincronizar. `meta`: `expectedPassengers`, `expectedChildren`, `seats`, `totalCapacity`, `occupancyLevel` (`normal`, `saturated`, `overloaded`), `saturated`, `overloaded`, `departurePoint`, `returnPoint`, `needsReassignment` |
+| `vehicles` | CRUD | De una Entidad. `meta`: `totalCapacity`. `plate`: una letra de `plate_letters` y 6 dígitos; se quitan espacios y guiones y se guarda en mayúsculas (`B123456`) |
+| `trips` | CRUD | `filter[updatedSince]` para sincronizar. `meta`: `expectedPassengers`, `expectedChildren`, `seats`, `totalCapacity`, `occupancyLevel` (`normal`, `saturated`, `overloaded`), `saturated`, `overloaded`, `departurePoint`, `returnPoint`, `needsReassignment`. Atributos de solo lectura: `outboundDelayed`, `returnDelayed` (no ha comenzado y pasó su hora + tolerancia) y `outboundDelayMinutes`, `returnDelayMinutes` (atraso al comenzar o hasta ahora; `null` si no hay) |
 | `trip-completions` | `GET`, `POST` | Marcar como realizado |
-| `trip-legs` | `GET`, `POST` (iniciar), `PATCH` (finalizar) | `meta`: `currentPosition`, `activeSensors` |
+| `trip-legs` | `GET`, `POST` (iniciar), `PATCH` (finalizar) | `meta`: `currentPosition`, `activeSensors`, `stopPasses[]` (`stopId`, `passedAt`, `status`), `deviating` y `incidents[]` (`type`: `not_stopped`, `skipped` o `deviation`; `stopId`, `latitude`, `longitude`, `distanceM`, `startedAt`, `endedAt`). Al iniciar se envía el aviso de comienzo |
 | `trip-positions` | `GET`, `POST` | Para enviar posiciones acumuladas sin conexión, usar `/operations` |
-| `trip-stop-passes` | `GET` | Los genera el servidor |
+| `trip-stop-passes` | `GET` | Los genera el servidor. `passedAt`, `leftAt` y `status` (`arrived`, `stopped`, `not_stopped`, `skipped`) |
 | `trip-boardings` | `GET`, `POST` | `method`: `automatic`, `self`, `qr` o `manual` |
 | `boarding-passes` | `POST` | Devuelve el token temporal para el QR |
 | `trip-passengers` | `GET /trips/{id}/passengers` | Pasajeros por parada (en el orden del itinerario) y alfabéticamente, con su estado de subida |
 | `trip-messages` | `GET`, `POST` | Chat del viaje |
 | `children` | `GET`, `GET /{id}` | Se crean y se quitan mediante solicitudes. `birthDate` y `meta.eligibleUntil` solo para el padre o la madre, sus jefes y el Administrador |
-| `applications` | `GET`, `POST`, `GET /{id}`, `PATCH /{id}` | `PATCH` con `status`: `approved`, `rejected` o `cancelled`. Con la relación `worker` de otro trabajador, un superior **asigna** (queda aprobada) o **retira** (tipos `*_leave`) |
+| `applications` | `GET`, `POST`, `GET /{id}`, `PATCH /{id}` | `PATCH` con `status`: `approved`, `rejected` (con `resolutionNote` **obligatorio**) o `cancelled`. Con la relación `worker` de otro trabajador, un superior **asigna** (queda aprobada) o **retira** (tipos `*_leave`). `child_addition` admite `children[]` (varios hijos; ver ejemplo). `absence` admite `indefinite: true` sin fechas; el trabajador pone después las fechas con un `PATCH` sin `status` (`startsOn`, `endsOn`). Atributos `groupId` e `indefinite` |
 | `conversations`, `conversation-messages` | `GET`, `POST`, `PATCH /conversations/{id}` (cerrar o reabrir) | Las abiertas sin cuenta aparecen con `guest = true` |
-| `notices` | `GET`, `PATCH` (marcar como leído) | — |
-| `setting-definitions`, `settings` | `GET`, `PATCH /settings/{id}` | `level`: `app` (solo el Administrador) o `entity`. `settings` son los valores de la app |
+| `notices` | `GET`, `PATCH` (marcar como leído) | `message`: texto del aviso (qué, quién y, si se rechazó, el motivo). `payload`: datos del aviso (`direction`, `delayMinutes`, `scheduledAt`, `type`, `stop`). Tipos nuevos: `trip_started`, `trip_delayed`, `trip_incident` |
+| `setting-definitions`, `settings` | `GET`, `PATCH /settings/{id}` | `level`: `app` (solo el Administrador) o `entity`. `description`: explicación de una línea. `minSetting` y `maxSetting`: clave del ajuste de la app que fija el mínimo o el máximo (p. ej. `remember_password_days` → `remember_password_max_days`). `settings` son los valores de la app |
 | `entity-settings` | `GET`, `PATCH /{id}`, `DELETE /{id}` | Valores de nivel Entidad: los cambia su Jefe de Transporte (el Administrador con `filter[entity]`) |
 | `statistics` | `GET /statistics/{name}` | Ver 4.6 |
-| `app-versions` | `GET /app-versions/latest` (público), `GET`, `POST` (multipart), `DELETE /{id}` | Un APK por tipo de procesador (`apkArm64`, `apkArm32`, `apkUniversal`). `latest` con `filter[abis]` indica en `meta.file` el APK del teléfono. La app envía su versión en la cabecera `X-App-Version-Code` |
+| `app-versions` | `GET /app-versions/latest` (público), `GET`, `POST` (multipart), `DELETE /{id}` | Un APK por tipo de procesador (`apkArm64`, `apkArm32`, `apkUniversal`). `versionName` y `versionCode` **ya no hacen falta**: se leen del propio APK (solo se envían si no se pueden leer); todos los APK deben ser de la misma versión. `latest` con `filter[abis]` indica en `meta.file` el APK del teléfono. La app envía su versión en la cabecera `X-App-Version-Code` |
 | **Lote** | `POST /operations` | Atomic Operations: crear viajes por rango, confirmar o desconfirmar en masa, enviar posiciones acumuladas |
 
 ### Solicitudes: ejemplo
@@ -130,6 +133,47 @@ Content-Type: application/vnd.api+json
 ```
 
 Los datos propios de cada tipo de solicitud (ver [03-datos.md §3.5](03-datos.md#35-valores-de-los-campos-enum)) se envían como atributos o relaciones del mismo recurso `applications`. La API los guarda en la tabla de subtipo que corresponda.
+
+### Varios hijos en una misma solicitud: ejemplo
+
+```http
+POST /api/v1/applications
+Content-Type: application/vnd.api+json
+
+{
+  "data": {
+    "type": "applications",
+    "attributes": {
+      "type": "child_addition",
+      "children": [
+        { "firstName": "Juan", "middleName": null, "firstSurname": "Pérez", "secondSurname": "López", "birthDate": "2016-07-16" },
+        { "firstName": "Ana", "middleName": "María", "firstSurname": "Pérez", "secondSurname": "López", "birthDate": "2019-03-02" }
+      ]
+    }
+  }
+}
+```
+
+Se crea una solicitud por hijo con el mismo `groupId` (la respuesta es la primera). Cada una se aprueba o se rechaza por separado. Si un hijo no es válido, el error apunta a `/data/attributes/children/{n}/…` y no se crea ninguna.
+
+### Ausencia indefinida: ejemplo
+
+```http
+POST /api/v1/applications
+{ "data": { "type": "applications",
+    "attributes": { "type": "absence", "indefinite": true },
+    "relationships": { "absenceType": { "data": { "type": "absence-types", "id": "1" } } } } }
+
+PATCH /api/v1/applications/42          (después de aprobada, por el propio trabajador)
+{ "data": { "type": "applications", "id": "42",
+    "attributes": { "startsOn": "2026-11-02", "endsOn": "2026-11-15" } } }
+```
+
+Solo se pueden poner fechas a una ausencia indefinida aprobada (`409 ABSENCE_NOT_INDEFINITE`).
+
+### Mapa propio
+
+`GET /map` devuelve un recurso `map-configs` con `tilesUrl` (plantilla `{z}/{x}/{y}` del ajuste `map_tiles_url`, relativa a la dirección del servidor), `minZoom` (7), `maxZoom` (17), `downloadMinZoom` (12), `downloadMaxZoom` (17), `bounds` (límites de Cuba: `south`, `west`, `north`, `east`) y `area` (zona de las paradas de la Entidad con unos 2 km de margen, o `null`). El Administrador puede indicar `filter[entity]`. Las imágenes las sirve el mismo servidor en `/tiles/…` (ver `tools/maps/README.md`).
 
 ### Viajes por rango: ejemplo
 
@@ -163,8 +207,9 @@ Leyenda: **A** Administrador (todas las Entidades) · **JT** Jefe de Transporte 
 | Ver el usuario | ✔ | | | | Propio |
 | Ver el Pase | ✔ | ✔ | Los de su itinerario | | Propio |
 | Ver fechas de nacimiento de los hijos | ✔ | ✔ | Los de su itinerario | | Propio |
-| Gestionar Entidades, nomencladores, palabras no permitidas y ajustes de la app | ✔ | | | | |
+| Gestionar Entidades, nomencladores y ajustes de la app | ✔ | | | | |
 | Gestionar vehículos, itinerarios, paradas y ajustes de la Entidad | ✔ | ✔ | | | |
+| Marcar el recorrido de referencia del itinerario | ✔ | ✔ | Su itinerario | | |
 | Registrar trabajadores sin teléfono y generar su código | ✔ | ✔ | En su itinerario | | |
 | Planificar viajes (crear, copiar a un rango, confirmar, cancelar) | ✔ | ✔ | Solo su itinerario | | |
 | Ver viajes | ✔ | ✔ | ✔ | ✔ | De su itinerario |
@@ -172,11 +217,13 @@ Leyenda: **A** Administrador (todas las Entidades) · **JT** Jefe de Transporte 
 | Aprobar, asignar o retirar `itinerary_chief` y `driver` | ✔ | ✔ | | | |
 | Aprobar `itinerary_membership`, `child_*` y `absence`; asignar o quitar itinerario y parada | ✔ | ✔ | ✔ | | |
 | Cambiar la jerarquía | | | | | Propio |
-| Aprobar o rechazar "No puedo entrar"; bloquear instalaciones | ✔ | | | | |
+| Aprobar o rechazar "Olvidé algo"; bloquear instalaciones | ✔ | | | | |
 | Marcar viaje como realizado | ✔ | ✔ | ✔ | ✔ | |
 | Iniciar o finalizar trayecto, registrar subidas de otros, escanear QR | ✔ | ✔ | ✔ | ✔ | |
 | Enviar posición como sensor (solo el chofer del viaje o miembros de ese itinerario, sea cual sea su rol) | | | | ✔ | Si es de ese itinerario |
 | Voz durante el recorrido | ✔ | ✔ | ✔ | ✔ | |
+| Poner fechas a su ausencia indefinida | | | | | Propio |
+| Recibir avisos de incidencias del recorrido | ✔ | ✔ | Su itinerario | | |
 | Estadísticas | Todas | Su Entidad | Su itinerario | Las suyas | Las propias |
 
 **Nadie aprueba sus propias solicitudes.**
@@ -190,7 +237,7 @@ Leyenda: **A** Administrador (todas las Entidades) · **JT** Jefe de Transporte 
 | Forma | Ejemplo |
 |---|---|
 | Rango | `filter[from]=2026-10-01&filter[to]=2026-10-31` |
-| Fechas explícitas | `filter[dates]=2026-10-02,2026-10-09,2026-10-16` |
+| Fechas explícitas | `filter[dates]=2026-10-02,2026-10-09,2026-10-16` (la app ya no lo usa: un día es un rango con inicio y fin iguales) |
 | Relativo | `filter[last]=7d` (también `w`, `m`, `y`: días, semanas, meses, años) |
 
 **Otros filtros:** `filter[entity]` (solo el Administrador), `filter[itinerary]`, `filter[vehicle]`, `filter[driver]`, `filter[stop]`, `filter[level]` (en `overloaded-trips`: `saturated` u `overloaded`). La API los restringe según el rol y la Entidad.
@@ -211,9 +258,10 @@ Leyenda: **A** Administrador (todas las Entidades) · **JT** Jefe de Transporte 
 | `worker-trips` | Historial de viajes de un trabajador |
 | `applications-summary` | Solicitudes por tipo y estado, y tiempo medio de resolución |
 | `stop-activity` | Subidas y bajadas por parada |
-| `stop-pass-times` | Hora real de paso por cada parada |
+| `stop-pass-times` | Hora real de paso por cada parada (sin las saltadas) |
 | `distance` | Distancia recorrida por vehículo |
-| `live-trip` | Estadísticas del viaje en marcha (`filter[trip]`) |
+| `live-trip` | Estadísticas del viaje en marcha (`filter[trip]`), con paradas donde no se detuvo (`stopsNotStopped`) y saltadas (`stopsSkipped`) |
+| `trip-incidents` | Incidencias del recorrido por itinerario: no se detuvo en la parada, se saltó la parada, se desvió del recorrido |
 
 ## 4.7 Errores
 
@@ -243,12 +291,13 @@ Siempre con el formato `errors[]` de JSON:API: `status`, `code`, `title`, `detai
 | `ALREADY_IN_ENTITY` | 409 | La cuenta ya pertenece a una Entidad |
 | `ADMIN_HAS_NO_ENTITY` | 409 | El Administrador no se une a ninguna Entidad |
 | `ALREADY_ACTIVATED` | 409 | Pedir un código de activación para una cuenta ya activada |
-| `RECOVERY_NOT_PENDING` | 409 | Aprobar o rechazar una solicitud "No puedo entrar" que ya no está pendiente |
+| `RECOVERY_NOT_PENDING` | 409 | Aprobar o rechazar una solicitud "Olvidé algo" que ya no está pendiente |
 | `RECOVERY_NOT_MATCHED` | 409 | Aprobar una solicitud cuyos datos no coinciden con ningún trabajador |
 | `RECOVERY_NOT_APPROVED` | 409 | Elegir contraseña con una solicitud no aprobada |
 | `CONVERSATION_CLOSED` | 409 | Escribir en una conversación cerrada |
 | `APPLICATION_NOT_PENDING` | 409 | Resolver o cancelar una solicitud que ya no está pendiente |
 | `APPLICATION_ALREADY_PENDING` | 409 | Ya hay una solicitud pendiente de ese tipo |
+| `ABSENCE_NOT_INDEFINITE` | 409 | Poner fechas a una ausencia que no es indefinida o no está aprobada |
 | `ALREADY_MEMBER` | 409 | Ya viaja en ese itinerario y esa parada |
 | `ALREADY_HAS_ROLE` | 409 | Ya tiene el rol que pide |
 | `ALREADY_CHIEF_OF_OTHER` | 409 | Pide ser Jefe de un itinerario siendo ya Jefe de otro |
@@ -264,8 +313,9 @@ Siempre con el formato `errors[]` de JSON:API: `status`, `code`, `title`, `detai
 | `CHAT_NOT_AVAILABLE` | 409 | El chat de un viaje no confirmado |
 | `UNSUPPORTED_MEDIA_TYPE` | 415 | Falta el tipo de contenido JSON:API (o la extensión atómica en `/operations`) |
 | `VALIDATION_ERROR` | 422 | Error de validación de un campo (`source.pointer` indica cuál) |
-| `USERNAME_INVALID` | 422 | El usuario no cumple las reglas (longitud, caracteres, palabras reservadas o no permitidas) |
-| `PASSWORD_POLICY` | 422 | La contraseña no cumple la política (detalle con todos los motivos) |
+| `USERNAME_INVALID` | 422 | El usuario no cumple las reglas (longitud, caracteres o palabras reservadas) |
+| `PASSWORD_POLICY` | 422 | La contraseña no cumple la política: longitud, tipos de carácter o historial (detalle con todos los motivos) |
+| `INVALID_REFERENCE_LEG` | 422 | El recorrido de referencia no es un trayecto terminado de ese itinerario y de ese sentido |
 | `ENTITY_NOT_FOUND` | 422 / 404 | No hay ninguna Entidad con esa abreviatura |
 | `ENTITY_MISMATCH` | 422 | Lo relacionado (itinerario, parada, vehículo, chofer…) es de otra Entidad |
 | `ACTIVATION_INVALID` | 422 | Entidad, Pase o código de activación incorrectos, o código caducado |
@@ -279,9 +329,10 @@ Siempre con el formato `errors[]` de JSON:API: `status`, `code`, `title`, `detai
 | `NO_ITINERARY` | 422 | Escribir a los Jefes de itinerario sin ser miembro de ninguno |
 | `NOT_A_SENSOR` | 422 | Enviar posición sin ser trabajador |
 | `PASSWORD_CHANGE_REQUIRED` | 403 | La contraseña caducó o se recuperó el acceso, y aún no se eligió una nueva |
-| `TOO_MANY_REQUESTS` | 429 | Demasiadas solicitudes "No puedo entrar" o mensajes sin cuenta desde ese teléfono en la última hora |
+| `TOO_MANY_REQUESTS` | 429 | Demasiadas solicitudes "Olvidé algo" o mensajes sin cuenta desde ese teléfono en la última hora |
 | `APK_INVALID` | 422 | El archivo publicado no es un APK |
 | `APK_REQUIRED` | 422 | No se subió ningún APK |
+| `APK_VERSION_MISMATCH` | 422 | Los APK subidos no son de la misma versión (o no coinciden con la escrita a mano) |
 | `VERSION_CODE_TOO_LOW` | 422 | El versionCode no es mayor que el de la última versión publicada |
 | `SETTING_OUT_OF_RANGE` | 422 | Valor fuera de los límites del ajuste |
 | `OPERATION_NOT_SUPPORTED` | 400 | Operación atómica no admitida |

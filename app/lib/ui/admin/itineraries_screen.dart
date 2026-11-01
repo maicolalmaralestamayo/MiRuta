@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../../core/json_api.dart';
 import '../../models/models.dart';
+import '../../services/templates.dart';
 import '../widgets/common.dart';
 import 'stops_screen.dart';
 
+/// Itinerarios y paradas se gestionan juntos (docs/09 §25, §26 y §32).
 class ItinerariesScreen extends StatefulWidget {
   const ItinerariesScreen({super.key});
 
@@ -35,30 +37,34 @@ class _ItinerariesScreenState extends State<ItinerariesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Itinerarios')),
-      floatingActionButton: FloatingActionButton.extended(onPressed: _create, icon: const Icon(Icons.add), label: const Text('Itinerario')),
+      appBar: AppBar(title: const Text('Itinerarios y paradas')),
+      floatingActionButton: FloatingActionButton.extended(onPressed: _create, icon: const Icon(Icons.add), label: const Text('Nuevo itinerario')),
       body: AsyncView<List<Itinerary>>(
         key: _view,
         load: _load,
-        builder: (context, itineraries, reload) => ListView(padding: const EdgeInsets.only(bottom: 88), children: [
-          for (final itinerary in itineraries)
-            ListTile(
-              leading: const Icon(Icons.route),
-              title: Text(itinerary.name),
-              subtitle: Text('${itinerary.stopIds.length} paradas · ${itinerary.memberCount} miembros'),
-              onTap: () async {
-                await Navigator.push(context, MaterialPageRoute(builder: (_) => ItineraryEditor(itinerary: itinerary)));
-                reload();
-              },
-            ),
-        ]),
+        builder: (context, itineraries, reload) => itineraries.isEmpty
+            ? const EmptyView(icon: Icons.route, message: 'Todavía no hay itinerarios.')
+            : ListView(padding: const EdgeInsets.only(bottom: 88), children: [
+                for (final itinerary in itineraries)
+                  ListTile(
+                    leading: const Icon(Icons.route),
+                    title: Text(itinerary.name),
+                    subtitle: Text('${plural(itinerary.stopIds.length, 'parada', 'paradas')} · ${plural(itinerary.memberCount, 'miembro', 'miembros')}'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () async {
+                      await Navigator.push(context, MaterialPageRoute(builder: (_) => ItineraryEditor(itinerary: itinerary)));
+                      reload();
+                    },
+                  ),
+              ]),
       ),
     );
   }
 }
 
-/// Datos del itinerario y orden de sus paradas (la primera es el punto de
-/// salida y la última, el de regreso).
+/// Ficha del itinerario: sus datos (se editan tocándolos), sus paradas en
+/// orden (la primera es el punto de salida y la última, el de regreso), que
+/// se añaden, crean y editan aquí mismo, y los recorridos de referencia.
 class ItineraryEditor extends StatefulWidget {
   final Itinerary itinerary;
 
@@ -71,6 +77,12 @@ class ItineraryEditor extends StatefulWidget {
 class _ItineraryEditorState extends State<ItineraryEditor> {
   late Itinerary _itinerary = widget.itinerary;
   List<ItineraryStop> _links = [];
+
+  /// Paradas de la Entidad → en cuántos itinerarios se usa cada una.
+  Map<String, int> _usage = {};
+
+  /// Recorridos de referencia: dirección → tramo (trip-legs).
+  final Map<String, Resource?> _references = {};
   bool _loading = true;
 
   @override
@@ -81,9 +93,33 @@ class _ItineraryEditorState extends State<ItineraryEditor> {
 
   Future<void> _load() async {
     try {
-      final links = await context.api.getAll('/itinerary-stops', query: {'filter[itinerary]': _itinerary.id, 'include': 'stop', 'sort': 'position'});
+      final api = context.api;
+      final itinerary = Itinerary.from((await api.get('/itineraries/${_itinerary.id}')).resource);
+      final links = await api.getAll('/itinerary-stops', query: {'filter[itinerary]': _itinerary.id, 'include': 'stop', 'sort': 'position'});
+      final all = (await api.getAll('/itineraries', query: context.entityFilter)).map(Itinerary.from);
+      final usage = <String, int>{};
+      for (final i in all) {
+        for (final id in i.stopIds.toSet()) {
+          usage[id] = (usage[id] ?? 0) + 1;
+        }
+      }
+      final references = <String, Resource?>{};
+      for (final (direction, id) in [(TripDirection.outbound, itinerary.referenceOutboundLegId), (TripDirection.returning, itinerary.referenceReturnLegId)]) {
+        if (id == null) continue;
+        try {
+          references[direction] = (await api.get('/trip-legs/$id')).resource;
+        } catch (_) {
+          references[direction] = null;
+        }
+      }
+      if (!mounted) return;
       setState(() {
+        _itinerary = itinerary;
         _links = links.map(ItineraryStop.from).toList();
+        _usage = usage;
+        _references
+          ..clear()
+          ..addAll(references);
         _loading = false;
       });
     } catch (error) {
@@ -92,10 +128,10 @@ class _ItineraryEditorState extends State<ItineraryEditor> {
   }
 
   Future<void> _editField(String attribute, String label, String? current) async {
-    final value = await promptText(context, label, initial: current ?? '', required: attribute == 'name', maxLines: attribute == 'name' ? 1 : 3);
+    final value = await promptText(context, label, label: label, initial: current ?? '', required: attribute == 'name', maxLines: attribute == 'name' ? 1 : 3);
     if (value == null || !mounted) return;
     try {
-      final document = await context.api.patch('/itineraries/${_itinerary.id}', resourceData('itineraries', id: _itinerary.id, attributes: {attribute: value}));
+      final document = await context.api.patch('/itineraries/${_itinerary.id}', resourceData('itineraries', id: _itinerary.id, attributes: {attribute: value.isEmpty ? null : value}));
       setState(() => _itinerary = Itinerary.from(document.resource));
     } catch (error) {
       if (mounted) showError(context, error);
@@ -114,73 +150,158 @@ class _ItineraryEditorState extends State<ItineraryEditor> {
     _load();
   }
 
-  Future<void> _add() async {
-    final choice = await pickFrom<String>(context, 'Añadir parada', ['existing', 'new'], (c) => c == 'existing' ? 'Elegir una parada existente' : 'Crear una parada nueva');
-    if (choice == null || !mounted) return;
-    Stop? stop;
-    if (choice == 'new') {
-      stop = await editStop(context, null);
-    } else {
-      final stops = (await context.api.getAll('/stops', query: {'sort': 'landmark', ...context.entityFilter})).map(Stop.from).where((s) => !_links.any((l) => l.stopId == s.id)).toList();
+  Future<void> _link(Stop stop) => runAction(context, () => context.api.post('/itinerary-stops', resourceData('itinerary-stops', relationships: {
+            'itinerary': ResourceId('itineraries', _itinerary.id),
+            'stop': ResourceId('stops', stop.id),
+          })));
+
+  Future<void> _addExisting() async {
+    try {
+      final stops = (await context.api.getAll('/stops', query: {'sort': 'landmark', ...context.entityFilter}))
+          .map(Stop.from)
+          .where((s) => !_links.any((l) => l.stopId == s.id))
+          .toList();
       if (!mounted) return;
-      stop = await pickFrom<Stop>(context, 'Parada', stops, (s) => s.landmark, subtitle: (s) => s.address);
+      if (stops.isEmpty) {
+        showMessage(context, 'No hay otras paradas. Cree una nueva.');
+        return;
+      }
+      final stop = await pickFrom<Stop>(context, 'Añadir parada existente', stops, (s) => s.landmark, subtitle: stopAddress);
+      if (stop == null || !mounted) return;
+      await _link(stop);
+      _load();
+    } catch (error) {
+      if (mounted) showError(context, error);
     }
+  }
+
+  Future<void> _createNew() async {
+    final stop = await editStop(context, null);
     if (stop == null || !mounted) return;
-    await runAction(context, () => context.api.post('/itinerary-stops', resourceData('itinerary-stops', relationships: {
-          'itinerary': ResourceId('itineraries', _itinerary.id),
-          'stop': ResourceId('stops', stop!.id),
-        })));
+    await _link(stop);
     _load();
   }
 
-  Future<void> _remove(ItineraryStop link) async {
-    if (!await confirm(context, 'Quitar parada', '¿Quitar ${link.stop?.landmark ?? 'la parada'} de este itinerario?')) return;
+  Future<void> _editStop(ItineraryStop link) async {
+    final stop = link.stop;
+    if (stop == null) return;
+    final saved = await editStop(context, stop, itineraryCount: _usage[stop.id] ?? 1);
+    if (saved != null) _load();
+  }
+
+  Future<void> _removeReference(String direction) async {
+    final what = direction == TripDirection.outbound ? 'referenceOutboundLeg' : 'referenceReturnLeg';
+    if (!await confirm(context, 'Quitar recorrido de referencia', '¿Quitar el recorrido de referencia del ${TripLeg.directionName(direction).toLowerCase()}?',
+        accept: 'Quitar recorrido', destructive: true)) {
+      return;
+    }
     if (!mounted) return;
-    await runAction(context, () => context.api.delete('/itinerary-stops/${link.id}'));
+    await runAction(context, () => context.api.patch('/itineraries/${_itinerary.id}', resourceData('itineraries', id: _itinerary.id, relationships: {what: null})));
     _load();
   }
+
+  Widget _field(String label, String? value, VoidCallback onTap) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+        child: InkWell(
+          onTap: onTap,
+          child: InputDecorator(
+            isEmpty: (value ?? '').isEmpty,
+            decoration: InputDecoration(labelText: label),
+            child: (value ?? '').isEmpty ? null : Text(value!),
+          ),
+        ),
+      );
 
   @override
   Widget build(BuildContext context) {
+    final canManage = context.me.managesTransport;
     return Scaffold(
       appBar: AppBar(
         title: Text(_itinerary.name),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.delete_outline),
-            onPressed: () async {
-              if (!await confirm(context, 'Borrar itinerario', '¿Borrar ${_itinerary.name}?', destructive: true) || !context.mounted) return;
-              if (await runAction(context, () => context.api.delete('/itineraries/${_itinerary.id}')) && context.mounted) Navigator.pop(context);
-            },
-          ),
+          if (canManage)
+            DeleteButton(
+              what: 'el itinerario ${_itinerary.name}',
+              onDelete: () async {
+                if (await runAction(context, () => context.api.delete('/itineraries/${_itinerary.id}')) && context.mounted) Navigator.pop(context);
+              },
+            ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(onPressed: _add, icon: const Icon(Icons.add_location_alt), label: const Text('Parada')),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : Column(children: [
-              ListTile(title: const Text('Nombre'), subtitle: Text(_itinerary.name), trailing: const Icon(Icons.edit_outlined), onTap: () => _editField('name', 'Nombre', _itinerary.name)),
-              ListTile(title: const Text('Descripción'), subtitle: Text(_itinerary.description ?? '—'), trailing: const Icon(Icons.edit_outlined), onTap: () => _editField('description', 'Descripción', _itinerary.description)),
-              ListTile(title: const Text('Observación'), subtitle: Text(_itinerary.observation ?? '—'), trailing: const Icon(Icons.edit_outlined), onTap: () => _editField('observation', 'Observación', _itinerary.observation)),
-              const SectionTitle('Paradas (arrastra para ordenar)'),
-              Expanded(
-                child: ReorderableListView(
-                  padding: const EdgeInsets.only(bottom: 88),
-                  onReorderItem: _move,
-                  children: [
-                    for (var i = 0; i < _links.length; i++)
-                      ListTile(
-                        key: ValueKey(_links[i].id),
-                        leading: CircleAvatar(child: Text('${i + 1}')),
-                        title: Text(_links[i].stop?.landmark ?? ''),
-                        subtitle: Text([
-                          if (i == 0) 'Punto de salida',
-                          if (i == _links.length - 1 && i > 0) 'Punto de regreso',
-                          _links[i].stop?.address ?? '',
-                        ].join(' · ')),
-                        trailing: BusyIconButton(icon: const Icon(Icons.remove_circle_outline), onPressed: () => _remove(_links[i])),
+          : CustomScrollView(slivers: [
+              SliverList.list(children: [
+                const SizedBox(height: 8),
+                _field('Nombre', _itinerary.name, () => _editField('name', 'Nombre', _itinerary.name)),
+                _field('Descripción', _itinerary.description, () => _editField('description', 'Descripción', _itinerary.description)),
+                _field('Observación', _itinerary.observation, () => _editField('observation', 'Observación', _itinerary.observation)),
+                const SectionTitle('Recorridos de referencia'),
+                for (final direction in [TripDirection.outbound, TripDirection.returning])
+                  if (_references.containsKey(direction))
+                    ListTile(
+                      leading: Icon(direction == TripDirection.outbound ? Icons.north_east : Icons.south_west),
+                      title: Text(TripLeg.directionName(direction)),
+                      subtitle: Text(_references[direction]?.date('startedAt') == null
+                          ? 'Viaje realizado'
+                          : 'Viaje realizado el ${formatDateTime(_references[direction]!.date('startedAt')!)}'),
+                      trailing: BusyIconButton(
+                        tooltip: 'Quitar recorrido de referencia',
+                        icon: const Icon(Icons.delete, color: overloadColor),
+                        onPressed: () => _removeReference(direction),
                       ),
-                  ],
+                    )
+                  else
+                    ListTile(
+                      leading: Icon(direction == TripDirection.outbound ? Icons.north_east : Icons.south_west),
+                      title: Text(TripLeg.directionName(direction)),
+                      subtitle: const Text('Sin recorrido de referencia'),
+                    ),
+                SectionTitle('Paradas (${plural(_links.length, 'parada', 'paradas')}; arrastre para ordenarlas)'),
+              ]),
+              SliverReorderableList(
+                itemCount: _links.length,
+                onReorder: (oldIndex, newIndex) => _move(oldIndex, newIndex > oldIndex ? newIndex - 1 : newIndex),
+                itemBuilder: (context, i) {
+                  final link = _links[i];
+                  final stop = link.stop;
+                  final shared = (_usage[link.stopId] ?? 1) > 1;
+                  return Material(
+                    key: ValueKey(link.id),
+                    child: ListTile(
+                      leading: ReorderableDragStartListener(index: i, child: CircleAvatar(child: Text('${i + 1}'))),
+                      title: Text(stop?.landmark ?? ''),
+                      subtitle: Text([
+                        if (i == 0) 'Punto de salida',
+                        if (i == _links.length - 1 && i > 0) 'Punto de regreso',
+                        if (stop != null) stopAddress(stop),
+                        if (shared) 'En ${plural(_usage[link.stopId]!, 'itinerario', 'itinerarios')}',
+                      ].join(' · ')),
+                      onTap: () => _editStop(link),
+                      trailing: BusyIconButton(
+                        tooltip: 'Quitar del itinerario',
+                        icon: const Icon(Icons.remove_circle_outline, color: overloadColor),
+                        onPressed: () async {
+                          if (!await confirm(context, 'Quitar parada', '¿Quitar ${stop?.landmark ?? 'la parada'} de este itinerario? La parada no se elimina.',
+                              accept: 'Quitar parada', destructive: true)) {
+                            return;
+                          }
+                          if (!context.mounted) return;
+                          await runAction(context, () => context.api.delete('/itinerary-stops/${link.id}'));
+                          _load();
+                        },
+                      ),
+                    ),
+                  );
+                },
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+                  child: Wrap(spacing: 8, runSpacing: 8, children: [
+                    FilledButton.tonalIcon(onPressed: _addExisting, icon: const Icon(Icons.playlist_add), label: const Text('Añadir parada existente')),
+                    FilledButton.tonalIcon(onPressed: _createNew, icon: const Icon(Icons.add_location_alt), label: const Text('Crear parada nueva')),
+                  ]),
                 ),
               ),
             ]),

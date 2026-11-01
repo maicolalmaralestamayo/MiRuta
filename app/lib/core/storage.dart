@@ -54,8 +54,7 @@ class Storage {
   static Future<String> apiUrl() async {
     final saved = (await _prefs).getString('api_url');
     if (saved != null) return saved;
-    final builtIn = ServerUrl.candidates(defaultApiUrl);
-    return builtIn.isEmpty ? '' : builtIn.first;
+    return ServerUrl.fromInput(defaultApiUrl) ?? '';
   }
 
   static Future<void> setApiUrl(String url) async => (await _prefs).setString('api_url', url);

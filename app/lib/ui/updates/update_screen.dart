@@ -37,7 +37,7 @@ class _UpdateScreenState extends State<UpdateScreen> {
   Future<void> _confirmAndStart() async {
     final update = widget.update;
     if (_mobileWarning &&
-        !await confirm(context, 'Usarás datos móviles', 'La actualización ocupa ${update.sizeLabel}. ¿Descargarla ahora con datos móviles?', accept: 'Descargar')) {
+        !await confirm(context, 'Usará datos móviles', 'La actualización ocupa ${update.sizeLabel}. ¿Descargarla ahora con datos móviles?', accept: 'Descargar')) {
       return;
     }
     _start();
@@ -58,21 +58,21 @@ class _UpdateScreenState extends State<UpdateScreen> {
           case OtaStatus.INSTALLING:
           case OtaStatus.INSTALLATION_DONE:
             _progress = 1;
-            _status = 'Sigue las instrucciones de Android para instalar la actualización.';
+            _status = 'Siga las instrucciones de Android para instalar la actualización.';
             _running = false;
           case OtaStatus.PERMISSION_NOT_GRANTED_ERROR:
             _status = 'Hace falta permitir que MiRuta instale aplicaciones. Actívelo en la pantalla que abrió Android y vuelva a intentarlo.';
             _running = false;
           case OtaStatus.CHECKSUM_ERROR:
-            _status = 'El archivo descargado está dañado. Vuelve a intentarlo.';
+            _status = 'El archivo descargado está dañado. Vuelva a intentarlo.';
             _running = false;
           default:
-            _status = 'No se pudo completar la actualización (${event.value ?? event.status.name}). Vuelve a intentarlo.';
+            _status = 'No se pudo completar la actualización (${event.value ?? event.status.name}). Vuelva a intentarlo.';
             _running = false;
         }
       });
     }, onError: (_) => setState(() {
-          _status = 'No se pudo descargar la actualización. Revisa tu conexión.';
+          _status = 'No se pudo descargar la actualización. Revise su conexión.';
           _running = false;
         }));
   }
@@ -98,11 +98,11 @@ class _UpdateScreenState extends State<UpdateScreen> {
           if (_mobileWarning)
             const Padding(
               padding: EdgeInsets.only(top: 8),
-              child: Text('Estás con datos móviles y pediste actualizar solo con Wi-Fi.', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold)),
+              child: Text('Está con datos móviles y pidió actualizar solo con Wi-Fi.', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold)),
             ),
           if (update.mandatory) ...[
             const SizedBox(height: 12),
-            const Text('Esta actualización es obligatoria: hay que instalarla para seguir usando la app.', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold)),
+            const Text('Esta actualización es obligatoria: hay que instalarla para seguir usando MiRuta.', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold)),
           ],
           if (update.notes != null && update.notes!.isNotEmpty) ...[
             const SizedBox(height: 20),
@@ -117,9 +117,9 @@ class _UpdateScreenState extends State<UpdateScreen> {
           FilledButton.icon(
             onPressed: _running ? null : _confirmAndStart,
             icon: _running ? const BusyIndicator() : const Icon(Icons.download),
-            label: Text(_mobileWarning ? 'Actualizar con datos móviles' : 'Actualizar'),
+            label: Text(_mobileWarning ? 'Actualizar MiRuta con datos móviles' : 'Actualizar MiRuta'),
           ),
-          if (!update.mandatory) TextButton(onPressed: () => Navigator.pop(context), child: const Text('Más tarde')),
+          if (!update.mandatory) TextButton.icon(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.schedule), label: const Text('Actualizar más tarde')),
         ]),
       ),
     );

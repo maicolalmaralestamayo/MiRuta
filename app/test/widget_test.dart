@@ -54,7 +54,6 @@ void main() {
     expect(policy.validate('corta1A'), isNotNull);
     expect(policy.validate('solominusculas'), isNotNull);
     expect(policy.validate('Viaje.2026'), isNull);
-    expect(policy.validate('Maicol.2026', personal: ['maicol']), isNotNull);
     expect(PasswordPolicy.classCount('aA1.'), 4);
   });
 }

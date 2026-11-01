@@ -39,8 +39,6 @@ class ServerUrl {
   /// sin él, https).
   static String? fromInput(String input) => build(split(input).protocol ?? defaultProtocol, input);
 
-  /// Compatibilidad: la única dirección posible, o vacía si no es válida.
-  static List<String> candidates(String input) => [?fromInput(input)];
 
   static bool isValid(String address, {String protocol = defaultProtocol}) => build(protocol, address) != null;
 

@@ -94,7 +94,6 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
             password: _password,
             confirmation: _repeat,
             label: 'Contraseña nueva',
-            personal: () => [me.username ?? '', me.name.firstName, me.name.middleName, me.name.firstSurname, me.name.secondSurname],
           ),
           if (_error != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error))),
           const SizedBox(height: 20),

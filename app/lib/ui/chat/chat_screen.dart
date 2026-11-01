@@ -87,6 +87,9 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   final _messages = <Message>[];
+
+  /// Foto de perfil de cada autor (de la cuenta incluida en el mensaje).
+  final _photos = <String, String?>{};
   final _text = TextEditingController();
   final _scroll = ScrollController();
   Timer? _timer;
@@ -108,6 +111,10 @@ class _ChatScreenState extends State<ChatScreen> {
       final resources = widget.guest
           ? (await context.api.get(widget.listPath, query: query, guest: true)).resources
           : await context.api.getAll(widget.listPath, query: query);
+      for (final resource in resources) {
+        final author = resource.related('author');
+        if (author != null) _photos[author.id] = author.string('photoUrl');
+      }
       final fresh = resources.map(Message.from).where((m) => !_messages.any((old) => old.id == m.id)).toList();
       if (!mounted) return;
       setState(() {
@@ -161,7 +168,7 @@ class _ChatScreenState extends State<ChatScreen> {
     return Scaffold(
       appBar: AppBar(title: Text(widget.title)),
       body: Column(children: [
-        if (_error != null) MaterialBanner(content: Text(_error!), actions: [TextButton(onPressed: _load, child: const Text('Reintentar'))]),
+        if (_error != null) MaterialBanner(content: Text(_error!), actions: [TextButton.icon(onPressed: _load, icon: const Icon(Icons.refresh), label: const Text('Reintentar'))]),
         Expanded(
           child: _messages.isEmpty
               ? const Center(child: Text('Todavía no hay mensajes.'))
@@ -175,8 +182,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     final mine = widget.guest ? message.authorId == null : message.authorId == meId;
                     final author = message.authorName ?? (message.authorId == null ? widget.guestName : null);
                     final colors = Theme.of(context).colorScheme;
-                    return Align(
-                      alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+                    final bubble = Flexible(
                       child: Container(
                         constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.8),
                         margin: const EdgeInsets.symmetric(vertical: 3),
@@ -191,6 +197,20 @@ class _ChatScreenState extends State<ChatScreen> {
                           Text(formatDateTime(message.createdAt), style: Theme.of(context).textTheme.bodySmall),
                         ]),
                       ),
+                    );
+                    return Row(
+                      mainAxisAlignment: mine ? MainAxisAlignment.end : MainAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        if (!mine) ...[
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
+                            child: WorkerAvatar.of(photoUrl: message.authorId == null ? null : _photos[message.authorId], radius: 14),
+                          ),
+                          const SizedBox(width: 6),
+                        ],
+                        bubble,
+                      ],
                     );
                   },
                 ),
@@ -209,11 +229,11 @@ class _ChatScreenState extends State<ChatScreen> {
                   minLines: 1,
                   maxLines: 4,
                   textCapitalization: TextCapitalization.sentences,
-                  decoration: const InputDecoration(hintText: 'Escribe un mensaje'),
+                  decoration: const InputDecoration(hintText: 'Escriba un mensaje'),
                 ),
               ),
               const SizedBox(width: 8),
-              IconButton.filled(onPressed: _sending ? null : _send, icon: _sending ? const BusyIndicator() : const Icon(Icons.send)),
+              IconButton.filled(tooltip: 'Enviar mensaje', onPressed: _sending ? null : _send, icon: _sending ? const BusyIndicator() : const Icon(Icons.send)),
             ]),
           ),
         ),

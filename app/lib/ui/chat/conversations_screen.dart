@@ -24,7 +24,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   }
 
   Future<void> _new() async {
-    final recipient = await pickFrom<String>(context, '¿A quién quieres escribir?', ['itinerary_chiefs', 'transport_chiefs', 'developer'], Conversation.recipientLabel);
+    final recipient = await pickFrom<String>(context, '¿A quién desea escribir?', ['itinerary_chiefs', 'transport_chiefs', 'developer'], Conversation.recipientLabel);
     if (recipient == null || !mounted) return;
     final topics = (await context.api.getAll('/conversation-topics', query: {'filter[recipient]': recipient})).map(Named.from).toList();
     if (!mounted) return;
@@ -48,12 +48,12 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     final meId = context.me.userId;
     return Scaffold(
       appBar: AppBar(title: const Text('Mensajes')),
-      floatingActionButton: FloatingActionButton.extended(onPressed: _new, icon: const Icon(Icons.edit), label: const Text('Escribir')),
+      floatingActionButton: FloatingActionButton.extended(onPressed: _new, icon: const Icon(Icons.edit), label: const Text('Escribir mensaje')),
       body: AsyncView<List<Conversation>>(
         key: _view,
         load: _load,
         builder: (context, conversations, reload) => conversations.isEmpty
-            ? const EmptyView(icon: Icons.forum_outlined, message: 'No tienes conversaciones.\nLas conversaciones se borran pasado un tiempo sin mensajes.')
+            ? const EmptyView(icon: Icons.forum_outlined, message: 'No tiene conversaciones.\nLas conversaciones se borran pasado un tiempo sin mensajes.')
             : ListView.builder(
                 padding: const EdgeInsets.only(bottom: 88),
                 itemCount: conversations.length,
@@ -66,7 +66,7 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                     subtitle: Text([
                       Conversation.recipientLabel(c.recipient),
                       if (incoming) 'de ${c.guest ? '${c.guestName ?? ''} (sin cuenta)' : c.openedByName ?? ''}',
-                      '${c.messageCount} mensaje(s)',
+                      plural(c.messageCount, 'mensaje', 'mensajes'),
                       if (c.lastMessageAt != null) formatDateTime(c.lastMessageAt!),
                     ].join(' · ')),
                     onTap: () async {
