@@ -4,14 +4,18 @@ import '../../core/password_policy.dart';
 import '../widgets/common.dart';
 
 /// Contraseña nueva y su repetición, con los requisitos de la app
-/// (docs/08-version-2.md §8.4). [personal]: usuario y nombres, que no puede contener.
+/// (docs/08-version-2.md §8.4). Los dos campos llevan el ojo para verla y
+/// no hay ayudas fijas: solo el error si incumple una regla (docs/09).
 class PasswordFields extends StatefulWidget {
   final TextEditingController password;
   final TextEditingController confirmation;
-  final List<String> Function() personal;
   final String label;
 
-  const PasswordFields({super.key, required this.password, required this.confirmation, required this.personal, this.label = 'Contraseña'});
+  /// Sin uso: ya no se comprueba que la contraseña contenga el usuario o los
+  /// nombres (docs/09 §32). Se conserva para no romper a quien lo pasa.
+  final List<String> Function()? personal;
+
+  const PasswordFields({super.key, required this.password, required this.confirmation, this.personal, this.label = 'Contraseña'});
 
   @override
   State<PasswordFields> createState() => _PasswordFieldsState();
@@ -20,6 +24,7 @@ class PasswordFields extends StatefulWidget {
 class _PasswordFieldsState extends State<PasswordFields> {
   PasswordPolicy _policy = const PasswordPolicy();
   bool _hidden = true;
+  bool _hiddenConfirmation = true;
 
   @override
   void initState() {
@@ -29,6 +34,9 @@ class _PasswordFieldsState extends State<PasswordFields> {
     });
   }
 
+  Widget _eye(bool hidden, VoidCallback toggle) =>
+      IconButton(tooltip: hidden ? 'Ver la contraseña' : 'Ocultar la contraseña', icon: Icon(hidden ? Icons.visibility : Icons.visibility_off), onPressed: toggle);
+
   @override
   Widget build(BuildContext context) {
     return Column(children: [
@@ -37,19 +45,29 @@ class _PasswordFieldsState extends State<PasswordFields> {
         obscureText: _hidden,
         decoration: InputDecoration(
           labelText: widget.label,
+          hintText: 'p. ej. Ruta.2026',
           prefixIcon: const Icon(Icons.lock_outline),
-          helperText: _policy.description,
-          helperMaxLines: 3,
-          suffixIcon: IconButton(icon: Icon(_hidden ? Icons.visibility : Icons.visibility_off), onPressed: () => setState(() => _hidden = !_hidden)),
+          errorMaxLines: 3,
+          suffixIcon: _eye(_hidden, () => setState(() => _hidden = !_hidden)),
         ),
-        validator: (value) => _policy.validate(value, personal: widget.personal()),
+        autovalidateMode: AutovalidateMode.onUserInteraction,
+        validator: _policy.validate,
       ),
       const SizedBox(height: 12),
       TextFormField(
         controller: widget.confirmation,
-        obscureText: _hidden,
-        decoration: const InputDecoration(labelText: 'Repite la contraseña', prefixIcon: Icon(Icons.lock_outline)),
-        validator: (value) => value != widget.password.text ? 'Las contraseñas no coinciden' : null,
+        obscureText: _hiddenConfirmation,
+        decoration: InputDecoration(
+          labelText: 'Repita la contraseña',
+          prefixIcon: const Icon(Icons.lock_outline),
+          suffixIcon: _eye(_hiddenConfirmation, () => setState(() => _hiddenConfirmation = !_hiddenConfirmation)),
+        ),
+        autovalidateMode: AutovalidateMode.onUserInteraction,
+        validator: (value) => (value ?? '').isEmpty
+            ? 'Repita la contraseña'
+            : value != widget.password.text
+                ? 'Las contraseñas no coinciden'
+                : null,
       ),
     ]);
   }

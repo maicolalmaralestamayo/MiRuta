@@ -18,7 +18,6 @@ class MoreScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final me = context.watch<Session>().me!;
     void open(Widget screen) => Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
-    final hasStatistics = true;
     return Scaffold(
       appBar: AppBar(title: const Text('Más')),
       body: ListView(children: [
@@ -32,16 +31,15 @@ class MoreScreen extends StatelessWidget {
         const Divider(),
         if (me.hasWorker) ListTile(leading: const Icon(Icons.child_care), title: const Text('Mis hijos'), onTap: () => open(const ChildrenScreen())),
         ListTile(leading: const Icon(Icons.notifications_outlined), title: const Text('Avisos'), onTap: () => open(const NoticesScreen())),
-        if (hasStatistics) ListTile(leading: const Icon(Icons.bar_chart), title: const Text('Estadísticas'), onTap: () => open(const StatisticsScreen())),
+        ListTile(leading: const Icon(Icons.bar_chart), title: const Text('Estadísticas'), onTap: () => open(const StatisticsScreen())),
         ListTile(leading: const Icon(Icons.settings_outlined), title: const Text('Ajustes'), onTap: () => open(const SettingsScreen())),
         BusyListTile(
           leading: const Icon(Icons.share_outlined),
           title: const Text('Compartir la app'),
-          subtitle: const Text('Envíala a un compañero por WhatsApp, Bluetooth, Quick Share…'),
           onTap: () async {
             final arm64 = await pickFrom<bool>(context, '¿Para qué tipo de teléfono?', [true, false],
                 (is64) => is64 ? 'La mayoría (64 bits)' : 'Teléfonos antiguos (32 bits)',
-                subtitle: (is64) => is64 ? 'Si al instalarla dice que no es compatible, envía la otra' : 'Solo si la de 64 bits no se instala');
+                subtitle: (is64) => is64 ? 'Si al instalarla dice que no es compatible, envíe la otra' : 'Solo si la de 64 bits no se instala');
             if (arm64 != null && context.mounted) await AppUpdates.share(context.api, arm64: arm64);
           },
         ),
@@ -58,6 +56,7 @@ class MoreScreen extends StatelessWidget {
             if (everywhere != null && context.mounted) await context.session.logout(everywhere: everywhere);
           },
         ),
+        const Padding(padding: EdgeInsets.symmetric(vertical: 16), child: AppVersionText()),
       ]),
     );
   }

@@ -34,7 +34,7 @@ class _UsernameDialogState extends State<_UsernameDialog> {
     try {
       await context.session.changeUsername(_controller.text);
       if (mounted) {
-        showMessage(context, 'Usuario cambiado. Desde ahora entra con «${Username.normalize(_controller.text)}».');
+        showMessage(context, 'Nombre de usuario cambiado. Desde ahora entre con «${Username.normalize(_controller.text)}».');
         Navigator.pop(context, true);
       }
     } on ApiException catch (error) {
@@ -47,16 +47,15 @@ class _UsernameDialogState extends State<_UsernameDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Mi usuario'),
+      title: const Text('Nombre de usuario'),
       content: Form(
         key: _form,
         child: TextFormField(
           controller: _controller,
           autofocus: true,
           decoration: InputDecoration(
-            labelText: 'Usuario',
-            helperText: 'De ${Username.minLength} a ${Username.maxLength}: letras sin tilde, números, punto o guion bajo. El que dejes quedará bloqueado 30 días para los demás.',
-            helperMaxLines: 3,
+            labelText: 'Nombre de usuario',
+            hintText: 'pedro.perez',
             errorText: _error,
             errorMaxLines: 3,
           ),
@@ -64,13 +63,18 @@ class _UsernameDialogState extends State<_UsernameDialog> {
           autocorrect: false,
           enableSuggestions: false,
           inputFormatters: [LengthLimitingTextInputFormatter(Username.maxLength)],
+          autovalidateMode: AutovalidateMode.onUserInteraction,
           validator: validateUsername,
           onFieldSubmitted: (_) => _save(),
         ),
       ),
       actions: [
         TextButton(onPressed: _busy ? null : () => Navigator.pop(context, false), child: const Text('Cancelar')),
-        FilledButton(onPressed: _busy ? null : _save, child: _busy ? const BusyIndicator() : const Text('Guardar')),
+        FilledButton.icon(
+          onPressed: _busy ? null : _save,
+          icon: _busy ? const BusyIndicator() : const Icon(Icons.save),
+          label: const Text('Guardar nombre de usuario'),
+        ),
       ],
     );
   }

@@ -3,12 +3,11 @@ import 'package:flutter/material.dart';
 
 import '../../core/api_exception.dart';
 import '../../models/models.dart';
-import '../../services/templates.dart';
 import '../widgets/common.dart';
 import 'statistic.dart';
 
-/// Estadísticas con gráfico y tabla, periodo por rango, fechas sueltas o
-/// relativo. Solo se ven en la app (no se exportan). Cada rol ve las suyas.
+/// Estadísticas con gráfico y tabla, periodo relativo ("Últimos") o por
+/// rango de fechas (un día = rango con inicio y fin iguales). Solo se ven en la app (no se exportan). Cada rol ve las suyas.
 class StatisticsScreen extends StatefulWidget {
   const StatisticsScreen({super.key});
 
@@ -32,6 +31,7 @@ const _titles = {
   'stop-activity': 'Subidas y bajadas por parada',
   'stop-pass-times': 'Hora de paso por las paradas',
   'distance': 'Distancia recorrida',
+  'trip-incidents': 'Incidencias del recorrido',
 };
 
 const _groupings = {
@@ -40,7 +40,7 @@ const _groupings = {
   'workers-distribution': {'itinerary': 'Itinerario', 'stop': 'Parada', 'rank': 'Jerarquía', 'sex': 'Sexo'},
 };
 
-enum _PeriodMode { relative, range, dates }
+enum _PeriodMode { relative, range }
 
 class _StatisticsScreenState extends State<StatisticsScreen> {
   String _name = 'worker-trips';
@@ -48,7 +48,6 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   int _amount = 30;
   String _unit = 'd';
   DateTimeRange? _range;
-  final Set<DateTime> _dates = {};
   String? _by;
   String? _itineraryId;
   List<Itinerary> _itineraries = [];
@@ -60,7 +59,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     final me = context.me;
     if (me.managesTransport || me.roles.isItineraryChief) return _titles.keys.toList();
     if (me.roles.isDriver) {
-      return const ['trips-by-status', 'punctuality', 'duration', 'overloaded-trips', 'occupancy', 'attendance', 'children-transported', 'stop-activity', 'stop-pass-times', 'distance', 'worker-trips'];
+      return const ['trips-by-status', 'punctuality', 'duration', 'overloaded-trips', 'occupancy', 'attendance', 'children-transported', 'stop-activity', 'stop-pass-times', 'distance', 'trip-incidents', 'worker-trips'];
     }
     return const ['worker-trips'];
   }
@@ -82,7 +81,6 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     return {
       if (_mode == _PeriodMode.relative) 'filter[last]': '$_amount$_unit',
       if (_mode == _PeriodMode.range && _range != null) ...{'filter[from]': day(_range!.start), 'filter[to]': day(_range!.end)},
-      if (_mode == _PeriodMode.dates && _dates.isNotEmpty) 'filter[dates]': (_dates.toList()..sort()).map(day).join(','),
       if (_by != null && _groupings[_name]?.containsKey(_by) == true) 'filter[by]': _by,
       if (_itineraryId != null) 'filter[itinerary]': _itineraryId,
       ...context.entityFilter,
@@ -101,15 +99,6 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
       setState(() => _error = error.message);
     } finally {
       if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _pickDates() async {
-    final now = DateTime.now();
-    final date = await showDatePicker(context: context, firstDate: DateTime(now.year - 3), lastDate: now, helpText: 'Añadir una fecha');
-    if (date != null) {
-      setState(() => _dates.add(date));
-      _load();
     }
   }
 
@@ -138,8 +127,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
         SegmentedButton<_PeriodMode>(
           segments: const [
             ButtonSegment(value: _PeriodMode.relative, label: Text('Últimos')),
-            ButtonSegment(value: _PeriodMode.range, label: Text('Rango')),
-            ButtonSegment(value: _PeriodMode.dates, label: Text('Fechas')),
+            ButtonSegment(value: _PeriodMode.range, label: Text('Rango de fechas')),
           ],
           selected: {_mode},
           onSelectionChanged: (value) {
@@ -180,27 +168,16 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
             ),
           ]),
         if (_mode == _PeriodMode.range)
-          OutlinedButton.icon(
-            icon: const Icon(Icons.date_range),
-            label: Text(_range == null ? 'Elegir rango' : '${formatDate(_range!.start)} → ${formatDate(_range!.end)}'),
-            onPressed: () async {
-              final now = DateTime.now();
-              final range = await showDateRangePicker(context: context, firstDate: DateTime(now.year - 3), lastDate: now);
-              if (range != null) {
-                setState(() => _range = range);
-                _load();
-              }
+          DateRangeField(
+            label: 'Rango de fechas',
+            value: _range,
+            firstDate: DateTime(DateTime.now().year - 3),
+            lastDate: DateTime.now(),
+            onChanged: (range) {
+              setState(() => _range = range);
+              _load();
             },
           ),
-        if (_mode == _PeriodMode.dates)
-          Wrap(spacing: 6, runSpacing: 6, children: [
-            for (final date in _dates.toList()..sort())
-              InputChip(label: Text(formatDate(date)), onDeleted: () {
-                setState(() => _dates.remove(date));
-                _load();
-              }),
-            ActionChip(avatar: const Icon(Icons.add, size: 18), label: const Text('Añadir fecha'), onPressed: _pickDates),
-          ]),
         if (_groupings[_name] != null) ...[
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
@@ -235,7 +212,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
           Text(result.periodLabel, style: Theme.of(context).textTheme.bodySmall),
           const SizedBox(height: 8),
           if (result.rows.isEmpty) const Text('Sin datos en este periodo.') else ...[
-            _Chart(result),
+            _Chart(result, _titles[_name]!),
             const SizedBox(height: 16),
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
@@ -255,29 +232,47 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
 
 class _Chart extends StatelessWidget {
   final Statistic statistic;
+  final String name;
 
-  const _Chart(this.statistic);
+  const _Chart(this.statistic, this.name);
 
   @override
   Widget build(BuildContext context) {
     final series = statistic.chartSeries();
     if (series == null) return const SizedBox.shrink();
     final color = Theme.of(context).colorScheme.primary;
+    // Eje en enteros: intervalos de 1 en adelante, sin decimales.
+    final top = series.values.fold<double>(0, (a, b) => b > a ? b : a);
+    final interval = top <= 5 ? 1.0 : (top / 5).ceilToDouble();
+    final maxY = ((top / interval).ceil() * interval).clamp(interval, double.infinity).toDouble();
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(series.title, style: Theme.of(context).textTheme.titleSmall),
+      Text(name, style: Theme.of(context).textTheme.titleSmall),
+      Text(series.title, style: Theme.of(context).textTheme.bodySmall),
       const SizedBox(height: 8),
       SizedBox(
         height: 220,
         child: BarChart(BarChartData(
+          minY: 0,
+          maxY: maxY,
           barGroups: [
             for (var i = 0; i < series.values.length; i++)
               BarChartGroupData(x: i, barRods: [BarChartRodData(toY: series.values[i], color: color, width: 16, borderRadius: BorderRadius.circular(4))]),
           ],
-          gridData: const FlGridData(drawVerticalLine: false),
+          gridData: FlGridData(drawVerticalLine: false, horizontalInterval: interval),
           borderData: FlBorderData(show: false),
           titlesData: FlTitlesData(
             topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
             rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            leftTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                reservedSize: 40,
+                interval: interval,
+                getTitlesWidget: (value, meta) => value != value.roundToDouble()
+                    ? const SizedBox.shrink()
+                    : Text('${value.toInt()}', style: const TextStyle(fontSize: 10)),
+              ),
+            ),
             bottomTitles: AxisTitles(
               sideTitles: SideTitles(
                 showTitles: true,

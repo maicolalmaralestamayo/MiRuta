@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../core/api_exception.dart';
 import '../../core/json_api.dart';
 import '../../models/models.dart';
-import '../../services/session.dart';
 import '../../services/templates.dart';
 import '../theme.dart';
 import '../widgets/common.dart';

@@ -4,8 +4,9 @@ import 'package:flutter/services.dart';
 import '../../core/api_exception.dart';
 import '../widgets/common.dart';
 
-/// Abreviatura de la Entidad: se escribe (no hay lista) y la app muestra su
-/// nombre para confirmar (docs/08-version-2.md §8.2).
+/// Entidad (su abreviatura): se escribe (no hay lista) y la app muestra su
+/// nombre debajo para confirmar (docs/08-version-2.md §8.2). Sin ayuda fija
+/// (docs/09 §4).
 class EntityAbbreviationField extends StatefulWidget {
   final TextEditingController controller;
 
@@ -50,10 +51,12 @@ class _EntityAbbreviationFieldState extends State<EntityAbbreviationField> {
       child: TextFormField(
         controller: widget.controller,
         decoration: InputDecoration(
-          labelText: 'Abreviatura de tu Entidad',
+          labelText: 'Entidad',
+          hintText: 'p. ej. EMPRESA',
           prefixIcon: const Icon(Icons.apartment_outlined),
-          helperText: _name ?? 'Pregúntala a tu superior si no la sabes',
-          helperStyle: _name == null ? null : TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.bold),
+          // Solo el nombre de la Entidad encontrada, para confirmarla.
+          helperText: _name,
+          helperStyle: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.bold),
           errorText: _error,
           errorMaxLines: 3,
           suffixIcon: _busy ? const Padding(padding: EdgeInsets.all(12), child: BusyIndicator()) : IconButton(icon: const Icon(Icons.search), onPressed: _lookup),
@@ -64,7 +67,8 @@ class _EntityAbbreviationFieldState extends State<EntityAbbreviationField> {
           if (_name != null || _error != null) setState(() => _name = _error = null);
         },
         onFieldSubmitted: (_) => _lookup(),
-        validator: (v) => (v?.trim().length ?? 0) < 2 ? 'Escribe la abreviatura' : null,
+        autovalidateMode: AutovalidateMode.onUserInteraction,
+        validator: (v) => (v?.trim().length ?? 0) < 2 ? 'Escriba la abreviatura de la Entidad (al menos 2 caracteres)' : null,
       ),
     );
   }
@@ -79,9 +83,10 @@ class PassField extends StatelessWidget {
   @override
   Widget build(BuildContext context) => TextFormField(
         controller: controller,
-        decoration: const InputDecoration(labelText: 'Pase', prefixIcon: Icon(Icons.badge_outlined)),
+        decoration: const InputDecoration(labelText: 'Pase', hintText: 'p. ej. 1234', prefixIcon: Icon(Icons.badge_outlined)),
         keyboardType: TextInputType.number,
         inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(9)],
-        validator: (v) => (int.tryParse(v ?? '') ?? 0) < 1 ? 'Escribe tu Pase' : null,
+        autovalidateMode: AutovalidateMode.onUserInteraction,
+        validator: (v) => (int.tryParse(v ?? '') ?? 0) < 1 ? 'Escriba el número de Pase (solo números)' : null,
       );
 }

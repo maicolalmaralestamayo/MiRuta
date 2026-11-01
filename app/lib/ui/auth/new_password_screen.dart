@@ -20,6 +20,7 @@ class _NewPasswordScreenState extends State<NewPasswordScreen> {
   final _password = TextEditingController();
   final _repeat = TextEditingController();
   String? _error;
+  bool _hiddenCurrent = true;
 
   Future<void> _save(bool currentRequired) async {
     if (!_form.currentState!.validate()) return;
@@ -38,33 +39,39 @@ class _NewPasswordScreenState extends State<NewPasswordScreen> {
     return PopScope(
       canPop: false,
       child: Scaffold(
-        appBar: AppBar(title: const Text('Elige una contraseña nueva'), automaticallyImplyLeading: false),
+        appBar: AppBar(title: const Text('Contraseña nueva'), automaticallyImplyLeading: false),
         body: Form(
           key: _form,
           child: ListView(padding: const EdgeInsets.all(16), children: [
             Text(currentRequired
-                ? 'Hola, ${me.firstName}. Tu contraseña caducó: elige una nueva para seguir usando la app.'
-                : 'Hola, ${me.firstName}. Recuperaste el acceso: elige una contraseña nueva para seguir.'),
+                ? 'Su contraseña caducó: elija una nueva para seguir usando la app.'
+                : 'Recuperó el acceso: elija una contraseña nueva para seguir.'),
             const SizedBox(height: 16),
             if (currentRequired) ...[
               TextFormField(
                 controller: _current,
-                obscureText: true,
-                decoration: const InputDecoration(labelText: 'Contraseña actual', prefixIcon: Icon(Icons.lock_clock_outlined)),
-                validator: (v) => v == null || v.isEmpty ? 'Escribe tu contraseña actual' : null,
+                obscureText: _hiddenCurrent,
+                decoration: InputDecoration(
+                  labelText: 'Contraseña actual',
+                  prefixIcon: const Icon(Icons.lock_clock_outlined),
+                  suffixIcon: IconButton(
+                    icon: Icon(_hiddenCurrent ? Icons.visibility : Icons.visibility_off),
+                    onPressed: () => setState(() => _hiddenCurrent = !_hiddenCurrent),
+                  ),
+                ),
+                autovalidateMode: AutovalidateMode.onUserInteraction,
+                validator: (v) => v == null || v.isEmpty ? 'Escriba su contraseña actual' : null,
               ),
               const SizedBox(height: 12),
             ],
-            PasswordFields(
-              password: _password,
-              confirmation: _repeat,
-              label: 'Contraseña nueva',
-              personal: () => [me.username ?? '', me.name.firstName, me.name.middleName, me.name.firstSurname, me.name.secondSurname],
-            ),
+            PasswordFields(password: _password, confirmation: _repeat, label: 'Contraseña nueva'),
             if (_error != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error))),
             const SizedBox(height: 20),
-            BusyButton(onPressed: () => _save(currentRequired), showErrors: false, child: const Text('Guardar y entrar')),
-            TextButton(onPressed: () => context.session.logout(), child: const Text('Cerrar sesión')),
+            BusyButton(onPressed: () => _save(currentRequired), showErrors: false, icon: const Icon(Icons.login), child: const Text('Guardar contraseña y entrar')),
+            const SizedBox(height: 8),
+            TextButton.icon(onPressed: () => context.session.logout(), icon: const Icon(Icons.logout), label: const Text('Cerrar sesión')),
+            const SizedBox(height: 16),
+            const DeveloperChatButton(),
           ]),
         ),
       ),

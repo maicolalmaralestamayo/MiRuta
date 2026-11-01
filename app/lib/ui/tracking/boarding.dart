@@ -79,7 +79,7 @@ class _BoardingPassScreenState extends State<BoardingPassScreen> {
       final wait = expires.difference(DateTime.now()) - const Duration(seconds: 10);
       _timer = Timer(wait.isNegative ? const Duration(seconds: 5) : wait, _refresh);
     } catch (error) {
-      setState(() => _error = 'No se pudo generar el código. Revisa tu conexión.');
+      setState(() => _error = 'No se pudo generar el código. Revise su conexión.');
       _timer = Timer(const Duration(seconds: 10), _refresh);
     }
   }
@@ -104,8 +104,13 @@ class _BoardingPassScreenState extends State<BoardingPassScreen> {
                   child: QrImageView(data: _token!, size: 280),
                 ),
                 const SizedBox(height: 16),
-                Text(context.me.fullName, style: Theme.of(context).textTheme.titleLarge),
-                Text('Muéstralo al chofer o al Jefe de itinerario'),
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  WorkerAvatar.of(photoUrl: context.me.photoUrl, radius: 22),
+                  const SizedBox(width: 12),
+                  Flexible(child: Text(context.me.fullName, style: Theme.of(context).textTheme.titleLarge)),
+                ]),
+                const SizedBox(height: 8),
+                const Text('Muéstrelo al chofer o al Jefe de itinerario', textAlign: TextAlign.center),
                 if (_expires != null) Text('Se renueva automáticamente (válido hasta ${formatTime(_expires!)})', style: Theme.of(context).textTheme.bodySmall),
               ]),
       ),

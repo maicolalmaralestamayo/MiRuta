@@ -35,14 +35,14 @@ class _GuestConversationsScreenState extends State<GuestConversationsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Hablar con el desarrollador')),
-      floatingActionButton: FloatingActionButton.extended(onPressed: _new, icon: const Icon(Icons.edit), label: const Text('Escribir')),
+      floatingActionButton: FloatingActionButton.extended(onPressed: _new, icon: const Icon(Icons.edit), label: const Text('Escribir mensaje')),
       body: AsyncView<List<Conversation>>(
         key: _view,
         load: _load,
         builder: (context, conversations, reload) => conversations.isEmpty
             ? const EmptyView(
                 icon: Icons.support_agent,
-                message: 'Escribe al desarrollador si tienes dudas, ideas o problemas, aunque todavía no tengas cuenta. Te responderá aquí mismo.',
+                message: 'Escriba al desarrollador si tiene dudas, ideas o problemas, aunque todavía no tenga cuenta. Le responderá aquí mismo.',
               )
             : ListView(children: [
                 for (final conversation in conversations)
@@ -69,7 +69,7 @@ class NewGuestConversationScreen extends StatefulWidget {
 class _NewGuestConversationScreenState extends State<NewGuestConversationScreen> {
   final _form = GlobalKey<FormState>();
   final _name = TextEditingController();
-  final _phone = TextEditingController();
+  final _phone = TextEditingController(text: phonePrefix);
   final _body = TextEditingController();
   List<Named> _topics = [];
   String? _topicId;
@@ -111,20 +111,22 @@ class _NewGuestConversationScreenState extends State<NewGuestConversationScreen>
       body: Form(
         key: _form,
         child: ListView(padding: const EdgeInsets.all(16), children: [
-          const Text('El desarrollador te responderá dentro de la app, en este teléfono. Tu teléfono solo lo ve él, por si necesita llamarte.'),
+          const Text('El desarrollador le responderá dentro de la app, en este teléfono. Su teléfono solo lo ve él, por si necesita llamarle.'),
           const SizedBox(height: 16),
           TextFormField(
             controller: _name,
-            decoration: const InputDecoration(labelText: 'Tu nombre'),
+            decoration: const InputDecoration(labelText: 'Nombre y apellidos', hintText: 'p. ej. Ana Pérez García'),
             textCapitalization: TextCapitalization.words,
-            validator: (v) => v == null || v.trim().isEmpty ? 'Escribe tu nombre' : null,
+            autovalidateMode: AutovalidateMode.onUserInteraction,
+            validator: (v) => v == null || v.trim().isEmpty ? 'Escriba su nombre y apellidos' : null,
           ),
           const SizedBox(height: 12),
           TextFormField(
             controller: _phone,
-            decoration: const InputDecoration(labelText: 'Teléfono', helperText: 'Con el código del país, p. ej. +53 5 123 4567'),
+            decoration: const InputDecoration(labelText: 'Teléfono', hintText: 'p. ej. +53 5 123 4567'),
             keyboardType: TextInputType.phone,
-            validator: (v) => RegExp(r'^\+?[0-9 ()\-]{7,20}$').hasMatch(v?.trim() ?? '') ? null : 'Escribe un teléfono válido',
+            autovalidateMode: AutovalidateMode.onUserInteraction,
+            validator: (v) => RegExp(r'^\+?[0-9 ()\-]{7,20}$').hasMatch(v?.trim() ?? '') ? null : 'Escriba un teléfono válido, con el código del país (p. ej. +53 5 123 4567)',
           ),
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
@@ -132,33 +134,23 @@ class _NewGuestConversationScreenState extends State<NewGuestConversationScreen>
             decoration: const InputDecoration(labelText: 'Motivo'),
             items: [for (final topic in _topics) DropdownMenuItem(value: topic.id, child: Text(topic.name))],
             onChanged: (value) => setState(() => _topicId = value),
-            validator: (v) => v == null ? 'Elige el motivo' : null,
+            autovalidateMode: AutovalidateMode.onUserInteraction,
+            validator: (v) => v == null ? 'Elija el motivo' : null,
           ),
           const SizedBox(height: 12),
           TextFormField(
             controller: _body,
-            decoration: const InputDecoration(labelText: 'Mensaje'),
+            decoration: const InputDecoration(labelText: 'Mensaje', hintText: 'p. ej. No encuentro mi Entidad al registrarme'),
             minLines: 3,
             maxLines: 8,
             textCapitalization: TextCapitalization.sentences,
-            validator: (v) => v == null || v.trim().isEmpty ? 'Escribe el mensaje' : null,
+            autovalidateMode: AutovalidateMode.onUserInteraction,
+            validator: (v) => v == null || v.trim().isEmpty ? 'Escriba el mensaje' : null,
           ),
           const SizedBox(height: 20),
-          BusyButton(onPressed: _send, icon: const Icon(Icons.send), child: const Text('Enviar')),
+          BusyButton(onPressed: _send, icon: const Icon(Icons.send), child: const Text('Enviar mensaje')),
         ]),
       ),
     );
   }
-}
-
-/// Acción "Hablar con el desarrollador" para las barras de las pantallas sin sesión.
-class DeveloperChatAction extends StatelessWidget {
-  const DeveloperChatAction({super.key});
-
-  @override
-  Widget build(BuildContext context) => IconButton(
-        tooltip: 'Hablar con el desarrollador',
-        icon: const Icon(Icons.support_agent),
-        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const GuestConversationsScreen())),
-      );
 }

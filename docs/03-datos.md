@@ -17,7 +17,8 @@
   - trabajadores esperados y nivel de ocupación (normal, saturado, sobresaturado);
   - caducidad de la contraseña (`password_changed_at` + `password_expiry_days`);
   - cantidad de hijos con derecho a viajar;
-  - estado "pendiente de reasignar" de un viaje (su chofer ya no tiene el rol).
+  - estado "pendiente de reasignar" de un viaje (su chofer ya no tiene el rol);
+  - atraso de un viaje de ida o de regreso (hora planificada + tolerancia frente a `trip_legs.started_at`).
 
 ## 3.2 Diagrama entidad-relación (conceptual)
 
@@ -55,12 +56,16 @@ erDiagram
     TRIP_LEG ||--o{ TRIP_POSITION : "registra"
     WORKER ||--o{ TRIP_POSITION : "envía como sensor"
     TRIP_LEG ||--o{ TRIP_STOP_PASS : "pasa por"
+    TRIP_LEG ||--o{ TRIP_LEG_INCIDENT : "registra incidencias"
+    STOP |o--o{ TRIP_LEG_INCIDENT : "afecta a"
+    ITINERARY |o--o| TRIP_LEG : "toma como recorrido de referencia"
     TRIP_LEG ||--o{ TRIP_BOARDING : "registra subidas"
     WORKER ||--o{ TRIP_BOARDING : "sube"
     TRIP ||--o{ TRIP_MESSAGE : "tiene chat"
     WORKER ||--o{ CHILD : "declara"
     WORKER ||--o{ APPLICATION : "es objeto de"
     USER |o--o{ APPLICATION : "crea o resuelve"
+    APPLICATION |o--o{ APPLICATION : "agrupa (group_id)"
     APPLICATION ||--o| ITINERARY_APPLICATION : "detalla"
     APPLICATION ||--o| CHILD_APPLICATION : "detalla"
     APPLICATION ||--o| ABSENCE_APPLICATION : "detalla"
@@ -85,13 +90,14 @@ erDiagram
 | `USER` | Cuenta: usuario, contraseña, nombres. El Administrador es una cuenta sin trabajador |
 | `WORKER` | Trabajador de una Entidad, con su Pase |
 | `PASSWORD_HISTORY`, `RELEASED_USERNAME`, `ACTIVATION_CODE` | Contraseñas anteriores, usuarios abandonados (bloqueados un tiempo) y códigos de activación |
-| `INSTALLATION`, `ACCESS_RECOVERY` | Instalación de la app (para lo que se hace sin cuenta) y solicitudes "No puedo entrar" |
-| `RANK`, `VEHICLE_TYPE`, `ABSENCE_TYPE`, `CONVERSATION_TOPIC`, `FORBIDDEN_WORD` | Nomencladores comunes |
-| `ITINERARY`, `STOP`, `ITINERARY_STOP` | Itinerario, parada y posición de la parada dentro del itinerario |
+| `INSTALLATION`, `ACCESS_RECOVERY` | Instalación de la app (para lo que se hace sin cuenta) y solicitudes "Olvidé algo" |
+| `RANK`, `VEHICLE_TYPE`, `ABSENCE_TYPE`, `CONVERSATION_TOPIC` | Nomencladores comunes (el de palabras no admitidas en los usuarios, `FORBIDDEN_WORD`, se eliminó en la versión 2.1) |
+| `ITINERARY`, `STOP`, `ITINERARY_STOP` | Itinerario (con su recorrido de referencia de ida y de regreso), parada y posición de la parada dentro del itinerario |
 | `ITINERARY_CHIEF`, `DRIVER`, `TRANSPORT_CHIEF` | Roles vigentes |
 | `VEHICLE` | Vehículo |
-| `TRIP`, `TRIP_LEG` | Viaje y sus trayectos (salida y regreso) |
-| `TRIP_POSITION`, `TRIP_STOP_PASS`, `TRIP_BOARDING`, `TRIP_COMPLETION` | Seguimiento: posiciones, paso por paradas, subidas y marcas de realizado |
+| `TRIP`, `TRIP_LEG` | Viaje y sus trayectos (viaje de ida y viaje de regreso) |
+| `TRIP_POSITION`, `TRIP_STOP_PASS`, `TRIP_BOARDING`, `TRIP_COMPLETION` | Seguimiento: posiciones, paso por paradas (con su estado), subidas y marcas de realizado |
+| `TRIP_LEG_INCIDENT` | Incidencias del recorrido: parada donde no se detuvo, parada saltada o desvío del recorrido de referencia |
 | `TRIP_MESSAGE`, `CONVERSATION`, `CONVERSATION_MESSAGE` | Chats |
 | `CHILD` | Hijo declarado |
 | `APPLICATION` y subtipos | Solicitudes y asignaciones, con su historial |
@@ -121,7 +127,7 @@ erDiagram
         datetime password_changed_at "NULL"
         boolean must_change_password
         varchar first_name "50"
-        varchar middle_name "50"
+        varchar middle_name "50, NULL (opcional)"
         varchar first_surname "50"
         varchar second_surname "50"
         varchar photo_path "NULL"
@@ -188,14 +194,12 @@ erDiagram
         smallint sort_order
         varchar icon_path "NULL"
     }
-    forbidden_words {
-        bigint id PK
-        varchar name UK "50"
-    }
     itineraries {
         bigint id PK
         bigint entity_id FK
         varchar name "100, UK con entity_id"
+        bigint reference_outbound_leg_id FK "NULL, trip_legs"
+        bigint reference_return_leg_id FK "NULL, trip_legs"
     }
     stops {
         bigint id PK
@@ -230,7 +234,7 @@ erDiagram
         bigint id PK
         bigint entity_id FK
         bigint vehicle_type_id FK
-        varchar plate "20, UK con entity_id"
+        varchar plate "20, UK con entity_id; letra + 6 dígitos"
         smallint seats
         smallint standing_capacity
         bigint driver_id FK "NULL"
@@ -260,6 +264,10 @@ erDiagram
         datetime ended_at "NULL"
         bigint ended_by FK "NULL, users"
         enum end_reason "NULL"
+        decimal last_latitude "NULL"
+        decimal last_longitude "NULL"
+        datetime last_position_at "NULL"
+        boolean deviating
     }
     trip_positions {
         bigint id PK
@@ -275,6 +283,20 @@ erDiagram
         bigint trip_leg_id FK
         bigint stop_id FK
         datetime passed_at
+        datetime left_at "NULL"
+        decimal min_speed_kmh "NULL"
+        enum status
+    }
+    trip_leg_incidents {
+        bigint id PK
+        bigint trip_leg_id FK
+        enum type
+        bigint stop_id FK "NULL"
+        decimal latitude "NULL"
+        decimal longitude "NULL"
+        int distance_m "NULL"
+        datetime started_at
+        datetime ended_at "NULL"
     }
     trip_boardings {
         bigint id PK
@@ -295,7 +317,7 @@ erDiagram
         bigint id PK
         bigint worker_id FK
         varchar first_name "50"
-        varchar middle_name "50"
+        varchar middle_name "50, NULL (opcional)"
         varchar first_surname "50"
         varchar second_surname "50"
         date birth_date "privada"
@@ -303,6 +325,7 @@ erDiagram
     applications {
         bigint id PK
         bigint worker_id FK
+        bigint group_id FK "NULL, applications"
         enum type
         enum status
         bigint created_by FK "NULL = sistema, users"
@@ -322,8 +345,8 @@ erDiagram
     absence_applications {
         bigint application_id PK,FK
         bigint absence_type_id FK
-        date starts_on
-        date ends_on
+        date starts_on "NULL = indefinida"
+        date ends_on "NULL = indefinida"
         text observation "NULL"
     }
     conversations {
@@ -350,6 +373,7 @@ erDiagram
         bigint application_id FK "NULL"
         bigint trip_id FK "NULL"
         bigint access_recovery_id FK "NULL"
+        text payload "NULL, JSON"
         datetime read_at "NULL"
     }
     refresh_tokens {
@@ -386,6 +410,7 @@ erDiagram
         int min_value "NULL"
         int max_value "NULL"
         bigint min_setting_definition_id FK "NULL"
+        bigint max_setting_definition_id FK "NULL"
         enum level "app, entity"
         boolean user_overridable
     }
@@ -444,12 +469,16 @@ erDiagram
     trip_legs ||--o{ trip_positions : trip_leg_id
     workers ||--o{ trip_positions : worker_id
     trip_legs ||--o{ trip_stop_passes : trip_leg_id
+    trip_legs ||--o{ trip_leg_incidents : trip_leg_id
+    stops |o--o{ trip_leg_incidents : stop_id
+    trip_legs |o--o{ itineraries : "reference_outbound_leg_id, reference_return_leg_id"
     trip_legs ||--o{ trip_boardings : trip_leg_id
     workers ||--o{ trip_boardings : worker_id
     trips ||--o{ trip_messages : trip_id
     users ||--o{ trip_messages : user_id
     workers ||--o{ children : worker_id
     workers ||--o{ applications : worker_id
+    applications |o--o{ applications : group_id
     applications ||--o| itinerary_applications : application_id
     applications ||--o| child_applications : application_id
     applications ||--o| absence_applications : application_id
@@ -481,7 +510,11 @@ Los nomencladores `vehicle_types`, `absence_types` y `conversation_topics` (con 
 | `workers` | FK compuesta `(itinerary_id, stop_id)` → `itinerary_stop(itinerary_id, stop_id)` | La parada del trabajador tiene que pertenecer a su itinerario |
 | `itinerary_applications` | FK compuesta `(itinerary_id, stop_id)` → `itinerary_stop` cuando `stop_id` no es nulo | Igual que en `workers` |
 | `itineraries` | `UNIQUE(entity_id, name)` | Nombre único dentro de la Entidad |
-| `vehicles` | `UNIQUE(entity_id, plate)` | Matrícula única dentro de la Entidad |
+| `vehicles` | `UNIQUE(entity_id, plate)` | Matrícula única dentro de la Entidad. Formato (una letra de `plate_letters` y 6 dígitos, junta y en mayúsculas) validado en la API |
+| `itineraries` | `reference_*_leg_id` → `trip_legs`: un trayecto **terminado** de un viaje de ese itinerario y del mismo sentido | Se valida en la API (`INVALID_REFERENCE_LEG`) |
+| `trip_stop_passes` | `UNIQUE(trip_leg_id, stop_id)` | Un paso por parada y trayecto |
+| `applications` | `group_id` → `applications(id)` | Solicitudes enviadas juntas (varios hijos): el id de la primera |
+| `absence_applications` | `starts_on` y `ends_on` los dos nulos o los dos con valor, `ends_on ≥ starts_on` | Se valida en la API |
 | `itinerary_stop` | `UNIQUE(itinerary_id, stop_id)` y `UNIQUE(itinerary_id, position)` | Una parada aparece una sola vez por itinerario |
 | `trips` | `CHECK (returns_at > departs_at)` | El regreso es posterior a la salida |
 | `app_version_files` | `UNIQUE(app_version_id, abi)` | Un APK por tipo de procesador y versión |
@@ -497,6 +530,7 @@ Los nomencladores `vehicle_types`, `absence_types` y `conversation_topics` (con 
 | `trip_positions` | `(trip_leg_id, recorded_at)` | Posiciones de un trayecto |
 | `applications` | `(status, type)` y `(worker_id, created_at)` | Bandejas de aprobación e historial |
 | `notices` | `(user_id, read_at)` | Avisos pendientes |
+| `trip_leg_incidents` | `(trip_leg_id, type)` | Incidencias de un trayecto y estadística `trip-incidents` |
 | `released_usernames` | `(username, released_at)` | Usuarios bloqueados |
 | `children` | `(birth_date, first_name, first_surname)` | Posibles duplicados |
 | `access_recoveries` | `(installation_id, created_at)` | Límite de solicitudes por hora |
@@ -508,12 +542,12 @@ Los nomencladores `vehicle_types`, `absence_types` y `conversation_topics` (con 
 | Valor | Subtabla | Texto en la app |
 |---|---|---|
 | `itinerary_membership` | `itinerary_applications` (con parada) | Itinerario y parada |
-| `itinerary_chief` | `itinerary_applications` (con parada) | Jefe de itinerario |
-| `driver` | — | Chofer |
-| `transport_chief` | — | Jefe de Transporte |
-| `child_addition` | `child_applications` | Declarar hijo |
+| `itinerary_chief` | `itinerary_applications` (con parada) | Rol de Jefe de itinerario |
+| `driver` | — | Rol de Chofer |
+| `transport_chief` | — | Rol de Jefe de Transporte |
+| `child_addition` | `child_applications` | Declarar hijos (una solicitud por hijo, agrupadas con `group_id`) |
 | `child_removal` | `child_applications` | Quitar hijo |
-| `absence` | `absence_applications` | Ausencia temporal |
+| `absence` | `absence_applications` | Ausencia temporal (sin fechas = indefinida) |
 | `itinerary_leave` | `itinerary_applications` (con parada) | Baja del itinerario |
 | `itinerary_chief_leave` | `itinerary_applications` (sin parada) | Baja como Jefe de itinerario |
 | `driver_leave` | — | Baja como chofer |
@@ -526,16 +560,30 @@ Los nomencladores `vehicle_types`, `absence_types` y `conversation_topics` (con 
 
 | Valor | Significado |
 |---|---|
-| `application_received` | Hay una solicitud nueva que puedes resolver |
-| `application_resolved` | Se resolvió tu solicitud |
-| `role_assigned` | Un superior te asignó un rol, un itinerario o una parada |
-| `role_removed` | Un superior te quitó un rol o tu itinerario |
-| `resignation` | Alguien a tu cargo se dio de baja |
-| `inactivity_warning` | Vas a perder tu plaza por inactividad |
-| `inactivity_removal` | Perdiste tu plaza por inactividad |
+| `application_received` | Hay una solicitud nueva que usted puede resolver |
+| `application_resolved` | Se resolvió su solicitud (con quién y, si se rechazó, el motivo) |
+| `role_assigned` | Un superior le asignó un rol, un itinerario o una parada |
+| `role_removed` | Un superior le quitó un rol o su itinerario |
+| `resignation` | Alguien a su cargo se dio de baja |
+| `inactivity_warning` | Va a perder su plaza por inactividad |
+| `inactivity_removal` | Perdió su plaza por inactividad |
 | `trip_needs_reassignment` | Un viaje se quedó sin chofer |
-| `access_recovery_requested` | Alguien no puede entrar y pide ayuda (Administrador) |
-| `password_expiring` | Tu contraseña caduca pronto |
+| `access_recovery_requested` | Alguien pide ayuda con "Olvidé algo" (Administrador) |
+| `password_expiring` | Su contraseña caduca pronto (uno cada día durante los últimos días) |
+| `trip_started` | Comenzó un viaje de ida o de regreso. `payload`: `direction`, `delayMinutes` |
+| `trip_delayed` | Un viaje de ida o de regreso está atrasado. `payload`: `direction`, `scheduledAt` |
+| `trip_incident` | Incidencia del recorrido (Jefes de itinerario y de Transporte). `payload`: `direction`, `type`, `stop` |
+
+**`trip_stop_passes.status`**
+
+| Valor | Significado |
+|---|---|
+| `arrived` | Está en la parada (dentro del radio) |
+| `stopped` | Se detuvo |
+| `not_stopped` | Pasó de largo: entró en el radio sin detenerse |
+| `skipped` | Se la saltó: llegó a una posterior sin pasar por esta |
+
+**`trip_leg_incidents.type`:** `not_stopped` (pasó de largo), `skipped` (se saltó la parada), `deviation` (se desvió del recorrido de referencia; `distance_m` es la distancia máxima y `ended_at`, cuando volvió).
 
 **`access_recoveries.status`:** `pending`, `approved`, `rejected`, `completed`, `expired`.
 
@@ -549,7 +597,7 @@ Los nomencladores `vehicle_types`, `absence_types` y `conversation_topics` (con 
   - las coordenadas, en latitud y longitud.
 - **No hay grupos repetidos:**
   - las paradas de un itinerario, los jefes, las marcas de realizado, las subidas y las opciones de un ajuste están en tablas propias, no en listas dentro de una columna;
-  - no se usan columnas JSON.
+  - no se usan columnas JSON, salvo `notices.payload`: son datos de presentación del aviso (sentido, minutos de atraso, parada), que no se consultan ni se relacionan.
 - Toda tabla tiene clave primaria.
 
 ### Segunda forma normal (2FN)
@@ -574,7 +622,9 @@ No hay dependencias transitivas entre atributos que no son clave. Las decisiones
 | Datos que solo tienen sentido para algunos tipos de solicitud | Se separan en **tablas de subtipo** (`itinerary_applications`, `child_applications`, `absence_applications`), en lugar de columnas vacías en `applications` |
 | APK de cada tipo de procesador | Tabla `app_version_files`, no columnas repetidas en `app_versions` |
 | Opciones de un ajuste | Tabla `setting_options`, no una lista en una columna |
-| Mínimo de un ajuste de usuario fijado por otro ajuste de la app | Referencia `min_setting_definition_id`, no una copia de su valor |
+| Mínimo o máximo de un ajuste de usuario fijado por otro ajuste de la app | Referencias `min_setting_definition_id` y `max_setting_definition_id`, no una copia de su valor |
+| Atraso de un viaje ← hora planificada, tolerancia y comienzo real | No se guarda; se calcula (`trips.departs_at`/`returns_at`, `trip_delay_tolerance_minutes` y `trip_legs.started_at`) |
+| Incidencia de parada ← paso por parada | `trip_stop_passes.status` describe el paso; `trip_leg_incidents` guarda el hecho (cuándo se detectó y se avisó) y además los desvíos, que no son de ninguna parada |
 | Valor de un ajuste en cada nivel | Tablas separadas: `settings` (app), `entity_settings` (Entidad) y `user_settings` (usuario) |
 | Viaje "pendiente de reasignar" ← su chofer ya no tiene el rol | No se guarda; se calcula viendo si la fila de `drivers` está borrada |
 | Hijos con derecho ← fecha de nacimiento + `child_max_age` | No se guarda; se calcula |
@@ -587,8 +637,24 @@ No hay dependencias transitivas entre atributos que no son clave. Las decisiones
 | Tabla | Contenido |
 |---|---|
 | `ranks` | Las 18 jerarquías, en su orden de presentación: Coronel, Teniente coronel, Mayor, Funcionarios, Capitán, Primer teniente, Teniente, Subteniente, Primer suboficial, Segundo suboficial, Tercer suboficial, Suboficial, Sargento de primera, Sargento de segunda, Sargento de tercera, Cabo, Trabajador civil, Otra categoría |
-| `forbidden_words` | Una lista inicial de groserías e insultos, que el Administrador amplía |
 | `vehicle_types` | Guagua, Carro |
 | `absence_types` | Vacaciones, Enfermedad, Licencia, Otra |
 | `conversation_topics` | Para jefes (itinerario y Transporte): Reportar un problema, Reportar una queja, Solicitar información. Para el desarrollador: Dar ideas, Reportar un error, Solicitar información |
-| `setting_definitions`, `setting_options` | Todos los ajustes de [06-ajustes.md](06-ajustes.md) |
+| `setting_definitions`, `setting_options` | Todos los ajustes de [06-ajustes.md](06-ajustes.md), con su explicación de una línea. Borra los retirados (`password_forbid_personal_data`, `password_forbid_common`, `password_expiry_warning_days`) |
+
+## 3.8 Cambios de la versión 2.1
+
+| Tabla | Cambio |
+|---|---|
+| `users`, `children` | `middle_name` admite `NULL` (segundo nombre opcional) |
+| `applications` | Nueva `group_id`: varias solicitudes enviadas juntas (varios hijos) |
+| `absence_applications` | `starts_on` y `ends_on` admiten `NULL`: ausencia indefinida |
+| `notices` | Nueva `payload` (JSON); tipos nuevos `trip_started`, `trip_delayed`, `trip_incident` |
+| `trip_legs` | Nuevas `last_latitude`, `last_longitude`, `last_position_at` (para la velocidad) y `deviating` |
+| `trip_stop_passes` | Nuevas `left_at`, `min_speed_kmh` y `status` |
+| `trip_leg_incidents` | Tabla nueva: incidencias del recorrido |
+| `itineraries` | Nuevas `reference_outbound_leg_id` y `reference_return_leg_id` (recorrido de referencia) |
+| `setting_definitions` | Nueva `max_setting_definition_id` |
+| `forbidden_words` | **Eliminada** (y su modelo, controlador y *seeder*) |
+
+Como aún no hay datos en producción, los cambios se hicieron en las migraciones originales (docs/08-version-2.md §8.2).

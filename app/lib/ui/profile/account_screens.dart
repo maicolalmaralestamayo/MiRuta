@@ -40,7 +40,7 @@ class _EditNamesScreenState extends State<EditNamesScreen> {
         child: ListView(padding: const EdgeInsets.all(16), children: [
           _names,
           const SizedBox(height: 8),
-          BusyButton(onPressed: _save, child: const Text('Guardar')),
+          BusyButton(onPressed: _save, icon: const Icon(Icons.save), child: const Text('Guardar nombres y apellidos')),
         ]),
       ),
     );
@@ -68,7 +68,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     try {
       await context.session.setNewPassword(_password.text, currentPassword: _current.text);
       if (!mounted) return;
-      showMessage(context, 'Contraseña cambiada. Se cerró la sesión en tus otros teléfonos.');
+      showMessage(context, 'Contraseña cambiada. Se cerró la sesión en sus otros teléfonos.');
       Navigator.pop(context);
     } on ApiException catch (error) {
       setState(() => _error = error.message);
@@ -87,7 +87,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
             controller: _current,
             obscureText: true,
             decoration: const InputDecoration(labelText: 'Contraseña actual', prefixIcon: Icon(Icons.lock_clock_outlined)),
-            validator: (v) => v == null || v.isEmpty ? 'Escribe tu contraseña actual' : null,
+            validator: (v) => v == null || v.isEmpty ? 'Escriba su contraseña actual' : null,
           ),
           const SizedBox(height: 12),
           PasswordFields(
@@ -98,7 +98,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
           ),
           if (_error != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error))),
           const SizedBox(height: 20),
-          BusyButton(onPressed: _save, showErrors: false, child: const Text('Cambiar contraseña')),
+          BusyButton(onPressed: _save, showErrors: false, icon: const Icon(Icons.lock_reset), child: const Text('Cambiar contraseña')),
         ]),
       ),
     );

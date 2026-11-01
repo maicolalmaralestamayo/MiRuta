@@ -27,12 +27,12 @@ class NoticesScreen extends StatelessWidget {
       body: AsyncView<List<Notice>>(
         load: () => _load(context),
         builder: (context, notices, reload) => notices.isEmpty
-            ? const EmptyView(icon: Icons.notifications_none, message: 'No tienes avisos.')
+            ? const EmptyView(icon: Icons.notifications_none, message: 'No tiene avisos.')
             : ListView(children: [
                 for (final notice in notices)
                   ListTile(
                     leading: Icon(notice.readAt == null ? Icons.circle : Icons.circle_outlined, size: 12, color: Theme.of(context).colorScheme.primary),
-                    title: Text(notice.title, style: TextStyle(fontWeight: notice.readAt == null ? FontWeight.bold : null)),
+                    title: Text(notice.text, style: TextStyle(fontWeight: notice.readAt == null ? FontWeight.bold : null)),
                     subtitle: Text(formatDateTime(notice.createdAt)),
                     onTap: () async {
                       await runAction(context, () => _read(context, notice));

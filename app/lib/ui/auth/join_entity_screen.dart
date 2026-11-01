@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../../core/api_exception.dart';
 import '../../models/models.dart';
-import '../guest/developer_chat_screen.dart';
 import '../widgets/common.dart';
 import 'entity_field.dart';
 
-/// Paso 2 del registro, obligatorio salvo para el Administrador: unirse a la
-/// Entidad con su abreviatura, el Pase, el sexo y la jerarquía.
+/// Paso 2 del registro, «Otros datos del registro» (docs/09 §4), obligatorio
+/// salvo para el Administrador: la Entidad (su abreviatura), el Pase, el sexo
+/// (Masculino por defecto) y la jerarquía.
 class JoinEntityScreen extends StatefulWidget {
   const JoinEntityScreen({super.key});
 
@@ -19,7 +19,7 @@ class _JoinEntityScreenState extends State<JoinEntityScreen> {
   final _form = GlobalKey<FormState>();
   final _abbreviation = TextEditingController();
   final _pass = TextEditingController();
-  String? _sex;
+  String? _sex = 'M';
   String? _rankId;
   List<Rank> _ranks = [];
   ApiException? _error;
@@ -51,25 +51,19 @@ class _JoinEntityScreenState extends State<JoinEntityScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final me = context.me;
     return Scaffold(
-      appBar: AppBar(title: const Text('Únete a tu Entidad'), actions: [
-        const DeveloperChatAction(),
+      appBar: AppBar(title: const Text('Otros datos del registro'), actions: [
         IconButton(tooltip: 'Cerrar sesión', icon: const Icon(Icons.logout), onPressed: () => context.session.logout()),
       ]),
       body: Form(
         key: _form,
         child: ListView(padding: const EdgeInsets.all(16), children: [
-          Text('Hola, ${me.firstName}.', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 4),
-          const Text('Para usar la app, únete a la Entidad en la que trabajas.'),
-          const SizedBox(height: 16),
           EntityAbbreviationField(controller: _abbreviation),
           const SizedBox(height: 12),
           PassField(controller: _pass),
           const SizedBox(height: 12),
           FormField<String>(
-            validator: (_) => _sex == null ? 'Indica tu sexo' : null,
+            validator: (_) => _sex == null ? 'Indique el sexo' : null,
             builder: (state) => InputDecorator(
               decoration: InputDecoration(labelText: 'Sexo', errorText: state.errorText, border: InputBorder.none),
               child: SegmentedButton<String>(
@@ -86,14 +80,17 @@ class _JoinEntityScreenState extends State<JoinEntityScreen> {
             decoration: const InputDecoration(labelText: 'Jerarquía'),
             items: [for (final rank in _ranks) DropdownMenuItem(value: rank.id, child: Text(rank.name))],
             onChanged: (value) => setState(() => _rankId = value),
-            validator: (v) => v == null ? 'Elige tu jerarquía' : null,
+            autovalidateMode: AutovalidateMode.onUserInteraction,
+            validator: (v) => v == null ? 'Elija la jerarquía' : null,
           ),
           if (_error != null) ...[
             const SizedBox(height: 12),
             Text(_error!.message, style: TextStyle(color: Theme.of(context).colorScheme.error)),
           ],
           const SizedBox(height: 20),
-          BusyButton(onPressed: _join, showErrors: false, child: const Text('Unirme')),
+          BusyButton(onPressed: _join, showErrors: false, icon: const Icon(Icons.how_to_reg), child: const Text('Completar registro')),
+          const SizedBox(height: 24),
+          const DeveloperChatButton(),
         ]),
       ),
     );

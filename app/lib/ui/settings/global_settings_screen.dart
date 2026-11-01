@@ -74,16 +74,21 @@ class _GlobalSettingsScreenState extends State<GlobalSettingsScreen> {
             final definition = definitions[s.id]!;
             final value = s.string('value') ?? '';
             final custom = s.boolean('isCustom');
+            final small = Theme.of(context).textTheme.bodySmall;
+            // Explicación de una línea y el valor; se edita tocándolo (docs/09 §28/§31).
             return BusyListTile(
               title: Text(definition.name),
-              subtitle: Text([
-                describeSetting(definition, value),
-                if (widget.entityLevel) custom ? 'Propio de la Entidad (en la app: ${describeSetting(definition, s.string('appValue') ?? '')})' : 'El de la app',
-                ?definition.description,
-              ].join('\n')),
+              subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                if ((definition.description ?? '').isNotEmpty) Text(definition.description!, maxLines: 1, overflow: TextOverflow.ellipsis, style: small),
+                Text(describeSetting(definition, value), style: const TextStyle(fontWeight: FontWeight.w600)),
+                if (widget.entityLevel && custom)
+                  Text('Propio de la Entidad (en la app: ${describeSetting(definition, s.string('appValue') ?? '')})', maxLines: 1, overflow: TextOverflow.ellipsis, style: small),
+              ]),
               trailing: widget.entityLevel && custom
-                  ? BusyIconButton(tooltip: 'Volver al de la app', icon: const Icon(Icons.undo), onPressed: () => _reset(definition))
-                  : const Icon(Icons.edit_outlined),
+                  ? BusyIconButton(tooltip: 'Volver al valor de la app', icon: const Icon(Icons.undo), onPressed: () => _reset(definition))
+                  : definition.valueType == 'boolean'
+                      ? IgnorePointer(child: Switch(value: value == '1', onChanged: (_) {}))
+                      : null,
               onTap: () => _edit(definition, value),
             );
           }

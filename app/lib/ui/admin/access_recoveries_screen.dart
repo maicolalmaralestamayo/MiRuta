@@ -6,7 +6,7 @@ import '../../models/models.dart';
 import '../../services/templates.dart';
 import '../widgets/common.dart';
 
-/// "No puedo entrar" (solo el Administrador, docs/08-version-2.md §8.6): se
+/// "Olvidé algo" (solo el Administrador, docs/08-version-2.md §8.6): se
 /// ve con quién coinciden los datos; tras hablar con la persona por su
 /// cuenta, se aprueba o se rechaza. Lo aprobado solo vale en el teléfono
 /// desde el que se pidió.
@@ -32,9 +32,9 @@ class _AccessRecoveriesScreenState extends State<AccessRecoveriesScreen> {
       context,
       approve ? 'Aprobar' : 'Rechazar',
       approve
-          ? '¿Ya comprobaste por tu cuenta que es esa persona? En su teléfono podrá ver su usuario o elegir una contraseña nueva.'
+          ? '¿Aprobar la solicitud? En su teléfono podrá ver su usuario o elegir una contraseña nueva.'
           : '¿Rechazar la solicitud?',
-      accept: approve ? 'Aprobar' : 'Rechazar',
+      accept: approve ? 'Aprobar solicitud' : 'Rechazar solicitud',
       destructive: !approve,
     )) {
       return;
@@ -51,8 +51,22 @@ class _AccessRecoveriesScreenState extends State<AccessRecoveriesScreen> {
     if (!await launchUrl(uri) && mounted) showMessage(context, 'No se pudo abrir el teléfono.');
   }
 
+  /// Abre el chat de WhatsApp con ese número (sin "+" ni espacios).
+  Future<void> _whatsApp(String phone) async {
+    final uri = Uri.parse('https://wa.me/${phone.replaceAll(RegExp(r'[^0-9]'), '')}');
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication) && mounted) showMessage(context, 'No se pudo abrir WhatsApp.');
+  }
+
+  Widget _readOnly(String label, String value, {Widget? suffix}) => Padding(
+        padding: const EdgeInsets.only(top: 10),
+        child: InputDecorator(
+          decoration: InputDecoration(labelText: label, isDense: true, suffixIcon: suffix),
+          child: SelectableText(value),
+        ),
+      );
+
   Future<void> _block(String installationId) async {
-    if (!await confirm(context, 'Bloquear el teléfono', 'Ese teléfono no podrá enviar más solicitudes ni escribir sin cuenta.', accept: 'Bloquear', destructive: true)) return;
+    if (!await confirm(context, 'Bloquear el teléfono', 'Ese teléfono no podrá enviar más solicitudes ni escribir sin cuenta.', accept: 'Bloquear teléfono', destructive: true)) return;
     if (!mounted) return;
     await context.api.patch('/installations/$installationId', resourceData('installations', id: installationId, attributes: {'blocked': true}));
     if (mounted) showMessage(context, 'Teléfono bloqueado');
@@ -67,7 +81,7 @@ class _AccessRecoveriesScreenState extends State<AccessRecoveriesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('No puedo entrar')),
+      appBar: AppBar(title: const Text('Olvidé algo')),
       body: AsyncView<List<Resource>>(
         key: _view,
         load: _load,
@@ -90,32 +104,39 @@ class _AccessRecoveriesScreenState extends State<AccessRecoveriesScreen> {
                             Expanded(child: Text(_what(recovery), style: Theme.of(context).textTheme.titleMedium)),
                             StatusChip(status == 'approved' ? 'Aprobada' : 'Pendiente', color: status == 'approved' ? Colors.green : Colors.orange),
                           ]),
-                          const SizedBox(height: 6),
-                          Text('Escribió: Entidad ${recovery.string('entityAbbreviation')} · Pase ${recovery.integer('pass')}'),
                           if (worker == null)
-                            Text('No coincide con ningún trabajador con cuenta activada.', style: TextStyle(color: Theme.of(context).colorScheme.error))
+                            Padding(
+                              padding: const EdgeInsets.only(top: 6),
+                              child: Text('No coincide con ningún trabajador con cuenta activada.', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                            )
                           else
                             ListTile(
                               contentPadding: EdgeInsets.zero,
                               leading: WorkerAvatar(worker),
                               title: Text(worker.fullName),
-                              subtitle: Text([worker.entity?.abbreviation, ?itinerary].whereType<String>().join(' · ')),
+                              subtitle: itinerary == null ? null : Text(itinerary),
                             ),
-                          Row(children: [
-                            Expanded(child: SelectableText('Teléfono: $phone')),
-                            IconButton(tooltip: 'Llamar', icon: const Icon(Icons.call), onPressed: phone.isEmpty ? null : () => _call(phone)),
-                          ]),
-                          Text('Pedida ${formatDateTime(recovery.date('createdAt')!)} · caduca ${formatDateTime(recovery.date('expiresAt')!)}',
+                          _readOnly('Entidad', recovery.string('entityAbbreviation') ?? ''),
+                          _readOnly('Pase', '${recovery.integer('pass') ?? ''}'),
+                          _readOnly(
+                            'Teléfono',
+                            phone,
+                            suffix: Row(mainAxisSize: MainAxisSize.min, children: [
+                              IconButton(tooltip: 'Llamar', icon: const Icon(Icons.call), onPressed: phone.isEmpty ? null : () => _call(phone)),
+                              IconButton(tooltip: 'Escribir por WhatsApp', icon: const Icon(Icons.chat), onPressed: phone.isEmpty ? null : () => _whatsApp(phone)),
+                            ]),
+                          ),
+                          const SizedBox(height: 8),
+                          Text('Solicitada ${formatDateTime(recovery.date('createdAt')!)} · caduca ${formatDateTime(recovery.date('expiresAt')!)}',
                               style: Theme.of(context).textTheme.bodySmall),
-                          const SizedBox(height: 4),
-                          const Text('Comprueba por tu cuenta que es esa persona antes de aprobar.', style: TextStyle(fontStyle: FontStyle.italic)),
                           if (status == 'pending')
                             Align(
                               alignment: Alignment.centerRight,
                               child: Wrap(spacing: 8, children: [
-                                if (installationId != null) BusyButton.text(onPressed: () => _block(installationId), child: const Text('Bloquear teléfono')),
-                                BusyButton.text(onPressed: () => _resolve(recovery, 'rejected'), child: const Text('Rechazar')),
-                                if (worker != null) BusyButton(onPressed: () => _resolve(recovery, 'approved'), child: const Text('Aprobar')),
+                                if (installationId != null)
+                                  BusyButton.text(onPressed: () => _block(installationId), icon: const Icon(Icons.phonelink_lock), child: const Text('Bloquear teléfono')),
+                                BusyButton.text(onPressed: () => _resolve(recovery, 'rejected'), icon: const Icon(Icons.close), child: const Text('Rechazar solicitud')),
+                                if (worker != null) BusyButton(onPressed: () => _resolve(recovery, 'approved'), icon: const Icon(Icons.check), child: const Text('Aprobar solicitud')),
                               ]),
                             ),
                         ]),

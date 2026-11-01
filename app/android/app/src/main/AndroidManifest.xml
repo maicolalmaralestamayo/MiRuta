@@ -16,10 +16,11 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <!-- Instalar las actualizaciones descargadas del propio servidor -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
-    <!-- usesCleartextTraffic: la app no impone el protocolo; el servidor puede
-         estar en https:// o en http:// (docs/05-app.md §5.2). -->
+    <!-- networkSecurityConfig: permite http:// (el usuario elige el protocolo)
+         y confía en los certificados del sistema y del usuario (docs/09,
+         certificados, opción A). Ver res/xml/network_security_config.xml. -->
     <application
-        android:usesCleartextTraffic="true"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:label="MiRuta"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">

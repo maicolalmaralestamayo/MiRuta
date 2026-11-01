@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../models/models.dart';
 
-/// Los cuatro nombres, todos obligatorios (cuentas e hijos).
+/// Los nombres y apellidos (cuentas e hijos). El segundo nombre es opcional
+/// (docs/09, Generales).
 class NamesFields extends StatelessWidget {
   final TextEditingController firstName;
   final TextEditingController middleName;
@@ -21,21 +22,23 @@ class NamesFields extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget field(TextEditingController controller, String label) => Padding(
+    Widget field(TextEditingController controller, String label, String hint, {String? required}) => Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: TextFormField(
             controller: controller,
-            decoration: InputDecoration(labelText: label),
+            decoration: InputDecoration(labelText: label, hintText: hint),
             textCapitalization: TextCapitalization.words,
+            textInputAction: TextInputAction.next,
             onChanged: onChanged,
-            validator: (v) => v == null || v.trim().isEmpty ? 'Escribe el $label'.replaceFirst('el Primer', 'el primer').replaceFirst('el Segundo', 'el segundo') : null,
+            autovalidateMode: AutovalidateMode.onUserInteraction,
+            validator: required == null ? null : (v) => v == null || v.trim().isEmpty ? required : null,
           ),
         );
     return Column(children: [
-      field(firstName, 'Primer nombre'),
-      field(middleName, 'Segundo nombre'),
-      field(firstSurname, 'Primer apellido'),
-      field(secondSurname, 'Segundo apellido'),
+      field(firstName, 'Primer nombre', 'p. ej. Ana', required: 'Escriba el primer nombre'),
+      field(middleName, 'Segundo nombre (opcional)', 'p. ej. María'),
+      field(firstSurname, 'Primer apellido', 'p. ej. Pérez', required: 'Escriba el primer apellido'),
+      field(secondSurname, 'Segundo apellido', 'p. ej. García', required: 'Escriba el segundo apellido'),
     ]);
   }
 }

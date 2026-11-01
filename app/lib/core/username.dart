@@ -8,7 +8,7 @@ class Username {
   /// Nadie puede hacerse pasar por la app o por su equipo.
   static const reserved = [
     'admin', 'administrador', 'administrator', 'soporte', 'support', 'sistema', 'system',
-    'mitransporte', 'root', 'moderador', 'moderator', 'desarrollador', 'developer', 'oficial',
+    'mitransporte', 'miruta', 'root', 'moderador', 'moderator', 'desarrollador', 'developer', 'oficial',
   ];
 
   static const _leet = {'0': 'o', '1': 'i', '3': 'e', '4': 'a', '5': 's', '7': 't', '8': 'b', '9': 'g'};
@@ -25,16 +25,16 @@ class Username {
 
 String? validateUsername(String? value) {
   final text = Username.normalize(value ?? '');
-  if (text.isEmpty) return 'Escribe un usuario';
+  if (text.isEmpty) return 'Escriba un nombre de usuario';
   if (text.length < Username.minLength || text.length > Username.maxLength) {
-    return 'De ${Username.minLength} a ${Username.maxLength} caracteres';
+    return 'Escriba de ${Username.minLength} a ${Username.maxLength} caracteres';
   }
-  if (!RegExp(r'^[a-z0-9._]+$').hasMatch(text)) return 'Solo letras sin tilde, números, punto y guion bajo';
-  if (!RegExp('^[a-z]').hasMatch(text)) return 'Tiene que empezar por una letra';
+  if (!RegExp(r'^[a-z0-9._]+$').hasMatch(text)) return 'Use solo letras sin tilde, números, punto y guion bajo';
+  if (!RegExp('^[a-z]').hasMatch(text)) return 'Debe empezar por una letra';
   if (RegExp(r'[._]$').hasMatch(text)) return 'No puede terminar en punto ni en guion bajo';
-  if (RegExp(r'[._]{2}').hasMatch(text)) return 'No puede tener dos signos seguidos';
-  if (RegExp('[a-z]').allMatches(text).length < 3) return 'Tiene que tener al menos 3 letras';
-  if (RegExp(r'(.)\1{3}').hasMatch(text)) return 'No repitas un carácter más de 3 veces seguidas';
+  if (RegExp(r'[._]{2}').hasMatch(text)) return 'No puede tener dos signos (punto o guion bajo) seguidos';
+  if (RegExp('[a-z]').allMatches(text).length < 3) return 'Debe tener al menos 3 letras';
+  if (RegExp(r'(.)\1{3}').hasMatch(text)) return 'No repita un carácter más de 3 veces seguidas';
   if (Username.containsReservedWord(text)) return 'No puede contener palabras reservadas de la app';
   return null;
 }

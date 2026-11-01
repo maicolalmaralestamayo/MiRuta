@@ -8,31 +8,34 @@
 - Solo el **Administrador** crea, edita y desactiva Entidades.
 - Cada Entidad tiene sus propios itinerarios, paradas, vehículos y trabajadores. **Cada usuario ve y actúa solo sobre su Entidad**; lo de otra responde como si no existiera. El Administrador ve todo y elige con qué Entidad trabaja.
 - Dos Entidades pueden usar el mismo lugar como parada, pero cada una la registra por separado.
-- Los nomencladores (jerarquías, tipos de vehículo, tipos de ausencia, motivos de conversación y palabras no permitidas) son **comunes** a todas.
+- Los nomencladores (jerarquías, tipos de vehículo, tipos de ausencia, motivos de conversación) son **comunes** a todas.
 
 ### Registro en dos pasos
 
-1. **Crear la cuenta:** primer nombre, segundo nombre, primer apellido y segundo apellido (los cuatro obligatorios), **usuario** y **contraseña**.
+1. **Registrarme por primera vez** (crear la cuenta): primer nombre, segundo nombre (**opcional**), primer apellido y segundo apellido, **nombre de usuario** y **contraseña** (con su repetición).
    - La **primera cuenta** que se crea es la del **Administrador**. No es trabajador: no tiene Entidad, Pase, jerarquía ni viajes, y termina aquí.
-2. **Unirse a la Entidad** (obligatorio para los demás): **abreviatura** de la Entidad (se escribe; la app muestra el nombre para confirmar y nunca enseña la lista de Entidades), **Pase**, **sexo** y **jerarquía**.
+2. **Otros datos del registro** (unirse a la Entidad, obligatorio para los demás): **abreviatura** de la Entidad (se escribe; la app muestra el nombre para confirmar y nunca enseña la lista de Entidades), **Pase**, **sexo** (Masculino por defecto) y **jerarquía**.
    - El Pase es único dentro de la Entidad (también entre trabajadores inactivos).
    - Hasta completar este paso la app no deja hacer nada más (la API responde `ENTITY_REQUIRED`).
 
-**Foto de perfil** opcional. Si no hay foto, se muestran las iniciales.
+**Foto de perfil** opcional. Si no hay foto, se muestra un ícono genérico de persona.
+
+**Segundo nombre opcional** en las cuentas y en los hijos, también en la API: si no se escribe se guarda `NULL` y el nombre completo se forma sin él.
 
 **Activo e inactivo:** una cuenta (y su trabajador) está inactiva cuando tiene borrado lógico. Solo el Administrador las activa y desactiva.
 
 ### Trabajadores sin teléfono
 
-1. El Jefe de Transporte, el Jefe de itinerario (en su itinerario) o el Administrador lo **registran**: cuatro nombres, Pase, sexo, jerarquía y, si quieren, itinerario y parada. La cuenta queda **sin usuario ni contraseña**.
+1. El Jefe de Transporte, el Jefe de itinerario (en su itinerario) o el Administrador lo **registran**: nombres y apellidos (segundo nombre opcional), Pase, sexo, jerarquía y, si quieren, itinerario y parada. La cuenta queda **sin usuario ni contraseña**.
 2. Se genera un **código de activación** de un solo uso que caduca a los `activation_code_ttl_days` días. Se entrega **en mano** (papel o QR) y se puede regenerar.
-3. Cuando tenga teléfono, el trabajador pulsa **"Ya me registró un superior"**, escribe la abreviatura, su Pase y el código, y **elige él mismo su usuario y su contraseña**.
+3. Cuando tenga teléfono, el trabajador pulsa **"Me registró un superior"**, escribe la abreviatura, su Pase y el código, y **elige él mismo su usuario y su contraseña**.
 
 ### Usuario
 
 - De 4 a 20 caracteres: letras sin tilde, números, punto (`.`) y guion bajo (`_`).
 - Empieza por letra; no termina en signo; sin dos signos seguidos; al menos 3 letras; ningún carácter repetido más de 3 veces seguidas.
-- No puede contener **palabras reservadas** (`admin`, `soporte`, `sistema`, `mitransporte`, `desarrollador`…) ni **palabras no permitidas** (nomenclador del Administrador). Se comprueban sin tildes y con los números camuflados convertidos en letras (`p3nd3jo`). Las palabras no permitidas de 7 letras o más se buscan dentro de todo el usuario; las más cortas, solo como parte separada por punto o guion bajo (para no rechazar "computadora" por contener "puta").
+- No puede contener **palabras reservadas** (`admin`, `soporte`, `sistema`, `miruta`, `mitransporte`, `desarrollador`…). Se comprueban sin tildes y con los números camuflados convertidos en letras (`4dm1n`).
+- En la versión 2.1 se **eliminó por completo** el nomenclador de palabras prohibidas en los usuarios (pantalla, API, tabla y datos iniciales): quedan solo las reglas de formación y las palabras reservadas.
 - Se guarda en minúsculas y es **único en toda la app**.
 - Se cambia cuando se quiera desde **Mi perfil**. El anterior queda **bloqueado** para los demás durante `username_reuse_block_days` días (30).
 
@@ -42,21 +45,21 @@
 |---|---|---|
 | Longitud mínima | `password_min_length` | 8 |
 | Tipos de carácter (mayúscula, minúscula, número, símbolo) | `password_required_classes` | 3 de 4 |
-| Sin el usuario ni los nombres o apellidos | `password_forbid_personal_data` | Sí |
-| Sin contraseñas comunes | `password_forbid_common` | Sí |
 | Caducidad | `password_expiry_days` | 365 días |
-| Aviso antes de caducar | `password_expiry_warning_days` | 15 días |
-| Anteriores que no se pueden repetir | `password_history_count` | 5 |
+| Anteriores que no se pueden repetir (historial) | `password_history_count` | 5 |
+
+- Se **quitaron** en la versión 2.1 la lista de contraseñas comunes y la regla de no contener el usuario ni los nombres (y sus ajustes `password_forbid_common` y `password_forbid_personal_data`).
+- **Aviso de caducidad:** cada día, durante los últimos `password_expiry_notice_days` días (15 por defecto; **ajuste de cada usuario**, 0 = sin avisos), el servidor crea un aviso `password_expiring`: *"Su contraseña caduca el sáb. 14/03/26. Cámbiela en Mi perfil."* En Mi perfil la fila Contraseña muestra "caduca el <día> dd/mm/aa".
 
 - Al **caducar**, la contraseña hay que cambiarla para seguir: la API solo permite el perfil propio (`PASSWORD_CHANGE_REQUIRED`) y la app muestra la pantalla de cambio obligatorio. Afecta a todos, incluido el Administrador.
-- Se guardan con **bcrypt**; el historial guarda solo hashes. El teléfono **no guarda la contraseña**.
+- Se guardan con **bcrypt**; el historial guarda solo hashes. El teléfono **no guarda la contraseña** (ni siquiera con "Recordar contraseña").
 
-### No puedo entrar
+### Olvidé algo
 
-Sustituye a la contraseña olvidada. No hay correos, SMS ni WhatsApp.
+Sustituye a la contraseña olvidada (antes se llamaba "No puedo entrar"). No hay correos, SMS ni WhatsApp.
 
-1. En el inicio de sesión, **"No puedo entrar"**: la persona marca qué olvidó (usuario, contraseña o los dos) y escribe la **abreviatura de su Entidad**, su **Pase** y un **teléfono**. La respuesta es siempre "Solicitud enviada", coincidan o no los datos.
-2. El Administrador recibe un aviso. Ve los datos escritos y, si coinciden, **con quién**. Lo **verifica por su cuenta** (por ejemplo, llamándolo) y la **aprueba** o la **rechaza**.
+1. En el inicio de sesión, **"Olvidé algo"**: la persona marca qué olvidó (usuario, contraseña o los dos) y escribe la **abreviatura de su Entidad**, su **Pase** y un **teléfono**. La respuesta es siempre "Solicitud enviada", coincidan o no los datos.
+2. El Administrador recibe un aviso. Ve los datos escritos y, si coinciden, **con quién**. Lo **verifica por su cuenta** (por ejemplo, llamándolo o escribiéndole por WhatsApp desde la propia tarjeta) y la **aprueba** o la **rechaza**.
 3. Al aprobarla, **en ese mismo teléfono** (la solicitud va ligada a la instalación de la app): si olvidó el usuario, la app se lo muestra; si olvidó la contraseña, le deja elegir una nueva y entra. Las demás sesiones se cierran.
 4. La solicitud caduca a las `access_recovery_ttl_hours` horas; el teléfono se borra al cerrarla. Hay un límite de solicitudes por hora desde un mismo teléfono (`access_recovery_max_per_hour`) y el Administrador puede **bloquear** un teléfono.
 
@@ -75,14 +78,27 @@ Sustituye a la contraseña olvidada. No hay correos, SMS ni WhatsApp.
 - Cada renovación entrega un token de renovación nuevo y revoca el anterior (**rotación**).
 - Si alguien usa un token de renovación que ya se había usado, se considera robado y se revocan **todos** los tokens de la cuenta (ver [07-algoritmos.md §7.4](07-algoritmos.md#74-renovación-de-tokens-con-rotación)).
 - Todos los tokens de renovación se revocan al cerrar sesión en todos los dispositivos o al desactivar la cuenta. Al cambiar la contraseña se cierran las **demás** sesiones.
-- Solo en el teléfono:
-  - la app recuerda el último usuario (se puede desactivar en los ajustes);
-  - el usuario puede activar un **PIN propio de la app** (4 a 6 dígitos), guardado como hash **PBKDF2** con sal. Si lo olvida, entra de nuevo con usuario y contraseña.
+- Solo en el teléfono, la app recuerda el último usuario (se puede desactivar en los ajustes).
+
+### Recordar contraseña
+
+Sustituye al PIN propio de la app, que se **eliminó por completo** en la versión 2.1.
+
+- Dos ajustes del usuario: **"Recordar contraseña"** (`remember_password`, activado por defecto) y **"Días para recordar la contraseña"** (`remember_password_days`, 7 por defecto). El máximo de días lo fija el Administrador (`remember_password_max_days`, 30 por defecto).
+- **La contraseña no se guarda.** La app anota en el teléfono cuándo se escribió por última vez y mantiene la sesión (los tokens) durante esos días.
+- Al abrir la app, si el ajuste está desactivado o ya pasaron los días, se pide de nuevo la contraseña. La sesión no se cierra mientras tanto: los avisos siguen llegando.
+- Ver [07-algoritmos.md §7.32](07-algoritmos.md#732-recordar-contraseña-app).
+
+### Servidor y conexión
+
+- La dirección del servidor se indica en la pantalla **Servidor**, con un **selector de protocolo** (`https`, por defecto, o `http`) y la dirección en la misma línea. No se prueban protocolos automáticamente; si se pega una URL completa, el selector toma su protocolo.
+- En el inicio de sesión, el botón de servidor tiene **tres estados**: "Indicar servidor" (naranja, sin dirección), "Conectado al servidor" (verde, responde) y "Desconectado del servidor" (rojo, no responde). Se comprueba al abrir y al volver de Servidor.
+- La app confía en los **certificados del sistema y en los instalados por el usuario** (`network_security_config`). Si el servidor redirige de `http` a `https`, la app guarda la dirección `https`.
 
 ### Hablar con el desarrollador sin cuenta
 
-- En el inicio de sesión, al crear la cuenta y al unirse a la Entidad hay un botón **"Hablar con el desarrollador"**.
-- Sin cuenta se escribe nombre, teléfono, motivo y mensaje. Cada conversación lleva un identificador de la **instalación** de la app, su versión, el modelo del teléfono y la versión de Android.
+- En el inicio de sesión, al registrarse y en "Otros datos del registro" hay un botón **"Hablar con el desarrollador"** (tonal, al final de la pantalla).
+- Sin cuenta se escribe nombre y apellidos, teléfono (con `+53 ` puesto por defecto), motivo y mensaje. Cada conversación lleva un identificador de la **instalación** de la app, su versión, el modelo del teléfono y la versión de Android.
 - El Administrador la ve como **"Sin cuenta"** y responde dentro de la app; la respuesta llega a ese teléfono. Si después se crea una cuenta en ese teléfono, la conversación pasa a la cuenta.
 - Límite de mensajes por hora (`guest_messages_max_per_hour`); el Administrador puede cerrar conversaciones y bloquear instalaciones.
 
@@ -103,9 +119,9 @@ Las solicitudes **no se borran**: son el historial.
 | `itinerary_chief` | Itinerario y parada (no puede ser ya Jefe de otro itinerario) | Jefe de Transporte de la Entidad | Pasa a ser jefe de ese itinerario **y** se cambia a ese itinerario y esa parada. Las solicitudes de itinerario que tuviera pendientes se cancelan |
 | `driver` | — | Jefe de Transporte de la Entidad | Pasa a ser chofer |
 | `transport_chief` | — | Administrador | Pasa a ser Jefe de Transporte |
-| `child_addition` | Cuatro nombres y fecha de nacimiento del niño | Jefe de su itinerario o Jefe de Transporte | El niño queda declarado |
+| `child_addition` | Nombres y apellidos (segundo nombre opcional) y fecha de nacimiento del niño. **Varios hijos en una misma solicitud** | Jefe de su itinerario o Jefe de Transporte, **cada hijo por separado** | El niño queda declarado |
 | `child_removal` | Niño | Jefe de su itinerario o Jefe de Transporte | El niño deja de estar declarado |
-| `absence` | Tipo de ausencia, desde, hasta, observación | Jefe de su itinerario o Jefe de Transporte | Durante esas fechas: no cuenta como pasajero esperado, se pausa el contador de inactividad y no recibe avisos de viaje (salvo que lo active) |
+| `absence` | Tipo de ausencia, desde y hasta (o **indefinida**, sin fechas), observación | Jefe de su itinerario o Jefe de Transporte | Durante esas fechas (o mientras sea indefinida): no cuenta como pasajero esperado, se pausa el contador de inactividad y no recibe avisos de viaje (salvo que lo active) |
 
 La **jerarquía** ya no necesita solicitud: cada uno la cambia en su perfil (solo sirve para las estadísticas).
 
@@ -116,8 +132,22 @@ La **jerarquía** ya no necesita solicitud: cada uno la cambia en su perfil (sol
 - Quien envió una solicitud puede **cancelarla** mientras esté pendiente.
 - Al llegar una solicitud nueva, se avisa a quienes pueden aprobarla.
 - Al aprobarse o rechazarse, se avisa al solicitante.
+- **Al rechazar, el motivo es obligatorio** (`resolutionNote`); llega al solicitante en el aviso.
+- La app muestra el estado como "Aprobada <fecha> por <nombre>" o "Rechazada <fecha> por <nombre>", con el día de la semana.
 - **Mientras un cambio de itinerario está pendiente,** el trabajador sigue contando en su itinerario actual.
 - **Un jefe de itinerario que se cambia a otro itinerario** sigue siendo jefe del anterior. Las jefaturas no dependen de en qué itinerario viaja.
+
+### Varios hijos en una misma solicitud
+
+- En **Solicitudes → Nueva → Declarar hijos** se pueden declarar varios hijos (hasta 10) de una vez.
+- El servidor crea **una solicitud `child_addition` por hijo**, todas con el mismo `group_id` (el id de la primera). Quien aprueba recibe un solo aviso y **aprueba o rechaza cada hijo por separado**.
+- Si un hijo no cumple (por ejemplo, ya no tiene derecho a viajar), no se crea ninguna y el error indica cuál.
+
+### Ausencia indefinida
+
+- En el formulario de ausencia temporal se puede marcar **"Ausencia indefinida"**: se envía sin fechas.
+- Una vez aprobada está vigente **todos los días** hasta que el propio trabajador le pone fechas de inicio y fin (sin nueva aprobación) o la quita.
+- Solo se pueden poner fechas a una ausencia indefinida aprobada (`ABSENCE_NOT_INDEFINITE` si no).
 
 ### Asignaciones y retiradas directas
 
@@ -133,7 +163,7 @@ Cada asignación queda como una solicitud **creada por el superior y ya aprobada
 
 ### Bajas voluntarias
 
-Son inmediatas, sin aprobación. Quedan registradas como solicitudes ya aprobadas, para que el historial esté completo.
+Son inmediatas, sin aprobación (con confirmación en la app). Quedan registradas como solicitudes ya aprobadas, para que el historial esté completo. La baja del itinerario ya no está en Mi perfil: se hace desde **Solicitudes → Nueva → "Darme de baja del itinerario"**, junto a "Itinerario y parada".
 
 | Tipo | Se avisa a | Efecto |
 |---|---|---|
@@ -153,8 +183,8 @@ Son inmediatas, sin aprobación. Quedan registradas como solicitudes ya aprobada
 
 ## 2.3 Hijos
 
-- Un trabajador puede viajar con hijos menores, **en sus piernas**. Los niños **no ocupan plaza** y no cuentan para la saturación, pero sus números siempre se muestran.
-- Se declaran con una solicitud `child_addition`: los cuatro nombres (obligatorios) y la **fecha de nacimiento** del niño.
+- Un trabajador puede viajar con hijos menores. Los niños no cuentan para la saturación, pero sus números siempre se muestran (la app ya no muestra la aclaración "van cargados / no ocupan plaza").
+- Se declaran con una solicitud `child_addition` (uno o varios a la vez): primer nombre, segundo nombre (opcional), los dos apellidos y la **fecha de nacimiento** del niño.
 - **Derecho a viajar:** el niño viaja hasta el **31 de agosto siguiente** al día en que cumple `child_max_age` años (16 por defecto; ajuste de cada Entidad, lo configura su Jefe de Transporte).
   - Ejemplo con 16: si cumple 16 el 10 de marzo de 2027, viaja hasta el 31 de agosto de 2027. Si los cumple el 15 de octubre de 2027, hasta el 31 de agosto de 2028.
   - La app **no deja enviar** la solicitud si el niño ya no tiene derecho.
@@ -165,8 +195,9 @@ Son inmediatas, sin aprobación. Quedan registradas como solicitudes ya aprobada
 ## 2.4 Vehículos y choferes
 
 - Solo los Jefes de Transporte (y el Administrador) crean y gestionan vehículos.
-- Datos del vehículo: **tipo** (nomenclador), **matrícula** (única), **asientos** (sin el del chofer) y **capacidad de pie**.
-- **Capacidad total = asientos + capacidad de pie.** Se calcula.
+- Datos del vehículo: **tipo** (nomenclador), **matrícula** (única en la Entidad), **capacidad sentados** y **capacidad de pie**.
+- **Matrícula cubana:** una letra de las permitidas (ajuste de la app `plate_letters`, `B,P,T` por defecto; lo edita el Administrador) seguida de 6 dígitos. Se escribe y se guarda junta y en mayúsculas (`B123456`; la API quita espacios y guiones) y la app la muestra con los dígitos separados (`B 123 456`).
+- **Capacidad total = capacidad sentados + capacidad de pie.** Se calcula y se muestra de solo lectura.
 - El Jefe de Transporte asigna a cada vehículo su **chofer habitual**, que debe ser un trabajador con rol de chofer. Al crear un viaje se propone ese chofer.
 - No se guarda historial de asignaciones: lo que quedó en cada **viaje** ya registra qué chofer condujo qué vehículo.
 
@@ -177,7 +208,9 @@ Son inmediatas, sin aprobación. Quedan registradas como solicitudes ya aprobada
 - El **punto de salida** de un viaje es la **primera** parada del itinerario, y el **punto de regreso**, la **última**.
   - Para cambiarlos hay que editar el itinerario: crear la parada y moverla al principio o al final.
   - Esto afecta a todos los viajes pendientes de ese itinerario, que se marcan como modificados para que las apps lo detecten al sincronizar.
-- **Trayecto de salida:** recorre las paradas en orden. **Trayecto de regreso:** en orden inverso.
+- **Viaje de ida:** recorre las paradas en orden. **Viaje de regreso:** en orden inverso.
+- Itinerarios y paradas se gestionan juntos ("Itinerarios y paradas"): desde la ficha del itinerario se añaden paradas existentes o se crean nuevas con el mapa.
+- **Recorrido de referencia:** el Jefe de ese itinerario o un Jefe de Transporte marca un viaje de ida y otro de regreso **ya terminados** de ese itinerario como trazado habitual (`referenceOutboundLeg`, `referenceReturnLeg`). Sirve para detectar desvíos (§2.8) y para dibujar el recorrido en el mapa. El Jefe de itinerario solo puede cambiar eso de la ficha.
 - No se puede quitar de un itinerario una parada en la que hay miembros. Primero hay que cambiarles la parada.
 
 ## 2.6 Viajes
@@ -185,8 +218,8 @@ Son inmediatas, sin aprobación. Quedan registradas como solicitudes ya aprobada
 ### Datos
 
 - Itinerario, vehículo y chofer.
-- Fecha y hora de **salida**.
-- Fecha y hora de **regreso**, posterior a la salida y elegida explícitamente.
+- Fecha y hora del **viaje de ida** (en la app: "Viaje de ida", con el punto de salida).
+- Fecha y hora del **viaje de regreso**, posterior a la ida.
 - Estado.
 
 ### Estados
@@ -211,7 +244,12 @@ Todo lo demás está permitido. Por ejemplo, un viaje confirmado se puede descon
 - Si se solapa, se rechaza indicando con qué viaje choca.
 - Los viajes no confirmados pueden solaparse entre sí.
 
-### Planificación por rango de fechas
+### Planificación de varios días e itinerarios
+
+- En **Nuevo viaje** el itinerario es de selección múltiple y las fechas se marcan en un almanaque (uno o varios días). Las horas de ida y de regreso se aplican a cada día marcado (el regreso puede caer al día siguiente).
+- Se crean días × itinerarios viajes; cada itinerario lleva su vehículo y su chofer (los habituales por defecto). Antes de crear se muestra "Se crearán N viajes" y se señalan los solapes o faltantes en su fila.
+
+### Planificación por rango de fechas (copia)
 
 - Se crea un viaje y se **copia** a cada fecha de un rango. En cada copia todo es igual menos las fechas:
   - la salida pasa a cada día del rango, con la misma hora;
@@ -225,18 +263,24 @@ Todo lo demás está permitido. Por ejemplo, un viaje confirmado se puede descon
 - **Trabajadores esperados** = miembros del itinerario con inscripción vigente
   − los que tienen ausencia aprobada en la fecha del viaje
   − el chofer del viaje, si es miembro de ese itinerario.
-- **Solo cuentan los trabajadores.** Los niños van cargados y no ocupan plaza, pero sus números se muestran siempre: "35 trabajadores (+10 niños) · capacidad 40".
+- **Solo cuentan los trabajadores.** Los niños no cuentan, pero sus números se muestran siempre: "35 trabajadores (+10 niños) · capacidad 40".
 - Tres niveles:
 
   | Estado | Cuándo | Color |
   |---|---|---|
-  | Normal | Trabajadores ≤ asientos | Sin marca |
-  | **Saturado** | Más que asientos, pero caben de pie | Naranja |
-  | **Sobresaturado** | Más que asientos + capacidad de pie | Rojo |
+  | Normal | Trabajadores ≤ capacidad sentados | Sin marca |
+  | **Saturado** | Más que sentados, pero caben de pie | Naranja |
+  | **Sobresaturado** | Más que sentados + capacidad de pie | Rojo |
 
 - La app lo resalta a los Jefes de Transporte y a los Jefes de ese itinerario.
 - **Avisos de saturación**, configurables por cada usuario: recibirlos o no; nivel (solo sobresaturado, o también saturado); de qué viajes (los suyos, o los que gestiona: su itinerario o su Entidad); cuándo (al cambiar el estado, X minutos antes de la salida o las dos). Por defecto: sobresaturado, activado; saturado, desactivado. Se calculan en el teléfono al sincronizar.
 - No se planifica un segundo vehículo: **un viaje = un vehículo**.
+
+### Viajes atrasados
+
+- Un viaje de ida o de regreso **confirmado** está **atrasado** si no ha comenzado y ya pasó su hora más la tolerancia de la Entidad (`trip_delay_tolerance_minutes`, 5 min por defecto).
+- La API lo indica en cada viaje (`outboundDelayed`, `returnDelayed`) junto con los minutos de atraso (`outboundDelayMinutes`, `returnDelayMinutes`: al comenzar, o hasta ahora si sigue sin comenzar). La app lo muestra como "Atrasado" en tarjetas, detalle y recorrido.
+- Ver [07-algoritmos.md §7.31](07-algoritmos.md#731-viajes-atrasados-y-aviso-de-comienzo).
 
 ### Marcar como realizado
 
@@ -252,7 +296,7 @@ Todo lo demás está permitido. Por ejemplo, un viaje confirmado se puede descon
 
 Todas son **locales**: la app las programa en el teléfono a partir de los datos que sincroniza. Solo se notifican viajes `confirmed`.
 
-### Aviso de salida y aviso de regreso
+### Aviso de viaje de ida y aviso de viaje de regreso
 
 - **Contenido:**
   - tipo de vehículo y matrícula;
@@ -260,7 +304,7 @@ Todas son **locales**: la app las programa en el teléfono a partir de los datos
   - capacidad total;
   - fecha, hora y punto de salida;
   - fecha, hora y punto de regreso.
-- **Cuándo,** a elección de cada usuario y por separado para salida y regreso:
+- **Cuándo,** a elección de cada usuario y por separado para la ida y el regreso:
   - **tiempo antes** (por defecto, 60 minutos); o
   - **hora fija** de ese día o de N días antes (por ejemplo, a las 23:00 del día anterior).
 - **Hora fija que no sirve:** si cae después del momento del viaje, el usuario decide si se usa el aviso por defecto o no se avisa.
@@ -298,20 +342,37 @@ Cada usuario puede personalizar el texto de cada tipo de aviso, usando variables
 | `{paradas_restantes}` | Paradas que faltan hasta la suya |
 | `{cambios}` | Lista de lo que cambió |
 
-### Avisos a superiores
+### Avisos de mensajes nuevos
+
+Notificación al llegar un mensaje al chat del viaje (`trip_chat_notice_enabled`) o una respuesta en las conversaciones (`conversation_notice_enabled`). Los dos se activan o desactivan en los Ajustes del usuario (activados por defecto).
+
+### Avisos del servidor
 
 Reciben un aviso:
 - quienes pueden aprobar una solicitud, cuando llega una nueva;
 - el solicitante, cuando su solicitud se resuelve;
-- los superiores, cuando alguien se da de baja (ver 2.2).
+- los superiores, cuando alguien se da de baja (ver 2.2);
+- el usuario, cada día de los últimos `password_expiry_notice_days` antes de que caduque su contraseña;
+- los pasajeros esperados, el chofer y los Jefes del itinerario, cuando un viaje **comienza** (a tiempo o con atraso; `trip_start_notice_enabled`) y cuando se **atrasa** (una sola vez por viaje de ida o de regreso; `trip_delay_notice_enabled`). Se respeta `notify_during_absence`;
+- los Jefes del itinerario y los Jefes de Transporte de la Entidad, cuando hay una **incidencia del recorrido** (§2.8). A los pasajeros no se les avisa.
 
-Estos avisos se guardan en la tabla `notifications` del servidor y la app los recoge al sincronizar.
+Estos avisos se guardan en la tabla `notices` del servidor y la app los recoge al sincronizar. **El texto lo da la API** (`message`), con lo concreto: qué solicitud fue, quién la resolvió y, si se rechazó, el motivo. Además, `payload` lleva los datos del aviso (sentido del viaje, minutos de atraso, tipo de incidencia, parada). Ejemplos:
+
+| Tipo | Texto |
+|---|---|
+| `application_received` | *Pepito Pérez García envió una solicitud de Declarar hijos (Juan Pérez López).* |
+| `application_resolved` (aprobada) | *Se aprobó su solicitud de Itinerario y parada (Ruta Este · Parque). La aprobó Ana Gómez Ruiz.* |
+| `application_resolved` (rechazada) | *Se rechazó su solicitud de Ausencia temporal (Vacaciones · indefinida). La rechazó Ana Gómez Ruiz. Motivo: …* |
+| `password_expiring` | *Su contraseña caduca el sáb. 14/03/26. Cámbiela en Mi perfil.* |
+| `trip_started` | *Comenzó el viaje de ida de Ruta Este (12 min de atraso).* / *… a tiempo.* |
+| `trip_delayed` | *El viaje de regreso de Ruta Este está atrasado: debía comenzar a las 17:00.* |
+| `trip_incident` | *Viaje de ida de Ruta Este: no se detuvo en la parada Parque.* / *se saltó la parada …* / *se desvió del recorrido.* |
 
 ## 2.8 Recorrido en tiempo real
 
 ### Inicio y fin de cada trayecto
 
-- El chofer, un Jefe del itinerario o un Jefe de Transporte pulsa **"Iniciar recorrido"**. Se hace por separado para la salida y para el regreso.
+- El chofer, un Jefe del itinerario o un Jefe de Transporte pulsa **"Iniciar viaje de ida"** o **"Iniciar viaje de regreso"**. Al iniciarlo se envía el aviso de comienzo.
 - El trayecto termina al pasar por la última parada o al pulsar **"Finalizar recorrido"**, lo que ocurra primero.
 
 ### Sensores
@@ -325,14 +386,28 @@ Estos avisos se guardan en la tabla `notifications` del servidor y la app los re
 
 ### Paso por paradas
 
-- El servidor registra el paso cuando la posición combinada entra en un radio de `stop_detection_radius_m` metros alrededor de la parada (100 m por defecto).
+- El servidor registra la **llegada** cuando la posición combinada entra en un radio de `stop_detection_radius_m` metros alrededor de la parada (100 m por defecto), y la **salida** cuando deja ese radio.
 - Con esos registros la app avisa del paso por paradas y muestra la voz y la lista de la próxima parada.
+
+### Paradas no realizadas y desvíos
+
+| Incidencia | Cuándo | Ajuste de la Entidad |
+|---|---|---|
+| **No se detuvo** (pasó de largo) | Entró en el radio de la parada y salió estando menos de N segundos y sin bajar de V km/h | `stop_min_dwell_seconds` (15 s), `stop_pass_speed_kmh` (5 km/h) |
+| **Se saltó la parada** | Llegó a una parada posterior sin haber pasado por esta | — |
+| **Desvío** | Se alejó del recorrido de referencia más de X metros (se cierra al volver) | `route_deviation_m` (300 m) |
+
+- La parada de salida no cuenta para estas incidencias; la última se da por detenida al llegar (termina el trayecto).
+- El desvío solo se vigila si el itinerario tiene **recorrido de referencia** en ese sentido (§2.5).
+- Cada incidencia queda registrada en el viaje (`trip_leg_incidents`) para las estadísticas, y se avisa a los **Jefes del itinerario y a los Jefes de Transporte** de la Entidad. **A los pasajeros no se les avisa.**
+- La app las muestra en la cabecera del recorrido en tiempo real y en el detalle del viaje.
+- Ver [07-algoritmos.md §7.18](07-algoritmos.md#718-paso-por-paradas-paradas-no-realizadas-y-fin-del-trayecto) y [§7.33](07-algoritmos.md#733-desvío-del-recorrido-de-referencia).
 
 ### Vista del recorrido
 
 Cada usuario elige entre:
-- **Mapa:** itinerario, paradas, ruta seguida y posición actual.
-- **Línea con hitos:** las distancias entre paradas son **proporcionales** a la distancia real. Al principio se usa la distancia en línea recta; cuando haya trayectos registrados, la distancia realmente recorrida.
+- **Mapa:** paradas, recorrido de referencia (si existe), trazado real recorrido y posición actual. Nunca líneas rectas entre paradas. El mapa es el propio (§2.14).
+- **Línea con hitos:** línea centrada que ocupa siempre el mismo alto; las paradas son puntos gruesos encima de la línea, a distancias **proporcionales** a la distancia real, con la hora de paso y los km al lado del nombre. Al principio se usa la distancia en línea recta; cuando haya trayectos registrados, la distancia realmente recorrida.
 
 ### Voz
 
@@ -346,7 +421,8 @@ Disponible para el chofer, los Jefes de itinerario, los Jefes de Transporte y el
 
 - Pasajeros a bordo frente a la capacidad, y niños a bordo.
 - Subidos frente a esperados, por parada y en total.
-- Paradas pasadas y restantes.
+- Paradas pasadas y restantes, paradas donde no se detuvo y paradas saltadas.
+- Atraso al comenzar.
 - Adelanto o retraso respecto a lo planificado.
 - Distancia recorrida y restante.
 - Sensores activos.
@@ -367,15 +443,15 @@ Se guardan todas en `trip_boardings`:
 - **El QR no lleva datos personales** (ni usuario ni Pase): es un token temporal firmado por el servidor, válido solo para ese trayecto.
 - **Niños:** cada registro indica con cuántos niños sube. Si hay varios registros, vale el último. En la subida automática se asumen todos los niños con derecho, y se puede corregir después.
 
-### Lista de pasajeros
+### Trabajadores del viaje (lista de pasajeros)
 
 No hay orden de subida. La lista va **por parada** (en el orden del itinerario) y, dentro de cada parada, **alfabéticamente** por apellidos y nombres. Muestra cuántos niños con derecho lleva cada uno.
 
 ### Lista de la próxima parada
 
 Al salir de una parada, el chofer y los Jefes de itinerario ven la lista de la siguiente:
-- **En el regreso:** quiénes **suben**, con su forma de marcar la subida.
-- **En la salida:** quiénes **se bajan**.
+- **En el viaje de regreso:** quiénes **suben**, con su forma de marcar la subida.
+- **En el viaje de ida:** quiénes **se bajan**.
 
 ## 2.10 Chats (solo texto)
 
@@ -397,7 +473,7 @@ Al salir de una parada, el chofer y los Jefes de itinerario ven la lista de la s
 ## 2.11 Estadísticas
 
 - **Formato:** gráficos y tablas. Solo se ven en la app: no se exportan.
-- **Periodo:** rango de fechas, fechas explícitas (días sueltos), o relativo (últimos X días, semanas, meses o años).
+- **Periodo:** en la app, "Últimos" (X días, semanas, meses o años) o "Rango de fechas" (un día es un rango con inicio y fin iguales). La API sigue admitiendo fechas sueltas.
 - **Visibilidad:** cada rol ve las que le corresponden:
   - Administrador: todas, de todas las Entidades (o de una);
   - Jefes de Transporte: todas, de su Entidad;
@@ -421,15 +497,17 @@ Al salir de una parada, el chofer y los Jefes de itinerario ven la lista de la s
 | Paradas y recorrido | Subidas y bajadas por parada |
 | | Hora real de paso por cada parada |
 | | Distancia recorrida por vehículo |
+| | Incidencias del recorrido por itinerario: paradas donde no se detuvo, saltadas y desvíos |
 
 ## 2.12 Actualizaciones de la app
 
-- Solo el **Administrador** publica versiones: sube **un APK por tipo de procesador** (64 bits, 32 bits y, si quiere, uno universal) con su versión, su código (mayor que el anterior), las novedades y si es **obligatoria**. Los APK se guardan en el servidor (`public/uploads/apk/`).
+- Solo el **Administrador** publica versiones: sube **un APK por tipo de procesador** (64 bits, 32 bits y, si quiere, uno universal), las novedades y si es **obligatoria**. Los APK se guardan en el servidor (`public/uploads/apk/`).
+- **La versión y el código se leen del propio APK** (`AndroidManifest.xml`) y se muestran de solo lectura; todos los APK de una versión deben coincidir (`APK_VERSION_MISMATCH`) y el código debe ser mayor que el de la última versión. Solo si no se pueden leer se piden a mano.
 - **Cada teléfono descarga el suyo:** la app pregunta a Android qué tipos admite. Si una versión tiene un solo APK, todos reciben ese.
 - **Solo con Wi-Fi:** ajuste del teléfono, desactivado por defecto. Si está activado y hay datos móviles, la app avisa del tamaño y deja descargar igualmente. Las obligatorias se descargan siempre, avisando del tamaño.
-- **Compartir la app:** desde **Más**, se envía el APK (por WhatsApp, Bluetooth, Quick Share…), eligiendo para qué tipo de teléfono (64 bits por defecto, o 32 bits). Si es del mismo tipo que el instalado, se comparte el del teléfono sin gastar datos. El mensaje lleva la dirección del servidor, que quien la instala pone con el botón **Servidor** de la bienvenida.
-- La app comprueba si hay una versión nueva al abrirse, desde Ajustes y en la sincronización en segundo plano (avisa una vez por versión).
-- La descarga se verifica con su huella SHA-256 y después se abre el instalador de Android. La primera vez, Android pide permitir que MiTransporte instale aplicaciones.
+- **Compartir la app:** desde **Más**, se envía el APK (por WhatsApp, Bluetooth, Quick Share…), eligiendo para qué tipo de teléfono (64 bits por defecto, o 32 bits). Si es del mismo tipo que el instalado, se comparte el del teléfono sin gastar datos. El mensaje lleva la dirección del servidor, que quien la instala pone con el botón de servidor del inicio de sesión.
+- La app comprueba si hay una versión nueva al abrirse, desde Ajustes y **periódicamente en segundo plano**, cada `update_check_hours` horas (24 por defecto, ajustable por el usuario), y muestra una notificación cuando hay versión nueva (una vez por versión).
+- La descarga se verifica con su huella SHA-256 y después se abre el instalador de Android. La primera vez, Android pide permitir que MiRuta instale aplicaciones.
 - **Obligatoria:** si hay una versión obligatoria posterior a la instalada, la app no deja seguir (ni iniciar sesión) hasta actualizar.
 - La app envía su versión en cada petición; el Administrador ve cuántas cuentas tienen cada versión.
 - Todas las versiones se firman con **la misma clave**; si no, Android no instala la actualización encima de la anterior.
@@ -445,5 +523,13 @@ Se ejecutan con el *scheduler* de Lumen y un `cron` cada minuto:
 | `chats:purge-expired` | Diaria | Borra las conversaciones caducadas |
 | `workers:inactivity` | Diaria | Avisa de la baja por inactividad y la aplica |
 | `tokens:purge` | Diaria | Elimina los tokens de renovación caducados o revocados |
-| `access-recoveries:expire` | Cada hora | Cierra las solicitudes "No puedo entrar" caducadas y borra su teléfono |
-| `passwords:warn-expiry` | Diaria | Avisa a quien tiene la contraseña a punto de caducar |
+| `access-recoveries:expire` | Cada hora | Cierra las solicitudes "Olvidé algo" caducadas y borra su teléfono |
+| `passwords:warn-expiry` | Diaria | Avisa cada día, durante los últimos `password_expiry_notice_days` días de cada usuario, a quien tiene la contraseña a punto de caducar |
+| `trips:notify-delays` | Cada minuto | Avisa de los viajes de ida o de regreso atrasados (una vez por cada uno) |
+
+## 2.14 Mapa propio
+
+- La app **no lleva mapas** ni usa los servidores públicos de OpenStreetMap: pide las imágenes al **servidor de mapas propio**, que guarda los datos de Cuba y las dibuja con un estilo sencillo (calles con sus nombres, edificios y PDI). Se prepara con los scripts de `tools/maps` (ver `tools/maps/README.md`).
+- `GET /map` da la plantilla de las imágenes (ajuste de la app `map_tiles_url`, `/tiles/{z}/{x}/{y}.png` por defecto, relativa a la dirección del servidor), los niveles de zoom, los **límites de Cuba** y la **zona de la Entidad** (sus paradas con unos 2 km de margen).
+- La vista **no sale de Cuba**. Las zonas vistas **se guardan en el teléfono**: no se vuelven a descargar y funcionan sin Internet.
+- **Descarga sin conexión** de la zona de la Entidad cuando el usuario quiera (Ajustes → Mapa sin conexión), respetando "solo con Wi-Fi".

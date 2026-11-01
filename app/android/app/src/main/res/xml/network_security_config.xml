@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Seguridad de red de MiRuta (docs/09-repaso-pantallas.md, Generales:
+     certificados, opción A).
+     - cleartextTrafficPermitted: la app no impone el protocolo; el servidor
+       puede estar en https:// o en http:// (lo elige el usuario en «Servidor»).
+     - trust-anchors: se confía en los certificados del sistema y también en los
+       que el usuario instaló en el teléfono (p. ej. la autoridad propia de la
+       empresa que firma el certificado del servidor). -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

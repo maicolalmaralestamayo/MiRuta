@@ -7,7 +7,7 @@ import '../trips/trip_context.dart';
 import '../widgets/common.dart';
 import 'boarding.dart';
 
-/// Pasajeros por parada (en el orden del trayecto) y, dentro de cada una,
+/// Trabajadores por parada (en el orden del trayecto) y, dentro de cada una,
 /// alfabéticamente; con el registro de subida manual o por QR.
 class PassengersScreen extends StatefulWidget {
   final TripContext context;
@@ -22,7 +22,8 @@ class PassengersScreen extends StatefulWidget {
 
 class _PassengersScreenState extends State<PassengersScreen> {
   late String _direction = widget.direction;
-  final _view = GlobalKey<AsyncViewState<List<Passenger>>>();
+  // Una vista por sentido: al cambiar de sentido se cargan sus trabajadores.
+  final _views = {'outbound': GlobalKey<AsyncViewState<List<Passenger>>>(), 'return': GlobalKey<AsyncViewState<List<Passenger>>>()};
 
   TripLeg? get _leg => widget.leg?.direction == _direction ? widget.leg : widget.context.leg(_direction);
 
@@ -34,7 +35,7 @@ class _PassengersScreenState extends State<PassengersScreen> {
   Future<void> _board(Passenger passenger) async {
     final leg = _leg;
     if (leg == null || !leg.isActive) {
-      showMessage(context, 'El ${_direction == 'return' ? 'regreso' : 'salida'} no está en curso.');
+      showMessage(context, 'El ${TripLeg.directionName(_direction).toLowerCase()} no está en curso.');
       return;
     }
     final count = await askChildren(context, passenger.eligibleChildren, initial: passenger.boardedChildren);
@@ -43,13 +44,13 @@ class _PassengersScreenState extends State<PassengersScreen> {
           'tripLeg': ResourceId('trip-legs', leg.id),
           'worker': ResourceId('workers', passenger.worker.id),
         })));
-    _view.currentState?.reload();
+    _views[_direction]!.currentState?.reload();
   }
 
   Future<void> _scan() async {
     final leg = _leg;
     if (leg == null || !leg.isActive) {
-      showMessage(context, 'El trayecto no está en curso.');
+      showMessage(context, 'El ${TripLeg.directionName(_direction).toLowerCase()} no está en curso.');
       return;
     }
     final token = await Navigator.push<String>(context, MaterialPageRoute(builder: (_) => const _ScannerScreen()));
@@ -57,7 +58,7 @@ class _PassengersScreenState extends State<PassengersScreen> {
     await runAction(context, () => context.api.post('/trip-boardings', resourceData('trip-boardings', attributes: {'method': 'qr', 'boardingPassToken': token}, relationships: {
           'tripLeg': ResourceId('trip-legs', leg.id),
         })), success: 'Subida registrada');
-    _view.currentState?.reload();
+    _views[_direction]!.currentState?.reload();
   }
 
   @override
@@ -65,40 +66,46 @@ class _PassengersScreenState extends State<PassengersScreen> {
     final stops = widget.context.orderedStops(_direction);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Pasajeros'),
+        title: const Text('Trabajadores'),
         actions: [IconButton(tooltip: 'Escanear QR', icon: const Icon(Icons.qr_code_scanner), onPressed: _scan)],
       ),
       body: Column(children: [
         Padding(
           padding: const EdgeInsets.all(8),
           child: SegmentedButton<String>(
-            segments: const [ButtonSegment(value: 'outbound', label: Text('Salida')), ButtonSegment(value: 'return', label: Text('Regreso'))],
+            segments: const [
+              ButtonSegment(value: 'outbound', icon: Icon(Icons.north_east), label: Text('Viaje de ida')),
+              ButtonSegment(value: 'return', icon: Icon(Icons.south_west), label: Text('Viaje de regreso')),
+            ],
             selected: {_direction},
             onSelectionChanged: (value) => setState(() => _direction = value.first),
           ),
         ),
         Expanded(
           child: AsyncView<List<Passenger>>(
-            key: _view,
+            key: _views[_direction],
             load: _load,
             builder: (context, passengers, reload) {
               final boarded = passengers.where((p) => p.boarded).length;
+              final children = passengers.fold<int>(0, (sum, p) => sum + p.eligibleChildren);
               return ListView(children: [
                 ListTile(
-                  title: Text('$boarded de ${passengers.length} registrados'),
-                  subtitle: Text('${passengers.fold<int>(0, (sum, p) => sum + p.eligibleChildren)} niño(s) con derecho a viajar (van cargados)'),
+                  title: Text('$boarded de ${plural(passengers.length, 'trabajador registrado', 'trabajadores registrados')}'),
+                  subtitle: children > 0 ? Text(plural(children, 'niño', 'niños')) : null,
                 ),
                 for (final stop in stops) ...[
                   if (passengers.any((p) => p.stopId == stop.id)) SectionTitle(stop.landmark),
                   for (final p in passengers.where((p) => p.stopId == stop.id))
                     BusyListTile(
-                      leading: CircleAvatar(child: Text('${p.position}')),
+                      leading: WorkerAvatar(p.worker),
                       title: Text(p.worker.fullName),
-                      subtitle: Text([
-                        if (p.worker.rank != null) p.worker.rank!.name,
-                        if (p.eligibleChildren > 0) '${p.eligibleChildren} niño(s) con derecho',
-                        if (p.boarded) 'Subió (${_method(p.boardingMethod)}${p.boardedChildren != null && p.boardedChildren! > 0 ? ', ${p.boardedChildren} niño(s)' : ''})',
-                      ].join(' · ')),
+                      subtitle: Wrap(spacing: 8, runSpacing: 2, crossAxisAlignment: WrapCrossAlignment.center, children: [
+                        if (p.worker.rank != null) RankBadge(p.worker.rank),
+                        if (p.eligibleChildren > 0) Text(plural(p.eligibleChildren, 'niño', 'niños')),
+                        if (p.boarded)
+                          Text('Subió (${_method(p.boardingMethod)}'
+                              '${p.boardedChildren != null && p.boardedChildren! > 0 ? ', ${plural(p.boardedChildren!, 'niño', 'niños')}' : ''})'),
+                      ]),
                       trailing: p.boarded ? const Icon(Icons.check_circle, color: Colors.green) : const Icon(Icons.radio_button_unchecked),
                       onTap: () => _board(p),
                     ),

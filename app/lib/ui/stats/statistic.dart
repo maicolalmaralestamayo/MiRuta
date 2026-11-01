@@ -12,11 +12,18 @@ class StatisticColumn {
 }
 
 class ChartSeries {
-  final String title;
+  /// Qué se mide (etiqueta de la columna de valores).
+  final String valueLabel;
+
+  /// Por qué se agrupa (etiqueta de la columna de nombres).
+  final String categoryLabel;
   final List<String> labels;
   final List<double> values;
 
-  ChartSeries(this.title, this.labels, this.values);
+  ChartSeries(this.valueLabel, this.categoryLabel, this.labels, this.values);
+
+  /// "Viajes por itinerario".
+  String get title => '$valueLabel por ${categoryLabel.toLowerCase()}';
 }
 
 /// Resultado de GET /statistics/{nombre}: columnas y filas.
@@ -34,10 +41,11 @@ class Statistic {
       );
 
   String get periodLabel {
-    final dates = period['dates'] as List?;
-    if (dates != null) return 'Fechas: ${dates.map((d) => formatDate(DateTime.parse('$d'))).join(', ')}';
     if (period['from'] == null) return '';
-    return 'Del ${formatDate(DateTime.parse('${period['from']}'))} al ${formatDate(DateTime.parse('${period['to']}'))}';
+    final from = DateTime.parse('${period['from']}');
+    final to = DateTime.parse('${period['to'] ?? period['from']}');
+    if (from == to) return 'El ${formatDate(from)}';
+    return 'Del ${formatDate(from)} al ${formatDate(to)}';
   }
 
   String format(StatisticColumn column, Object? value) {
@@ -52,7 +60,7 @@ class Statistic {
       default:
         return const {
               'unconfirmed': 'No confirmado', 'confirmed': 'Confirmado', 'completed': 'Realizado', 'cancelled': 'Cancelado',
-              'outbound': 'Salida', 'return': 'Regreso', 'automatic': 'Automática', 'self': 'Ya subí', 'qr': 'QR', 'manual': 'Manual',
+              'outbound': 'Viaje de ida', 'return': 'Viaje de regreso', 'automatic': 'Automática', 'self': 'Ya subí', 'qr': 'QR', 'manual': 'Manual',
               'pending': 'Pendiente', 'approved': 'Aprobada', 'rejected': 'Rechazada',
             }['$value'] ??
             '$value';
@@ -71,6 +79,6 @@ class Statistic {
       labels.add(format(label, row[label.key]));
       values.add((row[value.key] as num?)?.toDouble() ?? 0);
     }
-    return ChartSeries(value.label, labels, values);
+    return ChartSeries(value.label, label.label, labels, values);
   }
 }

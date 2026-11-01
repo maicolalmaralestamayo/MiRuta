@@ -5,12 +5,15 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../../core/json_api.dart';
 import '../../models/models.dart';
 import '../../services/geo.dart';
+import '../../services/map_tiles.dart';
 import '../../services/templates.dart';
 import '../../services/tracking_service.dart';
 import '../../services/user_settings.dart';
 import '../../services/voice.dart';
+import '../theme.dart';
 import '../trips/trip_context.dart';
 import '../widgets/common.dart';
 import 'boarding.dart';
@@ -32,7 +35,10 @@ class TrackingScreen extends StatefulWidget {
 class _TrackingScreenState extends State<TrackingScreen> {
   TripContext? _context;
   TripLeg? _leg;
+  /// Trazado real recorrido y recorrido de referencia del itinerario (docs/09 §19).
   List<LatLng> _path = [];
+  List<LatLng> _reference = [];
+  MapConfig? _mapConfig;
   DateTime? _lastPosition;
   Map<String, dynamic>? _live;
   Timer? _timer;
@@ -68,6 +74,16 @@ class _TrackingScreenState extends State<TrackingScreen> {
       _voice.enabled = operate && _settings.boolean('tts_enabled', true);
       _radius = int.tryParse(radius.resource.string('value') ?? '') ?? 100;
       _background = await TrackingService.isRunning;
+      _mapConfig = await MapTiles.config(api);
+      final referenceId = data.referenceLegId(data.legs.firstWhere((leg) => leg.id == widget.legId).direction);
+      if (referenceId != null && referenceId != widget.legId) {
+        try {
+          _reference = _points(await api.getAll('/trip-positions', query: {'filter[tripLeg]': referenceId, 'sort': 'recordedAt'}));
+        } catch (_) {
+          // Sin recorrido de referencia: el mapa muestra solo el trazado real.
+        }
+      }
+      if (!mounted) return;
       setState(() {
         _context = data;
         _leg = data.legs.firstWhere((leg) => leg.id == widget.legId);
@@ -92,8 +108,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
       final positions = await api.getAll('/trip-positions', query: query);
       if (positions.isNotEmpty) {
         _lastPosition = positions.last.date('recordedAt');
-        // El trazado se dibuja con la posición combinada (no con cada sensor).
-        if (leg.latitude != null) _path = [..._path, LatLng(leg.latitude!, leg.longitude!)];
+        _path = [..._path, ..._points(positions)];
       }
       if (_ticks++ % 3 == 0) {
         final live = await api.get('/statistics/live-trip', query: {'filter[trip]': widget.tripId});
@@ -106,6 +121,15 @@ class _TrackingScreenState extends State<TrackingScreen> {
       // Sin conexión: se mantiene lo último que se tenía.
     }
   }
+
+  static double? _number(Object? value) => value is num ? value.toDouble() : double.tryParse('${value ?? ''}');
+
+  /// Posiciones registradas (trip-positions) como puntos del trazado.
+  static List<LatLng> _points(List<Resource> positions) => [
+        for (final position in positions)
+          if (_number(position.attributes['latitude']) != null && _number(position.attributes['longitude']) != null)
+            LatLng(_number(position.attributes['latitude'])!, _number(position.attributes['longitude'])!),
+      ];
 
   /// Eventos del recorrido (7.19): llegada, salida de una parada y fin.
   Future<void> _events(TripLeg previous, TripLeg leg, TripContext data) async {
@@ -234,6 +258,17 @@ class _TrackingScreenState extends State<TrackingScreen> {
       ),
       body: Column(children: [
         _StatusBar(leg: leg, live: _live),
+        if (leg.deviating)
+          Container(
+            width: double.infinity,
+            color: overloadColor,
+            padding: const EdgeInsets.all(8),
+            child: const Row(children: [
+              Icon(Icons.alt_route, color: Colors.white),
+              SizedBox(width: 8),
+              Expanded(child: Text('El transporte se ha desviado del recorrido de referencia.', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
+            ]),
+          ),
         Expanded(
           child: _mapView ? _map(stops, leg) : ProportionalTimeline(stops: stops, leg: leg, highlightStopId: me.stopId),
         ),
@@ -253,7 +288,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
                   ),
                 SwitchListTile(
                   dense: true,
-                  title: const Text('Seguir con la app cerrada'),
+                  title: const Text('Seguir con la aplicación cerrada'),
                   subtitle: const Text('Avisos de paso por paradas'),
                   value: _background,
                   onChanged: _toggleBackground,
@@ -264,15 +299,15 @@ class _TrackingScreenState extends State<TrackingScreen> {
                     OutlinedButton.icon(
                       onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => BoardingPassScreen(leg: leg))),
                       icon: const Icon(Icons.qr_code_2),
-                      label: const Text('Mi QR'),
+                      label: const Text('Mi código QR'),
                     ),
                   if (operate)
                     FilledButton.tonalIcon(
                       onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => PassengersScreen(context: data, direction: leg.direction, leg: leg))),
-                      icon: const Icon(Icons.format_list_numbered),
-                      label: const Text('Pasajeros'),
+                      icon: const Icon(Icons.groups),
+                      label: const Text('Trabajadores'),
                     ),
-                  if (operate) BusyButton.outlined(onPressed: _end, icon: const Icon(Icons.stop_circle_outlined), child: const Text('Finalizar')),
+                  if (operate) BusyButton.outlined(onPressed: _end, icon: const Icon(Icons.stop_circle_outlined), child: const Text('Finalizar viaje')),
                 ]),
               ]),
             ),
@@ -282,20 +317,29 @@ class _TrackingScreenState extends State<TrackingScreen> {
   }
 
   Widget _map(List<Stop> stops, TripLeg leg) {
+    final config = _mapConfig;
+    if (config == null) return const Center(child: CircularProgressIndicator());
+    final api = context.api;
+    final colors = Theme.of(context).colorScheme;
     final points = stops.map((s) => LatLng(s.latitude, s.longitude)).toList();
-    final passed = leg.stopPasses.map((p) => p.stopId).toSet();
+    final passes = {for (final pass in leg.stopPasses) pass.stopId: pass};
     final vehicle = leg.latitude == null ? null : LatLng(leg.latitude!, leg.longitude!);
+    final fit = [...points, ..._path];
     return FlutterMap(
       options: MapOptions(
-        initialCenter: vehicle ?? (points.isEmpty ? const LatLng(0, 0) : points.first),
+        initialCenter: vehicle ?? (points.isEmpty ? LatLng(config.bounds.south, config.bounds.west) : points.first),
         initialZoom: 13,
-        initialCameraFit: points.length > 1 ? CameraFit.coordinates(coordinates: points, padding: const EdgeInsets.all(40)) : null,
+        minZoom: config.minZoom.toDouble(),
+        maxZoom: config.maxZoom.toDouble(),
+        cameraConstraint: MapTiles.constraint(config),
+        initialCameraFit: fit.length > 1 ? CameraFit.coordinates(coordinates: fit, padding: const EdgeInsets.all(40)) : null,
       ),
       children: [
-        TileLayer(urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', userAgentPackageName: 'com.mitransporte.mitransporte'),
+        MapTiles.layer(api, config),
+        // Sin líneas rectas entre paradas: solo el recorrido de referencia y el trazado real.
         PolylineLayer(polylines: [
-          Polyline(points: points, strokeWidth: 3, color: Colors.grey),
-          if (_path.length > 1) Polyline(points: _path, strokeWidth: 5, color: Theme.of(context).colorScheme.primary),
+          if (_reference.length > 1) Polyline(points: _reference, strokeWidth: 6, color: Colors.grey.withValues(alpha: 0.7)),
+          if (_path.length > 1) Polyline(points: _path, strokeWidth: 4, color: colors.primary),
         ]),
         MarkerLayer(markers: [
           for (final stop in stops)
@@ -305,7 +349,24 @@ class _TrackingScreenState extends State<TrackingScreen> {
               height: 36,
               child: Tooltip(
                 message: stop.landmark,
-                child: Icon(Icons.location_on, size: 36, color: passed.contains(stop.id) ? Theme.of(context).colorScheme.primary : Colors.grey),
+                child: Icon(Icons.location_on, size: 36, color: _stopColor(passes[stop.id], colors)),
+              ),
+            ),
+          for (final incident in leg.incidents.where((i) => i.latitude != null && i.longitude != null))
+            Marker(
+              point: LatLng(incident.latitude!, incident.longitude!),
+              width: 30,
+              height: 30,
+              child: Tooltip(
+                message: '${incident.label} · ${formatTime(incident.startedAt)}',
+                child: CircleAvatar(
+                  backgroundColor: incident.type == 'not_stopped' ? saturatedColor : overloadColor,
+                  child: Icon(
+                    const {'not_stopped': Icons.fast_forward, 'skipped': Icons.block, 'deviation': Icons.alt_route}[incident.type] ?? Icons.warning_amber,
+                    size: 16,
+                    color: Colors.white,
+                  ),
+                ),
               ),
             ),
           if (vehicle != null)
@@ -313,12 +374,18 @@ class _TrackingScreenState extends State<TrackingScreen> {
               point: vehicle,
               width: 40,
               height: 40,
-              child: CircleAvatar(backgroundColor: Theme.of(context).colorScheme.primary, child: const Icon(Icons.directions_bus, color: Colors.white)),
+              child: CircleAvatar(backgroundColor: colors.primary, child: const Icon(Icons.directions_bus, color: Colors.white)),
             ),
         ]),
-        const RichAttributionWidget(attributions: [TextSourceAttribution('© OpenStreetMap')]),
       ],
     );
+  }
+
+  static Color _stopColor(StopPass? pass, ColorScheme colors) {
+    if (pass == null) return Colors.grey;
+    if (pass.skipped) return overloadColor;
+    if (pass.notStopped) return saturatedColor;
+    return colors.primary;
   }
 }
 
@@ -328,18 +395,22 @@ class _StatusBar extends StatelessWidget {
 
   const _StatusBar({required this.leg, this.live});
 
+  static int _int(Object? value) => value is num ? value.toInt() : int.tryParse('${value ?? ''}') ?? 0;
+
   @override
   Widget build(BuildContext context) {
     final items = <(IconData, String)>[
-      (Icons.sensors, '${leg.activeSensors} sensor(es)'),
+      (Icons.sensors, plural(leg.activeSensors, 'sensor', 'sensores')),
       if (leg.positionAt != null) (Icons.schedule, 'Actualizado ${formatTime(leg.positionAt!)}'),
       if (live != null && live!.isNotEmpty) ...[
         (Icons.people, '${live!['boarded']} a bordo / ${live!['capacity']}'),
-        (Icons.child_care, '${live!['children']} niños'),
-        (Icons.flag, '${live!['stopsPassed']} pasadas · ${live!['stopsRemaining']} restantes'),
+        if (_int(live!['children']) > 0) (Icons.child_care, plural(_int(live!['children']), 'niño', 'niños')),
+        (Icons.flag, '${plural(_int(live!['stopsPassed']), 'pasada', 'pasadas')} · ${plural(_int(live!['stopsRemaining']), 'restante', 'restantes')}'),
         (Icons.route, '${live!['traveledKm']} km · faltan ${live!['remainingKm']} km'),
-        (Icons.timer_outlined, 'Retraso al iniciar: ${live!['startDelayMinutes']} min'),
+        if (_int(live!['startDelayMinutes']) > 0) (Icons.timer_outlined, 'Comenzó con ${live!['startDelayMinutes']} min de atraso'),
       ],
+      if (leg.notStoppedCount > 0) (Icons.fast_forward, 'No se detuvo en ${leg.notStoppedCount}'),
+      if (leg.skippedCount > 0) (Icons.block, 'Saltadas ${leg.skippedCount}'),
       if (!leg.isActive) (Icons.flag_circle, 'Recorrido terminado'),
     ];
     return Container(
@@ -372,7 +443,9 @@ class _NextStopPanel extends StatelessWidget {
           ListTile(
             dense: true,
             title: Text('Próxima parada: ${stop.landmark}', style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text(direction == 'return' ? '${passengers.length} suben' : '${passengers.length} se bajan'),
+            subtitle: Text(direction == 'return'
+                ? plural(passengers.length, 'trabajador sube', 'trabajadores suben')
+                : plural(passengers.length, 'trabajador se baja', 'trabajadores se bajan')),
             trailing: IconButton(icon: const Icon(Icons.close), onPressed: onClose),
           ),
           Flexible(
@@ -380,9 +453,12 @@ class _NextStopPanel extends StatelessWidget {
               for (final p in passengers)
                 ListTile(
                   dense: true,
-                  leading: CircleAvatar(radius: 14, child: Text('${p.position}', style: const TextStyle(fontSize: 12))),
+                  leading: WorkerAvatar(p.worker, radius: 16),
                   title: Text(p.worker.fullName),
-                  subtitle: Text([if (p.worker.rank != null) p.worker.rank!.name, if (p.eligibleChildren > 0) '${p.eligibleChildren} niño(s)'].join(' · ')),
+                  subtitle: Wrap(spacing: 8, children: [
+                    if (p.worker.rank != null) RankBadge(p.worker.rank),
+                    if (p.eligibleChildren > 0) Text(plural(p.eligibleChildren, 'niño', 'niños')),
+                  ]),
                   trailing: p.boarded ? const Icon(Icons.check_circle, color: Colors.green) : null,
                 ),
             ]),
