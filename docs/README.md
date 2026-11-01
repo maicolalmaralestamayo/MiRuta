@@ -11,6 +11,7 @@
 | [06-ajustes.md](06-ajustes.md) | Todos los ajustes, con sus valores por defecto y sus límites |
 | [07-algoritmos.md](07-algoritmos.md) | Diagramas de flujo de los 28 algoritmos que no son CRUD |
 | [08-version-2.md](08-version-2.md) | Acuerdos de la versión 2: varias Entidades, cuentas, contraseñas, recuperación de acceso, ocupación |
+| [09-repaso-pantallas.md](09-repaso-pantallas.md) | Repaso de las pantallas (versión 2.1): MiRuta, textos, campos, viajes atrasados, paradas no realizadas, desvíos, mapas propios |
 
 ## Scrum
 
