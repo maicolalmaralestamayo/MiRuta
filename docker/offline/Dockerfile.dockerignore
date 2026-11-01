@@ -1,0 +1,11 @@
+# Solo hace falta la API, su arranque y la especificación OpenAPI.
+*
+!api
+!docker/offline/start.sh
+!docs/openapi.yaml
+api/vendor/**/.git
+api/tests
+api/.env
+api/storage/logs/*
+api/storage/framework/cache/*
+api/public/uploads/*
