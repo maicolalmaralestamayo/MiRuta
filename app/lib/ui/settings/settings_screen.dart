@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import '../../core/storage.dart';
 import '../../models/models.dart';
 import '../../services/app_updates.dart';
+import '../../services/map_tiles.dart';
+import '../../services/templates.dart';
+import '../theme.dart';
 import '../../services/user_settings.dart';
 import '../../services/session.dart';
 import '../widgets/common.dart';
@@ -156,6 +159,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 }
               },
             ),
+            const SectionTitle('Mapa sin conexión'),
+            const _OfflineMapTile(),
             if (me.managesTransport) ...[
               const Divider(),
               ListTile(
@@ -172,3 +177,74 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 }
+
+/// Descargar la zona de la Entidad para ver el mapa sin conexión (docs/09, Mapas).
+class _OfflineMapTile extends StatefulWidget {
+  const _OfflineMapTile();
+
+  @override
+  State<_OfflineMapTile> createState() => _OfflineMapTileState();
+}
+
+class _OfflineMapTileState extends State<_OfflineMapTile> {
+  DateTime? _downloadedAt;
+  int _bytes = 0;
+  String? _progress;
+
+  @override
+  void initState() {
+    super.initState();
+    _refresh();
+  }
+
+  Future<void> _refresh() async {
+    final at = await MapTiles.areaDownloadedAt();
+    final bytes = await MapTiles.cachedBytes();
+    if (!mounted) return;
+    setState(() {
+      _downloadedAt = at;
+      _bytes = bytes;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final size = '${(_bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    return Column(children: [
+      BusyListTile(
+        leading: const Icon(Icons.download_for_offline_outlined),
+        title: const Text('Descargar el mapa de la zona de mi Entidad'),
+        subtitle: Text(
+          _progress ?? (_downloadedAt == null ? 'Para ver el mapa sin Internet.' : 'Descargado el ${formatDate(_downloadedAt!)} · $size'),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        onTap: () async {
+          try {
+            final downloaded = await MapTiles.downloadArea(context.api, onProgress: (done, total) {
+              if (mounted) setState(() => _progress = 'Descargando… $done de $total');
+            });
+            if (context.mounted) showMessage(context, 'Mapa descargado (${plural(downloaded, 'imagen nueva', 'imágenes nuevas')}).');
+          } on StateError catch (error) {
+            if (context.mounted) showMessage(context, error.message);
+          } finally {
+            if (mounted) setState(() => _progress = null);
+            await _refresh();
+          }
+        },
+      ),
+      if (_bytes > 0)
+        ListTile(
+          leading: const Icon(Icons.delete, color: overloadColor),
+          title: const Text('Borrar el mapa guardado'),
+          subtitle: Text('Ocupa $size', maxLines: 1),
+          onTap: () async {
+            if (!await confirmDelete(context, 'el mapa guardado en este teléfono')) return;
+            await MapTiles.clearCache();
+            await _refresh();
+          },
+        ),
+    ]);
+  }
+}
+
