@@ -58,7 +58,7 @@ class _PlanningScreenState extends State<PlanningScreen> {
     try {
       await context.api.atomicOperations(operations);
       if (!mounted) return;
-      showMessage(context, '${operations.length} viaje(s): ${TripStatus.label(status).toLowerCase()}');
+      showMessage(context, '${plural(operations.length, 'viaje', 'viajes')}: ${TripStatus.label(status).toLowerCase()}');
       setState(_selected.clear);
       _view.currentState?.reload();
     } on ApiException catch (error) {
@@ -70,17 +70,20 @@ class _PlanningScreenState extends State<PlanningScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_selected.isEmpty ? 'Planificación' : '${_selected.length} seleccionado(s)'),
+        title: Text(_selected.isEmpty ? 'Planificación' : plural(_selected.length, 'seleccionado', 'seleccionados')),
         actions: _selected.isEmpty
             ? null
             : [
-                IconButton(tooltip: 'Confirmar', icon: const Icon(Icons.check_circle_outline), onPressed: () => _bulk(TripStatus.confirmed)),
-                IconButton(tooltip: 'Desconfirmar', icon: const Icon(Icons.pending_outlined), onPressed: () => _bulk(TripStatus.unconfirmed)),
+                IconButton(tooltip: 'Confirmar viajes', icon: const Icon(Icons.check_circle_outline), onPressed: () => _bulk(TripStatus.confirmed)),
+                IconButton(tooltip: 'Marcar como no confirmados', icon: const Icon(Icons.pending_outlined), onPressed: () => _bulk(TripStatus.unconfirmed)),
                 IconButton(
-                  tooltip: 'Cancelar',
+                  tooltip: 'Cancelar viajes',
                   icon: const Icon(Icons.cancel_outlined),
                   onPressed: () async {
-                    if (await confirm(context, 'Cancelar viajes', '¿Cancelar ${_selected.length} viaje(s)? Se avisará a los trabajadores.', destructive: true)) _bulk(TripStatus.cancelled);
+                    if (await confirm(context, 'Cancelar viajes', '¿Cancelar ${plural(_selected.length, 'viaje', 'viajes')}? Se avisará a los trabajadores.',
+                        accept: 'Cancelar viajes', destructive: true)) {
+                      _bulk(TripStatus.cancelled);
+                    }
                   },
                 ),
                 IconButton(tooltip: 'Quitar selección', icon: const Icon(Icons.close), onPressed: () => setState(_selected.clear)),
@@ -99,15 +102,13 @@ class _PlanningScreenState extends State<PlanningScreen> {
           padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
           child: Row(children: [
             Expanded(
-              child: OutlinedButton.icon(
-                icon: const Icon(Icons.date_range),
-                label: Text('${formatDate(_range.start)} → ${formatDate(_range.end)}'),
-                onPressed: () async {
-                  final range = await showDateRangePicker(context: context, firstDate: DateTime(2024), lastDate: DateTime(2100), initialDateRange: _range);
-                  if (range != null) {
-                    setState(() => _range = range);
-                    _view.currentState?.reload();
-                  }
+              child: DateRangeField(
+                label: 'Fechas',
+                value: _range,
+                firstDate: DateTime(2024),
+                onChanged: (range) {
+                  setState(() => _range = range);
+                  _view.currentState?.reload();
                 },
               ),
             ),
@@ -116,7 +117,7 @@ class _PlanningScreenState extends State<PlanningScreen> {
               child: DropdownButtonFormField<String?>(
                 initialValue: _itineraryId,
                 isExpanded: true,
-                decoration: const InputDecoration(isDense: true, labelText: 'Itinerario'),
+                decoration: const InputDecoration(labelText: 'Itinerario'),
                 items: [
                   if (context.me.managesTransport) const DropdownMenuItem<String?>(value: null, child: Text('Todos')),
                   for (final i in _itineraries) DropdownMenuItem<String?>(value: i.id, child: Text(i.name)),
@@ -139,9 +140,9 @@ class _PlanningScreenState extends State<PlanningScreen> {
               final orphans = trips.where((t) => t.needsReassignment).length;
               return ListView(padding: const EdgeInsets.only(bottom: 88), children: [
                 if (overloaded > 0)
-                  ListTile(leading: const Icon(Icons.warning_amber, color: Colors.red), title: Text('$overloaded viaje(s) sobresaturado(s)')),
+                  ListTile(leading: const Icon(Icons.warning_amber, color: Colors.red), title: Text(plural(overloaded, 'viaje sobresaturado', 'viajes sobresaturados'))),
                 if (orphans > 0)
-                  ListTile(leading: const Icon(Icons.person_off, color: Colors.red), title: Text('$orphans viaje(s) sin chofer: hay que reasignarlos')),
+                  ListTile(leading: const Icon(Icons.person_off, color: Colors.red), title: Text('${plural(orphans, 'viaje', 'viajes')} sin chofer: hay que reasignar${orphans == 1 ? 'lo' : 'los'}')),
                 for (final trip in trips)
                   TripCard(
                     trip: trip,
