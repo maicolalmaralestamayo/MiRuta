@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../core/json_api.dart';
@@ -6,25 +7,32 @@ import '../../models/models.dart';
 import '../widgets/common.dart';
 
 /// Nomencladores: denominación, descripción y observación, más los campos
-/// propios de las jerarquías (orden de presentación e icono) y de los motivos (destinatario).
+/// propios de las jerarquías (orden de presentación e icono) y de los motivos
+/// (destinatario). Todo en un solo formulario (docs/09 §32).
 class NomenclatorsScreen extends StatefulWidget {
   final String title;
   final String path;
   final String type;
   final String sort;
 
-  const NomenclatorsScreen._(this.title, this.path, this.type, this.sort);
+  /// Nombre de un elemento, para los botones ("Guardar tipo de vehículo").
+  final String singular;
 
-  factory NomenclatorsScreen.vehicleTypes() => const NomenclatorsScreen._('Tipos de vehículo', '/vehicle-types', 'vehicle-types', 'name');
+  /// Hint de ejemplo de la denominación.
+  final String example;
 
-  factory NomenclatorsScreen.absenceTypes() => const NomenclatorsScreen._('Tipos de ausencia', '/absence-types', 'absence-types', 'name');
+  const NomenclatorsScreen._(this.title, this.path, this.type, this.sort, this.singular, this.example);
 
-  factory NomenclatorsScreen.ranks() => const NomenclatorsScreen._('Jerarquías', '/ranks', 'ranks', 'sortOrder,name');
+  factory NomenclatorsScreen.vehicleTypes() =>
+      const NomenclatorsScreen._('Tipos de vehículo', '/vehicle-types', 'vehicle-types', 'name', 'tipo de vehículo', 'p. ej. Ómnibus');
 
-  /// Palabras que no puede contener un usuario (solo el Administrador).
-  factory NomenclatorsScreen.forbiddenWords() => const NomenclatorsScreen._('Palabras no permitidas', '/forbidden-words', 'forbidden-words', 'name');
+  factory NomenclatorsScreen.absenceTypes() =>
+      const NomenclatorsScreen._('Tipos de ausencia', '/absence-types', 'absence-types', 'name', 'tipo de ausencia', 'p. ej. Vacaciones');
 
-  factory NomenclatorsScreen.conversationTopics() => const NomenclatorsScreen._('Motivos de conversación', '/conversation-topics', 'conversation-topics', 'name');
+  factory NomenclatorsScreen.ranks() => const NomenclatorsScreen._('Jerarquías', '/ranks', 'ranks', 'sortOrder,name', 'jerarquía', 'p. ej. Especialista');
+
+  factory NomenclatorsScreen.conversationTopics() =>
+      const NomenclatorsScreen._('Motivos de conversación', '/conversation-topics', 'conversation-topics', 'name', 'motivo', 'p. ej. Cambio de parada');
 
   @override
   State<NomenclatorsScreen> createState() => _NomenclatorsScreenState();
@@ -40,34 +48,8 @@ class _NomenclatorsScreenState extends State<NomenclatorsScreen> {
   Future<List<Named>> _load() async => (await context.api.getAll(widget.path, query: {'sort': widget.sort})).map(Named.from).toList();
 
   Future<void> _edit(Named? item) async {
-    final name = await promptText(context, 'Denominación', initial: item?.name ?? '', required: true);
-    if (name == null || !mounted) return;
-    final description = await promptText(context, 'Descripción (opcional)', initial: item?.description ?? '', maxLines: 3);
-    if (description == null || !mounted) return;
-    final observation = await promptText(context, 'Observación (opcional)', initial: item?.observation ?? '', maxLines: 3);
-    if (observation == null || !mounted) return;
-    final attributes = <String, dynamic>{'name': name, 'description': description.isEmpty ? null : description, 'observation': observation.isEmpty ? null : observation};
-
-    if (_isRank) {
-      final order = await promptText(context, 'Orden en las listas', initial: '${item?.extra['sortOrder'] ?? ''}');
-      if (order == null || !mounted) return;
-      attributes['sortOrder'] = int.tryParse(order) ?? 0;
-    }
-    if (_isTopic) {
-      final recipient = await pickFrom<String>(context, 'Destinatario', ['itinerary_chiefs', 'transport_chiefs', 'developer'], Conversation.recipientLabel);
-      if (recipient == null || !mounted) return;
-      attributes['recipient'] = recipient;
-    }
-
-    final body = resourceData(widget.type, id: item?.id, attributes: attributes);
-    await runAction(context, () => item == null ? context.api.post(widget.path, body) : context.api.patch('${widget.path}/${item.id}', body));
-    _view.currentState?.reload();
-  }
-
-  Future<void> _delete(Named item) async {
-    if (!await confirm(context, 'Borrar', '¿Borrar "${item.name}"?', destructive: true) || !mounted) return;
-    await runAction(context, () => context.api.delete('${widget.path}/${item.id}'));
-    _view.currentState?.reload();
+    final saved = await Navigator.push<bool>(context, MaterialPageRoute(builder: (_) => _NomenclatorForm(screen: widget, item: item)));
+    if (saved == true) _view.currentState?.reload();
   }
 
   Future<void> _icon(Named item) async {
@@ -81,7 +63,11 @@ class _NomenclatorsScreenState extends State<NomenclatorsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(widget.title)),
-      floatingActionButton: FloatingActionButton(onPressed: () => _edit(null), child: const Icon(Icons.add)),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _edit(null),
+        icon: const Icon(Icons.add),
+        label: Text('Nuevo ${widget.singular}'.replaceFirst('Nuevo jerarquía', 'Nueva jerarquía')),
+      ),
       body: AsyncView<List<Named>>(
         key: _view,
         load: _load,
@@ -89,22 +75,132 @@ class _NomenclatorsScreenState extends State<NomenclatorsScreen> {
           for (final item in items)
             ListTile(
               leading: _isRank
-                  ? GestureDetector(
-                      onTap: () => _icon(item),
-                      child: item.extra['iconUrl'] == null
-                          ? CircleAvatar(child: Text('${item.extra['sortOrder']}'))
-                          : CircleAvatar(backgroundImage: NetworkImage('${item.extra['iconUrl']}')),
+                  ? IconButton(
+                      tooltip: 'Cambiar el icono',
+                      onPressed: () => _icon(item),
+                      icon: item.extra['iconUrl'] == null
+                          ? const Icon(rankIcon)
+                          : Image.network('${item.extra['iconUrl']}', width: 24, height: 24, errorBuilder: (_, _, _) => const Icon(rankIcon)),
                     )
                   : null,
               title: Text(item.name),
               subtitle: Text([
+                if (_isRank) 'Orden ${item.extra['sortOrder'] ?? 0}',
                 if (_isTopic) Conversation.recipientLabel('${item.extra['recipient']}'),
                 if (item.description != null) item.description!,
               ].join(' · ')),
               onTap: () => _edit(item),
-              trailing: BusyIconButton(icon: const Icon(Icons.delete_outline), onPressed: () => _delete(item)),
+              trailing: DeleteButton(
+                what: '"${item.name}"',
+                onDelete: () async {
+                  await runAction(context, () => context.api.delete('${widget.path}/${item.id}'));
+                  _view.currentState?.reload();
+                },
+              ),
             ),
-          if (_isRank) const Padding(padding: EdgeInsets.all(16), child: Text('Toca el círculo de una jerarquía para subir su icono.')),
+        ]),
+      ),
+    );
+  }
+}
+
+class _NomenclatorForm extends StatefulWidget {
+  final NomenclatorsScreen screen;
+  final Named? item;
+
+  const _NomenclatorForm({required this.screen, this.item});
+
+  @override
+  State<_NomenclatorForm> createState() => _NomenclatorFormState();
+}
+
+class _NomenclatorFormState extends State<_NomenclatorForm> {
+  final _form = GlobalKey<FormState>();
+  late final _name = TextEditingController(text: widget.item?.name);
+  late final _description = TextEditingController(text: widget.item?.description);
+  late final _observation = TextEditingController(text: widget.item?.observation);
+  late final _order = TextEditingController(text: widget.item == null ? '' : '${widget.item!.extra['sortOrder'] ?? 0}');
+  late String? _recipient = widget.item?.extra['recipient'] as String?;
+
+  bool get _isRank => widget.screen.type == 'ranks';
+
+  bool get _isTopic => widget.screen.type == 'conversation-topics';
+
+  String? _optional(TextEditingController c) => c.text.trim().isEmpty ? null : c.text.trim();
+
+  Future<void> _save() async {
+    if (!_form.currentState!.validate()) return;
+    final item = widget.item;
+    final screen = widget.screen;
+    final body = resourceData(screen.type, id: item?.id, attributes: {
+      'name': _name.text.trim(),
+      'description': _optional(_description),
+      'observation': _optional(_observation),
+      if (_isRank) 'sortOrder': int.tryParse(_order.text.trim()) ?? 0,
+      if (_isTopic) 'recipient': _recipient,
+    });
+    await (item == null ? context.api.post(screen.path, body) : context.api.patch('${screen.path}/${item.id}', body));
+    if (mounted) Navigator.pop(context, true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final singular = widget.screen.singular;
+    final feminine = singular == 'jerarquía';
+    return Scaffold(
+      appBar: AppBar(title: Text(widget.item == null ? (feminine ? 'Nueva $singular' : 'Nuevo $singular') : widget.item!.name)),
+      body: Form(
+        key: _form,
+        child: ListView(padding: const EdgeInsets.all(16), children: [
+          TextFormField(
+            controller: _name,
+            autovalidateMode: AutovalidateMode.onUserInteraction,
+            decoration: InputDecoration(labelText: 'Denominación', hintText: widget.screen.example),
+            textCapitalization: TextCapitalization.sentences,
+            validator: (v) => (v ?? '').trim().isEmpty ? 'Escriba la denominación.' : null,
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _description,
+            decoration: const InputDecoration(labelText: 'Descripción (opcional)'),
+            textCapitalization: TextCapitalization.sentences,
+            maxLines: 3,
+            minLines: 1,
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _observation,
+            decoration: const InputDecoration(labelText: 'Observación (opcional)'),
+            textCapitalization: TextCapitalization.sentences,
+            maxLines: 3,
+            minLines: 1,
+          ),
+          if (_isRank) ...[
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _order,
+              autovalidateMode: AutovalidateMode.onUserInteraction,
+              decoration: const InputDecoration(labelText: 'Orden en las listas', hintText: 'p. ej. 1'),
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              validator: (v) => int.tryParse((v ?? '').trim()) == null ? 'Escriba un número entero.' : null,
+            ),
+          ],
+          if (_isTopic) ...[
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: _recipient,
+              autovalidateMode: AutovalidateMode.onUserInteraction,
+              decoration: const InputDecoration(labelText: 'Destinatario'),
+              items: [
+                for (final r in const ['itinerary_chiefs', 'transport_chiefs', 'developer']) DropdownMenuItem(value: r, child: Text(Conversation.recipientLabel(r))),
+              ],
+              onChanged: (value) => setState(() => _recipient = value),
+              validator: (v) => v == null ? 'Elija el destinatario.' : null,
+            ),
+          ],
+          const SizedBox(height: 20),
+          BusyButton(onPressed: _save, icon: const Icon(Icons.save), child: Text('Guardar $singular')),
         ]),
       ),
     );

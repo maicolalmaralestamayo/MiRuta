@@ -47,21 +47,31 @@ class ApiClient {
   /// Si ya se sabe a qué servidor conectarse.
   bool get hasServer => baseUrl.isNotEmpty;
 
-  /// Comprueba que en [url] responde un servidor de MiRuta.
-  static Future<void> probe(String url) async {
+  /// Mensaje cuando no se puede conectar con el servidor (docs/09 §2).
+  static const unreachableMessage =
+      'Fue imposible conectarse al servidor. Revise el protocolo de conexión que seleccionó, la dirección del servidor que indicó y asegúrese de tener conexión a Internet.';
+
+  /// Comprueba que en [url] responde un servidor de MiRuta y devuelve la
+  /// dirección a la que finalmente llegó: si el servidor redirige (p. ej. de
+  /// http a https), se sigue la redirección y se devuelve la nueva dirección
+  /// para guardarla (docs/09, Generales: certificados).
+  static Future<String> probe(String url) async {
     final dio = Dio(BaseOptions(
       baseUrl: url,
       connectTimeout: const Duration(seconds: 10),
       receiveTimeout: const Duration(seconds: 15),
       headers: {'Accept': jsonApi},
     ));
+    const path = '/password-policy';
     try {
-      final response = await dio.get<dynamic>('/password-policy');
+      final response = await dio.get<dynamic>(path);
       final data = response.data;
       if (data is! Map || data['data'] is! Map || (data['data'] as Map)['type'] != 'password-policies') throw const FormatException();
+      final reached = response.realUri.toString().split('?').first.split('#').first;
+      return reached.endsWith(path) ? reached.substring(0, reached.length - path.length) : url;
     } on DioException catch (error) {
       throw error.response == null
-          ? _probeError('NETWORK_ERROR', 'No se pudo conectar con esa dirección. Revisa que esté bien escrita y que tengas conexión.')
+          ? _probeError('NETWORK_ERROR', unreachableMessage)
           : _probeError('NOT_MITRANSPORTE', 'En esa dirección no hay un servidor de MiRuta.');
     } on FormatException {
       throw _probeError('NOT_MITRANSPORTE', 'En esa dirección no hay un servidor de MiRuta.');
@@ -69,7 +79,8 @@ class ApiClient {
   }
 
   /// Aún no se ha indicado a qué servidor conectarse.
-  static ApiException noServer() => _probeError('NO_SERVER', 'Primero indica la dirección del servidor con el botón «Servidor», al pie de la pantalla de inicio.');
+  static ApiException noServer() =>
+      _probeError('NO_SERVER', 'Primero indique la dirección del servidor con el botón «Indicar servidor», al pie de la pantalla de inicio de sesión.');
 
   static ApiException _probeError(String code, String detail) =>
       ApiException(null, [JsonApiError(status: '', code: code, title: 'Servidor', detail: detail)]);

@@ -1,24 +1,48 @@
-/// Dirección del servidor que escribe el usuario (docs/05-app.md §5.2).
+/// Dirección del servidor (docs/09-repaso-pantallas.md §2).
 ///
-/// La app no impone el protocolo: sirve igual con `https://` que con
-/// `http://`. Si el usuario no lo escribe, se prueba primero HTTPS y, si ahí
-/// no responde, HTTP. También completa la ruta de la API: `transporte.ejemplo.org`
-/// → `https://transporte.ejemplo.org/api/v1`.
+/// El usuario elige el protocolo (https por defecto, o http) y escribe la
+/// dirección; no se prueban protocolos automáticamente. La app completa la
+/// ruta de la API: https + `transporte.ejemplo.org` →
+/// `https://transporte.ejemplo.org/api/v1`.
 class ServerUrl {
   static const apiPath = '/api/v1';
+  static const protocols = ['https', 'http'];
+  static const defaultProtocol = 'https';
 
-  /// Direcciones completas a probar, por orden; vacía si no es válida.
-  static List<String> candidates(String input) {
-    final text = input.trim();
-    if (text.isEmpty || text.contains(' ')) return const [];
-    if (text.contains('://')) {
-      final url = _complete(text);
-      return url == null ? const [] : [url];
+  /// Separa una dirección escrita o pegada en su protocolo (null si no lo
+  /// trae, o si no es http/https) y la dirección sin protocolo ni /api/v1.
+  static ({String? protocol, String address}) split(String input) {
+    var text = input.trim();
+    String? protocol;
+    final match = RegExp(r'^(https?)://', caseSensitive: false).firstMatch(text);
+    if (match != null) {
+      protocol = match.group(1)!.toLowerCase();
+      text = text.substring(match.end);
     }
-    return [for (final scheme in const ['https', 'http']) _complete('$scheme://$text')].whereType<String>().toList();
+    text = text.replaceAll(RegExp(r'/+$'), '');
+    if (text.endsWith(apiPath)) text = text.substring(0, text.length - apiPath.length);
+    return (protocol: protocol, address: text.replaceAll(RegExp(r'/+$'), ''));
   }
 
-  static bool isValid(String input) => candidates(input).isNotEmpty;
+  /// URL completa de la API a partir del protocolo y la dirección; null si
+  /// la dirección no es válida. Si la dirección trae su propio protocolo,
+  /// manda el que trae.
+  static String? build(String protocol, String address) {
+    final parts = split(address);
+    if (parts.address.isEmpty || parts.address.contains(' ') || parts.address.contains('://')) return null;
+    final scheme = parts.protocol ?? protocol.toLowerCase();
+    if (!protocols.contains(scheme)) return null;
+    return _complete('$scheme://${parts.address}');
+  }
+
+  /// URL completa de una dirección escrita de una vez (con o sin protocolo;
+  /// sin él, https).
+  static String? fromInput(String input) => build(split(input).protocol ?? defaultProtocol, input);
+
+  /// Compatibilidad: la única dirección posible, o vacía si no es válida.
+  static List<String> candidates(String input) => [?fromInput(input)];
+
+  static bool isValid(String address, {String protocol = defaultProtocol}) => build(protocol, address) != null;
 
   /// Si la conexión va sin cifrar.
   static bool isPlain(String url) => url.startsWith('http://');

@@ -5,7 +5,7 @@ import '../../core/json_api.dart';
 import '../../models/models.dart';
 import '../../services/session.dart';
 import '../../services/templates.dart';
-import '../auth/names_fields.dart';
+import '../theme.dart';
 import '../widgets/common.dart';
 
 /// Formulario de una solicitud nueva. Devuelve true si se envió.
@@ -16,6 +16,32 @@ Future<bool> showApplicationForm(BuildContext context, String type, {Worker? wor
   final sent = await Navigator.push<bool>(context, MaterialPageRoute(builder: (_) => ApplicationFormScreen(type: type, worker: worker)));
   if (sent == true && context.mounted) await context.session.reloadMe();
   return sent == true;
+}
+
+/// Un hijo del formulario "Declarar hijos" (docs/09 §11 y §38).
+class _ChildBlock {
+  final firstName = TextEditingController();
+  final middleName = TextEditingController();
+  final firstSurname = TextEditingController();
+  final secondSurname = TextEditingController();
+  DateTime? birthDate;
+
+  bool get isEmpty =>
+      birthDate == null && [firstName, middleName, firstSurname, secondSurname].every((c) => c.text.trim().isEmpty);
+
+  Map<String, dynamic> toJson() => {
+        'firstName': firstName.text.trim(),
+        if (middleName.text.trim().isNotEmpty) 'middleName': middleName.text.trim(),
+        'firstSurname': firstSurname.text.trim(),
+        'secondSurname': secondSurname.text.trim(),
+        'birthDate': birthDate!.toIso8601String().substring(0, 10),
+      };
+
+  void dispose() {
+    for (final c in [firstName, middleName, firstSurname, secondSurname]) {
+      c.dispose();
+    }
+  }
 }
 
 class ApplicationFormScreen extends StatefulWidget {
@@ -36,15 +62,12 @@ class _ApplicationFormScreenState extends State<ApplicationFormScreen> {
   String? _itineraryId;
   String? _stopId;
   String? _absenceTypeId;
+  bool _indefinite = false;
   DateTimeRange? _range;
   final _observation = TextEditingController();
-  final _childFirst = TextEditingController();
-  final _childMiddle = TextEditingController();
-  final _childFirstSurname = TextEditingController();
-  final _childSecondSurname = TextEditingController();
-  late final _childNames = NamesFields(firstName: _childFirst, middleName: _childMiddle, firstSurname: _childFirstSurname, secondSurname: _childSecondSurname);
-  DateTime? _childBirthDate;
+  final List<_ChildBlock> _children = [_ChildBlock()];
   int _childMaxAge = 16;
+  bool _submitted = false;
   ApiException? _error;
 
   bool get _assigning => widget.worker != null;
@@ -55,6 +78,15 @@ class _ApplicationFormScreenState extends State<ApplicationFormScreen> {
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _observation.dispose();
+    for (final child in _children) {
+      child.dispose();
+    }
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -97,27 +129,21 @@ class _ApplicationFormScreenState extends State<ApplicationFormScreen> {
   }
 
   Future<void> _submit() async {
-    if (!_form.currentState!.validate()) return;
-    if (widget.type == ApplicationType.absence && _range == null) {
-      showMessage(context, 'Elige las fechas de la ausencia.');
-      return;
-    }
-    if (widget.type == ApplicationType.childAddition && _childBirthDate == null) {
-      showMessage(context, 'Elige la fecha de nacimiento del niño.');
-      return;
-    }
+    setState(() => _submitted = true);
+    final valid = _form.currentState!.validate();
+    if (!valid) return;
+    if (widget.type == ApplicationType.absence && !_indefinite && _range == null) return;
+    if (widget.type == ApplicationType.childAddition && _children.any((c) => c.birthDate == null || !_isEligible(c.birthDate!))) return;
     setState(() => _error = null);
     String day(DateTime d) => d.toIso8601String().substring(0, 10);
     try {
       await context.api.post('/applications', resourceData('applications', attributes: {
         'type': widget.type,
-        if (widget.type == ApplicationType.childAddition) ...{
-          ...Session.nameAttributes(_childNames.value, prefix: 'child'),
-          'childBirthDate': day(_childBirthDate!),
-        },
+        if (widget.type == ApplicationType.childAddition) 'children': [for (final child in _children) child.toJson()],
         if (widget.type == ApplicationType.absence) ...{
-          'startsOn': day(_range!.start),
-          'endsOn': day(_range!.end),
+          if (_indefinite) 'indefinite': true,
+          if (!_indefinite) 'startsOn': day(_range!.start),
+          if (!_indefinite) 'endsOn': day(_range!.end),
           'observation': _observation.text.trim(),
         },
       }, relationships: {
@@ -142,42 +168,114 @@ class _ApplicationFormScreenState extends State<ApplicationFormScreen> {
     return limit.isAfter(endOfCourse) ? DateTime(limit.year + 1, 8, 31) : endOfCourse;
   }
 
+  bool _isEligible(DateTime birth) {
+    final today = DateTime.now();
+    return !DateTime(today.year, today.month, today.day).isAfter(_eligibleUntil(birth));
+  }
+
+  Future<void> _removeChild(_ChildBlock child) async {
+    if (!child.isEmpty && !await confirmDelete(context, 'los datos de este hijo')) return;
+    setState(() => _children.remove(child));
+    child.dispose();
+  }
+
+  Widget _nameField(TextEditingController controller, String label, String hint, {bool required = true}) => Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: TextFormField(
+          controller: controller,
+          decoration: InputDecoration(labelText: label, hintText: hint),
+          textCapitalization: TextCapitalization.words,
+          autovalidateMode: AutovalidateMode.onUserInteraction,
+          validator: required ? (v) => v == null || v.trim().isEmpty ? 'Escriba el ${label.toLowerCase()}' : null : null,
+        ),
+      );
+
+  Widget _childBlock(int index, _ChildBlock child) {
+    final today = DateTime.now();
+    final birth = child.birthDate;
+    String? birthError;
+    if (birth == null && _submitted) birthError = 'Elija la fecha de nacimiento';
+    if (birth != null && !_isEligible(birth)) birthError = 'Ya no tiene derecho a viajar (lo tuvo hasta el ${formatDate(_eligibleUntil(birth))})';
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 4, 4, 12),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Row(children: [
+            Expanded(child: Text('Hijo ${index + 1}', style: Theme.of(context).textTheme.titleSmall)),
+            if (_children.length > 1)
+              IconButton(
+                tooltip: 'Quitar este hijo',
+                icon: const Icon(Icons.delete, color: overloadColor),
+                onPressed: () => _removeChild(child),
+              )
+            else
+              const SizedBox(height: 48),
+          ]),
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              _nameField(child.firstName, 'Primer nombre', 'Pedro'),
+              _nameField(child.middleName, 'Segundo nombre (opcional)', 'Luis', required: false),
+              _nameField(child.firstSurname, 'Primer apellido', 'Pérez'),
+              _nameField(child.secondSurname, 'Segundo apellido', 'García'),
+              DateField(
+                label: 'Fecha de nacimiento',
+                value: birth,
+                firstDate: DateTime(today.year - 30),
+                lastDate: today,
+                errorText: birthError,
+                onChanged: (date) => setState(() => child.birthDate = date),
+              ),
+              if (birth != null && birthError == null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6, left: 12),
+                  child: Text('Derecho a viajar hasta el ${formatDate(_eligibleUntil(birth))}', style: Theme.of(context).textTheme.bodySmall),
+                ),
+            ]),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  String get _title {
+    final label = ApplicationType.label(widget.type);
+    return _assigning ? '$label · ${widget.worker!.name.short}' : label;
+  }
+
+  String get _submitLabel {
+    if (!_assigning) return 'Enviar solicitud';
+    final label = ApplicationType.label(widget.type);
+    return 'Asignar ${label[0].toLowerCase()}${label.substring(1)}';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final birth = _childBirthDate;
-    final today = DateTime.now();
-    final eligible = birth == null || !DateTime(today.year, today.month, today.day).isAfter(_eligibleUntil(birth));
+    final now = DateTime.now();
     return Scaffold(
-      appBar: AppBar(title: Text(_assigning ? '${ApplicationType.label(widget.type)} · ${widget.worker!.name.short}' : ApplicationType.label(widget.type))),
+      appBar: AppBar(title: Text(_title)),
       body: Form(
         key: _form,
         child: ListView(padding: const EdgeInsets.all(16), children: [
-          if (_assigning)
-            const Padding(
-              padding: EdgeInsets.only(bottom: 12),
-              child: Text('Se asigna al momento, sin solicitud. El trabajador recibirá un aviso.'),
-            )
-          else if (widget.type == ApplicationType.itineraryChief)
-            const Padding(
-              padding: EdgeInsets.only(bottom: 12),
-              child: Text('Si la aprueba un Jefe de Transporte, pasarás a viajar en ese itinerario y en esa parada.'),
-            ),
           if (_needsItinerary) ...[
             DropdownButtonFormField<String>(
               initialValue: _itineraryId,
               decoration: const InputDecoration(labelText: 'Itinerario'),
+              autovalidateMode: AutovalidateMode.onUserInteraction,
               items: [for (final i in _itineraries) DropdownMenuItem(value: i.id, child: Text(i.name))],
               onChanged: (value) => value == null ? null : _loadStops(value),
-              validator: (v) => v == null ? 'Elige el itinerario' : null,
+              validator: (v) => v == null ? 'Elija el itinerario' : null,
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
+              key: ValueKey('stops-$_itineraryId'),
               initialValue: _stopId,
               isExpanded: true,
               decoration: const InputDecoration(labelText: 'Parada'),
+              autovalidateMode: AutovalidateMode.onUserInteraction,
               items: [for (final s in _stops) DropdownMenuItem(value: s.id, child: Text('${s.landmark} · ${s.street}', overflow: TextOverflow.ellipsis))],
               onChanged: (value) => setState(() => _stopId = value),
-              validator: (v) => v == null ? 'Elige la parada' : null,
+              validator: (v) => v == null ? 'Elija la parada' : null,
             ),
           ],
           if (widget.type == ApplicationType.childAddition) ...[
@@ -187,64 +285,62 @@ class _ApplicationFormScreenState extends State<ApplicationFormScreen> {
                 title: Text('Si son pareja y viajan en el mismo itinerario, solo uno de los dos debe declarar a los niños.'),
               ),
             ),
-            const SizedBox(height: 12),
-            _childNames,
+            const SizedBox(height: 8),
+            for (var i = 0; i < _children.length; i++) _childBlock(i, _children[i]),
+            const SizedBox(height: 8),
             OutlinedButton.icon(
-              icon: const Icon(Icons.cake_outlined),
-              label: Text(birth == null ? 'Fecha de nacimiento' : 'Nació el ${formatDate(birth)}'),
-              onPressed: () async {
-                final picked = await showDatePicker(
-                  context: context,
-                  initialDate: birth ?? DateTime(today.year - 5),
-                  firstDate: DateTime(today.year - 30),
-                  lastDate: today,
-                  helpText: 'Fecha de nacimiento del niño',
-                );
-                if (picked != null) setState(() => _childBirthDate = picked);
-              },
+              icon: const Icon(Icons.person_add_alt),
+              label: const Text('Añadir otro hijo'),
+              onPressed: _children.length >= 10 ? null : () => setState(() => _children.add(_ChildBlock())),
             ),
-            if (birth != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  eligible
-                      ? 'Puede viajar hasta el ${formatDate(_eligibleUntil(birth))}. Solo tú, tus jefes y el Administrador verán la fecha.'
-                      : 'Ya no tiene derecho a viajar (lo tuvo hasta el ${formatDate(_eligibleUntil(birth))}).',
-                  style: TextStyle(color: eligible ? null : Theme.of(context).colorScheme.error),
-                ),
-              ),
           ],
           if (widget.type == ApplicationType.absence) ...[
             DropdownButtonFormField<String>(
               initialValue: _absenceTypeId,
               decoration: const InputDecoration(labelText: 'Tipo de ausencia'),
+              autovalidateMode: AutovalidateMode.onUserInteraction,
               items: [for (final t in _absenceTypes) DropdownMenuItem(value: t.id, child: Text(t.name))],
               onChanged: (value) => setState(() => _absenceTypeId = value),
-              validator: (v) => v == null ? 'Elige el tipo' : null,
+              validator: (v) => v == null ? 'Elija el tipo de ausencia' : null,
             ),
             const SizedBox(height: 12),
-            OutlinedButton.icon(
-              icon: const Icon(Icons.date_range),
-              label: Text(_range == null ? 'Elegir fechas' : '${formatDate(_range!.start)} → ${formatDate(_range!.end)}'),
-              onPressed: () async {
-                final now = DateTime.now();
-                final range = await showDateRangePicker(context: context, firstDate: now.subtract(const Duration(days: 30)), lastDate: now.add(const Duration(days: 365)));
-                if (range != null) setState(() => _range = range);
-              },
+            DropdownButtonFormField<bool>(
+              initialValue: _indefinite,
+              decoration: const InputDecoration(labelText: 'Duración'),
+              items: const [
+                DropdownMenuItem(value: false, child: Text('Con fechas de inicio y fin')),
+                DropdownMenuItem(value: true, child: Text('Ausencia indefinida')),
+              ],
+              onChanged: (value) => setState(() => _indefinite = value ?? false),
             ),
+            if (!_indefinite) ...[
+              const SizedBox(height: 12),
+              DateRangeField(
+                label: 'Fechas de la ausencia',
+                value: _range,
+                firstDate: now.subtract(const Duration(days: 30)),
+                lastDate: now.add(const Duration(days: 365)),
+                errorText: _submitted && _range == null ? 'Elija las fechas de inicio y fin' : null,
+                onChanged: (range) => setState(() => _range = range),
+              ),
+            ],
             const SizedBox(height: 12),
-            TextFormField(controller: _observation, decoration: const InputDecoration(labelText: 'Observación (opcional)'), maxLines: 2),
+            TextFormField(
+              controller: _observation,
+              decoration: const InputDecoration(labelText: 'Observación (opcional)', hintText: 'Licencia por enfermedad'),
+              maxLines: 2,
+            ),
           ],
-          if (widget.type == ApplicationType.driver || widget.type == ApplicationType.transportChief)
-            Text(widget.type == ApplicationType.driver
-                ? 'La aprueba un Jefe de Transporte, que después te asignará un vehículo.'
-                : 'La aprueba el Administrador.'),
           if (_error != null) ...[
             const SizedBox(height: 12),
             Text(_error!.message, style: TextStyle(color: Theme.of(context).colorScheme.error)),
           ],
           const SizedBox(height: 20),
-          BusyButton(onPressed: (widget.type == ApplicationType.childAddition && !eligible) ? null : _submit, child: Text(_assigning ? 'Asignar' : 'Enviar solicitud')),
+          BusyButton(
+            onPressed: _submit,
+            icon: Icon(_assigning ? Icons.how_to_reg : Icons.send),
+            child: Text(_submitLabel),
+          ),
         ]),
       ),
     );

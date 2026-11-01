@@ -6,6 +6,7 @@ import '../../services/session.dart';
 import '../../services/sync.dart';
 import '../widgets/common.dart';
 import 'trip_card.dart';
+import 'trip_context.dart';
 
 /// Viajes: los de mi itinerario, los que conduzco y los de los itinerarios que dirijo.
 class TripsScreen extends StatelessWidget {
@@ -23,7 +24,7 @@ class TripsScreen extends StatelessWidget {
     if (tabs.isEmpty) {
       return Scaffold(
         appBar: AppBar(title: const Text('Viajes')),
-        body: const EmptyView(icon: Icons.directions_bus_outlined, message: 'Cuando seas miembro de un itinerario verás aquí tus viajes.'),
+        body: const EmptyView(icon: Icons.directions_bus_outlined, message: 'Cuando sea miembro de un itinerario verá aquí sus viajes.'),
       );
     }
 
@@ -53,7 +54,7 @@ class _TripList extends StatefulWidget {
 class _TripListState extends State<_TripList> {
   bool _past = false;
 
-  Future<List<Trip>> _load() async {
+  Future<(List<Trip>, Map<String, List<TripLeg>>)> _load() async {
     final today = DateTime.now();
     final query = {
       ...widget.filters,
@@ -63,7 +64,9 @@ class _TripListState extends State<_TripList> {
       'sort': _past ? '-departsAt' : 'departsAt',
       'page[size]': 50,
     };
-    return (await context.api.get('/trips', query: query)).resources.map(Trip.from).toList();
+    final api = context.api;
+    final trips = (await api.get('/trips', query: query)).resources.map(Trip.from).toList();
+    return (trips, await TripContext.legsOf(api, trips));
   }
 
   @override
@@ -72,20 +75,23 @@ class _TripListState extends State<_TripList> {
       Padding(
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
         child: SegmentedButton<bool>(
-          segments: const [ButtonSegment(value: false, label: Text('Próximos')), ButtonSegment(value: true, label: Text('Anteriores'))],
+          segments: const [ButtonSegment(value: false, icon: Icon(Icons.upcoming), label: Text('Próximos')), ButtonSegment(value: true, icon: Icon(Icons.history), label: Text('Anteriores'))],
           selected: {_past},
           onSelectionChanged: (value) => setState(() => _past = value.first),
         ),
       ),
       Expanded(
-        child: AsyncView<List<Trip>>(
+        child: AsyncView<(List<Trip>, Map<String, List<TripLeg>>)>(
           key: ValueKey(_past),
           load: _load,
-          builder: (context, trips, reload) => trips.isEmpty
+          builder: (context, data, reload) => data.$1.isEmpty
               ? const EmptyView(icon: Icons.event_busy, message: 'No hay viajes.')
               : ListView.builder(
-                  itemCount: trips.length,
-                  itemBuilder: (context, index) => TripCard(trip: trips[index], showOverload: widget.showOverload, onChanged: reload),
+                  itemCount: data.$1.length,
+                  itemBuilder: (context, index) {
+                    final trip = data.$1[index];
+                    return TripCard(trip: trip, legs: data.$2[trip.id], showOverload: widget.showOverload, onChanged: reload);
+                  },
                 ),
         ),
       ),

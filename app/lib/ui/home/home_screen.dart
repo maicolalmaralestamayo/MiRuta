@@ -7,6 +7,7 @@ import '../../services/sync.dart';
 import '../applications/application_forms.dart';
 import '../profile/notices_screen.dart';
 import '../trips/trip_card.dart';
+import '../trips/trip_context.dart';
 import '../widgets/common.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -34,7 +35,8 @@ class HomeScreen extends StatelessWidget {
       itinerary = Itinerary.from((await api.get('/itineraries/${me.itineraryId}')).resource);
       stop = Stop.from((await api.get('/stops/${me.stopId}')).resource);
     }
-    return _HomeData(trips, unread, toResolve, itinerary, stop);
+    final legs = await TripContext.legsOf(api, trips.take(5));
+    return _HomeData(trips, unread, toResolve, itinerary, stop, legs);
   }
 
   @override
@@ -58,8 +60,8 @@ class HomeScreen extends StatelessWidget {
             Card(
               child: ListTile(
                 leading: const Icon(Icons.route),
-                title: const Text('Aún no tienes itinerario'),
-                subtitle: const Text('Solicita tu itinerario y tu parada para empezar a recibir los avisos.'),
+                title: const Text('Aún no tiene itinerario'),
+                subtitle: const Text('Solicite su itinerario y su parada para empezar a recibir los avisos.'),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () async {
                   await showApplicationForm(context, ApplicationType.itineraryMembership);
@@ -69,11 +71,19 @@ class HomeScreen extends StatelessWidget {
             )
           else
             Card(
-              child: ListTile(
-                leading: const Icon(Icons.route),
-                title: Text(data.itinerary!.name),
-                subtitle: Text('Tu parada: ${data.stop?.landmark ?? ''}\n${data.stop?.address ?? ''}'),
-                isThreeLine: true,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const Padding(padding: EdgeInsets.only(top: 2), child: Icon(Icons.route)),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      _LabeledLine('Itinerario', data.itinerary!.name),
+                      _LabeledLine('Parada', data.stop?.landmark ?? ''),
+                      _LabeledLine('Dirección', data.stop?.address ?? ''),
+                    ]),
+                  ),
+                ]),
               ),
             ),
           if (data.unread > 0 || data.toResolve > 0)
@@ -82,13 +92,13 @@ class HomeScreen extends StatelessWidget {
                 if (data.toResolve > 0)
                   ListTile(
                     leading: const Icon(Icons.pending_actions),
-                    title: Text('${data.toResolve} solicitud(es) por resolver'),
+                    title: Text('${plural(data.toResolve, 'solicitud', 'solicitudes')} por resolver'),
                     subtitle: const Text('En la pestaña Solicitudes'),
                   ),
                 if (data.unread > 0)
                   ListTile(
                     leading: const Icon(Icons.notifications_active_outlined),
-                    title: Text('${data.unread} aviso(s) sin leer'),
+                    title: Text('${plural(data.unread, 'aviso', 'avisos')} sin leer'),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () async {
                       await Navigator.push(context, MaterialPageRoute(builder: (_) => const NoticesScreen()));
@@ -99,9 +109,9 @@ class HomeScreen extends StatelessWidget {
             ),
           const SectionTitle('Próximos viajes'),
           if (data.trips.isEmpty)
-            const Padding(padding: EdgeInsets.all(16), child: Text('No tienes viajes confirmados próximamente.'))
+            const Padding(padding: EdgeInsets.all(16), child: Text('No tiene viajes confirmados próximamente.'))
           else
-            for (final trip in data.trips.take(5)) TripCard(trip: trip, showOverload: me.managesTransport || me.isChiefOf(trip.itineraryId), onChanged: reload),
+            for (final trip in data.trips.take(5)) TripCard(trip: trip, legs: data.legs[trip.id], showOverload: me.managesTransport || me.isChiefOf(trip.itineraryId), onChanged: reload),
         ]),
       ),
     );
@@ -114,6 +124,26 @@ class _HomeData {
   final int toResolve;
   final Itinerary? itinerary;
   final Stop? stop;
+  final Map<String, List<TripLeg>> legs;
 
-  _HomeData(this.trips, this.unread, this.toResolve, this.itinerary, this.stop);
+  _HomeData(this.trips, this.unread, this.toResolve, this.itinerary, this.stop, this.legs);
+}
+
+/// "Itinerario: Ruta 3" con la etiqueta resaltada.
+class _LabeledLine extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _LabeledLine(this.label, this.value);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Text.rich(TextSpan(children: [
+        TextSpan(text: '$label: ', style: const TextStyle(fontWeight: FontWeight.bold)),
+        TextSpan(text: value),
+      ])),
+    );
+  }
 }
