@@ -15,7 +15,7 @@ class AppIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Semantics(
-      label: 'MiTransporte',
+      label: 'MiRuta',
       image: true,
       child: SizedBox.square(dimension: size, child: CustomPaint(painter: _AppIconPainter())),
     );

@@ -47,7 +47,7 @@ class ApiClient {
   /// Si ya se sabe a qué servidor conectarse.
   bool get hasServer => baseUrl.isNotEmpty;
 
-  /// Comprueba que en [url] responde un servidor de MiTransporte.
+  /// Comprueba que en [url] responde un servidor de MiRuta.
   static Future<void> probe(String url) async {
     final dio = Dio(BaseOptions(
       baseUrl: url,
@@ -62,9 +62,9 @@ class ApiClient {
     } on DioException catch (error) {
       throw error.response == null
           ? _probeError('NETWORK_ERROR', 'No se pudo conectar con esa dirección. Revisa que esté bien escrita y que tengas conexión.')
-          : _probeError('NOT_MITRANSPORTE', 'En esa dirección no hay un servidor de MiTransporte.');
+          : _probeError('NOT_MITRANSPORTE', 'En esa dirección no hay un servidor de MiRuta.');
     } on FormatException {
-      throw _probeError('NOT_MITRANSPORTE', 'En esa dirección no hay un servidor de MiTransporte.');
+      throw _probeError('NOT_MITRANSPORTE', 'En esa dirección no hay un servidor de MiRuta.');
     }
   }
 

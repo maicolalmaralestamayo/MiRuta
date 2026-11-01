@@ -6,18 +6,24 @@ import '../core/json_api.dart';
 import '../core/storage.dart';
 import '../core/username.dart';
 import '../models/models.dart';
-import 'app_pin.dart';
 import 'notifications.dart';
 import 'sync.dart';
 import 'tracking_service.dart';
 import 'user_settings.dart';
 
+/// locked = hay sesión, pero hay que volver a escribir la contraseña
+/// ("Recordar contraseña" desactivado o pasados sus días, docs/09 §17).
 enum SessionState { loading, loggedOut, locked, ready }
 
-/// Sesión del usuario: inicio y cierre, desbloqueo y datos propios.
+/// Sesión del usuario: inicio y cierre, contraseña recordada y datos propios.
 class Session extends ChangeNotifier {
   /// Recordar el usuario en este teléfono (la clave conserva su nombre antiguo).
   static const rememberLoginKey = 'security.remember_card';
+
+  /// Cuándo se escribió la contraseña por última vez en este teléfono. La
+  /// contraseña nunca se guarda: se mantiene la sesión durante los días del
+  /// ajuste remember_password_days.
+  static const passwordEnteredAtKey = 'security.password_entered_at';
 
   final ApiClient api;
   SessionState state = SessionState.loading;
@@ -36,7 +42,7 @@ class Session extends ChangeNotifier {
   Future<void> init() async {
     if (await Storage.refreshToken() == null) {
       state = SessionState.loggedOut;
-    } else if (await AppPin.isEnabled()) {
+    } else if (await needsPassword()) {
       state = SessionState.locked;
     } else {
       await _enter();
@@ -59,6 +65,7 @@ class Session extends ChangeNotifier {
   Future<void> _start(JsonApiDocument document) async {
     final attributes = document.resource.attributes;
     await Storage.saveTokens(attributes['accessToken'] as String, attributes['refreshToken'] as String);
+    await Storage.setString(passwordEnteredAtKey, DateTime.now().toIso8601String());
     await SyncService.reset();
     await _enter();
     await _rememberLogin();
@@ -135,32 +142,11 @@ class Session extends ChangeNotifier {
     String key(String field) => prefix.isEmpty ? field : '$prefix${field[0].toUpperCase()}${field.substring(1)}';
     return {
       key('firstName'): name.firstName.trim(),
-      key('middleName'): name.middleName.trim(),
+      // El segundo nombre es opcional (docs/09 §3): vacío se envía como null.
+      key('middleName'): name.middleName.trim().isEmpty ? null : name.middleName.trim(),
       key('firstSurname'): name.firstSurname.trim(),
       key('secondSurname'): name.secondSurname.trim(),
     };
-  }
-
-  /// Desbloqueo con el PIN de la app.
-  Future<bool> unlock(String pin) async {
-    final ok = await AppPin.verify(pin);
-    if (ok) {
-      if (me == null) {
-        await _enter();
-      } else {
-        state = SessionState.ready;
-        notifyListeners();
-      }
-    }
-    return ok;
-  }
-
-  /// Vuelve a pedir el PIN (al volver a la app tras un rato fuera).
-  Future<void> lock() async {
-    if (state == SessionState.ready && await AppPin.isEnabled()) {
-      state = SessionState.locked;
-      notifyListeners();
-    }
   }
 
   Future<void> _enter() async {
@@ -204,7 +190,7 @@ class Session extends ChangeNotifier {
         await Workmanager().cancelByUniqueName(part.task);
         continue;
       }
-      final minutes = settings.integer(part.setting, 30);
+      final minutes = part.hours ? settings.integer(part.setting, 24) * 60 : settings.integer(part.setting, 30);
       await Workmanager().registerPeriodicTask(
         part.task,
         part.task,
@@ -224,12 +210,34 @@ class Session extends ChangeNotifier {
     await _clear();
   }
 
+  /// Hay que volver a escribir la contraseña: "Recordar contraseña" está
+  /// desactivado o pasaron sus días (ajustes del usuario).
+  Future<bool> needsPassword() async {
+    final cached = await UserSettings.cached();
+    if (!cached.boolean('remember_password', true)) return true;
+    final raw = await Storage.getString(passwordEnteredAtKey);
+    final enteredAt = raw == null ? null : DateTime.tryParse(raw);
+    if (enteredAt == null) {
+      // Sesiones de versiones anteriores: se empieza a contar ahora.
+      await Storage.setString(passwordEnteredAtKey, DateTime.now().toIso8601String());
+      return false;
+    }
+    return DateTime.now().difference(enteredAt) > Duration(days: cached.integer('remember_password_days', 7));
+  }
+
+  /// Pide de nuevo la contraseña (sin cerrar la sesión: los avisos siguen llegando).
+  void lock() {
+    if (state != SessionState.ready) return;
+    state = SessionState.locked;
+    notifyListeners();
+  }
+
   Future<void> _clear() async {
     await TrackingService.stop();
     await Workmanager().cancelAll();
     await Notifications.cancelAll();
-    await AppPin.remove();
     await Storage.clearUserData();
+    await Storage.setString(passwordEnteredAtKey, null);
     me = null;
     adminEntity = null;
     state = SessionState.loggedOut;

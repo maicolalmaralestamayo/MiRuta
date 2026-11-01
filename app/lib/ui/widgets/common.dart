@@ -5,7 +5,10 @@ import '../../core/api_client.dart';
 import '../../core/api_exception.dart';
 import '../../core/json_api.dart';
 import '../../models/models.dart';
+import '../../services/app_info.dart';
 import '../../services/session.dart';
+import '../../services/templates.dart';
+import '../guest/developer_chat_screen.dart';
 import '../theme.dart';
 
 extension SessionContext on BuildContext {
@@ -184,16 +187,15 @@ class EmptyView extends StatelessWidget {
   }
 }
 
+/// Foto de perfil o, si no tiene, un ícono genérico de persona (docs/09 §20).
 class WorkerAvatar extends StatelessWidget {
   final String? photoUrl;
-  final String initials;
   final double radius;
 
-  WorkerAvatar(Worker worker, {super.key, this.radius = 20})
-      : photoUrl = worker.photoUrl,
-        initials = worker.initials;
+  WorkerAvatar(Worker worker, {super.key, this.radius = 20}) : photoUrl = worker.photoUrl;
 
-  WorkerAvatar.of({super.key, required this.photoUrl, required PersonName name, this.radius = 20}) : initials = name.initials;
+  // ignore: avoid_unused_constructor_parameters
+  const WorkerAvatar.of({super.key, required this.photoUrl, PersonName? name, this.radius = 20});
 
   @override
   Widget build(BuildContext context) {
@@ -201,7 +203,7 @@ class WorkerAvatar extends StatelessWidget {
     return CircleAvatar(
       radius: radius,
       backgroundImage: photo == null ? null : NetworkImage(photo),
-      child: photo == null ? (initials.isEmpty ? const Icon(Icons.person) : Text(initials)) : null,
+      child: photo == null ? Icon(Icons.person, size: radius * 1.2) : null,
     );
   }
 }
@@ -217,8 +219,8 @@ class RankBadge extends StatelessWidget {
     if (rank == null) return const SizedBox.shrink();
     return Row(mainAxisSize: MainAxisSize.min, children: [
       rank!.iconUrl == null
-          ? const Icon(Icons.military_tech_outlined, size: 16)
-          : Image.network(rank!.iconUrl!, width: 16, height: 16, errorBuilder: (_, _, _) => const Icon(Icons.military_tech_outlined, size: 16)),
+          ? const Icon(rankIcon, size: 16)
+          : Image.network(rank!.iconUrl!, width: 16, height: 16, errorBuilder: (_, _, _) => const Icon(rankIcon, size: 16)),
       const SizedBox(width: 4),
       Text(rank!.name, style: Theme.of(context).textTheme.bodySmall),
     ]);
@@ -258,10 +260,206 @@ Color? occupancyColor(String level) => const {'saturated': saturatedColor, 'over
 
 String occupancyLabel(String level) => const {'saturated': 'Saturado', 'overloaded': 'Sobresaturado'}[level] ?? 'Normal';
 
-/// "35 trabajadores (+10 niños) · capacidad 40". Los niños van cargados:
-/// no cuentan para la ocupación, pero se informan.
+/// "35 trabajadores (+10 niños) · capacidad 40".
 String occupancyText(int workers, int children, int capacity) =>
-    '$workers trabajadores${children > 0 ? ' (+$children niños)' : ''} · capacidad $capacity';
+    '${plural(workers, 'trabajador', 'trabajadores')}${children > 0 ? ' (+${plural(children, 'niño', 'niños')})' : ''} · capacidad $capacity';
+
+/// Ícono de la jerarquía en toda la app (docs/09 §13).
+const rankIcon = Icons.star;
+
+/// "1 asiento", "3 asientos" (docs/09: plurales correctos).
+String plural(int count, String one, String many) => '$count ${count == 1 ? one : many}';
+
+/// Matrícula con los dígitos separados: B123456 → "B 123 456" (docs/09 §9).
+String formatPlate(String? plate) {
+  final p = (plate ?? '').replaceAll(' ', '');
+  final match = RegExp(r'^([A-Z])(\d{3})(\d{3})$').firstMatch(p);
+  return match == null ? p : '${match.group(1)} ${match.group(2)} ${match.group(3)}';
+}
+
+/// "Cap. total 60 • Cap. sentados 45 • Cap. de pie 15" (docs/09 §24).
+String capacityText(int seats, int standing) => 'Cap. total ${seats + standing} • Cap. sentados $seats • Cap. de pie $standing';
+
+/// Prefijo con el que vienen los campos de teléfono (docs/09 §7).
+const phonePrefix = '+53 ';
+
+/// Botón de eliminar de toda la app: cesto de basura rojo y siempre con
+/// confirmación (docs/09 §14).
+class DeleteButton extends StatelessWidget {
+  /// Qué se elimina, p. ej. "el vehículo B 123 456".
+  final String what;
+  final Future<void> Function() onDelete;
+  final String? tooltip;
+
+  const DeleteButton({super.key, required this.what, required this.onDelete, this.tooltip});
+
+  @override
+  Widget build(BuildContext context) {
+    return BusyIconButton(
+      tooltip: tooltip ?? 'Eliminar',
+      icon: const Icon(Icons.delete, color: overloadColor),
+      onPressed: () async {
+        if (!await confirmDelete(context, what)) return;
+        await onDelete();
+      },
+    );
+  }
+}
+
+Future<bool> confirmDelete(BuildContext context, String what) =>
+    confirm(context, 'Eliminar', '¿Eliminar $what?', accept: 'Eliminar', destructive: true);
+
+/// Campo de fecha (o de fecha y hora) con el mismo aspecto que los demás
+/// campos; el ícono abre el almanaque (docs/09 §38).
+class DateField extends StatelessWidget {
+  final String label;
+  final DateTime? value;
+  final ValueChanged<DateTime> onChanged;
+  final DateTime? firstDate;
+  final DateTime? lastDate;
+  final bool withTime;
+  final String? errorText;
+  final bool enabled;
+
+  const DateField({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.onChanged,
+    this.firstDate,
+    this.lastDate,
+    this.withTime = false,
+    this.errorText,
+    this.enabled = true,
+  });
+
+  Future<void> _pick(BuildContext context) async {
+    final initial = value ?? DateTime.now();
+    final date = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: firstDate ?? DateTime(1900),
+      lastDate: lastDate ?? DateTime(2100),
+    );
+    if (date == null || !context.mounted) return;
+    if (!withTime) {
+      onChanged(date);
+      return;
+    }
+    final time = await showTimePicker(context: context, initialTime: TimeOfDay.fromDateTime(initial));
+    if (time == null) return;
+    onChanged(DateTime(date.year, date.month, date.day, time.hour, time.minute));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final v = value;
+    return InkWell(
+      onTap: enabled ? () => _pick(context) : null,
+      child: InputDecorator(
+        isEmpty: v == null,
+        decoration: InputDecoration(
+          labelText: label,
+          errorText: errorText,
+          enabled: enabled,
+          suffixIcon: const Icon(Icons.calendar_month),
+        ),
+        child: v == null ? null : Text(withTime ? formatDateTime(v) : formatDate(v)),
+      ),
+    );
+  }
+}
+
+/// Campo de hora con el mismo aspecto que los demás campos.
+class TimeField extends StatelessWidget {
+  final String label;
+  final TimeOfDay? value;
+  final ValueChanged<TimeOfDay> onChanged;
+  final String? errorText;
+
+  const TimeField({super.key, required this.label, required this.value, required this.onChanged, this.errorText});
+
+  @override
+  Widget build(BuildContext context) {
+    final v = value;
+    return InkWell(
+      onTap: () async {
+        final time = await showTimePicker(context: context, initialTime: v ?? const TimeOfDay(hour: 7, minute: 0));
+        if (time != null) onChanged(time);
+      },
+      child: InputDecorator(
+        isEmpty: v == null,
+        decoration: InputDecoration(labelText: label, errorText: errorText, suffixIcon: const Icon(Icons.schedule)),
+        child: v == null ? null : Text('${v.hour.toString().padLeft(2, '0')}:${v.minute.toString().padLeft(2, '0')}'),
+      ),
+    );
+  }
+}
+
+/// Rango de fechas con el mismo aspecto que los demás campos.
+class DateRangeField extends StatelessWidget {
+  final String label;
+  final DateTimeRange? value;
+  final ValueChanged<DateTimeRange> onChanged;
+  final DateTime? firstDate;
+  final DateTime? lastDate;
+  final String? errorText;
+
+  const DateRangeField({super.key, required this.label, required this.value, required this.onChanged, this.firstDate, this.lastDate, this.errorText});
+
+  @override
+  Widget build(BuildContext context) {
+    final v = value;
+    return InkWell(
+      onTap: () async {
+        final range = await showDateRangePicker(
+          context: context,
+          initialDateRange: v,
+          firstDate: firstDate ?? DateTime(2020),
+          lastDate: lastDate ?? DateTime(2100),
+        );
+        if (range != null) onChanged(range);
+      },
+      child: InputDecorator(
+        isEmpty: v == null,
+        decoration: InputDecoration(labelText: label, errorText: errorText, suffixIcon: const Icon(Icons.date_range)),
+        child: v == null ? null : Text('${formatDate(v.start)} al ${formatDate(v.end)}'),
+      ),
+    );
+  }
+}
+
+/// Botón "Hablar con el desarrollador", igual en todas las pantallas
+/// (docs/09 §1): del color de los de registro y al final.
+class DeveloperChatButton extends StatelessWidget {
+  const DeveloperChatButton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return FilledButton.tonalIcon(
+      onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const GuestConversationsScreen())),
+      icon: const Icon(Icons.support_agent),
+      label: const Text('Hablar con el desarrollador'),
+    );
+  }
+}
+
+/// "MiRuta · Versión 2.1.0 · 64 bits" (docs/09 §1 y §13).
+class AppVersionText extends StatelessWidget {
+  const AppVersionText({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<String>(
+      future: AppInfo.label(),
+      builder: (context, snapshot) => Text(
+        snapshot.data ?? '',
+        textAlign: TextAlign.center,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.outline),
+      ),
+    );
+  }
+}
 
 /// Aviso llamativo de saturación (naranja: van de pie) o sobresaturación (rojo: no caben).
 class OverloadBanner extends StatelessWidget {

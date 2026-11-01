@@ -19,7 +19,7 @@ for platform in android-arm64 android-arm; do
     --obfuscate --split-debug-info="build/symbols/$VERSION" \
     --dart-define=API_URL="$API_URL"
   bits=$([ "$platform" = android-arm64 ] && echo 64 || echo 32)
-  cp build/app/outputs/flutter-apk/app-release.apk "$OUT/MiTransporte-${VERSION%%+*}-${bits}bits.apk"
+  cp build/app/outputs/flutter-apk/app-release.apk "$OUT/MiRuta-${VERSION%%+*}-${bits}bits.apk"
 done
 
 ls -la "$OUT"

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../core/storage.dart';
 import '../../models/models.dart';
-import '../../services/app_pin.dart';
 import '../../services/app_updates.dart';
 import '../../services/user_settings.dart';
 import '../../services/session.dart';
@@ -21,13 +20,16 @@ class SettingsScreen extends StatefulWidget {
 }
 
 const _groups = <String, List<String>>{
-  'Aviso de salida': ['departure_notice_mode', 'departure_notice_minutes_before', 'departure_notice_fixed_time', 'departure_notice_fixed_days_before', 'departure_notice_fallback', 'departure_notice_template'],
-  'Aviso de regreso': ['return_notice_mode', 'return_notice_minutes_before', 'return_notice_fixed_time', 'return_notice_fixed_days_before', 'return_notice_fallback', 'return_notice_template'],
+  'Seguridad': ['remember_password', 'remember_password_days', 'password_expiry_notice_days'],
+  'Aviso de viaje de ida': ['departure_notice_mode', 'departure_notice_minutes_before', 'departure_notice_fixed_time', 'departure_notice_fixed_days_before', 'departure_notice_fallback', 'departure_notice_template'],
+  'Aviso de viaje de regreso': ['return_notice_mode', 'return_notice_minutes_before', 'return_notice_fixed_time', 'return_notice_fixed_days_before', 'return_notice_fallback', 'return_notice_template'],
+  'Comienzo y atrasos': ['trip_start_notice_enabled', 'trip_delay_notice_enabled'],
   'Paso por paradas': ['stop_notice_scope', 'stop_notice_after_boarding', 'stop_notice_template'],
   'Cambios y cancelaciones': ['change_notice_template', 'cancel_notice_template', 'notify_during_absence'],
   'Saturación del transporte': [
     'saturation_notice_enabled', 'saturation_notice_level', 'saturation_notice_scope', 'saturation_notice_when', 'saturation_notice_minutes_before',
   ],
+  'Mensajes': ['trip_chat_notice_enabled', 'conversation_notice_enabled'],
   'Recorrido': ['trip_view', 'tts_enabled', 'share_location', 'location_interval_seconds'],
   'Frecuencias': [
     'background_sync_enabled', 'trips_poll_foreground_seconds', 'trips_poll_background_minutes', 'tracking_poll_foreground_seconds',
@@ -38,7 +40,6 @@ const _groups = <String, List<String>>{
 
 class _SettingsScreenState extends State<SettingsScreen> {
   final _view = GlobalKey<AsyncViewState<(Map<String, SettingDefinition>, UserSettings)>>();
-  bool _pin = false;
   bool _rememberLogin = true;
   bool _wifiOnly = false;
   String _version = '';
@@ -46,7 +47,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void initState() {
     super.initState();
-    AppPin.isEnabled().then((v) => setState(() => _pin = v));
     Storage.getBool(Session.rememberLoginKey, fallback: true).then((v) => setState(() => _rememberLogin = v));
     AppUpdates.currentVersionName().then((v) => setState(() => _version = v));
     Storage.getBool(AppUpdates.wifiOnlyKey, fallback: false).then((v) => setState(() => _wifiOnly = v));
@@ -75,30 +75,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  /// Activar o cambiar el PIN de la app (se pide dos veces).
-  Future<void> _setPin() async {
-    final pin = await promptText(context, 'PIN nuevo (${AppPin.minLength} a ${AppPin.maxLength} dígitos)', required: true);
-    if (pin == null || !mounted) return;
-    if (!AppPin.isValidFormat(pin)) {
-      showMessage(context, 'El PIN debe tener entre ${AppPin.minLength} y ${AppPin.maxLength} dígitos.');
-      return;
-    }
-    final repeated = await promptText(context, 'Repite el PIN', required: true);
-    if (repeated == null || !mounted) return;
-    if (repeated != pin) {
-      showMessage(context, 'Los PIN no coinciden.');
-      return;
-    }
-    await AppPin.set(pin);
-    setState(() => _pin = true);
-    if (mounted) showMessage(context, 'Se pedirá el PIN al abrir la app.');
-  }
-
-  Future<void> _removePin() async {
-    await AppPin.remove();
-    setState(() => _pin = false);
-  }
-
   @override
   Widget build(BuildContext context) {
     final me = context.me;
@@ -111,17 +87,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         builder: (context, data, reload) {
           final (definitions, settings) = data;
           return ListView(padding: const EdgeInsets.only(bottom: 32), children: [
-            const SectionTitle('Seguridad (solo en este teléfono)'),
+            const SectionTitle('En este teléfono'),
             SwitchListTile(
-              title: const Text('Pedir un PIN al abrir la app'),
-              subtitle: const Text('Un PIN propio de MiTransporte, distinto del bloqueo del teléfono'),
-              value: _pin,
-              onChanged: (value) => value ? _setPin() : _removePin(),
-            ),
-            if (_pin) ListTile(leading: const Icon(Icons.pin_outlined), title: const Text('Cambiar el PIN'), onTap: _setPin),
-            SwitchListTile(
-              title: const Text('Recordar mi usuario'),
-              subtitle: const Text('Aparece ya escrito al iniciar sesión'),
+              title: const Text('Recordar mi nombre de usuario'),
+              subtitle: const Text('Aparece ya escrito al iniciar sesión.', maxLines: 1, overflow: TextOverflow.ellipsis),
               value: _rememberLogin,
               onChanged: (value) async {
                 await Storage.setBool(Session.rememberLoginKey, value);
@@ -135,7 +104,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 if (definitions[key] != null && (key != 'tts_enabled' || operator) && (key != 'saturation_notice_scope' || operator))
                   ListTile(
                     title: Text(definitions[key]!.name),
-                    subtitle: Text(describeSetting(definitions[key]!, settings.string(key))),
+                    // Explicación breve de una línea y el valor (docs/09 §17).
+                    subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      if ((definitions[key]!.description ?? '').isNotEmpty)
+                        Text(definitions[key]!.description!, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodySmall),
+                      Text(describeSetting(definitions[key]!, settings.string(key)), style: const TextStyle(fontWeight: FontWeight.w600)),
+                    ]),
                     trailing: definitions[key]!.valueType == 'boolean'
                         ? Switch(value: settings.string(key) == '1', onChanged: (_) => _edit(definitions[key]!, settings.string(key)))
                         : const Icon(Icons.chevron_right),
@@ -145,12 +119,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ],
             const Padding(
               padding: EdgeInsets.all(16),
-              child: Text('Mantén pulsado un ajuste para volver al valor de tu Entidad.'),
+              child: Text('Mantenga pulsado un ajuste para volver al valor de su Entidad.'),
             ),
             const SectionTitle('Actualizaciones'),
+            if (definitions['update_check_hours'] != null)
+              ListTile(
+                title: Text(definitions['update_check_hours']!.name),
+                subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(definitions['update_check_hours']!.description ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodySmall),
+                  Text(describeSetting(definitions['update_check_hours']!, settings.string('update_check_hours')), style: const TextStyle(fontWeight: FontWeight.w600)),
+                ]),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => _edit(definitions['update_check_hours']!, settings.string('update_check_hours')),
+                onLongPress: () => _reset(definitions['update_check_hours']!),
+              ),
             SwitchListTile(
               title: const Text('Descargar actualizaciones solo con Wi-Fi'),
-              subtitle: const Text('Con datos móviles avisa del tamaño antes de descargar. Las obligatorias se descargan siempre.'),
+              subtitle: const Text('Las obligatorias se descargan siempre.', maxLines: 1, overflow: TextOverflow.ellipsis),
               value: _wifiOnly,
               onChanged: (value) async {
                 await Storage.setBool(AppUpdates.wifiOnlyKey, value);
@@ -159,13 +144,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             BusyListTile(
               leading: const Icon(Icons.system_update),
-              title: const Text('Buscar actualizaciones'),
+              title: const Text('Buscar actualizaciones ahora'),
               subtitle: Text('Versión instalada: $_version'),
               onTap: () async {
                 final update = await AppUpdates.check(context.api);
                 if (!context.mounted) return;
                 if (update == null) {
-                  showMessage(context, 'Tienes la última versión.');
+                  showMessage(context, 'Tiene la última versión.');
                 } else {
                   await Navigator.push(context, MaterialPageRoute(builder: (_) => UpdateScreen(update: update)));
                 }

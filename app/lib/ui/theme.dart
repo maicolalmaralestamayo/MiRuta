@@ -61,6 +61,13 @@ ThemeData buildTheme(Brightness brightness) {
             color: states.contains(WidgetState.selected) ? navy : (dark ? Colors.white70 : navy),
           )),
     ),
+    // Pestañas sobre la barra azul marino: blanco la activa y blanco atenuado las demás (docs/09 §39).
+    tabBarTheme: const TabBarThemeData(
+      labelColor: Colors.white,
+      unselectedLabelColor: Colors.white70,
+      indicatorColor: orange,
+      dividerColor: Colors.transparent,
+    ),
     progressIndicatorTheme: const ProgressIndicatorThemeData(color: orange),
     inputDecorationTheme: const InputDecorationTheme(border: OutlineInputBorder()),
     cardTheme: const CardThemeData(margin: EdgeInsets.symmetric(horizontal: 12, vertical: 6)),

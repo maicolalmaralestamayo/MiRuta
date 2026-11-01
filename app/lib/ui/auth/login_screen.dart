@@ -63,7 +63,7 @@ class _LoginScreenState extends State<LoginScreen> {
               child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 const Center(child: AppIcon(size: 88)),
                 const SizedBox(height: 12),
-                Text('MiTransporte', textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineMedium),
+                Text('MiRuta', textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineMedium),
                 const SizedBox(height: 32),
                 TextFormField(
                   controller: _user,

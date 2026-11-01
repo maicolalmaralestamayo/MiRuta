@@ -2,6 +2,7 @@
 library;
 
 import '../core/json_api.dart';
+import '../services/templates.dart';
 
 class Rank {
   final String id;
@@ -321,6 +322,10 @@ class Itinerary {
   final String? returnStopId;
   final int memberCount;
 
+  /// Recorridos de referencia (viaje de ida / de regreso ya realizados) para detectar desvíos.
+  final String? referenceOutboundLegId;
+  final String? referenceReturnLegId;
+
   Itinerary({
     required this.id,
     required this.name,
@@ -330,6 +335,8 @@ class Itinerary {
     this.departureStopId,
     this.returnStopId,
     this.memberCount = 0,
+    this.referenceOutboundLegId,
+    this.referenceReturnLegId,
   });
 
   factory Itinerary.from(Resource r) => Itinerary(
@@ -341,6 +348,8 @@ class Itinerary {
         departureStopId: (r.meta['departurePoint'] as Map?)?['id']?.toString(),
         returnStopId: (r.meta['returnPoint'] as Map?)?['id']?.toString(),
         memberCount: (r.meta['memberCount'] as num?)?.toInt() ?? 0,
+        referenceOutboundLegId: r.relId('referenceOutboundLeg')?.id,
+        referenceReturnLegId: r.relId('referenceReturnLeg')?.id,
       );
 }
 
@@ -453,6 +462,12 @@ class Trip {
   final String? departureStopId;
   final String? returnStopId;
 
+  /// Atraso (docs/09): sin comenzar pasada la hora más la tolerancia, y minutos de atraso.
+  final bool outboundDelayed;
+  final bool returnDelayed;
+  final int? outboundDelayMinutes;
+  final int? returnDelayMinutes;
+
   // Datos incluidos (para avisos y pantallas)
   final String? itineraryName;
   final String? vehiclePlate;
@@ -477,6 +492,10 @@ class Trip {
     this.needsReassignment = false,
     this.departureStopId,
     this.returnStopId,
+    this.outboundDelayed = false,
+    this.returnDelayed = false,
+    this.outboundDelayMinutes,
+    this.returnDelayMinutes,
     this.itineraryName,
     this.vehiclePlate,
     this.vehicleTypeName,
@@ -507,6 +526,10 @@ class Trip {
       needsReassignment: r.meta['needsReassignment'] == true,
       departureStopId: (r.meta['departurePoint'] as Map?)?['id']?.toString(),
       returnStopId: (r.meta['returnPoint'] as Map?)?['id']?.toString(),
+      outboundDelayed: r.boolean('outboundDelayed'),
+      returnDelayed: r.boolean('returnDelayed'),
+      outboundDelayMinutes: r.integer('outboundDelayMinutes'),
+      returnDelayMinutes: r.integer('returnDelayMinutes'),
       itineraryName: itinerary?.string('name'),
       vehiclePlate: vehicle?.string('plate'),
       vehicleTypeName: vehicleType?.string('name'),
@@ -526,7 +549,8 @@ class Trip {
         'updatedAt': updatedAt?.toIso8601String(), 'itineraryId': itineraryId, 'vehicleId': vehicleId, 'driverId': driverId,
         'expectedPassengers': expectedPassengers, 'expectedChildren': expectedChildren, 'seats': seats, 'totalCapacity': totalCapacity,
         'occupancyLevel': occupancyLevel, 'needsReassignment': needsReassignment, 'departureStopId': departureStopId,
-        'returnStopId': returnStopId, 'itineraryName': itineraryName, 'vehiclePlate': vehiclePlate,
+        'returnStopId': returnStopId, 'outboundDelayed': outboundDelayed, 'returnDelayed': returnDelayed,
+        'outboundDelayMinutes': outboundDelayMinutes, 'returnDelayMinutes': returnDelayMinutes, 'itineraryName': itineraryName, 'vehiclePlate': vehiclePlate,
         'vehicleTypeName': vehicleTypeName, 'driverName': driverName, 'driverWorkerId': driverWorkerId,
       };
 
@@ -547,6 +571,10 @@ class Trip {
         needsReassignment: j['needsReassignment'] == true,
         departureStopId: j['departureStopId'] as String?,
         returnStopId: j['returnStopId'] as String?,
+        outboundDelayed: j['outboundDelayed'] == true,
+        returnDelayed: j['returnDelayed'] == true,
+        outboundDelayMinutes: j['outboundDelayMinutes'] as int?,
+        returnDelayMinutes: j['returnDelayMinutes'] as int?,
         itineraryName: j['itineraryName'] as String?,
         vehiclePlate: j['vehiclePlate'] as String?,
         vehicleTypeName: j['vehicleTypeName'] as String?,
@@ -567,6 +595,8 @@ class TripLeg {
   final DateTime? positionAt;
   final int activeSensors;
   final List<StopPass> stopPasses;
+  final bool deviating;
+  final List<TripIncident> incidents;
 
   TripLeg({
     required this.id,
@@ -580,6 +610,8 @@ class TripLeg {
     this.positionAt,
     this.activeSensors = 0,
     this.stopPasses = const [],
+    this.deviating = false,
+    this.incidents = const [],
   });
 
   factory TripLeg.from(Resource r) {
@@ -596,8 +628,14 @@ class TripLeg {
       positionAt: position?['at'] == null ? null : DateTime.tryParse(position!['at'] as String)?.toLocal(),
       activeSensors: (r.meta['activeSensors'] as num?)?.toInt() ?? 0,
       stopPasses: ((r.meta['stopPasses'] as List?) ?? const [])
-          .map((p) => StopPass(stopId: '${(p as Map)['stopId']}', passedAt: DateTime.parse(p['passedAt'] as String).toLocal()))
+          .map((p) => StopPass(
+                stopId: '${(p as Map)['stopId']}',
+                passedAt: DateTime.parse(p['passedAt'] as String).toLocal(),
+                status: p['status']?.toString() ?? 'stopped',
+              ))
           .toList(),
+      deviating: r.meta['deviating'] == true,
+      incidents: ((r.meta['incidents'] as List?) ?? const []).map((i) => TripIncident.fromJson(Map<String, dynamic>.from(i as Map))).toList(),
     );
   }
 
@@ -605,14 +643,54 @@ class TripLeg {
 
   bool get isReturn => direction == 'return';
 
-  String get directionLabel => isReturn ? 'Regreso' : 'Salida';
+  /// "Viaje de ida" o "Viaje de regreso" (docs/09 §9).
+  String get directionLabel => directionName(direction);
+
+  static String directionName(String direction) => direction == 'return' ? 'Viaje de regreso' : 'Viaje de ida';
+
+  /// Paradas donde no se detuvo y paradas saltadas.
+  int get notStoppedCount => stopPasses.where((p) => p.status == 'not_stopped').length;
+
+  int get skippedCount => stopPasses.where((p) => p.status == 'skipped').length;
 }
 
 class StopPass {
   final String stopId;
   final DateTime passedAt;
 
-  StopPass({required this.stopId, required this.passedAt});
+  /// arrived (está en la parada), stopped, not_stopped (pasó de largo) o skipped (se la saltó).
+  final String status;
+
+  StopPass({required this.stopId, required this.passedAt, this.status = 'stopped'});
+
+  bool get skipped => status == 'skipped';
+
+  bool get notStopped => status == 'not_stopped';
+}
+
+/// Incidencia del recorrido (docs/09 §8): no se detuvo, se saltó la parada o se desvió.
+class TripIncident {
+  final String type;
+  final String? stopId;
+  final double? latitude;
+  final double? longitude;
+  final int? distanceM;
+  final DateTime startedAt;
+  final DateTime? endedAt;
+
+  TripIncident({required this.type, this.stopId, this.latitude, this.longitude, this.distanceM, required this.startedAt, this.endedAt});
+
+  factory TripIncident.fromJson(Map<String, dynamic> j) => TripIncident(
+        type: j['type'] as String,
+        stopId: j['stopId']?.toString(),
+        latitude: (j['latitude'] as num?)?.toDouble(),
+        longitude: (j['longitude'] as num?)?.toDouble(),
+        distanceM: (j['distanceM'] as num?)?.toInt(),
+        startedAt: DateTime.parse(j['startedAt'] as String).toLocal(),
+        endedAt: j['endedAt'] == null ? null : DateTime.parse(j['endedAt'] as String).toLocal(),
+      );
+
+  String get label => const {'not_stopped': 'No se detuvo', 'skipped': 'Se saltó la parada', 'deviation': 'Se desvió del recorrido'}[type] ?? type;
 }
 
 class Passenger {
@@ -661,17 +739,17 @@ class ApplicationType {
 
   static String label(String type) => const {
         itineraryMembership: 'Itinerario y parada',
-        itineraryChief: 'Jefe de itinerario',
-        driver: 'Chofer',
-        transportChief: 'Jefe de Transporte',
-        childAddition: 'Declarar hijo',
+        itineraryChief: 'Rol de Jefe de itinerario',
+        driver: 'Rol de Chofer',
+        transportChief: 'Rol de Jefe de Transporte',
+        childAddition: 'Declarar hijos',
         childRemoval: 'Quitar hijo',
         absence: 'Ausencia temporal',
-        itineraryLeave: 'Baja del itinerario',
-        itineraryChiefLeave: 'Baja como Jefe de itinerario',
-        driverLeave: 'Baja como chofer',
-        transportChiefLeave: 'Baja como Jefe de Transporte',
-        itineraryRemoval: 'Baja automática por inactividad',
+        itineraryLeave: 'Darme de baja del itinerario',
+        itineraryChiefLeave: 'Baja del rol de Jefe de itinerario',
+        driverLeave: 'Baja del rol de Chofer',
+        transportChiefLeave: 'Baja del rol de Jefe de Transporte',
+        itineraryRemoval: 'Baja por inactividad',
       }[type] ?? type;
 
   static String statusLabel(String status) => const {
@@ -702,6 +780,12 @@ class Application {
   final String? endsOn;
   final String? observation;
 
+  /// Solicitudes enviadas juntas (varios hijos): el id de la primera.
+  final String? groupId;
+
+  /// Ausencia indefinida, sin fechas.
+  final bool indefinite;
+
   Application({
     required this.id,
     required this.type,
@@ -721,6 +805,8 @@ class Application {
     this.startsOn,
     this.endsOn,
     this.observation,
+    this.groupId,
+    this.indefinite = false,
   });
 
   factory Application.from(Resource r) {
@@ -745,6 +831,8 @@ class Application {
       startsOn: r.string('startsOn'),
       endsOn: r.string('endsOn'),
       observation: r.string('observation'),
+      groupId: r.string('groupId'),
+      indefinite: r.boolean('indefinite'),
     );
   }
 
@@ -756,7 +844,8 @@ class Application {
       ?stopName,
       ?childName,
       ?absenceTypeName,
-      if (startsOn != null) '$startsOn → $endsOn',
+      if (indefinite) 'indefinida',
+      if (startsOn != null) '${formatDate(DateTime.parse(startsOn!))} al ${formatDate(DateTime.parse(endsOn!))}',
     ];
     return parts.join(' · ');
   }
@@ -793,7 +882,10 @@ class Notice {
   final String? tripId;
   final String? accessRecoveryId;
 
-  Notice({required this.id, required this.type, this.readAt, required this.createdAt, this.applicationId, this.tripId, this.accessRecoveryId});
+  /// Texto concreto que compone el servidor (qué, quién y, si se rechazó, el motivo).
+  final String message;
+
+  Notice({required this.id, required this.type, this.readAt, required this.createdAt, this.applicationId, this.tripId, this.accessRecoveryId, this.message = ''});
 
   factory Notice.from(Resource r) => Notice(
         id: r.id,
@@ -803,20 +895,28 @@ class Notice {
         applicationId: r.relId('application')?.id,
         tripId: r.relId('trip')?.id,
         accessRecoveryId: r.relId('accessRecovery')?.id,
+        message: r.string('message') ?? '',
       );
 
+  /// Título breve (para la notificación del teléfono).
   String get title => const {
-        'application_received': 'Hay una solicitud nueva para resolver',
-        'application_resolved': 'Se resolvió una de tus solicitudes',
-        'resignation': 'Alguien a tu cargo se dio de baja',
-        'inactivity_warning': 'Vas a perder tu plaza por inactividad',
-        'inactivity_removal': 'Baja automática por inactividad',
-        'trip_needs_reassignment': 'Un viaje se quedó sin chofer',
-        'role_assigned': 'Un superior te asignó algo nuevo',
-        'role_removed': 'Un superior te quitó un rol o tu itinerario',
-        'access_recovery_requested': 'Alguien no puede entrar y pide ayuda',
-        'password_expiring': 'Tu contraseña caduca pronto',
+        'application_received': 'Solicitud nueva para resolver',
+        'application_resolved': 'Solicitud resuelta',
+        'resignation': 'Baja de un trabajador a su cargo',
+        'inactivity_warning': 'Aviso de inactividad',
+        'inactivity_removal': 'Baja por inactividad',
+        'trip_needs_reassignment': 'Viaje sin chofer',
+        'role_assigned': 'Asignación de un superior',
+        'role_removed': 'Baja dada por un superior',
+        'access_recovery_requested': 'Solicitud «Olvidé algo»',
+        'password_expiring': 'Su contraseña caduca pronto',
+        'trip_started': 'Comenzó el viaje',
+        'trip_delayed': 'Viaje atrasado',
+        'trip_incident': 'Incidencia en el recorrido',
       }[type] ?? type;
+
+  /// Texto del aviso: el del servidor o, si no llega, el título.
+  String get text => message.isNotEmpty ? message : title;
 }
 
 class Message {
@@ -908,6 +1008,7 @@ class SettingDefinition {
   final int? minValue;
   final int? maxValue;
   final String? minSetting;
+  final String? maxSetting;
   final String? level;
   final bool userOverridable;
   final Map<String, String> options;
@@ -921,6 +1022,7 @@ class SettingDefinition {
     this.minValue,
     this.maxValue,
     this.minSetting,
+    this.maxSetting,
     this.level,
     this.userOverridable = false,
     this.options = const {},
@@ -935,8 +1037,56 @@ class SettingDefinition {
         minValue: r.integer('minValue'),
         maxValue: r.integer('maxValue'),
         minSetting: r.string('minSetting'),
+        maxSetting: r.string('maxSetting'),
         level: r.string('level'),
         userOverridable: r.boolean('userOverridable'),
         options: {for (final o in (r.attributes['options'] as List? ?? const [])) '${(o as Map)['value']}': '${o['name']}'},
       );
+}
+
+/// Mapa propio (docs/09, Mapas): de dónde salen las imágenes, límites de Cuba y
+/// zona de la Entidad para descargarla.
+class MapConfig {
+  final String tilesUrl;
+  final int minZoom;
+  final int maxZoom;
+  final int downloadMinZoom;
+  final int downloadMaxZoom;
+  final GeoBox bounds;
+  final GeoBox? area;
+
+  MapConfig({required this.tilesUrl, this.minZoom = 7, this.maxZoom = 17, this.downloadMinZoom = 12, this.downloadMaxZoom = 17, required this.bounds, this.area});
+
+  factory MapConfig.fromJson(Map<String, dynamic> j) => MapConfig(
+        tilesUrl: j['tilesUrl'] as String? ?? '/tiles/{z}/{x}/{y}.png',
+        minZoom: (j['minZoom'] as num?)?.toInt() ?? 7,
+        maxZoom: (j['maxZoom'] as num?)?.toInt() ?? 17,
+        downloadMinZoom: (j['downloadMinZoom'] as num?)?.toInt() ?? 12,
+        downloadMaxZoom: (j['downloadMaxZoom'] as num?)?.toInt() ?? 17,
+        bounds: GeoBox.fromJson(Map<String, dynamic>.from(j['bounds'] as Map)),
+        area: j['area'] == null ? null : GeoBox.fromJson(Map<String, dynamic>.from(j['area'] as Map)),
+      );
+
+  Map<String, dynamic> toJson() => {
+        'tilesUrl': tilesUrl, 'minZoom': minZoom, 'maxZoom': maxZoom, 'downloadMinZoom': downloadMinZoom,
+        'downloadMaxZoom': downloadMaxZoom, 'bounds': bounds.toJson(), 'area': area?.toJson(),
+      };
+}
+
+class GeoBox {
+  final double south;
+  final double west;
+  final double north;
+  final double east;
+
+  const GeoBox({required this.south, required this.west, required this.north, required this.east});
+
+  factory GeoBox.fromJson(Map<String, dynamic> j) => GeoBox(
+        south: (j['south'] as num).toDouble(),
+        west: (j['west'] as num).toDouble(),
+        north: (j['north'] as num).toDouble(),
+        east: (j['east'] as num).toDouble(),
+      );
+
+  Map<String, dynamic> toJson() => {'south': south, 'west': west, 'north': north, 'east': east};
 }

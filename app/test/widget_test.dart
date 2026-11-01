@@ -2,7 +2,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:mitransporte/core/password_policy.dart';
 import 'package:mitransporte/core/json_api.dart';
-import 'package:mitransporte/services/app_pin.dart';
 import 'package:mitransporte/services/notifications.dart';
 import 'package:mitransporte/services/templates.dart';
 import 'package:mitransporte/services/user_settings.dart';
@@ -48,21 +47,6 @@ void main() {
     });
     expect(document.resource.string('firstName'), 'Ana');
     expect(document.resource.related('rank')!.string('name'), 'Trabajador civil');
-  });
-
-  test('formato del PIN de la app', () {
-    expect(AppPin.isValidFormat('1234'), isTrue);
-    expect(AppPin.isValidFormat('123456'), isTrue);
-    expect(AppPin.isValidFormat('123'), isFalse);
-    expect(AppPin.isValidFormat('1234567'), isFalse);
-    expect(AppPin.isValidFormat('12a4'), isFalse);
-  });
-
-  test('PIN con PBKDF2 (vector de prueba del RFC 7914)', () {
-    // PBKDF2-HMAC-SHA256, P = "passwd", S = "salt", c = 1, 32 bytes.
-    expect(AppPin.pbkdf2('passwd', 'salt', 1), 'VawEblbjCJ/sFpHCJUS2BflBhSFt3gRl5oudV8INrLw=');
-    // Mismo resultado que hashlib.pbkdf2_hmac de Python con 1000 iteraciones.
-    expect(AppPin.pbkdf2('1234', 'c2FsdA==', 1000), '4KyVPjWH6bj+MdRc5m0u1mb/h6rSzx6bJMY9N05G28w=');
   });
 
   test('requisitos de la contraseña', () {

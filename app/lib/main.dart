@@ -12,7 +12,6 @@ import 'services/session.dart';
 import 'services/sync.dart';
 import 'services/tracking_service.dart';
 import 'ui/auth/join_entity_screen.dart';
-import 'ui/auth/lock_screen.dart';
 import 'ui/auth/login_screen.dart';
 import 'ui/auth/new_password_screen.dart';
 import 'ui/home/home_shell.dart';
@@ -44,17 +43,17 @@ Future<void> main() async {
   TrackingService.init();
 
   final session = Session(await ApiClient.create());
-  runApp(ChangeNotifierProvider.value(value: session, child: const MiTransporteApp()));
+  runApp(ChangeNotifierProvider.value(value: session, child: const MiRutaApp()));
   session.init();
 }
 
-class MiTransporteApp extends StatelessWidget {
-  const MiTransporteApp({super.key});
+class MiRutaApp extends StatelessWidget {
+  const MiRutaApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'MiTransporte',
+      title: 'MiRuta',
       debugShowCheckedModeBanner: false,
       theme: buildTheme(Brightness.light),
       darkTheme: buildTheme(Brightness.dark),
@@ -119,7 +118,8 @@ class _RootState extends State<_Root> {
       case SessionState.loggedOut:
         return const LoginScreen();
       case SessionState.locked:
-        return const LockScreen();
+        // Hay sesión, pero hay que volver a escribir la contraseña.
+        return const LoginScreen();
       case SessionState.ready:
         return const HomeShell();
     }

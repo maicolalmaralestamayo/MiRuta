@@ -20,7 +20,7 @@
          estar en https:// o en http:// (docs/05-app.md §5.2). -->
     <application
         android:usesCleartextTraffic="true"
-        android:label="MiTransporte"
+        android:label="MiRuta"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

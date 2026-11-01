@@ -96,7 +96,7 @@ class AppUpdates {
     final installedIs64 = nativeDir.endsWith('arm64') || nativeDir.endsWith('arm64-v8a');
     final name = (await PackageInfo.fromPlatform()).version;
     final temp = await getTemporaryDirectory();
-    final target = File('${temp.path}/MiTransporte-$name-${arm64 ? '64' : '32'}bits.apk');
+    final target = File('${temp.path}/MiRuta-$name-${arm64 ? '64' : '32'}bits.apk');
 
     if (installedIs64 == arm64) {
       await File(installed['path'] as String).copy(target.path);
@@ -109,7 +109,7 @@ class AppUpdates {
 
     await SharePlus.instance.share(ShareParams(
       files: [XFile(target.path, mimeType: 'application/vnd.android.package-archive')],
-      text: 'MiTransporte: ábrelo para instalar la app. Dirección del servidor: ${ServerUrl.short(api.baseUrl)}',
+      text: 'MiRuta: ábralo para instalar la app. Dirección del servidor: ${ServerUrl.short(api.baseUrl)}',
     ));
   }
 

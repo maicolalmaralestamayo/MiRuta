@@ -61,7 +61,7 @@ class _UpdateScreenState extends State<UpdateScreen> {
             _status = 'Sigue las instrucciones de Android para instalar la actualización.';
             _running = false;
           case OtaStatus.PERMISSION_NOT_GRANTED_ERROR:
-            _status = 'Hace falta permitir que MiTransporte instale aplicaciones. Actívalo en la pantalla que abrió Android y vuelve a intentarlo.';
+            _status = 'Hace falta permitir que MiRuta instale aplicaciones. Actívelo en la pantalla que abrió Android y vuelva a intentarlo.';
             _running = false;
           case OtaStatus.CHECKSUM_ERROR:
             _status = 'El archivo descargado está dañado. Vuelve a intentarlo.';
@@ -93,7 +93,7 @@ class _UpdateScreenState extends State<UpdateScreen> {
         body: ListView(padding: const EdgeInsets.all(24), children: [
           Icon(Icons.system_update, size: 64, color: Theme.of(context).colorScheme.primary),
           const SizedBox(height: 12),
-          Text('MiTransporte ${update.versionName}', textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineSmall),
+          Text('MiRuta ${update.versionName}', textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineSmall),
           Text('Descarga: ${update.sizeLabel} · ${update.abi == 'armeabi-v7a' ? '32 bits' : update.abi == 'arm64-v8a' ? '64 bits' : 'universal'}', textAlign: TextAlign.center),
           if (_mobileWarning)
             const Padding(

@@ -7,10 +7,15 @@ String renderTemplate(String template, Map<String, String> variables) {
   return template.replaceAllMapped(RegExp(r'\{(\w+)\}'), (match) => variables[match.group(1)] ?? match.group(0)!);
 }
 
-final _date = DateFormat('dd/MM/yyyy', 'es');
+/// Fechas como acordamos (docs/09 §8 y §14): día de la semana y año con 2 dígitos, p. ej. "sáb. 31/10/26".
+final _weekday = DateFormat('EEE', 'es');
+final _date = DateFormat('dd/MM/yy', 'es');
 final _time = DateFormat('HH:mm', 'es');
 
-String formatDate(DateTime date) => _date.format(date);
+String formatDate(DateTime date) {
+  final day = _weekday.format(date);
+  return '${day.endsWith('.') ? day : '$day.'} ${_date.format(date)}';
+}
 
 String formatTime(DateTime date) => _time.format(date);
 

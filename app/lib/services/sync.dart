@@ -11,11 +11,15 @@ enum SyncPart {
   trips('trips_poll_background_minutes'),
   notices('notices_poll_background_minutes'),
   conversations('conversations_poll_background_minutes'),
-  tripChats('trip_chat_poll_background_minutes');
+  tripChats('trip_chat_poll_background_minutes'),
+
+  /// Comprobar si hay versión nueva de la app (docs/09 §33); el ajuste va en horas.
+  updates('update_check_hours', hours: true);
 
   final String setting;
+  final bool hours;
 
-  const SyncPart(this.setting);
+  const SyncPart(this.setting, {this.hours = false});
 
   String get task => 'sync-$name';
 
@@ -72,12 +76,12 @@ class SyncService {
       await _syncStops(api, me['itineraryId'] as String?);
       await _syncTrips(api, me, settings, notifyChanges);
     }
-    if (parts.contains(SyncPart.notices)) {
-      await _syncNotices(api);
-      await _notifyUpdate(api);
-    }
-    if (parts.contains(SyncPart.conversations)) await _syncConversations(api);
-    if (parts.contains(SyncPart.tripChats)) await _syncTripChats(api, (me['userId'] ?? '') as String);
+    if (parts.contains(SyncPart.notices)) await _syncNotices(api);
+    if (parts.contains(SyncPart.updates)) await _notifyUpdate(api);
+    final settings = await UserSettings.cached();
+    // Avisos de mensajes nuevos, si el usuario los tiene activados (docs/09 §36).
+    if (parts.contains(SyncPart.conversations)) await _syncConversations(api, settings.boolean('conversation_notice_enabled', true));
+    if (parts.contains(SyncPart.tripChats)) await _syncTripChats(api, (me['userId'] ?? '') as String, settings.boolean('trip_chat_notice_enabled', true));
   }
 
   static Future<void> _syncStops(ApiClient api, String? itineraryId) async {
@@ -214,7 +218,7 @@ class SyncService {
 
     if (since != null) {
       for (final notice in notices) {
-        await Notifications.showMessage('MiTransporte', notice.title, payload: 'notice:${notice.id}');
+        await Notifications.showMessage(notice.title, notice.text, payload: 'notice:${notice.id}');
       }
     }
 
@@ -223,7 +227,7 @@ class SyncService {
   }
 
   /// Avisa de mensajes nuevos en las conversaciones (no en las abiertas en pantalla).
-  static Future<void> _syncConversations(ApiClient api) async {
+  static Future<void> _syncConversations(ApiClient api, bool notify) async {
     final seen = await Storage.getJson(_conversationsKey);
     final first = seen.isEmpty;
     final document = await api.get('/conversations', query: {'sort': '-lastMessageAt', 'include': 'topic', 'page[size]': 50});
@@ -232,7 +236,7 @@ class SyncService {
       final last = conversation.lastMessageAt;
       if (last == null) continue;
       final previous = seen[conversation.id] == null ? null : DateTime.parse(seen[conversation.id] as String);
-      if (!first && (previous == null || last.isAfter(previous))) {
+      if (notify && !first && (previous == null || last.isAfter(previous))) {
         await Notifications.showMessage('Mensaje nuevo', '${conversation.topicName ?? 'Conversación'} · ${Conversation.recipientLabel(conversation.recipient)}', payload: 'conversation:${conversation.id}');
       }
       seen[conversation.id] = last.toUtc().toIso8601String();
@@ -246,14 +250,14 @@ class SyncService {
     final update = await AppUpdates.check(api);
     if (update != null && await AppUpdates.shouldNotify(update)) {
       await Notifications.showMessage(
-        'Actualización de MiTransporte',
-        'Hay una versión nueva (${update.versionName})${update.mandatory ? ', obligatoria' : ''}. Abre la app para instalarla.',
+        'Actualización de MiRuta',
+        'Hay una versión nueva (${update.versionName})${update.mandatory ? ', obligatoria' : ''}. Abra la app para instalarla.',
       );
     }
   }
 
   /// Avisa de mensajes nuevos de otros en el chat de los viajes confirmados en curso o próximos.
-  static Future<void> _syncTripChats(ApiClient api, String meId) async {
+  static Future<void> _syncTripChats(ApiClient api, String meId, bool notify) async {
     final seen = await Storage.getJson(_tripChatsKey);
     final now = DateTime.now();
     final trips = (await cachedTrips()).where((t) => t.isConfirmed && t.returnsAt.isAfter(now) && t.departsAt.isBefore(now.add(const Duration(days: 1))));
@@ -262,7 +266,7 @@ class SyncService {
       final since = seen[trip.id] as String?;
       final messages = (await api.getAll('/trips/${trip.id}/messages', query: {'include': 'author', 'filter[since]': ?since})).map(Message.from).toList();
       if (messages.isEmpty) continue;
-      if (since != null) {
+      if (notify && since != null) {
         for (final message in messages.where((m) => m.authorId != meId)) {
           await Notifications.showMessage('${message.authorName ?? 'Mensaje'} · ${trip.itineraryName ?? 'Viaje'}', message.body, payload: 'trip:${trip.id}');
         }
