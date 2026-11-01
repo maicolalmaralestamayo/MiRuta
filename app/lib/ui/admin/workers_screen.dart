@@ -9,7 +9,9 @@ import '../../services/templates.dart';
 import '../applications/application_forms.dart';
 import '../auth/entity_field.dart';
 import '../auth/names_fields.dart';
+import '../theme.dart';
 import '../widgets/common.dart';
+import 'stops_screen.dart';
 
 /// Trabajadores de la Entidad. Los Jefes de itinerario ven los de su
 /// itinerario. Los superiores registran a quien no tiene teléfono (con un
@@ -60,7 +62,7 @@ class _WorkersScreenState extends State<WorkersScreen> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _register,
         icon: const Icon(Icons.person_add_alt),
-        label: const Text('Registrar sin teléfono'),
+        label: const Text('Registrar trabajador'),
       ),
       body: Column(children: [
         Padding(
@@ -68,7 +70,7 @@ class _WorkersScreenState extends State<WorkersScreen> {
           child: Row(children: [
             Expanded(
               child: TextField(
-                decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Buscar por nombre, usuario o Pase', isDense: true),
+                decoration: const InputDecoration(prefixIcon: Icon(Icons.search), labelText: 'Buscar', hintText: 'Nombre, usuario o Pase', isDense: true),
                 onSubmitted: (value) {
                   _search = value.trim();
                   _view.currentState?.reload();
@@ -80,8 +82,8 @@ class _WorkersScreenState extends State<WorkersScreen> {
               DropdownButton<String>(
                 value: _active,
                 items: const [
-                  DropdownMenuItem(value: 'true', child: Text('Activos')),
-                  DropdownMenuItem(value: 'false', child: Text('Inactivos')),
+                  DropdownMenuItem(value: 'true', child: Text('Activados')),
+                  DropdownMenuItem(value: 'false', child: Text('Desactivados')),
                   DropdownMenuItem(value: 'all', child: Text('Todos')),
                 ],
                 onChanged: (value) {
@@ -97,7 +99,7 @@ class _WorkersScreenState extends State<WorkersScreen> {
             key: _view,
             load: _load,
             builder: (context, workers, reload) => ListView(padding: const EdgeInsets.only(bottom: 88), children: [
-              ListTile(title: Text('${workers.length} trabajador(es)')),
+              ListTile(title: Text(plural(workers.length, 'trabajador', 'trabajadores'))),
               for (final w in workers)
                 ListTile(
                   leading: WorkerAvatar(w),
@@ -106,7 +108,7 @@ class _WorkersScreenState extends State<WorkersScreen> {
                     if (w.pass != null) Text('Pase ${w.pass}'),
                     if (admin && w.entity != null) Text(w.entity!.abbreviation),
                     RankBadge(w.rank),
-                    if (w.childrenCount > 0) Text('${w.childrenCount} niño(s)'),
+                    if (w.childrenCount > 0) Text(plural(w.childrenCount, 'niño', 'niños')),
                     if (!w.activated) const StatusChip('Sin activar', color: Colors.orange, icon: Icons.phonelink_off),
                   ]),
                   trailing: const Icon(Icons.chevron_right),
@@ -135,25 +137,25 @@ class WorkerDetailScreen extends StatefulWidget {
 }
 
 class _WorkerDetailScreenState extends State<WorkerDetailScreen> {
-  final _view = GlobalKey<AsyncViewState<Worker>>();
+  final _view = GlobalKey<AsyncViewState<Resource>>();
 
-  Future<Worker> _load() async =>
-      Worker.from((await context.api.get('/workers/${widget.workerId}', query: {'include': 'rank,entity,itinerary,stop'})).resource);
+  Future<Resource> _load() async =>
+      (await context.api.get('/workers/${widget.workerId}', query: {'include': 'rank,entity,itinerary,stop,user'})).resource;
 
   Future<void> _assign(Worker worker, String type) async {
     if (await showApplicationForm(context, type, worker: worker)) _view.currentState?.reload();
   }
 
-  Future<void> _assignDirect(Worker worker, String type) async {
-    if (!await confirm(context, ApplicationType.label(type), '¿Asignar a ${worker.name.short}? Recibirá un aviso.', accept: 'Asignar')) return;
+  Future<void> _assignDirect(Worker worker, String type, String role) async {
+    if (!await confirm(context, 'Asignar $role', '¿Asignar el $role a ${worker.name.short}? Recibirá un aviso.', accept: 'Asignar rol')) return;
     if (!mounted) return;
     await context.api.post('/applications', resourceData('applications', attributes: {'type': type}, relationships: {'worker': ResourceId('workers', worker.id)}));
-    if (mounted) showMessage(context, 'Asignado');
+    if (mounted) showMessage(context, 'Rol asignado');
     _view.currentState?.reload();
   }
 
-  Future<void> _remove(Worker worker, String type, {String? itineraryId}) async {
-    if (!await confirm(context, ApplicationType.label(type), '¿Quitárselo a ${worker.name.short}? Recibirá un aviso.', accept: 'Quitar', destructive: true)) return;
+  Future<void> _remove(Worker worker, String type, String what, {String? itineraryId}) async {
+    if (!await confirm(context, 'Quitar $what', '¿Quitar $what a ${worker.name.short}? Recibirá un aviso.', accept: 'Quitar', destructive: true)) return;
     if (!mounted) return;
     await context.api.post('/applications', resourceData('applications', attributes: {'type': type}, relationships: {
       'worker': ResourceId('workers', worker.id),
@@ -169,87 +171,110 @@ class _WorkerDetailScreenState extends State<WorkerDetailScreen> {
     await showActivationCode(context, worker, document.resource.meta['activationCode'] as String, document.resource.meta['activationExpiresAt'] as String?);
   }
 
-  Future<void> _toggle(Worker worker) async {
-    final activate = !worker.active;
-    if (!await confirm(context, activate ? 'Activar' : 'Desactivar', '¿${activate ? 'Activar' : 'Desactivar'} a ${worker.fullName}?', destructive: !activate)) return;
+  Future<void> _setActive(Worker worker, bool activate) async {
+    if (activate == worker.active) return;
+    if (!await confirm(context, activate ? 'Activar trabajador' : 'Desactivar trabajador', '¿${activate ? 'Activar' : 'Desactivar'} a ${worker.fullName}?',
+        accept: activate ? 'Activar' : 'Desactivar', destructive: !activate)) {
+      _view.currentState?.reload();
+      return;
+    }
     if (!mounted) return;
-    await context.api.patch('/workers/${worker.id}', resourceData('workers', id: worker.id, attributes: {'active': activate}));
+    await runAction(context, () => context.api.patch('/workers/${worker.id}', resourceData('workers', id: worker.id, attributes: {'active': activate})));
     _view.currentState?.reload();
   }
+
+  /// Un dato en su propio control de solo lectura.
+  Widget _data(String label, String? value, {Widget? prefix}) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+        child: InputDecorator(
+          isEmpty: (value ?? '').isEmpty,
+          decoration: InputDecoration(labelText: label, enabled: false, prefixIcon: prefix),
+          child: (value ?? '').isEmpty ? null : Text(value!, style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+        ),
+      );
 
   @override
   Widget build(BuildContext context) {
     final me = context.me;
     return Scaffold(
       appBar: AppBar(title: const Text('Trabajador')),
-      body: AsyncView<Worker>(
+      body: AsyncView<Resource>(
         key: _view,
         load: _load,
-        builder: (context, w, reload) {
+        builder: (context, resource, reload) {
+          final w = Worker.from(resource);
+          final username = resource.related('user')?.string('username');
+          final itinerary = resource.related('itinerary')?.string('name');
+          final stopResource = resource.related('stop');
+          final stop = stopResource == null ? null : Stop.from(stopResource);
           final transportChief = me.isAdmin || me.roles.isTransportChief;
           final chiefOfHis = me.isChiefOf(w.itineraryId);
           final roles = w.roles;
+          Widget roleTile(IconData icon, String role, {required bool has, Future<void> Function()? add, Future<void> Function()? remove}) => has
+              ? ListTile(
+                  leading: Icon(icon),
+                  title: Text(role),
+                  trailing: remove == null
+                      ? null
+                      : BusyIconButton(tooltip: 'Quitar $role', icon: const Icon(Icons.remove_circle_outline, color: overloadColor), onPressed: remove),
+                )
+              : BusyListTile(leading: Icon(icon), title: Text('Asignar $role'), trailing: const Icon(Icons.add), onTap: add);
           return ListView(padding: const EdgeInsets.only(bottom: 32), children: [
-            ListTile(
-              leading: WorkerAvatar(w, radius: 28),
-              title: Text(w.fullName, style: Theme.of(context).textTheme.titleMedium),
-              subtitle: Text([if (w.entity != null) w.entity!.abbreviation, if (w.pass != null) 'Pase ${w.pass}', w.sex == 'F' ? 'Mujer' : 'Hombre'].join(' · ')),
-            ),
-            ListTile(leading: const Icon(Icons.military_tech_outlined), title: Text(w.rank?.name ?? ''), subtitle: const Text('Jerarquía')),
+            Padding(padding: const EdgeInsets.all(16), child: Center(child: WorkerAvatar(w, radius: 40))),
+            _data('Nombre', w.fullName),
+            _data('Nombre de usuario', username ?? (w.activated ? null : 'Cuenta sin activar')),
+            _data('Entidad', w.entity == null ? null : '${w.entity!.abbreviation} · ${w.entity!.name}'),
+            _data('Pase', w.pass?.toString()),
+            _data('Sexo', w.sex == 'F' ? 'Femenino' : 'Masculino'),
+            _data('Jerarquía', w.rank?.name, prefix: const Icon(rankIcon)),
+            if (w.childrenCount > 0) _data('Hijos con derecho a viajar', plural(w.childrenCount, 'niño', 'niños')),
+            if (me.isAdmin)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+                child: DropdownButtonFormField<bool>(
+                  key: ValueKey('active-${w.active}'),
+                  initialValue: w.active,
+                  decoration: const InputDecoration(labelText: 'Estado'),
+                  items: const [
+                    DropdownMenuItem(value: true, child: Text('Activado')),
+                    DropdownMenuItem(value: false, child: Text('Desactivado')),
+                  ],
+                  onChanged: (value) => _setActive(w, value!),
+                ),
+              ),
             if (!w.activated) ...[
               const SectionTitle('Cuenta sin activar'),
-              const ListTile(
-                leading: Icon(Icons.phonelink_off),
-                title: Text('Todavía no tiene usuario ni contraseña.'),
-                subtitle: Text('Cuando tenga teléfono, entrará con "Ya me registró un superior" y su código.'),
-              ),
-              BusyListTile(leading: const Icon(Icons.key_outlined), title: const Text('Generar un código nuevo'), onTap: () => _newCode(w)),
+              BusyListTile(leading: const Icon(Icons.key_outlined), title: const Text('Generar código de activación'), onTap: () => _newCode(w)),
             ],
             const SectionTitle('Itinerario'),
             BusyListTile(
               leading: const Icon(Icons.route),
-              title: Text(w.itineraryId == null ? 'Sin itinerario' : 'Tiene itinerario y parada'),
-              trailing: const Icon(Icons.edit_location_alt_outlined),
+              title: Text(w.itineraryId == null ? 'Sin itinerario' : (itinerary ?? 'Itinerario')),
+              subtitle: stop == null ? null : Text('${stop.landmark} · ${stopAddress(stop)}'),
               onTap: () => _assign(w, ApplicationType.itineraryMembership),
             ),
             if (w.itineraryId != null && (transportChief || chiefOfHis))
               BusyListTile(
-                leading: const Icon(Icons.logout, color: Colors.red),
-                title: const Text('Quitarlo del itinerario'),
-                onTap: () => _remove(w, ApplicationType.itineraryLeave),
+                leading: const Icon(Icons.logout, color: overloadColor),
+                title: const Text('Quitar del itinerario'),
+                onTap: () => _remove(w, ApplicationType.itineraryLeave, 'el itinerario'),
               ),
             if (transportChief) ...[
               const SectionTitle('Roles'),
-              if (roles.isDriver)
-                BusyListTile(leading: const Icon(Icons.airline_seat_recline_normal), title: const Text('Chofer'), trailing: const Text('Quitar'), onTap: () => _remove(w, ApplicationType.driverLeave))
-              else
-                BusyListTile(leading: const Icon(Icons.airline_seat_recline_normal), title: const Text('Hacerlo chofer'), trailing: const Icon(Icons.add), onTap: () => _assignDirect(w, ApplicationType.driver)),
+              roleTile(Icons.airline_seat_recline_normal, 'Rol de Chofer',
+                  has: roles.isDriver,
+                  add: () => _assignDirect(w, ApplicationType.driver, 'Rol de Chofer'),
+                  remove: () => _remove(w, ApplicationType.driverLeave, 'el Rol de Chofer')),
               for (final itineraryId in roles.chiefOfItineraries)
-                BusyListTile(
-                  leading: const Icon(Icons.groups),
-                  title: const Text('Jefe de itinerario'),
-                  trailing: const Text('Quitar'),
-                  onTap: () => _remove(w, ApplicationType.itineraryChiefLeave, itineraryId: itineraryId),
-                ),
+                roleTile(Icons.groups, 'Rol de Jefe de itinerario',
+                    has: true, remove: () => _remove(w, ApplicationType.itineraryChiefLeave, 'el Rol de Jefe de itinerario', itineraryId: itineraryId)),
               if (!roles.isItineraryChief)
-                BusyListTile(leading: const Icon(Icons.groups), title: const Text('Hacerlo Jefe de itinerario'), trailing: const Icon(Icons.add), onTap: () => _assign(w, ApplicationType.itineraryChief)),
+                roleTile(Icons.groups, 'Rol de Jefe de itinerario', has: false, add: () => _assign(w, ApplicationType.itineraryChief)),
               if (me.isAdmin)
-                roles.isTransportChief
-                    ? BusyListTile(leading: const Icon(Icons.directions_bus), title: const Text('Jefe de Transporte'), trailing: const Text('Quitar'), onTap: () => _remove(w, ApplicationType.transportChiefLeave))
-                    : BusyListTile(
-                        leading: const Icon(Icons.directions_bus),
-                        title: const Text('Hacerlo Jefe de Transporte'),
-                        trailing: const Icon(Icons.add),
-                        onTap: () => _assignDirect(w, ApplicationType.transportChief),
-                      ),
-            ],
-            if (me.isAdmin) ...[
-              const SectionTitle('Administración'),
-              BusyListTile(
-                leading: Icon(w.active ? Icons.person_off_outlined : Icons.person_add_alt),
-                title: Text(w.active ? 'Desactivar' : 'Activar'),
-                onTap: () => _toggle(w),
-              ),
+                roleTile(Icons.directions_bus, 'Rol de Jefe de Transporte',
+                    has: roles.isTransportChief,
+                    add: () => _assignDirect(w, ApplicationType.transportChief, 'Rol de Jefe de Transporte'),
+                    remove: () => _remove(w, ApplicationType.transportChiefLeave, 'el Rol de Jefe de Transporte')),
             ],
           ]);
         },
@@ -276,7 +301,7 @@ class _RegisterWorkerScreenState extends State<RegisterWorkerScreen> {
   final _secondSurname = TextEditingController();
   late final _names = NamesFields(firstName: _firstName, middleName: _middleName, firstSurname: _firstSurname, secondSurname: _secondSurname);
   final _pass = TextEditingController();
-  String? _sex;
+  String _sex = 'M';
   String? _rankId;
   String? _itineraryId;
   String? _stopId;
@@ -356,30 +381,26 @@ class _RegisterWorkerScreenState extends State<RegisterWorkerScreen> {
       body: Form(
         key: _form,
         child: ListView(padding: const EdgeInsets.all(16), children: [
-          const Text('Para quien no tiene teléfono. Se genera un código para que, cuando lo tenga, active su cuenta y elija su usuario y su contraseña.'),
-          const SizedBox(height: 16),
           _names,
           PassField(controller: _pass),
           const SizedBox(height: 12),
-          FormField<String>(
-            validator: (_) => _sex == null ? 'Indica el sexo' : null,
-            builder: (state) => InputDecorator(
-              decoration: InputDecoration(labelText: 'Sexo', errorText: state.errorText, border: InputBorder.none),
-              child: SegmentedButton<String>(
-                segments: const [ButtonSegment(value: 'F', label: Text('Femenino')), ButtonSegment(value: 'M', label: Text('Masculino'))],
-                selected: {?_sex},
-                emptySelectionAllowed: true,
-                onSelectionChanged: (value) => setState(() => _sex = value.isEmpty ? null : value.first),
-              ),
-            ),
+          DropdownButtonFormField<String>(
+            initialValue: _sex,
+            decoration: const InputDecoration(labelText: 'Sexo'),
+            items: const [
+              DropdownMenuItem(value: 'M', child: Text('Masculino')),
+              DropdownMenuItem(value: 'F', child: Text('Femenino')),
+            ],
+            onChanged: (value) => setState(() => _sex = value!),
           ),
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
             initialValue: _rankId,
-            decoration: const InputDecoration(labelText: 'Jerarquía'),
+            autovalidateMode: AutovalidateMode.onUserInteraction,
+            decoration: const InputDecoration(labelText: 'Jerarquía', prefixIcon: Icon(rankIcon)),
             items: [for (final rank in _ranks) DropdownMenuItem(value: rank.id, child: Text(rank.name))],
             onChanged: (value) => setState(() => _rankId = value),
-            validator: (v) => v == null ? 'Elige la jerarquía' : null,
+            validator: (v) => v == null ? 'Elija la jerarquía.' : null,
           ),
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
@@ -387,7 +408,8 @@ class _RegisterWorkerScreenState extends State<RegisterWorkerScreen> {
             decoration: InputDecoration(labelText: itineraryChiefOnly ? 'Itinerario' : 'Itinerario (opcional)'),
             items: [for (final i in _itineraries) DropdownMenuItem(value: i.id, child: Text(i.name))],
             onChanged: (value) => value == null ? null : _loadStops(value),
-            validator: (v) => itineraryChiefOnly && v == null ? 'Elige el itinerario' : null,
+            autovalidateMode: AutovalidateMode.onUserInteraction,
+            validator: (v) => itineraryChiefOnly && v == null ? 'Elija el itinerario.' : null,
           ),
           if (_itineraryId != null) ...[
             const SizedBox(height: 12),
@@ -395,9 +417,10 @@ class _RegisterWorkerScreenState extends State<RegisterWorkerScreen> {
               initialValue: _stopId,
               isExpanded: true,
               decoration: const InputDecoration(labelText: 'Parada'),
-              items: [for (final s in _stops) DropdownMenuItem(value: s.id, child: Text('${s.landmark} · ${s.street}', overflow: TextOverflow.ellipsis))],
+              autovalidateMode: AutovalidateMode.onUserInteraction,
+              items: [for (final s in _stops) DropdownMenuItem(value: s.id, child: Text('${s.landmark} · ${stopAddress(s)}', overflow: TextOverflow.ellipsis))],
               onChanged: (value) => setState(() => _stopId = value),
-              validator: (v) => v == null ? 'Elige la parada' : null,
+              validator: (v) => v == null ? 'Elija la parada.' : null,
             ),
           ],
           if (_error != null) ...[
@@ -405,7 +428,7 @@ class _RegisterWorkerScreenState extends State<RegisterWorkerScreen> {
             Text(_error!.message, style: TextStyle(color: Theme.of(context).colorScheme.error)),
           ],
           const SizedBox(height: 20),
-          BusyButton(onPressed: _save, showErrors: false, child: const Text('Registrar')),
+          BusyButton(onPressed: _save, showErrors: false, icon: const Icon(Icons.person_add_alt), child: const Text('Registrar trabajador')),
         ]),
       ),
     );
@@ -421,7 +444,7 @@ Future<void> showActivationCode(BuildContext context, Worker worker, String code
       title: const Text('Código de activación'),
       content: SingleChildScrollView(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text('Entrégaselo en mano a ${worker.name.short}. Solo se muestra ahora; si se pierde, genera otro.'),
+          Text('Entrégueselo en mano a ${worker.name.short}. Solo se muestra ahora; si se pierde, genere otro.'),
           const SizedBox(height: 16),
           SelectableText(code, style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold, letterSpacing: 3)),
           const SizedBox(height: 8),
@@ -434,7 +457,7 @@ Future<void> showActivationCode(BuildContext context, Worker worker, String code
           ].join('\n'), textAlign: TextAlign.center),
         ]),
       ),
-      actions: [FilledButton(onPressed: () => Navigator.pop(context), child: const Text('Listo'))],
+      actions: [FilledButton.icon(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.check), label: const Text('Listo'))],
     ),
   );
 }

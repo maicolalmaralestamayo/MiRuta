@@ -82,7 +82,7 @@ class TripCard extends StatelessWidget {
   }
 }
 
-/// "Viaje de ida <fecha>" y "Viaje de regreso <fecha>", cada uno con el estado
+/// "Viaje de ida (fecha)" y "Viaje de regreso (fecha)", cada uno con el estado
 /// de su recorrido (docs/09 §8 y Viajes atrasados): en curso, completado,
 /// atrasado o comenzado con atraso.
 class TripLegsStatus extends StatelessWidget {
@@ -107,17 +107,9 @@ class TripLegsStatus extends StatelessWidget {
 
   Widget _line(BuildContext context, String direction) {
     final outbound = direction == 'outbound';
-    final leg = _leg(direction);
-    final delayed = outbound ? trip.outboundDelayed : trip.returnDelayed;
+    final chips = tripLegChips(context, trip, _leg(direction), direction);
     final minutes = outbound ? trip.outboundDelayMinutes : trip.returnDelayMinutes;
-    final colors = Theme.of(context).colorScheme;
-    final chips = <Widget>[
-      if (leg != null && leg.isActive) StatusChip(TripLeg.directionName(direction), color: colors.primary, icon: Icons.radar),
-      if (leg != null && !leg.isActive) StatusChip(outbound ? 'Ida completada' : 'Regreso completado', color: Colors.green, icon: Icons.check_circle),
-      if (delayed) StatusChip(minutes == null ? 'Atrasado' : 'Atrasado $minutes min', color: overloadColor, icon: Icons.schedule),
-    ];
-    // Ya comenzó, pero con atraso (el servidor da los minutos aunque ya no esté atrasado).
-    final startedLate = !delayed && minutes != null && minutes > 0;
+    final startedLate = tripLegStartedLate(trip, direction);
     return Padding(
       padding: const EdgeInsets.only(top: 6),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -137,4 +129,24 @@ class TripLegsStatus extends StatelessWidget {
       ]),
     );
   }
+}
+
+/// Estado del recorrido de un tramo: en curso ("Viaje de ida"), completado o atrasado.
+List<Widget> tripLegChips(BuildContext context, Trip trip, TripLeg? leg, String direction) {
+  final outbound = direction == 'outbound';
+  final delayed = outbound ? trip.outboundDelayed : trip.returnDelayed;
+  final minutes = outbound ? trip.outboundDelayMinutes : trip.returnDelayMinutes;
+  return [
+    if (leg != null && leg.isActive) StatusChip(TripLeg.directionName(direction), color: Theme.of(context).colorScheme.primary, icon: Icons.radar),
+    if (leg != null && !leg.isActive) StatusChip(outbound ? 'Ida completada' : 'Regreso completado', color: Colors.green, icon: Icons.check_circle),
+    if (delayed) StatusChip(minutes == null ? 'Atrasado' : 'Atrasado $minutes min', color: overloadColor, icon: Icons.schedule),
+  ];
+}
+
+/// Ya comenzó, pero con atraso (el servidor da los minutos aunque ya no esté atrasado).
+bool tripLegStartedLate(Trip trip, String direction) {
+  final outbound = direction == 'outbound';
+  final delayed = outbound ? trip.outboundDelayed : trip.returnDelayed;
+  final minutes = outbound ? trip.outboundDelayMinutes : trip.returnDelayMinutes;
+  return !delayed && minutes != null && minutes > 0;
 }

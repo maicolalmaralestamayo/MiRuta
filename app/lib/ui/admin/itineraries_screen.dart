@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/json_api.dart';
 import '../../models/models.dart';
 import '../../services/templates.dart';
+import '../theme.dart';
 import '../widgets/common.dart';
 import 'stops_screen.dart';
 
@@ -94,9 +95,10 @@ class _ItineraryEditorState extends State<ItineraryEditor> {
   Future<void> _load() async {
     try {
       final api = context.api;
+      final entityFilter = context.entityFilter;
       final itinerary = Itinerary.from((await api.get('/itineraries/${_itinerary.id}')).resource);
       final links = await api.getAll('/itinerary-stops', query: {'filter[itinerary]': _itinerary.id, 'include': 'stop', 'sort': 'position'});
-      final all = (await api.getAll('/itineraries', query: context.entityFilter)).map(Itinerary.from);
+      final all = (await api.getAll('/itineraries', query: entityFilter)).map(Itinerary.from);
       final usage = <String, int>{};
       for (final i in all) {
         for (final id in i.stopIds.toSet()) {
@@ -104,7 +106,7 @@ class _ItineraryEditorState extends State<ItineraryEditor> {
         }
       }
       final references = <String, Resource?>{};
-      for (final (direction, id) in [(TripDirection.outbound, itinerary.referenceOutboundLegId), (TripDirection.returning, itinerary.referenceReturnLegId)]) {
+      for (final (direction, id) in [('outbound', itinerary.referenceOutboundLegId), ('return', itinerary.referenceReturnLegId)]) {
         if (id == null) continue;
         try {
           references[direction] = (await api.get('/trip-legs/$id')).resource;
@@ -190,7 +192,7 @@ class _ItineraryEditorState extends State<ItineraryEditor> {
   }
 
   Future<void> _removeReference(String direction) async {
-    final what = direction == TripDirection.outbound ? 'referenceOutboundLeg' : 'referenceReturnLeg';
+    final what = direction == 'outbound' ? 'referenceOutboundLeg' : 'referenceReturnLeg';
     if (!await confirm(context, 'Quitar recorrido de referencia', '¿Quitar el recorrido de referencia del ${TripLeg.directionName(direction).toLowerCase()}?',
         accept: 'Quitar recorrido', destructive: true)) {
       return;
@@ -237,10 +239,10 @@ class _ItineraryEditorState extends State<ItineraryEditor> {
                 _field('Descripción', _itinerary.description, () => _editField('description', 'Descripción', _itinerary.description)),
                 _field('Observación', _itinerary.observation, () => _editField('observation', 'Observación', _itinerary.observation)),
                 const SectionTitle('Recorridos de referencia'),
-                for (final direction in [TripDirection.outbound, TripDirection.returning])
+                for (final direction in ['outbound', 'return'])
                   if (_references.containsKey(direction))
                     ListTile(
-                      leading: Icon(direction == TripDirection.outbound ? Icons.north_east : Icons.south_west),
+                      leading: Icon(direction == 'outbound' ? Icons.north_east : Icons.south_west),
                       title: Text(TripLeg.directionName(direction)),
                       subtitle: Text(_references[direction]?.date('startedAt') == null
                           ? 'Viaje realizado'
@@ -253,7 +255,7 @@ class _ItineraryEditorState extends State<ItineraryEditor> {
                     )
                   else
                     ListTile(
-                      leading: Icon(direction == TripDirection.outbound ? Icons.north_east : Icons.south_west),
+                      leading: Icon(direction == 'outbound' ? Icons.north_east : Icons.south_west),
                       title: Text(TripLeg.directionName(direction)),
                       subtitle: const Text('Sin recorrido de referencia'),
                     ),
@@ -261,7 +263,7 @@ class _ItineraryEditorState extends State<ItineraryEditor> {
               ]),
               SliverReorderableList(
                 itemCount: _links.length,
-                onReorder: (oldIndex, newIndex) => _move(oldIndex, newIndex > oldIndex ? newIndex - 1 : newIndex),
+                onReorderItem: _move,
                 itemBuilder: (context, i) {
                   final link = _links[i];
                   final stop = link.stop;

@@ -57,7 +57,7 @@ class _AppVersionsScreenState extends State<AppVersionsScreen> {
                 'Publicada ${formatDateTime(v.date('publishedAt')!)}',
                 for (final file in (v.attributes['files'] as List? ?? const []).cast<Map>())
                   '${_abiLabel(file['abi'] as String?)}: ${(((file['sizeBytes'] as num?) ?? 0) / (1024 * 1024)).toStringAsFixed(1)} MB',
-                '${plural((v.meta['installedCount'] as num? ?? 0).toInt(), 'cuenta la tiene instalada', 'cuentas la tienen instalada')}',
+                plural((v.meta['installedCount'] as num? ?? 0).toInt(), 'cuenta la tiene instalada', 'cuentas la tienen instalada'),
                 if (v.string('notes') != null) v.string('notes')!,
               ].join('\n')),
               isThreeLine: true,

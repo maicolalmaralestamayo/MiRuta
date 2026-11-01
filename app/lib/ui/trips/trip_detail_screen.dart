@@ -70,6 +70,17 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
     _reload();
   }
 
+  /// Lugar de salida del tramo y estado de su recorrido (en curso, completado, atrasado).
+  Widget _legSubtitle(BuildContext context, Trip trip, TripLeg? leg, String direction, Stop? stop) {
+    final chips = tripLegChips(context, trip, leg, direction);
+    final minutes = direction == 'return' ? trip.returnDelayMinutes : trip.outboundDelayMinutes;
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      if (stop != null) Text('${stop.landmark}\n${stop.address}'),
+      if (chips.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Wrap(spacing: 6, runSpacing: 4, children: chips)),
+      if (tripLegStartedLate(trip, direction)) Text('Comenzó con $minutes min de atraso', style: const TextStyle(color: overloadColor)),
+    ]);
+  }
+
   @override
   Widget build(BuildContext context) {
     final me = context.me;
@@ -91,7 +102,6 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
               title: Text(trip.itineraryName ?? '', style: Theme.of(context).textTheme.titleLarge),
               trailing: StatusChip(TripStatus.label(trip.status), color: tripStatusColor(trip.status)),
             ),
-            Padding(padding: const EdgeInsets.symmetric(horizontal: 16), child: TripLegsStatus(trip: trip, legs: data.legs)),
             if ((operate || me.managesTransport) && trip.occupancyLevel != 'normal')
               OverloadBanner(level: trip.occupancyLevel, expected: trip.expectedPassengers, children: trip.expectedChildren, seats: trip.seats, capacity: trip.totalCapacity),
             if (me.managesTransport && trip.needsReassignment)
@@ -101,12 +111,12 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                 ListTile(
                   leading: const Icon(Icons.north_east),
                   title: Text('Viaje de ida: ${formatDateTime(trip.departsAt)}'),
-                  subtitle: Text(departure == null ? '' : '${departure.landmark}\n${departure.address}'),
+                  subtitle: _legSubtitle(context, trip, data.leg('outbound'), 'outbound', departure),
                 ),
                 ListTile(
                   leading: const Icon(Icons.south_west),
                   title: Text('Viaje de regreso: ${formatDateTime(trip.returnsAt)}'),
-                  subtitle: Text(returnStop == null ? '' : '${returnStop.landmark}\n${returnStop.address}'),
+                  subtitle: _legSubtitle(context, trip, data.leg('return'), 'return', returnStop),
                 ),
               ]),
             ),
@@ -142,7 +152,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                   'Inicio ${formatDateTime(leg.startedAt)}${leg.endedAt == null ? '' : ' · fin ${formatTime(leg.endedAt!)}'}',
                   plural(leg.stopPasses.length, 'parada pasada', 'paradas pasadas'),
                   if (leg.notStoppedCount > 0) 'No se detuvo en ${leg.notStoppedCount}',
-                  if (leg.skippedCount > 0) '${plural(leg.skippedCount, 'saltada', 'saltadas')}',
+                  if (leg.skippedCount > 0) plural(leg.skippedCount, 'saltada', 'saltadas'),
                   if (leg.deviating) 'Desviado',
                   if (data.referenceLegId(leg.direction) == leg.id) 'Recorrido de referencia',
                 ].join(' · ')),
