@@ -95,7 +95,7 @@ Marcan los viajes como realizados, borran chats y aplican la baja por inactivida
 
 ## Hospedaje compartido sin SSH
 
-`tools/release/build-hosting-package.sh` prepara un paquete para subir por FTP (guía en `tools/release/hosting/LEEME.md`):
+`tools/release/build-hosting-package.sh` prepara un paquete para subir por FTP (guía en `docs/10-traspaso.md`):
 
 - la configuración va en `configuracion.php` (PHP que devuelve un arreglo con las claves de `.env`), que el servidor web nunca muestra;
 - `STORAGE_PATH` saca la carpeta de trabajo de la parte pública y `TEMP_PATH` fija la carpeta temporal;

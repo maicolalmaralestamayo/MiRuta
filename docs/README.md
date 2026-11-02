@@ -14,7 +14,7 @@ MiRuta se llamaba antes MiTransporte.
 | [07-algoritmos.md](07-algoritmos.md) | Diagramas de flujo de los 35 algoritmos que no son CRUD |
 | [08-version-2.md](08-version-2.md) | Acuerdos de la versión 2: varias Entidades, cuentas, contraseñas, recuperación de acceso, ocupación |
 | [09-repaso-pantallas.md](09-repaso-pantallas.md) | Repaso de las pantallas (versión 2.1): MiRuta, textos, campos, viajes atrasados, paradas no realizadas, desvíos, mapas propios |
-| [10-traspaso.md](10-traspaso.md) | **Traspaso de tecnología:** qué custodiar, preparar el ordenador, montar el servidor y la app desde cero, publicar versiones, copias de seguridad y problemas frecuentes |
+| [10-traspaso.md](10-traspaso.md) | **Traspaso de tecnología:** qué se entrega (APK, imagen Docker, .zip del servidor) y cómo ponerlo en marcha en el hospedaje, con Docker y sin Docker |
 
 ## Scrum
 

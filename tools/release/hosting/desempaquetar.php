@@ -38,7 +38,7 @@ if (strlen($key) < 16 || ! function_exists('hash_equals') || ! hash_equals($key,
 }
 
 if (! class_exists('ZipArchive')) {
-    finish('Este PHP no tiene la extensión zip. Suba en su lugar la carpeta completa (vea LEEME.md, opción B).', false);
+    finish('Este PHP no tiene la extensión zip. Suba en su lugar la carpeta completa (vea GUIA.md, §10.3).', false);
 }
 
 if (! is_file($zipFile)) {

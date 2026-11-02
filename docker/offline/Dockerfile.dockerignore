@@ -9,3 +9,5 @@ api/.env
 api/storage/logs/*
 api/storage/framework/cache/*
 api/public/uploads/*
+api/storage/app/*
+api/configuracion.php

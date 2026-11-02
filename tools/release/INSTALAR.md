@@ -86,7 +86,7 @@ En cPanel: *Trabajos de cron* → «Una vez por minuto» → la misma orden con 
 
 **Si no hay cron**, ponga `TASKS_ON_REQUESTS=true` en `.env`: las tareas se ejecutan mientras la app se usa
 (como mucho una vez por minuto). Para un hospedaje compartido con solo FTP use mejor el paquete de hospedaje
-(`tools/release/build-hosting-package.sh`, guía en `tools/release/hosting/LEEME.md`).
+(`tools/release/build-hosting-package.sh`, guía en `docs/10-traspaso.md`).
 
 ## 6. Comprobar
 

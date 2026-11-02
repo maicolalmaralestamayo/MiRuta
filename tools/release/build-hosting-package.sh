@@ -27,7 +27,7 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 HOSTING="$ROOT/tools/release/hosting"
 OUT="$ROOT/entregas/hosting"
 WORK="$(mktemp -d)"
-NAME="miruta-hosting-$VERSION"
+NAME="miruta-servidor-$VERSION"
 [ "$UPDATE" = 1 ] && NAME="miruta-actualizacion-$VERSION"
 PUB="$WORK/$NAME/htdocs/miruta"
 SRV="$PUB/servidor"
@@ -39,7 +39,7 @@ tar -C "$ROOT/api" --exclude=./tests --exclude=./.env --exclude=./.env.example -
     --exclude=./phpunit.xml --exclude=./public --exclude=./vendor --exclude=./README.md \
     --exclude='./storage/logs/*.log' --exclude='./storage/framework/cache/data/*' -cf - . | tar -C "$SRV" -xf -
 cp "$HOSTING/servidor-htaccess" "$SRV/.htaccess"
-cp "$HOSTING/index.php" "$HOSTING/diagnostico.php" "$PUB/"
+cp "$HOSTING/index.php" "$HOSTING/diagnostico.php" "$HOSTING/router.php" "$PUB/"
 cp "$HOSTING/htaccess" "$PUB/.htaccess"
 cp "$HOSTING/user.ini" "$PUB/.user.ini"
 for folder in apk photos ranks; do mkdir -p "$PUB/uploads/$folder" && touch "$PUB/uploads/$folder/.vacio"; done
@@ -98,7 +98,8 @@ mkdir -p "$WORK/$NAME/subida-rapida"
 (cd "$PUB" && zip -qr9 "$WORK/$NAME/subida-rapida/miruta-servidor.zip" .)
 sed "s/__MAINTENANCE_KEY__/$(cat "$WORK/clave")/" "$HOSTING/desempaquetar.php" > "$WORK/$NAME/subida-rapida/desempaquetar.php"
 
-cp "$HOSTING/LEEME.md" "$WORK/$NAME/LEEME.md"
+cp "$ROOT/docs/10-traspaso.md" "$WORK/$NAME/GUIA.md"
+mkdir -p "$WORK/$NAME/otros" && cp "$HOSTING/nginx-miruta.conf" "$WORK/$NAME/otros/"
 [ "$UPDATE" = 1 ] || printf 'Clave de mantenimiento: %s\n\nGuárdela en un lugar seguro. También está en htdocs/miruta/servidor/configuracion.php.\n' \
     "$(cat "$WORK/clave")" > "$WORK/$NAME/CLAVE-DE-MANTENIMIENTO.txt"
 mkdir -p "$OUT"
