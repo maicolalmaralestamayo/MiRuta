@@ -15,3 +15,5 @@
 | [`docs/`](docs/README.md) | Documentación funcional, técnica y Scrum; especificación OpenAPI |
 | `docker/` | PHP 7.2 y MariaDB para ejecutar las pruebas de la API (`docker/test-api.sh`) |
 | `tools/` | Generador de `docs/openapi.yaml` (`tools/openapi`) y servidor de mapas propio de Cuba (`tools/maps`) |
+
+**Para montar todo desde cero (traspaso de tecnología), empiece por [`docs/10-traspaso.md`](docs/10-traspaso.md).**

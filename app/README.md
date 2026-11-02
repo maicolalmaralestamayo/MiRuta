@@ -70,7 +70,7 @@ Guárdalos en un lugar seguro y con copia de respaldo. Sin `key.properties` se f
 
 1. Sube el número de versión en `pubspec.yaml`, por ejemplo de `1.0.0+1` a `1.1.0+2`. El número después del `+` es el **código de versión** y tiene que ser mayor que el anterior.
 2. Compila los dos APK firmados con `./build_release.sh` (ver [Compilar los APK](#compilar-los-apk)).
-3. En la app, como Administrador: **Más → Gestión → Actualizaciones de la app → Publicar versión**. Elige los dos APK (64 y 32 bits) y escribe la versión, el código, las novedades y si es obligatoria.
+3. En la app, como Administrador: **Más → Gestión → Actualizaciones de la app → Publicar versión**. Elige los dos APK (64 y 32 bits); la versión y el código se leen del APK. Escribe las novedades y elige si es obligatoria.
 
 Los teléfonos lo detectan al abrir la app o en la siguiente sincronización.
 

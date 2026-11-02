@@ -12,14 +12,23 @@
 #   tools/release/build-hosting-package.sh 2.2.0
 # Opcional: VENDOR_DIR=carpeta con un vendor/ ya instalado sin dependencias de desarrollo.
 # Requiere Docker, zip y python3. Las claves secretas se generan nuevas cada vez.
+#
+# Para ACTUALIZAR un servidor ya instalado: ACTUALIZACION=1 tools/release/build-hosting-package.sh 2.3.0
+# (sin datos del hospedaje): el paquete NO lleva configuracion.php, así que no
+# toca las claves ni la base de datos configuradas, y desempaquetar.php usa la
+# clave de mantenimiento que ya está en el servidor.
 set -euo pipefail
 VERSION="${1:?Indique la versión, p. ej. 2.2.0}"
-: "${APP_URL:?}" "${DB_HOST:?}" "${DB_DATABASE:?}" "${DB_USERNAME:?}" "${DB_PASSWORD:?}" "${TEMP_PATH:?}"
+UPDATE="${ACTUALIZACION:-0}"
+if [ "$UPDATE" != 1 ]; then
+  : "${APP_URL:?}" "${DB_HOST:?}" "${DB_DATABASE:?}" "${DB_USERNAME:?}" "${DB_PASSWORD:?}" "${TEMP_PATH:?}"
+fi
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 HOSTING="$ROOT/tools/release/hosting"
 OUT="$ROOT/entregas/hosting"
 WORK="$(mktemp -d)"
 NAME="miruta-hosting-$VERSION"
+[ "$UPDATE" = 1 ] && NAME="miruta-actualizacion-$VERSION"
 PUB="$WORK/$NAME/htdocs/miruta"
 SRV="$PUB/servidor"
 trap 'docker rm -f miruta-pkg-db >/dev/null 2>&1 || true; docker network rm miruta-pkg >/dev/null 2>&1 || true; rm -rf "$WORK"' EXIT
@@ -35,6 +44,10 @@ cp "$HOSTING/htaccess" "$PUB/.htaccess"
 cp "$HOSTING/user.ini" "$PUB/.user.ini"
 for folder in apk photos ranks; do mkdir -p "$PUB/uploads/$folder" && touch "$PUB/uploads/$folder/.vacio"; done
 
+if [ "$UPDATE" = 1 ]; then
+  echo "Actualización: sin configuracion.php (se conserva la del servidor)."
+  echo "__DEL_SERVIDOR__" > "$WORK/clave"
+else
 echo "Configuración con claves nuevas…"
 WORK="$WORK" python3 - "$HOSTING/configuracion.example.php" "$SRV/configuracion.php" <<'PY'
 import base64, os, secrets, sys
@@ -54,6 +67,7 @@ assert '__' not in text.split('return [', 1)[1], 'Falta algún valor'
 open(sys.argv[2], 'w').write(text)
 open(os.environ['WORK'] + '/clave', 'w').write(values['MAINTENANCE_KEY'])
 PY
+fi
 
 if [ -n "${VENDOR_DIR:-}" ]; then
   echo "Copiando dependencias de $VENDOR_DIR…"
@@ -65,6 +79,7 @@ else
 fi
 find "$SRV/vendor" -name .git -prune -exec rm -rf {} +
 
+if [ "$UPDATE" != 1 ]; then
 echo "Generando la base de datos inicial (SQL)…"
 docker network create miruta-pkg >/dev/null
 docker run -d --name miruta-pkg-db --network miruta-pkg -e MARIADB_ROOT_PASSWORD=root -e MARIADB_DATABASE=miruta mariadb:10.6 >/dev/null
@@ -76,6 +91,7 @@ docker run --rm --network miruta-pkg -v "$SRV:/app" -w /app \
 mkdir -p "$WORK/$NAME/base-de-datos"
 docker exec miruta-pkg-db mariadb-dump -uroot -proot --single-transaction --skip-comments --no-tablespaces miruta \
     > "$WORK/$NAME/base-de-datos/miruta-$VERSION-inicial.sql"
+fi
 
 echo "Opción rápida: un solo .zip y el desempaquetador…"
 mkdir -p "$WORK/$NAME/subida-rapida"
@@ -83,7 +99,7 @@ mkdir -p "$WORK/$NAME/subida-rapida"
 sed "s/__MAINTENANCE_KEY__/$(cat "$WORK/clave")/" "$HOSTING/desempaquetar.php" > "$WORK/$NAME/subida-rapida/desempaquetar.php"
 
 cp "$HOSTING/LEEME.md" "$WORK/$NAME/LEEME.md"
-printf 'Clave de mantenimiento: %s\n\nGuárdela en un lugar seguro. También está en htdocs/miruta/servidor/configuracion.php.\n' \
+[ "$UPDATE" = 1 ] || printf 'Clave de mantenimiento: %s\n\nGuárdela en un lugar seguro. También está en htdocs/miruta/servidor/configuracion.php.\n' \
     "$(cat "$WORK/clave")" > "$WORK/$NAME/CLAVE-DE-MANTENIMIENTO.txt"
 mkdir -p "$OUT"
 rm -f "$OUT/$NAME.zip"

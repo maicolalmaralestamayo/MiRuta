@@ -12,7 +12,15 @@
 header('Content-Type: text/html; charset=utf-8');
 header('X-Robots-Tag: noindex');
 
+// Si MiRuta ya está instalado (actualización), vale la clave de su configuración.
 $key = '__MAINTENANCE_KEY__';
+$installedConfig = __DIR__.'/servidor/configuracion.php';
+if (is_file($installedConfig)) {
+    $installed = (array) require $installedConfig;
+    if (! empty($installed['MAINTENANCE_KEY'])) {
+        $key = (string) $installed['MAINTENANCE_KEY'];
+    }
+}
 $given = isset($_GET['clave']) ? (string) $_GET['clave'] : '';
 $zipFile = __DIR__.'/miruta-servidor.zip';
 
@@ -24,7 +32,7 @@ function finish($message, $ok)
     exit;
 }
 
-if (! function_exists('hash_equals') || ! hash_equals($key, $given)) {
+if (strlen($key) < 16 || ! function_exists('hash_equals') || ! hash_equals($key, $given)) {
     http_response_code(403);
     finish('Escriba la clave de mantenimiento en la dirección: desempaquetar.php?clave=...', false);
 }

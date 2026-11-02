@@ -107,10 +107,14 @@ momento.
 
 ## Actualizar a una versión nueva
 
-1. Suba los archivos nuevos (opción A o B), **sin sobrescribir**
-   `servidor/configuracion.php`. Si usa la opción A, haga antes una copia
-   del suyo y vuelva a subirlo después.
-2. En la app: *Mantenimiento del servidor > Actualizar base de datos*.
+Use el **paquete de actualización** (`miruta-actualizacion-<versión>.zip`). No
+lleva `configuracion.php`, así que no toca sus claves ni los datos de la base
+de datos.
+
+1. Suba los 2 archivos de `subida-rapida/` a `/htdocs/miruta/` y abra
+   `desempaquetar.php?clave=SU_CLAVE`, con la misma clave de siempre.
+   También puede subir el contenido de `htdocs/miruta/` por FTP.
+2. En la app: *Gestión > Mantenimiento del servidor > Actualizar base de datos*.
 
 ## Seguridad y otros datos del hospedaje
 
