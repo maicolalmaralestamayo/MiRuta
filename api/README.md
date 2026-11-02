@@ -8,8 +8,8 @@ Lo más sencillo: solo hace falta [Docker Desktop](https://www.docker.com/produc
 No hay que instalar PHP, Composer ni MariaDB.
 
 ```bash
-git clone https://github.com/maicolalmaralestamayo/MiTransporte.git
-cd MiTransporte
+git clone https://github.com/maicolalmaralestamayo/MiRuta.git
+cd MiRuta
 git checkout claude/proceso-stack-discussion-idsu8k
 docker compose -f docker/dev/compose.yml up --build
 ```

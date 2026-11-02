@@ -195,7 +195,7 @@ Use `miruta-servidor-2.2.0.zip`. Hace falta:
 
 ## 10.6 Versiones futuras
 
-Desde el repositorio (`https://github.com/maicolalmaralestamayo/MiTransporte`):
+Desde el repositorio (`https://github.com/maicolalmaralestamayo/MiRuta`):
 
 | Qué | Cómo |
 |---|---|
