@@ -36,6 +36,8 @@ class Uploads
 
     public function publicPath(string $relativePath): string
     {
-        return base_path('public/'.$relativePath);
+        $public = config('mitransporte.public_path') ?: base_path('public');
+
+        return rtrim($public, '/').'/'.$relativePath;
     }
 }

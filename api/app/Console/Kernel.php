@@ -2,7 +2,9 @@
 
 namespace App\Console;
 
+use App\Services\ScheduledTasks;
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Support\Facades\Artisan;
 use Laravel\Lumen\Console\Kernel as ConsoleKernel;
 
 class Kernel extends ConsoleKernel
@@ -23,20 +25,30 @@ class Kernel extends ConsoleKernel
     ];
 
     /**
-     * Tareas programadas (docs/02-procesos.md §2.13). En el servidor hace falta
-     * un cron que ejecute cada minuto: php artisan schedule:run
+     * Tareas programadas (docs/02-procesos.md §2.13), definidas en
+     * App\Services\ScheduledTasks. Con cron hace falta ejecutar cada minuto:
+     * php artisan schedule:run. Sin cron, TASKS_ON_REQUESTS=true.
+     *
+     * Se ejecutan dentro del mismo proceso (sin lanzar "php artisan" aparte),
+     * porque en un hospedaje compartido no suele poder lanzarse procesos.
      *
      * @param  \Illuminate\Console\Scheduling\Schedule  $schedule
      * @return void
      */
     protected function schedule(Schedule $schedule)
     {
-        $schedule->command('trips:auto-complete')->everyMinute()->withoutOverlapping();
-        $schedule->command('trips:notify-delays')->everyMinute()->withoutOverlapping();
-        $schedule->command('chats:purge-trips')->everyMinute()->withoutOverlapping();
-        $schedule->command('chats:purge-expired')->dailyAt('02:10');
-        $schedule->command('workers:inactivity')->dailyAt('02:20');
-        $schedule->command('access-recoveries:expire')->hourly();
-        $schedule->command('passwords:warn-expiry')->dailyAt('07:00');
+        foreach (ScheduledTasks::TASKS as $command => $frequency) {
+            $event = $schedule->call(function () use ($command) {
+                Artisan::call($command);
+            })->name($command);
+
+            if ($frequency === 'minute') {
+                $event->everyMinute()->withoutOverlapping();
+            } elseif ($frequency === 'hour') {
+                $event->hourly();
+            } else {
+                $event->dailyAt($frequency);
+            }
+        }
     }
 }

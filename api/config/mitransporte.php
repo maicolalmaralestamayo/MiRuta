@@ -2,6 +2,25 @@
 
 return [
 
+    'version' => '2.2.0',
+
+    /*
+    |--------------------------------------------------------------------------
+    | Mantenimiento y tareas programadas
+    |--------------------------------------------------------------------------
+    |
+    | maintenance_key: clave para hacer el mantenimiento del servidor desde la
+    | app sin iniciar sesión (instalar la base de datos, o arreglar el servidor
+    | si nadie puede entrar). Vacía: solo el Administrador con su sesión.
+    | tasks_on_requests: sin cron, ejecutar las tareas programadas al terminar
+    | las peticiones (como mucho una vez por minuto).
+    |
+    */
+
+    'maintenance_key' => env('MAINTENANCE_KEY'),
+
+    'tasks_on_requests' => env('TASKS_ON_REQUESTS', false),
+
     /*
     |--------------------------------------------------------------------------
     | JWT (RFC 7519)
@@ -30,6 +49,9 @@ return [
     */
 
     'uploads_directory' => 'uploads',
+
+    // Carpeta pública (donde está index.php). Por omisión, public/.
+    'public_path' => env('PUBLIC_PATH'),
 
     /*
     |--------------------------------------------------------------------------

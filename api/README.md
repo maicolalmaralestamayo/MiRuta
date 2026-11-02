@@ -91,6 +91,16 @@ Marcan los viajes como realizados, borran chats y aplican la baja por inactivida
 * * * * * cd /ruta/a/api && php artisan schedule:run >> /dev/null 2>&1
 ```
 
+**Sin cron** (hospedaje compartido): con `TASKS_ON_REQUESTS=true` la API ejecuta las tareas pendientes al terminar las peticiones, como mucho una vez por minuto; las diarias y por hora se recuperan en la primera petición posterior (`App\Services\ScheduledTasks`).
+
+## Hospedaje compartido sin SSH
+
+`tools/release/build-hosting-package.sh` prepara un paquete para subir por FTP (guía en `tools/release/hosting/LEEME.md`):
+
+- la configuración va en `configuracion.php` (PHP que devuelve un arreglo con las claves de `.env`), que el servidor web nunca muestra;
+- `STORAGE_PATH` saca la carpeta de trabajo de la parte pública y `TEMP_PATH` fija la carpeta temporal;
+- el mantenimiento se hace desde la app: `GET /api/v1/server-status` y `POST /api/v1/maintenance-runs` (`install`, `migrate`, `run-tasks`, `clear-cache`, `log`), con la sesión del Administrador o la cabecera `X-Maintenance-Key` (`MAINTENANCE_KEY`, al menos 16 caracteres).
+
 Se pueden lanzar a mano: `php artisan trips:auto-complete`, `trips:notify-delays`, `chats:purge-trips`, `chats:purge-expired`, `workers:inactivity`, `access-recoveries:expire` y `passwords:warn-expiry`.
 
 ## Pruebas

@@ -118,6 +118,7 @@ Todo lo anterior y, además:
 - **Nomencladores:** jerarquías (con su icono y orden), tipos de vehículo, tipos de ausencia y motivos de conversación. (Las palabras no admitidas en los usuarios se eliminaron.)
 - **Ajustes de la app** (caducidades, contraseñas, máximo de días para recordar la contraseña, letras de matrícula, dirección de las imágenes del mapa, límites, mínimos de frecuencia) y los de cualquier Entidad.
 - **Actualizaciones de la app:** publicar los APK (64 bits, 32 bits y "APK universal"); la versión y el código se leen del APK y se muestran de solo lectura; novedades; "Obligatoria/Opcional" como lista. Ver cuántas cuentas tienen cada versión y retirar versiones.
+- **Mantenimiento del servidor:** estado del servidor (PHP, base de datos, carpetas, tareas programadas) y órdenes: instalar o actualizar la base de datos, ejecutar las tareas pendientes, limpiar la caché y ver el registro de errores (docs/02-procesos.md §2.15). Sin sesión, desde la pantalla *Servidor* con la clave de mantenimiento.
 - **Conversaciones con el desarrollador**, también las de quien aún no tiene cuenta (marcadas "sin cuenta"); cerrarlas.
 
 ## 5.4 Ajustes del usuario

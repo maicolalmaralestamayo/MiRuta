@@ -514,7 +514,10 @@ Al salir de una parada, el chofer y los Jefes de itinerario ven la lista de la s
 
 ## 2.13 Tareas programadas del servidor
 
-Se ejecutan con el *scheduler* de Lumen y un `cron` cada minuto:
+Se ejecutan con el *scheduler* de Lumen y un `cron` cada minuto o, en un hospedaje sin cron
+(`TASKS_ON_REQUESTS=true`), al terminar las peticiones de la app, como mucho una vez por minuto; las diarias y por
+hora que no tocaron por falta de uso se ejecutan en la primera petición posterior. El Administrador ve cuándo se
+ejecutó cada una, y las lanza a mano, en *Gestión → Mantenimiento del servidor* (§2.15).
 
 | Tarea | Frecuencia | Qué hace |
 |---|---|---|
@@ -533,3 +536,19 @@ Se ejecutan con el *scheduler* de Lumen y un `cron` cada minuto:
 - `GET /map` da la plantilla de las imágenes (ajuste de la app `map_tiles_url`, `/tiles/{z}/{x}/{y}.png` por defecto, relativa a la dirección del servidor), los niveles de zoom, los **límites de Cuba** y la **zona de la Entidad** (sus paradas con unos 2 km de margen).
 - La vista **no sale de Cuba**. Las zonas vistas **se guardan en el teléfono**: no se vuelven a descargar y funcionan sin Internet.
 - **Descarga sin conexión** de la zona de la Entidad cuando el usuario quiera (Ajustes → Mapa sin conexión), respetando "solo con Wi-Fi".
+
+## 2.15 Mantenimiento del servidor desde la app
+
+Para hospedajes sin SSH (solo FTP), lo que antes eran comandos se hace desde la app:
+
+- **Quién**: el Administrador con su sesión (*Gestión → Mantenimiento del servidor*) o, sin sesión, quien tenga la
+  **clave de mantenimiento** del servidor (`MAINTENANCE_KEY`): pantalla *Servidor → Mantenimiento del servidor*.
+  La clave sirve para instalar el servidor y para arreglarlo si nadie puede entrar.
+- **Estado**: versión de PHP y extensiones, límites de subida, conexión con la base de datos, si está instalada y
+  los cambios pendientes, carpetas con permiso de escritura y la última ejecución de cada tarea programada.
+- **Órdenes** (solo estas, nunca una orden libre): *Instalar base de datos* (solo si está vacía), *Actualizar base
+  de datos* (cambios de una versión nueva y ajustes nuevos), *Ejecutar tareas pendientes*, *Limpiar caché* y *Ver
+  registro de errores*.
+- Si el servidor responde pero con error (p. ej. aún sin base de datos), la app acepta igualmente la dirección,
+  para poder hacer el mantenimiento.
+

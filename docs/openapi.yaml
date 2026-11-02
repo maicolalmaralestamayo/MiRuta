@@ -3878,6 +3878,67 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+  /server-status:
+    get:
+      tags:
+      - Mantenimiento
+      summary: Estado del servidor
+      description: Administrador o clave de mantenimiento. Funciona aunque la base de datos no esté instalada.
+      parameters:
+      - name: X-Maintenance-Key
+        in: header
+        required: false
+        schema:
+          type: string
+        description: Clave de mantenimiento (MAINTENANCE_KEY). Sin ella, hace falta la sesión del Administrador.
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/ServerStatusDocument'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /maintenance-runs:
+    post:
+      tags:
+      - Mantenimiento
+      summary: Ejecutar una orden de mantenimiento
+      description: 'Administrador o clave de mantenimiento. Para hospedajes sin SSH. Errores: MAINTENANCE_KEY_INVALID, ALREADY_INSTALLED
+        (409).'
+      parameters:
+      - name: X-Maintenance-Key
+        in: header
+        required: false
+        schema:
+          type: string
+        description: Clave de mantenimiento (MAINTENANCE_KEY). Sin ella, hace falta la sesión del Administrador.
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/MaintenanceRunDocument'
+      responses:
+        '201':
+          description: Creado
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/MaintenanceRunDocument'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
   /app-versions/latest:
     get:
       tags:
@@ -4934,6 +4995,182 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/PasswordPolicy'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
+    ServerStatus:
+      type: object
+      description: Estado del servidor (PHP, base de datos, carpetas y tareas programadas).
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - server-statuses
+        id:
+          type: string
+        attributes:
+          type: object
+          properties:
+            apiVersion:
+              type: string
+            phpVersion:
+              type: string
+            phpSupported:
+              type: boolean
+              description: De 7.2.5 a 8.0
+            extensions:
+              type: object
+              additionalProperties:
+                type: boolean
+            php:
+              type: object
+              additionalProperties: true
+              description: Límites de PHP (subida, memoria, open_basedir…)
+            serverTime:
+              type: string
+              format: date-time
+            timezone:
+              type: string
+            database:
+              type: object
+              properties:
+                connected:
+                  type: boolean
+                error:
+                  type: string
+                  nullable: true
+                installed:
+                  type: boolean
+                pendingMigrations:
+                  type: array
+                  items:
+                    type: string
+            storage:
+              type: object
+              properties:
+                path:
+                  type: string
+                exists:
+                  type: boolean
+                writable:
+                  type: boolean
+            uploads:
+              type: object
+              properties:
+                path:
+                  type: string
+                exists:
+                  type: boolean
+                writable:
+                  type: boolean
+            tasks:
+              type: object
+              additionalProperties: true
+              description: onRequests (sin cron), lastCheck y la lista con la última ejecución de cada tarea
+            commands:
+              type: array
+              items:
+                type: string
+        links:
+          $ref: '#/components/schemas/Links'
+    ServerStatusDocument:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/ServerStatus'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    ServerStatusCollection:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServerStatus'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+        meta:
+          $ref: '#/components/schemas/PageMeta'
+    MaintenanceRun:
+      type: object
+      description: Ejecución de una orden de mantenimiento de la lista (nunca una orden libre).
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - maintenance-runs
+        id:
+          type: string
+        attributes:
+          type: object
+          properties:
+            command:
+              type: string
+              enum:
+              - install
+              - migrate
+              - run-tasks
+              - clear-cache
+              - log
+              description: 'install: crea la base de datos (solo si está vacía); migrate: aplica los cambios de una versión
+                nueva; run-tasks: tareas programadas pendientes; clear-cache; log: últimas líneas del registro de errores'
+            ok:
+              type: boolean
+              readOnly: true
+            output:
+              type: string
+              readOnly: true
+            ranAt:
+              type: string
+              format: date-time
+              readOnly: true
+          required:
+          - command
+        links:
+          $ref: '#/components/schemas/Links'
+    MaintenanceRunDocument:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          $ref: '#/components/schemas/MaintenanceRun'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    MaintenanceRunCollection:
+      type: object
+      required:
+      - data
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/MaintenanceRun'
         included:
           type: array
           items:

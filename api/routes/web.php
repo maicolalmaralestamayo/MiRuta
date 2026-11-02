@@ -22,6 +22,12 @@ $router->group(['prefix' => 'api/v1', 'middleware' => 'jsonapi'], function () us
     $router->get('conversation-topics/{id}', 'ConversationTopicController@show');
     $router->get('app-versions/latest', 'AppVersionController@latest');
 
+    // Mantenimiento del servidor (Administrador o clave de mantenimiento)
+    $router->group(['middleware' => 'maintenance'], function () use ($router) {
+        $router->get('server-status', 'MaintenanceController@status');
+        $router->post('maintenance-runs', 'MaintenanceController@run');
+    });
+
     // Sin cuenta, desde una instalación de la app (cabecera X-Installation)
     $router->group(['prefix' => 'guest', 'middleware' => 'installation'], function () use ($router) {
         $router->post('access-recoveries', 'AccessRecoveryController@store');

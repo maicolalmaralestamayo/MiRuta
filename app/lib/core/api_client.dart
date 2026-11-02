@@ -70,9 +70,16 @@ class ApiClient {
       final reached = response.realUri.toString().split('?').first.split('#').first;
       return reached.endsWith(path) ? reached.substring(0, reached.length - path.length) : url;
     } on DioException catch (error) {
-      throw error.response == null
-          ? _probeError('NETWORK_ERROR', unreachableMessage)
-          : _probeError('NOT_MITRANSPORTE', 'En esa dirección no hay un servidor de MiRuta.');
+      final response = error.response;
+      if (response == null) throw _probeError('NETWORK_ERROR', unreachableMessage);
+      // Responde la API pero con un error (p. ej. aún sin base de datos): es
+      // MiRuta y se acepta, para poder hacer su mantenimiento desde la app.
+      final data = response.data;
+      if (data is Map && data['errors'] is List && (response.statusCode ?? 0) >= 500) {
+        final reached = response.realUri.toString().split('?').first.split('#').first;
+        return reached.endsWith(path) ? reached.substring(0, reached.length - path.length) : url;
+      }
+      throw _probeError('NOT_MITRANSPORTE', 'En esa dirección no hay un servidor de MiRuta.');
     } on FormatException {
       throw _probeError('NOT_MITRANSPORTE', 'En esa dirección no hay un servidor de MiRuta.');
     }
@@ -109,8 +116,11 @@ class ApiClient {
 
   // Métodos
 
-  Future<JsonApiDocument> get(String path, {Map<String, dynamic>? query, bool guest = false}) async =>
-      _document(await _send(() => _dio.get(path, queryParameters: query, options: guest ? Options(extra: {'auth': false, 'installation': true}) : null)));
+  /// [headers]: cabeceras extra (p. ej. la clave de mantenimiento; con ellas no se envía la sesión).
+  Future<JsonApiDocument> get(String path, {Map<String, dynamic>? query, bool guest = false, Map<String, String>? headers}) async =>
+      _document(await _send(() => _dio.get(path,
+          queryParameters: query,
+          options: guest || headers != null ? Options(headers: headers, extra: {'auth': headers == null && !guest ? true : false, 'installation': guest}) : null)));
 
   /// Todas las páginas de una colección.
   Future<List<Resource>> getAll(String path, {Map<String, dynamic>? query, int pageSize = 100}) async {
@@ -127,9 +137,13 @@ class ApiClient {
   /// [guest]: sin sesión, identificando la instalación (X-Installation).
   /// [withInstallation]: además de la sesión, la instalación (al iniciar
   /// sesión o registrarse, para pasar a la cuenta lo hablado sin ella).
-  Future<JsonApiDocument> post(String path, Map<String, dynamic> body, {bool auth = true, bool guest = false, bool withInstallation = false}) async =>
+  Future<JsonApiDocument> post(String path, Map<String, dynamic> body, {bool auth = true, bool guest = false, bool withInstallation = false, Map<String, String>? headers}) async =>
       _document(await _send(() => _dio.post(path,
-          data: body, options: Options(extra: {'auth': auth && !guest, 'installation': guest ? true : (withInstallation ? 'ifRegistered' : false)}))));
+          data: body,
+          options: Options(
+              headers: headers,
+              receiveTimeout: headers != null ? const Duration(minutes: 10) : null,
+              extra: {'auth': auth && !guest && headers == null, 'installation': guest ? true : (withInstallation ? 'ifRegistered' : false)}))));
 
   Future<JsonApiDocument> patch(String path, Map<String, dynamic> body) async =>
       _document(await _send(() => _dio.patch(path, data: body)));

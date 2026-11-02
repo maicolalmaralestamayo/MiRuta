@@ -5,6 +5,7 @@ import '../../core/api_exception.dart';
 import '../../core/server_url.dart';
 import '../../core/storage.dart';
 import '../../services/installation.dart';
+import '../admin/server_maintenance_screen.dart';
 import '../widgets/common.dart';
 
 /// Dirección del servidor (docs/09-repaso-pantallas.md §2). Se abre desde el
@@ -120,6 +121,16 @@ class _ServerScreenState extends State<ServerScreen> {
           ],
           const SizedBox(height: 20),
           BusyButton(onPressed: _connect, showErrors: false, icon: const Icon(Icons.cloud_sync_outlined), child: const Text('Conectar al servidor')),
+          // Para quien administra el servidor: instalarlo o arreglarlo sin
+          // iniciar sesión, con la clave de mantenimiento.
+          if (context.api.hasServer) ...[
+            const SizedBox(height: 24),
+            TextButton.icon(
+              icon: const Icon(Icons.dns_outlined),
+              label: const Text('Mantenimiento del servidor'),
+              onPressed: () => ServerMaintenanceScreen.openWithKey(context, context.api),
+            ),
+          ],
         ]),
       ),
     );

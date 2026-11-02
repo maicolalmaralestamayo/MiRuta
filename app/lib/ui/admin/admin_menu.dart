@@ -8,6 +8,7 @@ import 'access_recoveries_screen.dart';
 import 'entities_screen.dart';
 import 'app_versions_screen.dart';
 import 'planning_screen.dart';
+import 'server_maintenance_screen.dart';
 import 'vehicles_screen.dart';
 import 'workers_screen.dart';
 
@@ -50,6 +51,7 @@ class _AdminMenuState extends State<AdminMenu> {
           ListTile(leading: const Icon(rankIcon), title: const Text('Jerarquías'), onTap: () => open(NomenclatorsScreen.ranks())),
           ListTile(leading: const Icon(Icons.forum_outlined), title: const Text('Motivos de conversación'), onTap: () => open(NomenclatorsScreen.conversationTopics())),
           ListTile(leading: const Icon(Icons.system_update_alt), title: const Text('Actualizaciones de la app'), onTap: () => open(const AppVersionsScreen())),
+          ListTile(leading: const Icon(Icons.dns_outlined), title: const Text('Mantenimiento del servidor'), onTap: () => open(ServerMaintenanceScreen(api: context.api))),
         ],
       ]),
     );

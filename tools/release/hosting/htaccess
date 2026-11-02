@@ -1,0 +1,31 @@
+# MiRuta: reglas del servidor web (Apache) para la carpeta pública.
+
+Options -Indexes
+DirectoryIndex index.php
+
+AddType application/vnd.android.package-archive .apk
+
+# Archivos grandes (las APK de las actualizaciones). Solo si PHP corre como
+# módulo de Apache; si no, vale .user.ini.
+<IfModule mod_php7.c>
+    php_value upload_max_filesize 64M
+    php_value post_max_size 70M
+    php_value max_execution_time 300
+</IfModule>
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Que PHP reciba la cabecera Authorization (la sesión de la app).
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+    # El código del servidor y la configuración nunca se sirven.
+    RewriteRule ^servidor(/|$) - [F,L]
+    RewriteRule (^|/)\. - [F,L]
+
+    # Todo lo demás que no sea un archivo existente va a la API.
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^ index.php [L]
+</IfModule>

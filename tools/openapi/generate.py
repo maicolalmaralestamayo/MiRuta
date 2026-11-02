@@ -92,6 +92,21 @@ res("activations", "Activation", "Cuentas", "\"Ya me registró un superior\": ac
 res("password-policies", "PasswordPolicy", "Cuentas", "Requisitos actuales de la contraseña y del usuario.", {
     "minLength": INT(), "maxLength": INT(), "requiredClasses": INT(minimum=1, maximum=4), "historyCount": INT(), "expiryDays": INT(), "usernameMinLength": INT(), "usernameMaxLength": INT(),
 })
+res("server-statuses", "ServerStatus", "Mantenimiento", "Estado del servidor (PHP, base de datos, carpetas y tareas programadas).", {
+    "apiVersion": STR(), "phpVersion": STR(), "phpSupported": BOOL(description="De 7.2.5 a 8.0"),
+    "extensions": {"type": "object", "additionalProperties": BOOL()},
+    "php": {"type": "object", "additionalProperties": True, "description": "Límites de PHP (subida, memoria, open_basedir…)"},
+    "serverTime": STR(format="date-time"), "timezone": STR(),
+    "database": {"type": "object", "properties": {"connected": BOOL(), "error": STR(nullable=True), "installed": BOOL(), "pendingMigrations": S("array", items=STR())}},
+    "storage": {"type": "object", "properties": {"path": STR(), "exists": BOOL(), "writable": BOOL()}},
+    "uploads": {"type": "object", "properties": {"path": STR(), "exists": BOOL(), "writable": BOOL()}},
+    "tasks": {"type": "object", "additionalProperties": True, "description": "onRequests (sin cron), lastCheck y la lista con la última ejecución de cada tarea"},
+    "commands": S("array", items=STR()),
+})
+res("maintenance-runs", "MaintenanceRun", "Mantenimiento", "Ejecución de una orden de mantenimiento de la lista (nunca una orden libre).", {
+    "command": STR(enum=["install", "migrate", "run-tasks", "clear-cache", "log"], description="install: crea la base de datos (solo si está vacía); migrate: aplica los cambios de una versión nueva; run-tasks: tareas programadas pendientes; clear-cache; log: últimas líneas del registro de errores"),
+    "ok": BOOL(readOnly=True), "output": STR(readOnly=True), "ranAt": STR(format="date-time", readOnly=True),
+}, required=["command"])
 res("ranks", "Rank", "Nomencladores", "Jerarquía, común a todas las Entidades. Solo sirve para las estadísticas.", {**NOMEN, "sortOrder": INT(minimum=0, description="Orden de presentación"), "iconUrl": STR(format="uri", nullable=True, readOnly=True)}, required=["name"])
 res("vehicle-types", "VehicleType", "Nomencladores", "Tipo de vehículo.", dict(NOMEN), required=["name"])
 res("absence-types", "AbsenceType", "Nomencladores", "Tipo de ausencia.", dict(NOMEN), required=["name"])
@@ -584,6 +599,12 @@ paths["/map"] = {"get": op("Mapas", "Configuración del mapa propio", {"200": {"
         "bounds": {"$ref": "#/components/schemas/BoundingBox"},
         "area": {"allOf": [{"$ref": "#/components/schemas/BoundingBox"}], "nullable": True, "description": "Zona de las paradas de la Entidad con margen, para descargarla"}}}}}}}}}}},
     "Límites de Cuba y zona de la Entidad para usar el mapa sin conexión. El Administrador puede indicar `filter[entity]`.", [filt("entity", "Entidad (solo el Administrador)")], errs=("401", "403"))}
+MAINT_KEY = {"name": "X-Maintenance-Key", "in": "header", "required": False, "schema": STR(), "description": "Clave de mantenimiento (MAINTENANCE_KEY). Sin ella, hace falta la sesión del Administrador."}
+paths["/server-status"] = {"get": op("Mantenimiento", "Estado del servidor", resp(200, "ServerStatusDocument"),
+                                     "Administrador o clave de mantenimiento. Funciona aunque la base de datos no esté instalada.", params=[MAINT_KEY], errs=("401", "403"))}
+paths["/maintenance-runs"] = {"post": op("Mantenimiento", "Ejecutar una orden de mantenimiento", resp(201, "MaintenanceRunDocument"),
+                                         "Administrador o clave de mantenimiento. Para hospedajes sin SSH. Errores: MAINTENANCE_KEY_INVALID, ALREADY_INSTALLED (409).",
+                                         params=[MAINT_KEY], reqbody=body("MaintenanceRunDocument"), errs=("401", "403", "409", "415", "422"))}
 paths["/app-versions/latest"] = {"get": op("Actualizaciones", "Última versión de la app", resp(200, "AppVersionDocument"),
     "Público. `data` es null si no hay ninguna. Con `filter[currentVersionCode]`, `meta.updateAvailable` y `meta.mandatory`. "
     "Con `filter[abis]` (los que admite el teléfono, por preferencia), `meta.file` trae el APK que le corresponde: el suyo, si no el universal, si no el único publicado.",
