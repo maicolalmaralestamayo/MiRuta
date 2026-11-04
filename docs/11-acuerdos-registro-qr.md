@@ -23,13 +23,12 @@ La tarjeta de usuario, igual en toda la app:
 | Posición | Contenido | Ejemplo |
 |---|---|---|
 | Izquierda | Foto de perfil (sin foto: ícono genérico de persona) | — |
-| Línea 1 | ★ (siempre la estrella, no el ícono de la jerarquía) + abreviatura de la jerarquía + primer apellido | ★ Cap. Almarales |
+| Línea 1 | ★ (siempre la estrella, no el ícono de la jerarquía) + abreviatura de la jerarquía + apellidos | ★ Cap. Almarales Tamayo |
 | Línea 2 | Abreviatura de la Entidad • Pase número | UMIM • Pase 1024 |
-| Línea 3 | Itinerario • calle de la parada. punto de referencia de la parada; si no tiene: **Sin itinerario** | Ruta Playa • Calle 23. Coppelia |
-| Línea 4 | Roles separados por •; si no tiene ninguno: **Trabajador** | Jefe de Transporte • Chofer |
 
+- El itinerario, la parada y los roles **no van en la tarjeta del usuario**: tienen sus propias tarjetas (§11.9).
 - Si un texto no cabe, se corta con «…».
-- La parada no tiene campo «nombre»: se usa el **punto de referencia**. Campos de la parada: Entidad, punto de
+- En las tarjetas, la parada se nombra por su **punto de referencia**, porque no tiene campo «nombre». Campos de la parada: Entidad, punto de
   referencia, calle, entrecalle 1 (opcional), entrecalle 2 (opcional), latitud y longitud.
 
 ## 11.3 Usuario
@@ -83,7 +82,7 @@ Se abre justo después del registro, ya con la sesión iniciada:
 - **Hablar con el desarrollador** en esta pantalla y en todas las que se abren desde ella.
 
 **Itinerario y parada siempre van juntos.** Ningún trabajador tiene itinerario sin parada ni parada sin
-itinerario. Mientras no tiene ninguno de los dos, su tarjeta dice «Sin itinerario».
+itinerario. Mientras no tiene ninguno de los dos, en Inicio sale la tarjeta «Sin itinerario» (§11.9).
 
 ### Registro por un superior
 
@@ -188,3 +187,34 @@ itinerario. Mientras no tiene ninguno de los dos, su tarjeta dice «Sin itinerar
   - también se le crea usuario y contraseña, propuestos por el sistema;
   - cuando entra por primera vez en la app, su QR impreso **se anula** y pasa a usar el QR que cambia cada pocos
     segundos.
+
+## 11.9 Pantalla de Inicio y tarjetas modelo
+
+**Imagen por defecto:** cuando no se ha subido imagen, se muestra un **ícono**.
+
+**Campos nuevos de imagen** (opcionales):
+- foto de los **hijos**;
+- imagen de la **Entidad**;
+- imagen del **itinerario**;
+- imagen de la **parada**.
+
+**Pantalla de Inicio**, de arriba abajo, con un título pequeño encima de cada grupo:
+
+| Grupo | Tarjeta |
+|---|---|
+| (sin título) | **Usuario** (§11.2) |
+| Hijos | Una por hijo con derecho. **Foto a la derecha**. Línea 1: nombres y apellidos. Línea 2: `Nacimiento 20/01/20`. Línea 3: `Derecho 20/01/30`. |
+| Entidad | Imagen a la izquierda. Línea 1: abreviatura. Línea 2: nombre. Línea 3: `50 trabajadores`. |
+| Itinerario y parada | Las dos imágenes juntas a la izquierda (itinerario y parada). Línea 1: nombre del itinerario. Línea 2: `calle • punto de referencia`. Línea 3: `50 trabajadores` (del itinerario). Sin itinerario: tarjeta «Sin itinerario», que al tocarla abre la solicitud de itinerario y parada. |
+| Roles | Una por rol, con su ícono. Línea 1: el rol. Línea 2: **Jefe de itinerario** → nombre de su itinerario; **Jefe de Transporte** y **Chofer** → abreviatura de la Entidad. |
+| Viajes | Los planificados y los que están en curso (tarjeta de viaje actual). |
+
+- **Hijos sin derecho:** cuando un hijo pierde el derecho por edad, **deja de mostrarse**.
+- **Sin hijos o sin roles:** en lugar de esas tarjetas, al final de la pantalla aparecen dos botones para ir a
+  las solicitudes correspondientes: **Declarar hijos** y **Solicitar rol**.
+- **Al tocar cualquier tarjeta** se abre su formulario de edición, de detalle o de solicitud.
+- **Barra inferior sin «Solicitudes»**: queda Inicio, Viajes, Mensajes y Más. Las solicitudes se hacen desde
+  las tarjetas.
+- **Tarjetas modelo:** estas tarjetas son el modelo para toda la app. Cuando se mencione la tarjeta de un usuario,
+  hijo, Entidad, itinerario y parada, rol o viaje, se usa esta forma.
+
