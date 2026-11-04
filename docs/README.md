@@ -15,7 +15,7 @@ MiRuta se llamaba antes MiTransporte.
 | [08-version-2.md](08-version-2.md) | Acuerdos de la versión 2: varias Entidades, cuentas, contraseñas, recuperación de acceso, ocupación |
 | [09-repaso-pantallas.md](09-repaso-pantallas.md) | Repaso de las pantallas (versión 2.1): MiRuta, textos, campos, viajes atrasados, paradas no realizadas, desvíos, mapas propios |
 | [10-traspaso.md](10-traspaso.md) | **Traspaso de tecnología:** qué se entrega (APK, imagen Docker, .zip del servidor) y cómo ponerlo en marcha en el hospedaje, con Docker y sin Docker |
-| [11-acuerdos-registro-qr.md](11-acuerdos-registro-qr.md) | Acuerdos pendientes de implementar: carné de identidad (sin Pase ni jerarquía), varias Entidades por persona, registro, contraseñas, tarjetas modelo e Inicio, hijos sin solicitud, ausencias sin aprobación, punto de conexión y QR desechable sin conexión |
+| [11-acuerdos-registro-qr.md](11-acuerdos-registro-qr.md) | Acuerdos de la versión 3.0 (implementados): carné de identidad (sin Pase ni jerarquía), varias Entidades por persona, registro, contraseñas, tarjetas modelo e Inicio, hijos sin solicitud, ausencias sin aprobación, punto de conexión y QR desechable sin conexión |
 
 ## Scrum
 

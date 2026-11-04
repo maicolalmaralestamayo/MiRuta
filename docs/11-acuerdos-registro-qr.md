@@ -1,6 +1,6 @@
 # 11. Acuerdos: registro, personas y Entidades, contraseñas, tarjetas, hijos y QR
 
-Acuerdos con el Product Owner del 03 y 04/11/2026, **pendientes de implementar**. Cambian lo descrito en
+Acuerdos con el Product Owner del 03 y 04/11/2026, **implementados en la versión 3.0.0**. Cambian lo descrito en
 `02-procesos.md`, `05-app.md` y `09-repaso-pantallas.md` en lo que se indica.
 
 ## 11.1 Se eliminan el Pase y la jerarquía

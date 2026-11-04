@@ -1,5 +1,9 @@
 # 10. Traspaso de tecnología — MiRuta 2.2.0
 
+> **Versión 3.0.0:** el modelo de datos cambió (carné, varias Entidades por persona, roles configurables, QR). Los
+> pasos de puesta en marcha son los mismos, pero la base de datos de la 3.0 se instala **desde cero**: no se
+> actualiza sobre una 2.x. Los nombres de archivo con «2.2.0» se refieren a la última entrega hecha.
+
 Qué se entrega y cómo poner en marcha MiRuta en cada entorno: el hospedaje, un ordenador con Docker y un
 ordenador sin Docker. Se da por hecho que Docker, Apache o nginx, PHP y MySQL/MariaDB ya están instalados.
 

@@ -46,7 +46,7 @@ La app se llama **MiRuta** en todas partes (lanzador, textos, avisos y APK). Int
 
 | Pantalla | Contenido |
 |---|---|
-| **Inicio de sesión** | Ícono, usuario (recordado en el teléfono) y contraseña. Debajo, en una línea y del mismo tamaño: **Entrar** (azul) y **Olvidé algo** (naranja). Separador; **Registrarme por primera vez** y **Me registró un superior** (tonales, uno debajo del otro). Separador; **botón de servidor** de tres estados: "Indicar servidor" (naranja, sin dirección), "Conectado al servidor" (verde) o "Desconectado del servidor" (rojo); se comprueba al abrir y al volver de Servidor. Al final, **Hablar con el desarrollador** y, al pie, versión · arquitectura |
+| **Inicio de sesión** | Ícono, usuario (recordado en el teléfono) y contraseña. Debajo, en una línea y del mismo tamaño: **Entrar** (azul) y **Olvidé algo** (naranja). Separador; **Registrarme por primera vez** (ya no existe "Me registró un superior"). Separador; **botón de servidor** de tres estados: "Indicar servidor" (naranja, sin dirección), "Conectado al servidor" (verde) o "Desconectado del servidor" (rojo). Al final, **Hablar con el desarrollador** y, al pie, versión · arquitectura. La app **no trae dirección de servidor** por defecto |
 | **Servidor** | "Elija el protocolo de conexión e indique la dirección del servidor que le facilitó el administrador de la aplicación." Selector de protocolo (`https`/`http`) y dirección en la misma línea; si se pega una URL completa, el selector toma su protocolo. La app añade `/api/v1`, comprueba que responde MiRuta y la guarda. Si falla: "Fue imposible conectarse al servidor. Revise el protocolo de conexión que seleccionó, la dirección del servidor que indicó y asegúrese de tener conexión a Internet." Si la dirección cambia, la instalación se vuelve a registrar |
 | **Registrarme por primera vez** | Nombres, apellidos y **carné** (`POST /users`); usuario y contraseña ya propuestos (`GET /username-suggestion`, `GET /password-suggestion`) y modificables. `GET /registration-status` dice si será el Administrador. Carné repetido: `409 IDENTITY_CARD_TAKEN` con su texto |
 | **Otros datos del registro** | Solicitar Entidad (`POST /applications` `entity_membership`; el nombre se confirma con `GET /entities/lookup`), itinerario y parada, añadir hijos (`POST /children`), solicitar roles y **Mi QR**. Sin Pase ni jerarquía |
@@ -55,70 +55,47 @@ La app se llama **MiRuta** en todas partes (lanzador, textos, avisos y APK). Int
 | **Contraseña nueva obligatoria** | Cuando caduca la contraseña (pide también la actual) o tras recuperar el acceso |
 | **Contraseña** (al abrir) | Si "Recordar contraseña" está desactivado o pasaron sus días, se pide la contraseña del usuario de la sesión. Sustituye a la antigua pantalla de PIN |
 | **Actualización** | Al abrir la app y periódicamente se comprueba si hay una versión nueva (notificación). Si es obligatoria, no se puede seguir sin instalarla |
-| **Inicio** | Tarjeta del itinerario (Itinerario / Parada / Dirección). Tarjetas de viajes con el estado del recorrido: "Viaje de ida" o "Viaje de regreso" mientras está en curso, "Ida completada" / "Regreso completado" al terminar, y "Atrasado" si no comenzó a su hora. Estado de las solicitudes y avisos sin leer |
-| **Viajes** | Viajes confirmados de su itinerario con la etiqueta del recorrido y el estado de cada tramo; indicador de cambios |
+| **Inicio** | Tarjeta del usuario (nombres y apellidos; abreviaturas de sus Entidades o "Sin Entidad"); seis botones **Perfil, Hijos, Entidades, Itinerario, Roles, Viajes** (3 por fila, ícono y una palabra); y, con título, Hijos con derecho, **Entidad** (tarjeta con ↕: selector de la Entidad que se ve), Itinerario y parada, Roles (Trabajador primero) y Viajes de esa Entidad. Cada tarjeta lleva a su pantalla. Detalle en [11-acuerdos-registro-qr.md §11.10](11-acuerdos-registro-qr.md) |
+| **Viajes** | Selector de Entidad; viajes **En curso** y **Confirmados**; tocar uno abre su detalle |
 | **Detalle del viaje** | Viaje de ida y viaje de regreso (fecha, hora y punto de salida de cada uno), vehículo (matrícula `B 123 456`, "Cap. total · Cap. sentados · Cap. de pie"), chofer, atraso, chat del viaje, **"Ya subí"**, **"Mi QR"**, **"Seguir recorrido"** |
 | **Recorrido en tiempo real** | Título "Viaje de ida · X" / "Viaje de regreso · X". Cabecera con paradas pasadas, **paradas donde no se detuvo y saltadas**, atraso y sensores activos. **Línea con hitos** (línea centrada del mismo alto siempre, paradas como puntos gruesos encima, distancias proporcionales, hora de paso y km junto al nombre) o **mapa** (recorrido de referencia, si existe, y trazado real; nunca líneas rectas entre paradas). Botón **Trabajadores** |
 | **Trabajadores del viaje** | Selector Viaje de ida / Viaje de regreso; por parada y alfabéticamente, con foto (o ícono de persona) y los hijos que subieron (`boardedChildIds`); al final, quienes subieron sin ser esperados (`expected: false`, `outsider`). Sin número de posición ni jerarquía |
 | **Mi código QR** | Un solo QR de la persona (sin trayecto): el dinámico del teléfono, con capturas bloqueadas. Ver [07-algoritmos.md §7.36](07-algoritmos.md#736-código-qr-de-la-persona) |
 | **Escanear** (chofer, quien escanea la subida o da altas con QR) | `POST /qr-scans` (o comprobación local sin conexión) → tarjeta de la persona; si es de otro itinerario o Entidad, pregunta si la deja subir (`allowOutsider`); marcar qué hijos suben (`childIds`); avisar si ya subió (QR impreso: posible copia). Alta en itinerario: elegir parada y `POST /itinerary-assignments` |
-| **Mi perfil** | Foto, nombre (se edita tocándolo), carné (sexo y nacimiento de solo lectura), usuario, Entidades, contraseña ("caduca el <día> dd/mm/aa"), itinerario y parada, roles, hijos. Sin lápices ni textos de ayuda: tocar un dato editable lo edita. Ya no tiene "Darme de baja del itinerario" |
-| **Mis hijos** | "Pepito Pérez García" / "Fecha Nac.: sáb. 16/07/92" / "Derecho a viajar: sáb. 14/03/26" |
-| **Solicitudes** | Historial de las propias, con "Aprobada <fecha> por X" o "Rechazada <fecha> por X". **Nueva:** "Itinerario y parada", "Darme de baja del itinerario" (inmediata, con confirmación), "Rol de Jefe de itinerario", "Rol de Jefe de Transporte", "Rol de Chofer", "Declarar hijos" (varios en una misma solicitud, con la nota para parejas) y "Ausencia temporal" (con la opción **"Ausencia indefinida"**; después se le ponen fechas o se quita). Cancelar las pendientes |
-| **Bajas de roles** | Darse de baja como Jefe de itinerario, como chofer o como Jefe de Transporte, con confirmación |
+| **Perfil** | Foto, nombres, apellidos, carné y usuario editables; sexo y nacimiento de solo lectura (salen del carné). Acciones: Guardar perfil, Cambiar contraseña |
+| **Hijos** y **formulario del hijo** | Con derecho a viajar y desactivados; crear, agregar ya registrado (por carné), editar, desactivar o reactivar, eliminar. En el formulario: datos del carné de solo lectura, "Derecho a viajar hasta" y quién más lo tiene declarado |
+| **Entidades**, **Itinerario y parada** y **Roles** | Cada una con su selector de Entidad cuando aplica: pertenencias y solicitudes de Entidad; itinerario y parada, ausencias (sin aprobación) y solicitud de itinerario; roles (Trabajador siempre) y solicitud de los roles solicitables. Darse de baja y cancelar solicitudes desde el menú **Acciones**. La pestaña "Solicitudes" desapareció |
+| **Forma común** | Barra principal (Inicio, Viajes, Mensajes, Más) en todas las pantallas y punto de conexión; tarjetas modelo sin botones dentro (tocar = editar; mantener pulsado = selección múltiple); botón naranja **Acciones** con menú flotante, acciones en gris si no aplican. Ver [11 §11.18](11-acuerdos-registro-qr.md) |
 | **Conversaciones** | Con los Jefes de mi itinerario, con los Jefes de Transporte de mi Entidad y con el desarrollador. Al abrir una se elige el motivo |
 | **Avisos** | Avisos del servidor con su texto concreto (`message`): "Se aprobó su solicitud de <tipo> (<detalle>). La aprobó <nombre>", "Se rechazó … Motivo: <motivo>", comienzo y atraso de viajes, caducidad de la contraseña, incidencias del recorrido (jefes) |
 | **Estadísticas** | Las que le corresponden por su rol. Periodo "Últimos" o "Rango de fechas" (un día = inicio y fin iguales). Gráfico con eje en enteros y título que dice qué se mide, más tabla. No se exportan |
 | **Más** | Compartir la app (sin texto de ayuda; 64 bits por defecto o 32 bits). Al pie, "MiRuta · Versión x · 64 bits" |
 | **Ajustes** | Ver 5.4 |
 
-## 5.3 Pantallas por rol
+## 5.3 Gestión (según los permisos de cada rol)
 
-### Chofer
+En la versión 3.0 los roles son **configurables** ([11 §11.16](11-acuerdos-registro-qr.md)): cada rol es un conjunto de
+operaciones con su ámbito (propio, su itinerario, su Entidad o todas). La app muestra en **Más → Gestión** solo las
+pantallas y acciones que los permisos de `GET /me` permiten, con la misma forma común y un selector de Entidad donde
+aplica. Pantallas:
 
-- **Mis viajes como chofer:** viajes asignados, con fecha, itinerario, vehículo y trabajadores esperados.
-- **Detalle y recorrido:** "Iniciar viaje de ida" / "Iniciar viaje de regreso", "Finalizar", voz, lista de la próxima parada, "Trabajadores por parada", escanear QR, marcar subidas a mano, marcar el viaje como realizado. El estado se muestra solo con la etiqueta, sin duplicarlo.
-
-### Jefe de itinerario (en sus itinerarios)
-
-- **Solicitudes por resolver:** pertenencia (viendo el Pase de quien la pide), hijos (**cada hijo se aprueba o rechaza por separado**, con aviso de posible duplicado) y ausencias. **Al rechazar, el motivo es obligatorio.**
-- **Miembros del itinerario:** asignar o quitar itinerario y parada, y **registrar trabajadores sin teléfono** (con su código de activación, también como QR).
-- **Planificación de viajes** de su itinerario.
-- **Viajes del itinerario:** con la ocupación en color (naranja si van de pie, rojo si no caben) y el atraso.
-- **Recorrido de referencia:** en la ficha de su itinerario, marca un viaje de ida y otro de regreso ya realizados como trazado habitual.
-- **Avisos de incidencias:** paradas donde no se detuvo, saltadas y desvíos de los viajes de su itinerario.
-- **Recorrido:** igual que el chofer.
-- **Conversaciones recibidas,** agrupadas por motivo.
-
-### Jefe de Transporte
-
-Además de todo lo del Jefe de itinerario, en cualquier itinerario de **su Entidad**:
-
-- **Vehículos y choferes:** ficha con matrícula (se escribe junta, `B123456`; se muestra `B 123 456`), "Capacidad sentados", "Capacidad de pie" y "Capacidad total" de solo lectura; tarjeta "Cap. total 60 • Cap. sentados 45 • Cap. de pie 15"; chofer habitual.
-- **Itinerarios y paradas** (una sola gestión): alta y edición; desde la ficha del itinerario se añaden paradas existentes o se crean nuevas con el mapa, se ordenan arrastrando y se marca el recorrido de referencia.
-- **Planificación de viajes:**
-  - **Calendario y lista** de viajes, con filtros por itinerario, vehículo, chofer, estado y fechas.
-  - **Nuevo viaje:** itinerarios (selección múltiple), días marcados en un almanaque, hora del viaje de ida y del de regreso, y una fila por itinerario con su vehículo y su chofer (los habituales por defecto; solapes o faltantes señalados). Resumen "Se crearán N viajes".
-  - **Selección múltiple** para confirmar, desconfirmar o cancelar.
-  - **Avisos** de saturación, atrasos, incidencias y viajes **para reasignar**.
-- **Solicitudes por resolver:** Jefe de itinerario y chofer.
-- **Trabajadores:** ficha con cada dato en su control (Nombre, Entidad, Pase, Sexo, Jerarquía…), debajo itinerario y roles; registrar sin teléfono, regenerar códigos, hacer o quitar chofer y Jefe de itinerario, asignar itinerario y parada.
-- **Ajustes de la Entidad**, incluidos la tolerancia de atraso, los umbrales de paradas no realizadas y desvíos, y los valores por defecto de los ajustes de cada usuario.
-
-### Administrador
-
-Todo lo anterior y, además:
-
-- **Selector de Entidad** en Gestión: con qué Entidad trabaja (o todas).
-- **Entidades:** crear y editar; el estado (Activada/Desactivada) es una lista en la ficha; la lista se filtra con "Activadas / Desactivadas / Todas".
-- **Solicitudes por resolver** de Jefe de Transporte; hacer o quitar Jefe de Transporte.
-- **Olvidé algo:** Entidad, Pase y teléfono en controles de solo lectura; ver con quién coinciden los datos, llamar, abrir el chat de WhatsApp con ese número, aprobar, rechazar y bloquear el teléfono. Estado "Solicitada".
-- **Trabajadores:** buscar, ver datos privados, activar y desactivar.
-- **Nomencladores:** jerarquías (con su icono y orden), tipos de vehículo, tipos de ausencia y motivos de conversación. (Las palabras no admitidas en los usuarios se eliminaron.)
-- **Ajustes de la app** (caducidades, contraseñas, máximo de días para recordar la contraseña, letras de matrícula, dirección de las imágenes del mapa, límites, mínimos de frecuencia) y los de cualquier Entidad.
-- **Actualizaciones de la app:** publicar los APK (64 bits, 32 bits y "APK universal"); la versión y el código se leen del APK y se muestran de solo lectura; novedades; "Obligatoria/Opcional" como lista. Ver cuántas cuentas tienen cada versión y retirar versiones.
-- **Mantenimiento del servidor:** estado del servidor (PHP, base de datos, carpetas, tareas programadas) y órdenes: instalar o actualizar la base de datos, ejecutar las tareas pendientes, limpiar la caché y ver el registro de errores (docs/02-procesos.md §2.15). Sin sesión, desde la pantalla *Servidor* con la clave de mantenimiento.
-- **Conversaciones con el desarrollador**, también las de quien aún no tiene cuenta (marcadas "sin cuenta"); cerrarlas.
+- **Trabajadores:** lista por Entidad (activos y desactivados), **registrar persona** (Administrador: nombres,
+  apellidos, carné, ¿tiene teléfono?, usuario y contraseña propuestos que se muestran al guardar para copiarlos o
+  compartirlos; si el carné ya existe se le añade la Entidad), ficha, asignar itinerario y parada o roles,
+  ajustes del trabajador, **QR impreso** (compartir, imprimir, anular), desactivar, dar de baja.
+- **Solicitudes por resolver:** entrada en Entidad, itinerario y parada, roles; aprobar o rechazar (motivo
+  obligatorio), también varias a la vez.
+- **Roles:** Administrador de solo lectura; crear y editar (nombre, ícono, solicitable, por defecto, de itinerario,
+  operaciones con su ámbito, roles que aprueban); eliminar; consultar la tabla fija de operaciones.
+- **Entidades, itinerarios y paradas** (con imagen), orden de paradas, recorrido de referencia.
+- **Vehículos** y **planificación de viajes** (Jefe de Transporte en su Entidad, Jefe de itinerario en su
+  itinerario).
+- **Ajustes** de la app, de la Entidad, por itinerario y por parada.
+- **Estadísticas** (incluye quienes viajan fuera de su itinerario o Entidad y los niños que viajan realmente).
+- **Olvidé algo** (carné y teléfono), **actualizaciones de la app**, **mantenimiento del servidor**,
+  **nomencladores** (tipos de vehículo, tipos de ausencia y motivos de conversación) y **alta en itinerario con QR**.
+- **Recorrido y subida** (chofer y quien escanea): iniciar y finalizar, escanear QR (con o sin conexión), marcar qué
+  hijos suben, dejar subir a quien es de fuera, corregir pasajeros, escaneos sin conexión pendientes.
 
 ## 5.4 Ajustes del usuario
 
