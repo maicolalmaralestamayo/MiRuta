@@ -308,3 +308,25 @@ Entidad.
 | Jefe de Transporte | Solo el rol de Chofer en su Entidad |
 | Jefe de itinerario | Nada directamente: solo aprueba las solicitudes de su itinerario |
 
+
+### El Administrador
+
+«Gestionar» significa **crear, consultar, actualizar y eliminar**. El Administrador gestiona:
+
+- choferes;
+- vehículos;
+- viajes;
+- trabajadores y sus hijos;
+- itinerarios;
+- paradas;
+- Entidades;
+- tipos de ausencia;
+- la relación trabajador – itinerario – ausencia;
+- la relación trabajador – Entidad;
+- la relación trabajador – Entidad – itinerario – parada;
+- la configuración global de la app;
+- la configuración por Entidad;
+- la configuración por itinerario y parada;
+- la configuración por trabajador;
+- los roles;
+- la relación trabajador – Entidad – roles.
