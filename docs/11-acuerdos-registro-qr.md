@@ -235,3 +235,17 @@ itinerario. Mientras no tiene ninguno de los dos, en Inicio sale la tarjeta «Si
 - **Al subir** a la guagua se indica con **cuántos niños subió realmente** (de 0 a los que tiene con derecho).
 - **El sistema mantiene las estadísticas** de los niños: declarados con derecho y los que viajan realmente.
 
+
+## 11.11 El Administrador también puede ser trabajador
+
+- El Administrador se registra sin Entidad ni Pase (§11.4). Cuando ya existen Entidades, puede **declararse a sí
+  mismo** trabajador de una de ellas, con su **Pase** y su **jerarquía**, **sin solicitud ni aprobación**.
+- Se aplican las mismas reglas que a cualquier trabajador:
+  - la Entidad debe existir;
+  - el Pase debe ser único en esa Entidad, con el mismo mensaje si ya está registrado (§11.4).
+- Desde ese momento:
+  - tiene **tarjeta de usuario completa** (★ jerarquía y apellidos; Entidad • Pase);
+  - aparece la tarjeta **Trabajador** en sus Roles;
+  - puede tener **itinerario y parada, hijos, QR y viajes** como cualquier trabajador;
+  - **cuenta** en los trabajadores de su Entidad y en las estadísticas.
+- **Sigue siendo Administrador**, con todos sus permisos sobre todas las Entidades.
