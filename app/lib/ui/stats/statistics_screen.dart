@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../core/api_exception.dart';
 import '../../models/models.dart';
 import '../navigation.dart';
+import '../admin/management.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/common.dart';
 import 'statistic.dart';
@@ -45,7 +46,7 @@ const _groupings = {
 
 enum _PeriodMode { relative, range }
 
-class _StatisticsScreenState extends State<StatisticsScreen> {
+class _StatisticsScreenState extends State<StatisticsScreen> with ManagementEntityState {
   String _name = 'worker-trips';
   _PeriodMode _mode = _PeriodMode.relative;
   int _amount = 30;
@@ -67,14 +68,37 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
     return const ['worker-trips'];
   }
 
+  /// Con statistics.view se elige la Entidad (y, dentro, el itinerario).
+  bool get _scoped => context.me.canAnywhere(Op.statisticsView);
+
+  @override
+  String get entityOperation => Op.statisticsView;
+
+  @override
+  void onEntityChanged() {
+    _itineraryId = null;
+    _loadItineraries();
+    _load();
+  }
+
+  void _loadItineraries() {
+    final e = entity;
+    if (e == null) return;
+    final me = context.me;
+    context.api.getAll('/itineraries', query: {'sort': 'name', 'filter[entity]': e.id}).then((r) {
+      if (mounted) setState(() => _itineraries = r.map(Itinerary.from).where((i) => me.can(Op.statisticsView, entityId: e.id, itineraryId: i.id)).toList());
+    }).catchError((_) {});
+  }
+
   @override
   void initState() {
     super.initState();
     _name = _available.first;
-    if (context.me.canAnywhere(Op.statisticsView)) {
-      context.api.getAll('/itineraries', query: {'sort': 'name', ...context.entityFilter}).then((r) {
-        if (mounted) setState(() => _itineraries = r.map(Itinerary.from).toList());
-      }).catchError((_) {});
+    if (_scoped) {
+      initEntity();
+      _loadItineraries();
+    } else {
+      entityResolved = true;
     }
     _load();
   }
@@ -86,7 +110,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
       if (_mode == _PeriodMode.range && _range != null) ...{'filter[from]': day(_range!.start), 'filter[to]': day(_range!.end)},
       if (_by != null && _groupings[_name]?.containsKey(_by) == true) 'filter[by]': _by,
       if (_itineraryId != null) 'filter[itinerary]': _itineraryId,
-      ...context.entityFilter,
+      if (_scoped && entity != null) 'filter[entity]': entity!.id,
     };
   }
 
@@ -112,6 +136,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
       title: 'Estadísticas',
       tab: MainTab.more,
       body: ListView(padding: const EdgeInsets.all(12), children: [
+        if (_scoped && entityResolved && entity != null) ...[entitySelector(), const SizedBox(height: 8)],
         DropdownButtonFormField<String>(
           initialValue: _name,
           isExpanded: true,
@@ -195,6 +220,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
         if (_itineraries.isNotEmpty && _name != 'workers-distribution' && _name != 'worker-trips') ...[
           const SizedBox(height: 8),
           DropdownButtonFormField<String?>(
+            key: ValueKey('${entity?.id}-${_itineraries.length}'),
             initialValue: _itineraryId,
             decoration: const InputDecoration(labelText: 'Itinerario'),
             items: [

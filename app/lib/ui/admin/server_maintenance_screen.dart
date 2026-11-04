@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../core/api_client.dart';
 import '../../core/json_api.dart';
 import '../../services/templates.dart';
+import '../navigation.dart';
+import '../widgets/app_scaffold.dart';
 import '../widgets/common.dart';
 
 /// Mantenimiento del servidor, para hospedajes sin acceso por SSH: ver su
@@ -63,8 +65,9 @@ class _ServerMaintenanceScreenState extends State<ServerMaintenanceScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Mantenimiento del servidor')),
+    return AppScaffold(
+      title: 'Mantenimiento del servidor',
+      tab: MainTab.more,
       body: AsyncView<Resource>(
         key: _view,
         load: _load,

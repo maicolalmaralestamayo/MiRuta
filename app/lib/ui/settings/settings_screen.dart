@@ -167,13 +167,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const _OfflineMapTile(),
             if (me.canAnywhere(Op.settingsEntity) || me.canAnywhere(Op.settingsApp)) ...[
               const Divider(),
-              ListTile(
-                leading: const Icon(Icons.tune),
-                title: Text(me.isAdmin ? 'Ajustes de la app' : 'Ajustes de la Entidad'),
-                subtitle: const Text('Valores para todos los usuarios'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => me.isAdmin ? const GlobalSettingsScreen.app() : const GlobalSettingsScreen.entity())),
-              ),
+              if (me.canAnywhere(Op.settingsApp))
+                ListTile(
+                  leading: const Icon(Icons.settings_applications_outlined),
+                  title: const Text('Ajustes de la app'),
+                  subtitle: const Text('Valores para todos los usuarios'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const GlobalSettingsScreen.app())),
+                ),
+              if (me.canAnywhere(Op.settingsEntity))
+                ListTile(
+                  leading: const Icon(Icons.tune),
+                  title: const Text('Ajustes de la Entidad'),
+                  subtitle: const Text('Valores para los trabajadores de una Entidad'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const GlobalSettingsScreen.entity())),
+                ),
             ],
           ]);
         },

@@ -5,6 +5,9 @@ import '../../core/json_api.dart';
 import '../../models/models.dart';
 import '../../services/templates.dart';
 import '../../services/api/roles_api.dart';
+import '../navigation.dart';
+import '../widgets/actions.dart';
+import '../widgets/app_scaffold.dart';
 import '../widgets/common.dart';
 
 /// Crear o editar viajes (docs/09 §23). Al crear se eligen varios
@@ -15,7 +18,11 @@ import '../widgets/common.dart';
 class TripFormScreen extends StatefulWidget {
   final Trip? trip;
 
-  const TripFormScreen({super.key, this.trip});
+  /// Entidad en la que se planifica (por defecto, la del viaje o la última
+  /// elegida en Gestión).
+  final String? entityId;
+
+  const TripFormScreen({super.key, this.trip, this.entityId});
 
   @override
   State<TripFormScreen> createState() => _TripFormScreenState();
@@ -76,10 +83,8 @@ class _TripFormScreenState extends State<TripFormScreen> {
     final api = context.api;
     try {
       final me = context.me;
-      // El Administrador planifica en la Entidad elegida en Gestión; los
-      // demás solo ven la suya.
-      final entityFilter = context.entityFilter;
-      final entityId = context.session.adminEntity?.id;
+      final entityId = widget.entityId ?? widget.trip?.entityId ?? context.session.adminEntity?.id ?? context.session.selectedEntityId;
+      final entityFilter = {'filter[entity]': ?entityId};
       final itineraries = (await api.getAll('/itineraries', query: {'sort': 'name', ...entityFilter}))
           .map(Itinerary.from)
           .where((i) => me.can(Op.tripsPlan, entityId: i.entityId, itineraryId: i.id))
@@ -166,7 +171,7 @@ class _TripFormScreenState extends State<TripFormScreen> {
     }, relationships: {
       'itinerary': ResourceId('itineraries', itineraryId),
       'vehicle': ResourceId('vehicles', row.vehicleId!),
-      'driver': ResourceId('drivers', row.driverId!),
+      'driver': ResourceId('workers', row.driverId!),
     })['data'] as Map<String, dynamic>;
   }
 
@@ -328,9 +333,18 @@ class _TripFormScreenState extends State<TripFormScreen> {
     final days = _days.length;
     final count = days * _itineraryIds.length;
     final dayError = _submitted && _days.isEmpty ? (_editing ? 'Elija el día.' : 'Marque uno o varios días.') : null;
-    return Scaffold(
-      appBar: AppBar(title: Text(_editing ? 'Editar viaje' : 'Nuevo viaje')),
-      body: ListView(padding: const EdgeInsets.all(16), children: [
+    return AppScaffold(
+      title: _editing ? 'Editar viaje' : 'Nuevo viaje',
+      tab: MainTab.more,
+      actions: [
+        ActionItem(
+          icon: _editing ? Icons.save : Icons.add,
+          label: _editing ? 'Guardar viaje' : (count == 1 ? 'Crear viaje' : 'Crear viajes'),
+          enabled: !_busy,
+          onPressed: _save,
+        ),
+      ],
+      body: ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 96), children: [
         _itineraryField(),
         const SizedBox(height: 16),
         if (_editing)
@@ -406,12 +420,7 @@ class _TripFormScreenState extends State<TripFormScreen> {
             padding: const EdgeInsets.only(top: 16),
             child: Text('Se crearán ${plural(count, 'viaje', 'viajes')}.', style: Theme.of(context).textTheme.titleSmall),
           ),
-        const SizedBox(height: 20),
-        FilledButton.icon(
-          onPressed: _busy ? null : _save,
-          icon: _busy ? const BusyIndicator() : Icon(_editing ? Icons.save : Icons.add),
-          label: Text(_editing ? 'Guardar viaje' : (count == 1 ? 'Crear viaje' : 'Crear viajes')),
-        ),
+        if (_busy) const Padding(padding: EdgeInsets.only(top: 20), child: Center(child: CircularProgressIndicator())),
       ]),
     );
   }

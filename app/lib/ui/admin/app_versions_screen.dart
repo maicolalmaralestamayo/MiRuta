@@ -7,6 +7,9 @@ import 'package:path_provider/path_provider.dart';
 import '../../core/api_exception.dart';
 import '../../core/json_api.dart';
 import '../../services/templates.dart';
+import '../navigation.dart';
+import '../widgets/actions.dart';
+import '../widgets/app_scaffold.dart';
 import '../widgets/common.dart';
 
 /// Versiones de la app publicadas (solo el Administrador): publicar un APK,
@@ -30,20 +33,23 @@ class _AppVersionsScreenState extends State<AppVersionsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Actualizaciones de la app')),
-      floatingActionButton: FloatingActionButton.extended(
-        icon: const Icon(Icons.upload),
-        label: const Text('Publicar versión'),
-        onPressed: () async {
-          final published = await Navigator.push<bool>(context, MaterialPageRoute(builder: (_) => const _PublishScreen()));
-          if (published == true) _view.currentState?.reload();
-        },
-      ),
+    return AppScaffold(
+      title: 'Actualizaciones de la app',
+      tab: MainTab.more,
+      actions: [
+        ActionItem(
+          icon: Icons.upload,
+          label: 'Publicar versión',
+          onPressed: () async {
+            final published = await Navigator.push<bool>(context, MaterialPageRoute(builder: (_) => const _PublishScreen()));
+            if (published == true) _view.currentState?.reload();
+          },
+        ),
+      ],
       body: AsyncView<JsonApiDocument>(
         key: _view,
         load: _load,
-        builder: (context, document, reload) => ListView(padding: const EdgeInsets.only(bottom: 88), children: [
+        builder: (context, document, reload) => ListView(padding: const EdgeInsets.only(bottom: 96), children: [
           ListTile(
             leading: const Icon(Icons.info_outline),
             title: Text(plural((document.meta['usersWithoutVersion'] as num? ?? 0).toInt(), 'cuenta sin versión registrada', 'cuentas sin versión registrada')),
@@ -132,8 +138,9 @@ class _PublishScreenState extends State<_PublishScreen> {
   @override
   Widget build(BuildContext context) {
     final uploading = _progress != null;
-    return Scaffold(
-      appBar: AppBar(title: const Text('Publicar versión')),
+    return AppScaffold(
+      title: 'Publicar versión',
+      tab: MainTab.more,
       body: Form(
         key: _form,
         child: ListView(padding: const EdgeInsets.all(16), children: [

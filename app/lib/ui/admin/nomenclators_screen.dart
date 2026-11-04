@@ -3,11 +3,16 @@ import 'package:flutter/material.dart';
 import '../../core/json_api.dart';
 import '../../models/models.dart';
 import '../../services/api/roles_api.dart';
+import '../navigation.dart';
+import '../widgets/actions.dart';
+import '../widgets/app_scaffold.dart';
+import '../widgets/cards.dart';
 import '../widgets/common.dart';
+import '../widgets/selection.dart';
 
-/// Nomencladores: denominación, descripción y observación, más los campos
-/// propios de las jerarquías (orden de presentación e icono) y de los motivos
-/// (destinatario). Todo en un solo formulario (docs/09 §32).
+/// Nomencladores (tipos de vehículo, tipos de ausencia y motivos de
+/// conversación): denominación, descripción y observación y, en los motivos,
+/// el destinatario (un rol o el desarrollador).
 class NomenclatorsScreen extends StatefulWidget {
   final String title;
   final String path;
@@ -37,46 +42,84 @@ class NomenclatorsScreen extends StatefulWidget {
 
 class _NomenclatorsScreenState extends State<NomenclatorsScreen> {
   final _view = GlobalKey<AsyncViewState<List<Named>>>();
+  final _selection = SelectionController();
+  List<Named> _items = const [];
 
   bool get _isTopic => widget.type == 'conversation-topics';
 
-  Future<List<Named>> _load() async => (await context.api.getAll(widget.path, query: {'sort': widget.sort})).map(Named.from).toList();
+  @override
+  void dispose() {
+    _selection.dispose();
+    super.dispose();
+  }
+
+  Future<List<Named>> _load() async {
+    final items = (await context.api.getAll(widget.path, query: {'sort': widget.sort})).map(Named.from).toList();
+    _items = items;
+    _selection.retain(items.map((i) => i.id));
+    return items;
+  }
 
   Future<void> _edit(Named? item) async {
     final saved = await Navigator.push<bool>(context, MaterialPageRoute(builder: (_) => _NomenclatorForm(screen: widget, item: item)));
     if (saved == true) _view.currentState?.reload();
   }
 
+  Future<void> _delete() async {
+    final selected = _selection.selectedOf(_items, (i) => i.id);
+    final api = context.api;
+    if (await runAction(context, () async {
+      for (final i in selected) {
+        await api.delete('${widget.path}/${i.id}');
+      }
+    }, success: 'Eliminado.')) {
+      _selection.clear();
+      _view.currentState?.reload();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(widget.title)),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _edit(null),
-        icon: const Icon(Icons.add),
-        label: Text('Nuevo ${widget.singular}'),
-      ),
-      body: AsyncView<List<Named>>(
-        key: _view,
-        load: _load,
-        builder: (context, items, reload) => ListView(padding: const EdgeInsets.only(bottom: 88), children: [
-          for (final item in items)
-            ListTile(
-              title: Text(item.name),
-              subtitle: Text([
-                if (_isTopic) item.extra['recipient'] == 'developer' ? 'Desarrollador' : '${item.extra['roleName'] ?? 'Rol'}',
-                if (item.description != null) item.description!,
-              ].join(' · ')),
-              onTap: () => _edit(item),
-              trailing: DeleteButton(
-                what: '"${item.name}"',
-                onDelete: () async {
-                  await runAction(context, () => context.api.delete('${widget.path}/${item.id}'));
-                  _view.currentState?.reload();
-                },
-              ),
+    return ListenableBuilder(
+      listenable: _selection,
+      builder: (context, _) => AppScaffold(
+        title: widget.title,
+        tab: MainTab.more,
+        selection: _selection,
+        actions: [
+          ActionItem(icon: Icons.add, label: 'Crear ${widget.singular}', onPressed: () => _edit(null)),
+          const ActionItem.divider(),
+          ActionItem(icon: Icons.edit_outlined, label: 'Editar', needs: ActionNeeds.one, onPressed: () => _edit(_selection.selectedOf(_items, (i) => i.id).first)),
+          ActionItem(
+            icon: Icons.delete_outline,
+            label: 'Eliminar',
+            needs: ActionNeeds.some,
+            destructive: true,
+            confirmation: '¿Eliminar los elementos seleccionados?',
+            onPressed: _delete,
+          ),
+        ],
+        body: AsyncView<List<Named>>(
+          key: _view,
+          load: _load,
+          builder: (context, items, reload) => SelectableCardList<Named>(
+            controller: _selection,
+            sections: [CardSection(items: items)],
+            emptyText: 'Todavía no hay ninguno.',
+            keyOf: (i) => i.id,
+            onOpen: _edit,
+            cardBuilder: (context, item, selected, onTap, onLongPress) => InfoCard(
+              title: item.name,
+              lines: [
+                if (_isTopic) item.extra['recipient'] == 'developer' ? 'Para el desarrollador' : 'Para: ${item.extra['roleName'] ?? 'un rol'}',
+                if ((item.description ?? '').isNotEmpty) item.description!,
+              ],
+              selected: selected,
+              onTap: onTap,
+              onLongPress: onLongPress,
             ),
-        ]),
+          ),
+        ),
       ),
     );
   }
@@ -133,11 +176,25 @@ class _NomenclatorFormState extends State<_NomenclatorForm> {
   @override
   Widget build(BuildContext context) {
     final singular = widget.screen.singular;
-    return Scaffold(
-      appBar: AppBar(title: Text(widget.item == null ? 'Nuevo $singular' : widget.item!.name)),
+    return AppScaffold(
+      title: widget.item == null ? 'Nuevo $singular' : widget.item!.name,
+      tab: MainTab.more,
+      actions: [
+        ActionItem(icon: Icons.save, label: 'Guardar', onPressed: _save),
+        ActionItem(
+          icon: Icons.delete_outline,
+          label: 'Eliminar',
+          destructive: true,
+          enabled: widget.item != null,
+          confirmation: '¿Eliminar "${widget.item?.name ?? ''}"?',
+          onPressed: () async {
+            if (await runAction(context, () => context.api.delete('${widget.screen.path}/${widget.item!.id}')) && context.mounted) Navigator.pop(context, true);
+          },
+        ),
+      ],
       body: Form(
         key: _form,
-        child: ListView(padding: const EdgeInsets.all(16), children: [
+        child: ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 96), children: [
           TextFormField(
             controller: _name,
             autovalidateMode: AutovalidateMode.onUserInteraction,
@@ -177,8 +234,6 @@ class _NomenclatorFormState extends State<_NomenclatorForm> {
               validator: (v) => v == null ? 'Elija el destinatario.' : null,
             ),
           ],
-          const SizedBox(height: 20),
-          BusyButton(onPressed: _save, icon: const Icon(Icons.save), child: Text('Guardar $singular')),
         ]),
       ),
     );
