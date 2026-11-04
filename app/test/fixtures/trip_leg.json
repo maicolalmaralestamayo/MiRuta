@@ -4,7 +4,7 @@
   "id": "1",
   "attributes": {
    "direction": "return",
-   "startedAt": "2026-10-31T15:51:04+00:00",
+   "startedAt": "2026-11-04T15:46:39+00:00",
    "endedAt": null,
    "endReason": null
   },
@@ -26,21 +26,24 @@
    "currentPosition": {
     "latitude": 23.1199,
     "longitude": -82.3,
-    "at": "2026-10-31T15:51:04+00:00"
+    "at": "2026-11-04T15:46:39+00:00"
    },
    "activeSensors": 1,
    "stopPasses": [
     {
      "stopId": "3",
-     "passedAt": "2026-10-31T15:51:04+00:00"
+     "passedAt": "2026-11-04T15:46:39+00:00",
+     "status": "arrived"
     }
-   ]
+   ],
+   "deviating": false,
+   "incidents": []
   },
   "links": {
-   "self": "http://localhost:8000/api/v1/trip-legs/1"
+   "self": "http://localhost:18000/api/v1/trip-legs/1"
   }
  },
  "links": {
-  "self": "http://localhost:8000/api/v1/trip-legs/1"
+  "self": "http://localhost:18000/api/v1/trip-legs/1"
  }
 }

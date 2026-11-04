@@ -1,0 +1,9 @@
+{
+ "data": {
+  "type": "registration-status",
+  "id": "current",
+  "attributes": {
+   "adminExists": false
+  }
+ }
+}

@@ -8,7 +8,6 @@ import '../theme.dart';
 import '../widgets/app_icon.dart';
 import '../widgets/common.dart';
 import 'access_recovery_screen.dart';
-import 'activation_screen.dart';
 import 'register_screen.dart';
 import 'server_screen.dart';
 
@@ -176,13 +175,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 FilledButton.tonalIcon(
                   onPressed: () => _open(const RegisterScreen()),
                   icon: const Icon(Icons.person_add_alt_1_outlined),
-                  label: const Text('Registrarme por primera vez'),
-                ),
-                const SizedBox(height: 8),
-                FilledButton.tonalIcon(
-                  onPressed: () => _open(const ActivationScreen()),
-                  icon: const Icon(Icons.how_to_reg_outlined),
-                  label: const Text('Me registró un superior'),
+                  label: const Text('Registrarme'),
                 ),
                 const Divider(height: 32),
                 _serverButton(),

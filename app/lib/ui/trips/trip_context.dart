@@ -74,8 +74,15 @@ class TripContext {
     return null;
   }
 
-  /// Puede iniciar/finalizar el recorrido y registrar subidas de otros.
-  bool canOperate(Me me) => me.managesTransport || me.roles.driverId == trip.driverId || me.isChiefOf(trip.itineraryId);
+  /// Puede hacer [operation] sobre este viaje (su Entidad y su itinerario).
+  bool can(Me me, String operation) => me.can(operation, entityId: trip.entityId ?? itinerary?.entityId, itineraryId: trip.itineraryId);
 
-  bool isPassenger(Me me) => me.itineraryId == trip.itineraryId && me.roles.driverId != trip.driverId;
+  /// Es el chofer del viaje (una de sus pertenencias).
+  bool isDriver(Me me) => me.workerIds.contains(trip.driverId);
+
+  /// Puede iniciar/finalizar el recorrido y registrar subidas de otros
+  /// (docs/04-api.md: chofer del viaje, tracking.drive o trips.complete).
+  bool canOperate(Me me) => isDriver(me) || can(me, Op.trackingDrive) || can(me, Op.tripsComplete) || can(me, Op.trackingScanBoarding);
+
+  bool isPassenger(Me me) => me.isMemberOf(trip.itineraryId) && !isDriver(me);
 }

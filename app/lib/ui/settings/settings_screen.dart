@@ -8,6 +8,8 @@ import '../../services/templates.dart';
 import '../theme.dart';
 import '../../services/user_settings.dart';
 import '../../services/session.dart';
+import '../navigation.dart';
+import '../widgets/app_scaffold.dart';
 import '../widgets/common.dart';
 import '../updates/update_screen.dart';
 import 'global_settings_screen.dart';
@@ -81,9 +83,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final me = context.me;
-    final operator = me.roles.isDriver || me.roles.isItineraryChief || me.managesTransport;
-    return Scaffold(
-      appBar: AppBar(title: const Text('Ajustes')),
+    // Conduce, escanea o dirige viajes: ve también los ajustes de quien opera.
+    final operator = [Op.trackingDrive, Op.trackingScanBoarding, Op.tripsEdit].any(me.canAnywhere);
+    return AppScaffold(
+      title: 'Ajustes',
+      tab: MainTab.more,
       body: AsyncView<(Map<String, SettingDefinition>, UserSettings)>(
         key: _view,
         load: _load,
@@ -161,7 +165,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SectionTitle('Mapa sin conexión'),
             const _OfflineMapTile(),
-            if (me.managesTransport) ...[
+            if (me.canAnywhere(Op.settingsEntity) || me.canAnywhere(Op.settingsApp)) ...[
               const Divider(),
               ListTile(
                 leading: const Icon(Icons.tune),

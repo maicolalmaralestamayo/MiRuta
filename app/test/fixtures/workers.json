@@ -2,19 +2,20 @@
  "data": [
   {
    "type": "workers",
-   "id": "2",
+   "id": "3",
    "attributes": {
-    "pass": 102,
     "firstName": "Carlos",
     "middleName": "Luis",
     "firstSurname": "Chofer",
     "secondSurname": "Díaz",
     "fullName": "Carlos Luis Chofer Díaz",
-    "photoUrl": null,
     "sex": "M",
+    "photoUrl": null,
+    "hasPhone": true,
     "active": true,
-    "createdAt": "2026-10-31T15:51:02+00:00",
-    "activated": true
+    "itineraryAssignedAt": "2026-11-04T15:46:38+00:00",
+    "createdAt": "2026-11-04T15:46:37+00:00",
+    "identityCard": "85031503140"
    },
    "relationships": {
     "user": {
@@ -29,12 +30,6 @@
       "id": "1"
      }
     },
-    "rank": {
-     "data": {
-      "type": "ranks",
-      "id": "17"
-     }
-    },
     "itinerary": {
      "data": {
       "type": "itineraries",
@@ -49,32 +44,43 @@
     }
    },
    "meta": {
-    "childrenCount": 0,
-    "roles": {
-     "isTransportChief": false,
-     "driverId": "1",
-     "chiefOfItineraries": []
-    }
+    "roles": [
+     {
+      "id": "3",
+      "roleId": "1",
+      "name": "Trabajador",
+      "icon": "badge",
+      "itineraryId": null
+     },
+     {
+      "id": "6",
+      "roleId": "3",
+      "name": "Chofer",
+      "icon": "directions_bus",
+      "itineraryId": null
+     }
+    ]
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/workers/2"
+    "self": "http://localhost:18000/api/v1/workers/3"
    }
   },
   {
    "type": "workers",
-   "id": "3",
+   "id": "4",
    "attributes": {
-    "pass": 103,
     "firstName": "Teresa",
     "middleName": "Ana",
     "firstSurname": "Jefa",
     "secondSurname": "López",
     "fullName": "Teresa Ana Jefa López",
-    "photoUrl": null,
     "sex": "F",
+    "photoUrl": null,
+    "hasPhone": true,
     "active": true,
-    "createdAt": "2026-10-31T15:51:03+00:00",
-    "activated": true
+    "itineraryAssignedAt": null,
+    "createdAt": "2026-11-04T15:46:37+00:00",
+    "identityCard": "78110203130"
    },
    "relationships": {
     "user": {
@@ -89,12 +95,6 @@
       "id": "1"
      }
     },
-    "rank": {
-     "data": {
-      "type": "ranks",
-      "id": "17"
-     }
-    },
     "itinerary": {
      "data": null
     },
@@ -103,32 +103,50 @@
     }
    },
    "meta": {
-    "childrenCount": 0,
-    "roles": {
-     "isTransportChief": true,
-     "driverId": null,
-     "chiefOfItineraries": []
-    }
+    "roles": [
+     {
+      "id": "4",
+      "roleId": "1",
+      "name": "Trabajador",
+      "icon": "badge",
+      "itineraryId": null
+     },
+     {
+      "id": "5",
+      "roleId": "2",
+      "name": "Jefe de Transporte",
+      "icon": "manage_accounts",
+      "itineraryId": null
+     },
+     {
+      "id": "7",
+      "roleId": "4",
+      "name": "Jefe de itinerario",
+      "icon": "route",
+      "itineraryId": "1"
+     }
+    ]
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/workers/3"
+    "self": "http://localhost:18000/api/v1/workers/4"
    }
   },
   {
    "type": "workers",
    "id": "1",
    "attributes": {
-    "pass": 101,
     "firstName": "Lucía",
     "middleName": "María",
     "firstSurname": "Pérez",
     "secondSurname": "García",
     "fullName": "Lucía María Pérez García",
-    "photoUrl": null,
     "sex": "F",
+    "photoUrl": null,
+    "hasPhone": true,
     "active": true,
-    "createdAt": "2026-10-31T15:51:02+00:00",
-    "activated": true
+    "itineraryAssignedAt": "2026-11-04T15:46:38+00:00",
+    "createdAt": "2026-11-04T15:46:36+00:00",
+    "identityCard": "90052002130"
    },
    "relationships": {
     "user": {
@@ -141,12 +159,6 @@
      "data": {
       "type": "entities",
       "id": "1"
-     }
-    },
-    "rank": {
-     "data": {
-      "type": "ranks",
-      "id": "17"
      }
     },
     "itinerary": {
@@ -163,24 +175,27 @@
     }
    },
    "meta": {
-    "childrenCount": 1,
-    "roles": {
-     "isTransportChief": false,
-     "driverId": null,
-     "chiefOfItineraries": []
-    }
+    "roles": [
+     {
+      "id": "1",
+      "roleId": "1",
+      "name": "Trabajador",
+      "icon": "badge",
+      "itineraryId": null
+     }
+    ]
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/workers/1"
+    "self": "http://localhost:18000/api/v1/workers/1"
    }
   }
  ],
  "links": {
-  "self": "http://localhost:8000/api/v1/workers?include=rank%2Centity&page%5Bnumber%5D=1&page%5Bsize%5D=25",
-  "first": "http://localhost:8000/api/v1/workers?include=rank%2Centity&page%5Bnumber%5D=1&page%5Bsize%5D=25",
+  "self": "http://localhost:18000/api/v1/workers?filter%5Bentity%5D=1&include=entity&page%5Bnumber%5D=1&page%5Bsize%5D=25",
+  "first": "http://localhost:18000/api/v1/workers?filter%5Bentity%5D=1&include=entity&page%5Bnumber%5D=1&page%5Bsize%5D=25",
   "prev": null,
   "next": null,
-  "last": "http://localhost:8000/api/v1/workers?include=rank%2Centity&page%5Bnumber%5D=1&page%5Bsize%5D=25"
+  "last": "http://localhost:18000/api/v1/workers?filter%5Bentity%5D=1&include=entity&page%5Bnumber%5D=1&page%5Bsize%5D=25"
  },
  "meta": {
   "total": 3,
@@ -188,20 +203,6 @@
   "size": 25
  },
  "included": [
-  {
-   "type": "ranks",
-   "id": "17",
-   "attributes": {
-    "name": "Trabajador civil",
-    "description": null,
-    "observation": null,
-    "sortOrder": 17,
-    "iconUrl": null
-   },
-   "links": {
-    "self": "http://localhost:8000/api/v1/ranks/17"
-   }
-  },
   {
    "type": "entities",
    "id": "1",
@@ -211,10 +212,12 @@
     "name": "Empresa de prueba",
     "description": null,
     "observation": null,
-    "active": true
+    "imageUrl": null,
+    "active": true,
+    "workerCount": 3
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/entities/1"
+    "self": "http://localhost:18000/api/v1/entities/1"
    }
   }
  ]

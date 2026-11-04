@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 
 import '../../core/api_exception.dart';
 import '../../models/models.dart';
+import '../navigation.dart';
+import '../widgets/app_scaffold.dart';
 import '../widgets/common.dart';
 import 'statistic.dart';
 
@@ -25,6 +27,7 @@ const _titles = {
   'occupancy': 'Ocupación',
   'attendance': 'Asistencia por parada',
   'children-transported': 'Niños transportados',
+  'outsider-travellers': 'Viajan fuera de su itinerario o Entidad',
   'workers-distribution': 'Distribución de trabajadores',
   'worker-trips': 'Mis viajes',
   'applications-summary': 'Solicitudes',
@@ -37,7 +40,7 @@ const _titles = {
 const _groupings = {
   'punctuality': {'itinerary': 'Itinerario', 'vehicle': 'Vehículo', 'driver': 'Chofer'},
   'occupancy': {'itinerary': 'Itinerario', 'vehicle': 'Vehículo'},
-  'workers-distribution': {'itinerary': 'Itinerario', 'stop': 'Parada', 'rank': 'Jerarquía', 'sex': 'Sexo'},
+  'workers-distribution': {'itinerary': 'Itinerario', 'stop': 'Parada', 'sex': 'Sexo'},
 };
 
 enum _PeriodMode { relative, range }
@@ -57,9 +60,9 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
 
   List<String> get _available {
     final me = context.me;
-    if (me.managesTransport || me.roles.isItineraryChief) return _titles.keys.toList();
-    if (me.roles.isDriver) {
-      return const ['trips-by-status', 'punctuality', 'duration', 'overloaded-trips', 'occupancy', 'attendance', 'children-transported', 'stop-activity', 'stop-pass-times', 'distance', 'trip-incidents', 'worker-trips'];
+    if (me.canAnywhere(Op.statisticsView)) return _titles.keys.toList();
+    if (me.canAnywhere(Op.trackingDrive)) {
+      return const ['trips-by-status', 'punctuality', 'duration', 'overloaded-trips', 'occupancy', 'attendance', 'children-transported', 'outsider-travellers', 'stop-activity', 'stop-pass-times', 'distance', 'trip-incidents', 'worker-trips'];
     }
     return const ['worker-trips'];
   }
@@ -68,7 +71,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   void initState() {
     super.initState();
     _name = _available.first;
-    if (context.me.managesTransport || context.me.roles.isItineraryChief) {
+    if (context.me.canAnywhere(Op.statisticsView)) {
       context.api.getAll('/itineraries', query: {'sort': 'name', ...context.entityFilter}).then((r) {
         if (mounted) setState(() => _itineraries = r.map(Itinerary.from).toList());
       }).catchError((_) {});
@@ -105,10 +108,9 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   @override
   Widget build(BuildContext context) {
     final result = _result;
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Estadísticas'),
-      ),
+    return AppScaffold(
+      title: 'Estadísticas',
+      tab: MainTab.more,
       body: ListView(padding: const EdgeInsets.all(12), children: [
         DropdownButtonFormField<String>(
           initialValue: _name,

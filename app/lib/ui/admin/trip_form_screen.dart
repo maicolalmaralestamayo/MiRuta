@@ -4,6 +4,7 @@ import '../../core/api_exception.dart';
 import '../../core/json_api.dart';
 import '../../models/models.dart';
 import '../../services/templates.dart';
+import '../../services/api/roles_api.dart';
 import '../widgets/common.dart';
 
 /// Crear o editar viajes (docs/09 §23). Al crear se eligen varios
@@ -79,12 +80,13 @@ class _TripFormScreenState extends State<TripFormScreen> {
       // demás solo ven la suya.
       final entityFilter = context.entityFilter;
       final entityId = context.session.adminEntity?.id;
-      final itineraries = (await api.getAll('/itineraries', query: {'sort': 'name', ...entityFilter})).map(Itinerary.from).where((i) => me.canPlan(i.id)).toList();
-      final vehicles = (await api.getAll('/vehicles', query: {'include': 'vehicleType', ...entityFilter})).map(Vehicle.from).toList();
-      final drivers = (await api.getAll('/drivers', query: {'include': 'worker'}))
-          .where((r) => entityId == null || r.related('worker')?.relId('entity')?.id == entityId)
-          .map((r) => (r.id, PersonName.from(r.related('worker')).full))
+      final itineraries = (await api.getAll('/itineraries', query: {'sort': 'name', ...entityFilter}))
+          .map(Itinerary.from)
+          .where((i) => me.can(Op.tripsPlan, entityId: i.entityId, itineraryId: i.id))
           .toList();
+      final vehicles = (await api.getAll('/vehicles', query: {'include': 'vehicleType', ...entityFilter})).map(Vehicle.from).toList();
+      // El chofer es una pertenencia (workers) con un rol que conduce.
+      final drivers = (await RolesApi(api).drivers(entityId: entityId)).map((w) => (w.id, w.fullName)).toList();
       if (!mounted) return;
       setState(() {
         _itineraries = itineraries;

@@ -1,0 +1,58 @@
+{
+ "data": [
+  {
+   "type": "absences",
+   "id": "1",
+   "attributes": {
+    "startsOn": "2026-11-14",
+    "endsOn": "2026-11-18",
+    "indefinite": false,
+    "note": "Vacaciones",
+    "createdAt": "2026-11-04T15:46:39+00:00"
+   },
+   "relationships": {
+    "worker": {
+     "data": {
+      "type": "workers",
+      "id": "1"
+     }
+    },
+    "absenceType": {
+     "data": {
+      "type": "absence-types",
+      "id": "2"
+     }
+    }
+   },
+   "links": {
+    "self": "http://localhost:18000/api/v1/absences/1"
+   }
+  }
+ ],
+ "links": {
+  "self": "http://localhost:18000/api/v1/absences?filter%5Bmine%5D=true&include=absenceType&page%5Bnumber%5D=1&page%5Bsize%5D=25",
+  "first": "http://localhost:18000/api/v1/absences?filter%5Bmine%5D=true&include=absenceType&page%5Bnumber%5D=1&page%5Bsize%5D=25",
+  "prev": null,
+  "next": null,
+  "last": "http://localhost:18000/api/v1/absences?filter%5Bmine%5D=true&include=absenceType&page%5Bnumber%5D=1&page%5Bsize%5D=25"
+ },
+ "meta": {
+  "total": 1,
+  "page": 1,
+  "size": 25
+ },
+ "included": [
+  {
+   "type": "absence-types",
+   "id": "2",
+   "attributes": {
+    "name": "Enfermedad",
+    "description": null,
+    "observation": null
+   },
+   "links": {
+    "self": "http://localhost:18000/api/v1/absence-types/2"
+   }
+  }
+ ]
+}

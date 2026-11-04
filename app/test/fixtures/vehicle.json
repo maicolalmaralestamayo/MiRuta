@@ -22,8 +22,8 @@
    },
    "driver": {
     "data": {
-     "type": "drivers",
-     "id": "1"
+     "type": "workers",
+     "id": "3"
     }
    }
   },
@@ -31,11 +31,11 @@
    "totalCapacity": 1
   },
   "links": {
-   "self": "http://localhost:8000/api/v1/vehicles/1"
+   "self": "http://localhost:18000/api/v1/vehicles/1"
   }
  },
  "links": {
-  "self": "http://localhost:8000/api/v1/vehicles/1?include=vehicleType"
+  "self": "http://localhost:18000/api/v1/vehicles/1?include=vehicleType"
  },
  "included": [
   {
@@ -47,7 +47,7 @@
     "observation": null
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/vehicle-types/1"
+    "self": "http://localhost:18000/api/v1/vehicle-types/1"
    }
   }
  ]

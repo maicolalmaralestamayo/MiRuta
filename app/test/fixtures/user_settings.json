@@ -14,6 +14,12 @@
       "type": "setting-definitions",
       "id": "background_sync_enabled"
      }
+    },
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
+     }
     }
    }
   },
@@ -21,8 +27,8 @@
    "type": "user-settings",
    "id": "cancel_notice_template",
    "attributes": {
-    "value": "Se canceló tu viaje de {itinerario} del {fecha_salida}.",
-    "inheritedValue": "Se canceló tu viaje de {itinerario} del {fecha_salida}.",
+    "value": "Se canceló su viaje de {itinerario} del {fecha_salida}.",
+    "inheritedValue": "Se canceló su viaje de {itinerario} del {fecha_salida}.",
     "isCustom": false
    },
    "relationships": {
@@ -31,6 +37,12 @@
       "type": "setting-definitions",
       "id": "cancel_notice_template"
      }
+    },
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
+     }
     }
    }
   },
@@ -38,8 +50,8 @@
    "type": "user-settings",
    "id": "change_notice_template",
    "attributes": {
-    "value": "Cambió tu viaje de {itinerario} del {fecha_salida}: {cambios}.",
-    "inheritedValue": "Cambió tu viaje de {itinerario} del {fecha_salida}: {cambios}.",
+    "value": "Cambió su viaje de {itinerario} del {fecha_salida}: {cambios}.",
+    "inheritedValue": "Cambió su viaje de {itinerario} del {fecha_salida}: {cambios}.",
     "isCustom": false
    },
    "relationships": {
@@ -47,6 +59,35 @@
      "data": {
       "type": "setting-definitions",
       "id": "change_notice_template"
+     }
+    },
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
+     }
+    }
+   }
+  },
+  {
+   "type": "user-settings",
+   "id": "conversation_notice_enabled",
+   "attributes": {
+    "value": "1",
+    "inheritedValue": "1",
+    "isCustom": false
+   },
+   "relationships": {
+    "definition": {
+     "data": {
+      "type": "setting-definitions",
+      "id": "conversation_notice_enabled"
+     }
+    },
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
      }
     }
    }
@@ -65,6 +106,12 @@
       "type": "setting-definitions",
       "id": "conversations_poll_background_minutes"
      }
+    },
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
+     }
     }
    }
   },
@@ -81,6 +128,12 @@
      "data": {
       "type": "setting-definitions",
       "id": "conversations_poll_foreground_seconds"
+     }
+    },
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
      }
     }
    }
@@ -99,6 +152,12 @@
       "type": "setting-definitions",
       "id": "departure_notice_fallback"
      }
+    },
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
+     }
     }
    }
   },
@@ -115,6 +174,12 @@
      "data": {
       "type": "setting-definitions",
       "id": "departure_notice_fixed_days_before"
+     }
+    },
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
      }
     }
    }
@@ -133,6 +198,12 @@
       "type": "setting-definitions",
       "id": "departure_notice_fixed_time"
      }
+    },
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
+     }
     }
    }
   },
@@ -149,6 +220,12 @@
      "data": {
       "type": "setting-definitions",
       "id": "departure_notice_minutes_before"
+     }
+    },
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
      }
     }
    }
@@ -167,6 +244,12 @@
       "type": "setting-definitions",
       "id": "departure_notice_mode"
      }
+    },
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
+     }
     }
    }
   },
@@ -174,8 +257,8 @@
    "type": "user-settings",
    "id": "departure_notice_template",
    "attributes": {
-    "value": "Salida {fecha_salida} a las {hora_salida} desde {punto_salida}. {tipo} {matricula}, chofer {chofer}, capacidad {capacidad}. Regreso {fecha_regreso} a las {hora_regreso} desde {punto_regreso}.",
-    "inheritedValue": "Salida {fecha_salida} a las {hora_salida} desde {punto_salida}. {tipo} {matricula}, chofer {chofer}, capacidad {capacidad}. Regreso {fecha_regreso} a las {hora_regreso} desde {punto_regreso}.",
+    "value": "Viaje de ida: {fecha_salida} a las {hora_salida} desde {punto_salida}. {tipo} {matricula}, chofer {chofer}, capacidad {capacidad}. Viaje de regreso: {fecha_regreso} a las {hora_regreso} desde {punto_regreso}.",
+    "inheritedValue": "Viaje de ida: {fecha_salida} a las {hora_salida} desde {punto_salida}. {tipo} {matricula}, chofer {chofer}, capacidad {capacidad}. Viaje de regreso: {fecha_regreso} a las {hora_regreso} desde {punto_regreso}.",
     "isCustom": false
    },
    "relationships": {
@@ -183,6 +266,12 @@
      "data": {
       "type": "setting-definitions",
       "id": "departure_notice_template"
+     }
+    },
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
      }
     }
    }
@@ -201,6 +290,12 @@
       "type": "setting-definitions",
       "id": "location_interval_seconds"
      }
+    },
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
+     }
     }
    }
   },
@@ -217,6 +312,12 @@
      "data": {
       "type": "setting-definitions",
       "id": "notices_poll_background_minutes"
+     }
+    },
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
      }
     }
    }
@@ -235,6 +336,12 @@
       "type": "setting-definitions",
       "id": "notices_poll_foreground_seconds"
      }
+    },
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
+     }
     }
    }
   },
@@ -251,6 +358,81 @@
      "data": {
       "type": "setting-definitions",
       "id": "notify_during_absence"
+     }
+    },
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
+     }
+    }
+   }
+  },
+  {
+   "type": "user-settings",
+   "id": "password_expiry_notice_days",
+   "attributes": {
+    "value": "15",
+    "inheritedValue": "15",
+    "isCustom": false
+   },
+   "relationships": {
+    "definition": {
+     "data": {
+      "type": "setting-definitions",
+      "id": "password_expiry_notice_days"
+     }
+    },
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
+     }
+    }
+   }
+  },
+  {
+   "type": "user-settings",
+   "id": "remember_password",
+   "attributes": {
+    "value": "1",
+    "inheritedValue": "1",
+    "isCustom": false
+   },
+   "relationships": {
+    "definition": {
+     "data": {
+      "type": "setting-definitions",
+      "id": "remember_password"
+     }
+    },
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
+     }
+    }
+   }
+  },
+  {
+   "type": "user-settings",
+   "id": "remember_password_days",
+   "attributes": {
+    "value": "7",
+    "inheritedValue": "7",
+    "isCustom": false
+   },
+   "relationships": {
+    "definition": {
+     "data": {
+      "type": "setting-definitions",
+      "id": "remember_password_days"
+     }
+    },
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
      }
     }
    }
@@ -269,6 +451,12 @@
       "type": "setting-definitions",
       "id": "return_notice_fallback"
      }
+    },
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
+     }
     }
    }
   },
@@ -285,6 +473,12 @@
      "data": {
       "type": "setting-definitions",
       "id": "return_notice_fixed_days_before"
+     }
+    },
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
      }
     }
    }
@@ -303,6 +497,12 @@
       "type": "setting-definitions",
       "id": "return_notice_fixed_time"
      }
+    },
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
+     }
     }
    }
   },
@@ -319,6 +519,12 @@
      "data": {
       "type": "setting-definitions",
       "id": "return_notice_minutes_before"
+     }
+    },
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
      }
     }
    }
@@ -337,6 +543,12 @@
       "type": "setting-definitions",
       "id": "return_notice_mode"
      }
+    },
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
+     }
     }
    }
   },
@@ -344,8 +556,8 @@
    "type": "user-settings",
    "id": "return_notice_template",
    "attributes": {
-    "value": "Regreso {fecha_regreso} a las {hora_regreso} desde {punto_regreso}. {tipo} {matricula}, chofer {chofer}, capacidad {capacidad}.",
-    "inheritedValue": "Regreso {fecha_regreso} a las {hora_regreso} desde {punto_regreso}. {tipo} {matricula}, chofer {chofer}, capacidad {capacidad}.",
+    "value": "Viaje de regreso: {fecha_regreso} a las {hora_regreso} desde {punto_regreso}. {tipo} {matricula}, chofer {chofer}, capacidad {capacidad}.",
+    "inheritedValue": "Viaje de regreso: {fecha_regreso} a las {hora_regreso} desde {punto_regreso}. {tipo} {matricula}, chofer {chofer}, capacidad {capacidad}.",
     "isCustom": false
    },
    "relationships": {
@@ -353,6 +565,12 @@
      "data": {
       "type": "setting-definitions",
       "id": "return_notice_template"
+     }
+    },
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
      }
     }
    }
@@ -371,6 +589,12 @@
       "type": "setting-definitions",
       "id": "saturation_notice_enabled"
      }
+    },
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
+     }
     }
    }
   },
@@ -387,6 +611,12 @@
      "data": {
       "type": "setting-definitions",
       "id": "saturation_notice_level"
+     }
+    },
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
      }
     }
    }
@@ -405,6 +635,12 @@
       "type": "setting-definitions",
       "id": "saturation_notice_minutes_before"
      }
+    },
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
+     }
     }
    }
   },
@@ -421,6 +657,12 @@
      "data": {
       "type": "setting-definitions",
       "id": "saturation_notice_scope"
+     }
+    },
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
      }
     }
    }
@@ -439,6 +681,12 @@
       "type": "setting-definitions",
       "id": "saturation_notice_when"
      }
+    },
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
+     }
     }
    }
   },
@@ -455,6 +703,12 @@
      "data": {
       "type": "setting-definitions",
       "id": "share_location"
+     }
+    },
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
      }
     }
    }
@@ -473,6 +727,12 @@
       "type": "setting-definitions",
       "id": "stop_notice_after_boarding"
      }
+    },
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
+     }
     }
    }
   },
@@ -490,6 +750,12 @@
       "type": "setting-definitions",
       "id": "stop_notice_scope"
      }
+    },
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
+     }
     }
    }
   },
@@ -497,8 +763,8 @@
    "type": "user-settings",
    "id": "stop_notice_template",
    "attributes": {
-    "value": "El transporte pasó por {parada} a las {hora}. Faltan {paradas_restantes} paradas para la tuya.",
-    "inheritedValue": "El transporte pasó por {parada} a las {hora}. Faltan {paradas_restantes} paradas para la tuya.",
+    "value": "El transporte pasó por {parada} a las {hora}. Faltan {paradas_restantes} paradas para la suya.",
+    "inheritedValue": "El transporte pasó por {parada} a las {hora}. Faltan {paradas_restantes} paradas para la suya.",
     "isCustom": false
    },
    "relationships": {
@@ -506,6 +772,12 @@
      "data": {
       "type": "setting-definitions",
       "id": "stop_notice_template"
+     }
+    },
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
      }
     }
    }
@@ -524,6 +796,12 @@
       "type": "setting-definitions",
       "id": "tracking_poll_background_seconds"
      }
+    },
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
+     }
     }
    }
   },
@@ -540,6 +818,35 @@
      "data": {
       "type": "setting-definitions",
       "id": "tracking_poll_foreground_seconds"
+     }
+    },
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
+     }
+    }
+   }
+  },
+  {
+   "type": "user-settings",
+   "id": "trip_chat_notice_enabled",
+   "attributes": {
+    "value": "1",
+    "inheritedValue": "1",
+    "isCustom": false
+   },
+   "relationships": {
+    "definition": {
+     "data": {
+      "type": "setting-definitions",
+      "id": "trip_chat_notice_enabled"
+     }
+    },
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
      }
     }
    }
@@ -558,6 +865,12 @@
       "type": "setting-definitions",
       "id": "trip_chat_poll_background_minutes"
      }
+    },
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
+     }
     }
    }
   },
@@ -574,6 +887,58 @@
      "data": {
       "type": "setting-definitions",
       "id": "trip_chat_poll_foreground_seconds"
+     }
+    },
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
+     }
+    }
+   }
+  },
+  {
+   "type": "user-settings",
+   "id": "trip_delay_notice_enabled",
+   "attributes": {
+    "value": "1",
+    "inheritedValue": "1",
+    "isCustom": false
+   },
+   "relationships": {
+    "definition": {
+     "data": {
+      "type": "setting-definitions",
+      "id": "trip_delay_notice_enabled"
+     }
+    },
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
+     }
+    }
+   }
+  },
+  {
+   "type": "user-settings",
+   "id": "trip_start_notice_enabled",
+   "attributes": {
+    "value": "1",
+    "inheritedValue": "1",
+    "isCustom": false
+   },
+   "relationships": {
+    "definition": {
+     "data": {
+      "type": "setting-definitions",
+      "id": "trip_start_notice_enabled"
+     }
+    },
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
      }
     }
    }
@@ -592,6 +957,12 @@
       "type": "setting-definitions",
       "id": "trip_view"
      }
+    },
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
+     }
     }
    }
   },
@@ -608,6 +979,12 @@
      "data": {
       "type": "setting-definitions",
       "id": "trips_poll_background_minutes"
+     }
+    },
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
      }
     }
    }
@@ -626,6 +1003,12 @@
       "type": "setting-definitions",
       "id": "trips_poll_foreground_seconds"
      }
+    },
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
+     }
     }
    }
   },
@@ -642,6 +1025,35 @@
      "data": {
       "type": "setting-definitions",
       "id": "tts_enabled"
+     }
+    },
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
+     }
+    }
+   }
+  },
+  {
+   "type": "user-settings",
+   "id": "update_check_hours",
+   "attributes": {
+    "value": "24",
+    "inheritedValue": "24",
+    "isCustom": false
+   },
+   "relationships": {
+    "definition": {
+     "data": {
+      "type": "setting-definitions",
+      "id": "update_check_hours"
+     }
+    },
+    "user": {
+     "data": {
+      "type": "users",
+      "id": "2"
      }
     }
    }

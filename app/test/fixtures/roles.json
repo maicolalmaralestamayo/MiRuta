@@ -1,0 +1,497 @@
+{
+ "data": [
+  {
+   "type": "roles",
+   "id": "admin",
+   "attributes": {
+    "name": "Administrador",
+    "icon": "admin_panel_settings",
+    "requestable": false,
+    "isDefault": false,
+    "itineraryScoped": false,
+    "isAdministrator": true,
+    "editable": false,
+    "permissions": [
+     {
+      "operation": "workers.view",
+      "scope": "all"
+     },
+     {
+      "operation": "workers.register",
+      "scope": "all"
+     },
+     {
+      "operation": "workers.edit",
+      "scope": "all"
+     },
+     {
+      "operation": "workers.deactivate",
+      "scope": "all"
+     },
+     {
+      "operation": "workers.delete",
+      "scope": "all"
+     },
+     {
+      "operation": "workers.view_identity_card",
+      "scope": "all"
+     },
+     {
+      "operation": "workers.printed_qr",
+      "scope": "all"
+     },
+     {
+      "operation": "children.view",
+      "scope": "all"
+     },
+     {
+      "operation": "children.manage",
+      "scope": "all"
+     },
+     {
+      "operation": "entities.view",
+      "scope": "all"
+     },
+     {
+      "operation": "entities.manage",
+      "scope": "all"
+     },
+     {
+      "operation": "entities.approve_membership",
+      "scope": "all"
+     },
+     {
+      "operation": "entities.assign_members",
+      "scope": "all"
+     },
+     {
+      "operation": "itineraries.view",
+      "scope": "all"
+     },
+     {
+      "operation": "itineraries.manage",
+      "scope": "all"
+     },
+     {
+      "operation": "stops.manage",
+      "scope": "all"
+     },
+     {
+      "operation": "itineraries.order_stops",
+      "scope": "all"
+     },
+     {
+      "operation": "itineraries.reference_route",
+      "scope": "all"
+     },
+     {
+      "operation": "members.approve",
+      "scope": "all"
+     },
+     {
+      "operation": "members.assign",
+      "scope": "all"
+     },
+     {
+      "operation": "members.assign_by_qr",
+      "scope": "all"
+     },
+     {
+      "operation": "roles.view",
+      "scope": "all"
+     },
+     {
+      "operation": "roles.manage",
+      "scope": "all"
+     },
+     {
+      "operation": "roles.set_default",
+      "scope": "all"
+     },
+     {
+      "operation": "roles.assign",
+      "scope": "all"
+     },
+     {
+      "operation": "roles.approve",
+      "scope": "all"
+     },
+     {
+      "operation": "vehicles.view",
+      "scope": "all"
+     },
+     {
+      "operation": "vehicles.manage",
+      "scope": "all"
+     },
+     {
+      "operation": "vehicles.assign_driver",
+      "scope": "all"
+     },
+     {
+      "operation": "trips.view",
+      "scope": "all"
+     },
+     {
+      "operation": "trips.plan",
+      "scope": "all"
+     },
+     {
+      "operation": "trips.edit",
+      "scope": "all"
+     },
+     {
+      "operation": "trips.confirm_cancel",
+      "scope": "all"
+     },
+     {
+      "operation": "trips.delete",
+      "scope": "all"
+     },
+     {
+      "operation": "trips.complete",
+      "scope": "all"
+     },
+     {
+      "operation": "tracking.drive",
+      "scope": "all"
+     },
+     {
+      "operation": "tracking.view_live",
+      "scope": "all"
+     },
+     {
+      "operation": "tracking.scan_boarding",
+      "scope": "all"
+     },
+     {
+      "operation": "tracking.allow_outsiders",
+      "scope": "all"
+     },
+     {
+      "operation": "tracking.fix_passengers",
+      "scope": "all"
+     },
+     {
+      "operation": "absences.view",
+      "scope": "all"
+     },
+     {
+      "operation": "absences.manage",
+      "scope": "all"
+     },
+     {
+      "operation": "absence_types.manage",
+      "scope": "all"
+     },
+     {
+      "operation": "settings.app",
+      "scope": "all"
+     },
+     {
+      "operation": "settings.entity",
+      "scope": "all"
+     },
+     {
+      "operation": "settings.itinerary",
+      "scope": "all"
+     },
+     {
+      "operation": "settings.worker",
+      "scope": "all"
+     },
+     {
+      "operation": "nomenclators.manage",
+      "scope": "all"
+     },
+     {
+      "operation": "chat.role_conversations",
+      "scope": "all"
+     },
+     {
+      "operation": "chat.delete_messages",
+      "scope": "all"
+     },
+     {
+      "operation": "statistics.view",
+      "scope": "all"
+     },
+     {
+      "operation": "access_recoveries.manage",
+      "scope": "all"
+     },
+     {
+      "operation": "app_versions.manage",
+      "scope": "all"
+     },
+     {
+      "operation": "maintenance.run",
+      "scope": "all"
+     }
+    ],
+    "approverRoleIds": [],
+    "holderCount": 1
+   },
+   "links": {
+    "self": "http://localhost:18000/api/v1/roles/admin"
+   }
+  },
+  {
+   "type": "roles",
+   "id": "3",
+   "attributes": {
+    "name": "Chofer",
+    "icon": "directions_bus",
+    "requestable": true,
+    "isDefault": false,
+    "itineraryScoped": false,
+    "isAdministrator": false,
+    "editable": true,
+    "permissions": [
+     {
+      "operation": "tracking.allow_outsiders",
+      "scope": "entity"
+     },
+     {
+      "operation": "tracking.drive",
+      "scope": "entity"
+     },
+     {
+      "operation": "tracking.fix_passengers",
+      "scope": "entity"
+     },
+     {
+      "operation": "tracking.scan_boarding",
+      "scope": "entity"
+     },
+     {
+      "operation": "trips.view",
+      "scope": "entity"
+     },
+     {
+      "operation": "vehicles.view",
+      "scope": "entity"
+     }
+    ],
+    "approverRoleIds": [
+     "2"
+    ],
+    "holderCount": 1
+   },
+   "links": {
+    "self": "http://localhost:18000/api/v1/roles/3"
+   }
+  },
+  {
+   "type": "roles",
+   "id": "4",
+   "attributes": {
+    "name": "Jefe de itinerario",
+    "icon": "route",
+    "requestable": true,
+    "isDefault": false,
+    "itineraryScoped": true,
+    "isAdministrator": false,
+    "editable": true,
+    "permissions": [
+     {
+      "operation": "absences.view",
+      "scope": "itinerary"
+     },
+     {
+      "operation": "chat.role_conversations",
+      "scope": "itinerary"
+     },
+     {
+      "operation": "itineraries.reference_route",
+      "scope": "itinerary"
+     },
+     {
+      "operation": "itineraries.view",
+      "scope": "itinerary"
+     },
+     {
+      "operation": "members.approve",
+      "scope": "itinerary"
+     },
+     {
+      "operation": "statistics.view",
+      "scope": "itinerary"
+     },
+     {
+      "operation": "tracking.allow_outsiders",
+      "scope": "itinerary"
+     },
+     {
+      "operation": "tracking.fix_passengers",
+      "scope": "itinerary"
+     },
+     {
+      "operation": "tracking.scan_boarding",
+      "scope": "itinerary"
+     },
+     {
+      "operation": "tracking.view_live",
+      "scope": "itinerary"
+     },
+     {
+      "operation": "trips.complete",
+      "scope": "itinerary"
+     },
+     {
+      "operation": "trips.confirm_cancel",
+      "scope": "itinerary"
+     },
+     {
+      "operation": "trips.edit",
+      "scope": "itinerary"
+     },
+     {
+      "operation": "trips.plan",
+      "scope": "itinerary"
+     },
+     {
+      "operation": "trips.view",
+      "scope": "itinerary"
+     },
+     {
+      "operation": "workers.printed_qr",
+      "scope": "itinerary"
+     },
+     {
+      "operation": "workers.view",
+      "scope": "itinerary"
+     },
+     {
+      "operation": "workers.view_identity_card",
+      "scope": "itinerary"
+     }
+    ],
+    "approverRoleIds": [],
+    "holderCount": 1
+   },
+   "links": {
+    "self": "http://localhost:18000/api/v1/roles/4"
+   }
+  },
+  {
+   "type": "roles",
+   "id": "2",
+   "attributes": {
+    "name": "Jefe de Transporte",
+    "icon": "manage_accounts",
+    "requestable": true,
+    "isDefault": false,
+    "itineraryScoped": false,
+    "isAdministrator": false,
+    "editable": true,
+    "permissions": [
+     {
+      "operation": "chat.role_conversations",
+      "scope": "entity"
+     },
+     {
+      "operation": "itineraries.view",
+      "scope": "entity"
+     },
+     {
+      "operation": "roles.approve",
+      "scope": "entity"
+     },
+     {
+      "operation": "roles.assign",
+      "scope": "entity"
+     },
+     {
+      "operation": "statistics.view",
+      "scope": "entity"
+     },
+     {
+      "operation": "tracking.view_live",
+      "scope": "entity"
+     },
+     {
+      "operation": "trips.complete",
+      "scope": "entity"
+     },
+     {
+      "operation": "trips.confirm_cancel",
+      "scope": "entity"
+     },
+     {
+      "operation": "trips.delete",
+      "scope": "entity"
+     },
+     {
+      "operation": "trips.edit",
+      "scope": "entity"
+     },
+     {
+      "operation": "trips.plan",
+      "scope": "entity"
+     },
+     {
+      "operation": "trips.view",
+      "scope": "entity"
+     },
+     {
+      "operation": "vehicles.assign_driver",
+      "scope": "entity"
+     },
+     {
+      "operation": "vehicles.manage",
+      "scope": "entity"
+     },
+     {
+      "operation": "vehicles.view",
+      "scope": "entity"
+     },
+     {
+      "operation": "workers.view",
+      "scope": "entity"
+     }
+    ],
+    "approverRoleIds": [],
+    "holderCount": 1
+   },
+   "links": {
+    "self": "http://localhost:18000/api/v1/roles/2"
+   }
+  },
+  {
+   "type": "roles",
+   "id": "1",
+   "attributes": {
+    "name": "Trabajador",
+    "icon": "badge",
+    "requestable": false,
+    "isDefault": true,
+    "itineraryScoped": false,
+    "isAdministrator": false,
+    "editable": true,
+    "permissions": [
+     {
+      "operation": "children.view",
+      "scope": "own"
+     },
+     {
+      "operation": "tracking.view_live",
+      "scope": "own"
+     },
+     {
+      "operation": "trips.view",
+      "scope": "own"
+     }
+    ],
+    "approverRoleIds": [],
+    "holderCount": 4
+   },
+   "links": {
+    "self": "http://localhost:18000/api/v1/roles/1"
+   }
+  }
+ ],
+ "links": {
+  "self": "http://localhost:18000/api/v1/roles"
+ }
+}

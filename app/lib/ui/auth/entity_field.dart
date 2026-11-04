@@ -73,20 +73,3 @@ class _EntityAbbreviationFieldState extends State<EntityAbbreviationField> {
     );
   }
 }
-
-/// Pase: número del trabajador dentro de su Entidad.
-class PassField extends StatelessWidget {
-  final TextEditingController controller;
-
-  const PassField({super.key, required this.controller});
-
-  @override
-  Widget build(BuildContext context) => TextFormField(
-        controller: controller,
-        decoration: const InputDecoration(labelText: 'Pase', hintText: 'p. ej. 1234', prefixIcon: Icon(Icons.badge_outlined)),
-        keyboardType: TextInputType.number,
-        inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(9)],
-        autovalidateMode: AutovalidateMode.onUserInteraction,
-        validator: (v) => (int.tryParse(v ?? '') ?? 0) < 1 ? 'Escriba el número de Pase (solo números)' : null,
-      );
-}

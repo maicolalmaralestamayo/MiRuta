@@ -60,7 +60,7 @@ class TripCard extends StatelessWidget {
                     Icon(Icons.people_alt_outlined, size: 16, color: levelColor),
                     const SizedBox(width: 4),
                     Flexible(
-                      child: Text(occupancyText(trip.expectedPassengers, trip.expectedChildren, trip.totalCapacity),
+                      child: Text(occupancyText(trip.expectedPassengers, trip.totalCapacity),
                           style: TextStyle(color: levelColor, fontWeight: levelColor != null ? FontWeight.bold : null)),
                     ),
                     if (levelColor != null) ...[

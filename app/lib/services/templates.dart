@@ -37,3 +37,14 @@ Map<String, String> tripVariables(Trip trip, {Map<String, Stop> stops = const {}
     'punto_regreso': stops[trip.returnStopId]?.landmark ?? '',
   };
 }
+
+final _shortDate = DateFormat('dd/MM/yy', 'es');
+
+/// Fecha corta sin día de la semana, para las tarjetas: "20/01/20" (docs/11 §11.10).
+String formatShortDate(DateTime date) => _shortDate.format(date);
+
+/// Igual, desde "AAAA-MM-DD" (fechas sin hora de la API). Vacío si no es válida.
+String formatShortDay(String? day) {
+  final date = day == null ? null : DateTime.tryParse(day);
+  return date == null ? '' : formatShortDate(date);
+}

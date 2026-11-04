@@ -11,7 +11,6 @@ import 'services/notifications.dart';
 import 'services/session.dart';
 import 'services/sync.dart';
 import 'services/tracking_service.dart';
-import 'ui/auth/join_entity_screen.dart';
 import 'ui/auth/login_screen.dart';
 import 'ui/auth/new_password_screen.dart';
 import 'ui/home/home_shell.dart';
@@ -43,7 +42,11 @@ Future<void> main() async {
   TrackingService.init();
 
   final session = Session(await ApiClient.create());
-  runApp(ChangeNotifierProvider.value(value: session, child: const MiRutaApp()));
+  runApp(MultiProvider(providers: [
+    ChangeNotifierProvider.value(value: session),
+    // Punto de conexión de la barra superior (docs/11 §11.14).
+    ChangeNotifierProvider.value(value: session.connection),
+  ], child: const MiRutaApp()));
   session.init();
 }
 
@@ -110,7 +113,6 @@ class _RootState extends State<_Root> {
 
     final session = context.watch<Session>();
     if (session.state == SessionState.ready && session.me?.mustChangePassword == true) return const NewPasswordScreen();
-    if (session.state == SessionState.ready && session.me?.needsEntity == true) return const JoinEntityScreen();
 
     switch (session.state) {
       case SessionState.loading:

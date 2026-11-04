@@ -4,6 +4,7 @@ import '../../models/models.dart';
 import '../../services/templates.dart';
 import '../admin/access_recoveries_screen.dart';
 import '../trips/trip_detail_screen.dart';
+import '../widgets/app_scaffold.dart';
 import '../widgets/common.dart';
 
 class NoticesScreen extends StatelessWidget {
@@ -22,8 +23,8 @@ class NoticesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Avisos')),
+    return AppScaffold(
+      title: 'Avisos',
       body: AsyncView<List<Notice>>(
         load: () => _load(context),
         builder: (context, notices, reload) => notices.isEmpty

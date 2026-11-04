@@ -4,8 +4,9 @@ import '../../core/api_exception.dart';
 import '../widgets/common.dart';
 import 'password_fields.dart';
 
-/// Contraseña nueva obligatoria (docs/08-version-2.md §8.4): cuando caduca
-/// (cada año) o tras recuperar el acceso. No se puede usar la app hasta
+/// Contraseña nueva obligatoria (docs/11 §11.7): al entrar con una contraseña
+/// que no eligió la persona (la puso el Administrador al registrarla o al
+/// aprobar «Olvidé algo») o cuando caduca. No se puede usar la app hasta
 /// completarla. Si caducó, se pide también la actual.
 class NewPasswordScreen extends StatefulWidget {
   const NewPasswordScreen({super.key});
@@ -35,7 +36,7 @@ class _NewPasswordScreenState extends State<NewPasswordScreen> {
   @override
   Widget build(BuildContext context) {
     final me = context.me;
-    final currentRequired = me.account.currentPasswordRequired;
+    final currentRequired = me.person.currentPasswordRequired;
     return PopScope(
       canPop: false,
       child: Scaffold(
@@ -45,7 +46,7 @@ class _NewPasswordScreenState extends State<NewPasswordScreen> {
           child: ListView(padding: const EdgeInsets.all(16), children: [
             Text(currentRequired
                 ? 'Su contraseña caducó: elija una nueva para seguir usando la app.'
-                : 'Recuperó el acceso: elija una contraseña nueva para seguir.'),
+                : 'Su contraseña la eligió otra persona: elija ahora una contraseña propia para seguir.'),
             const SizedBox(height: 16),
             if (currentRequired) ...[
               TextFormField(

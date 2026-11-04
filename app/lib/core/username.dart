@@ -1,9 +1,11 @@
-/// Nombre de usuario (docs/08-version-2.md §8.3). Mismas reglas de formato
+/// Nombre de usuario (docs/08-version-2.md §8.3 y docs/11 §11.4: de 2 a 50
+/// caracteres y al menos 2 letras). Mismas reglas de formato
 /// que la API (api/app/Support/Username.php); las palabras no permitidas y
 /// si ya existe solo los comprueba el servidor.
 class Username {
-  static const minLength = 4;
-  static const maxLength = 20;
+  static const minLength = 2;
+  static const maxLength = 50;
+  static const minLetters = 2;
 
   /// Nadie puede hacerse pasar por la app o por su equipo.
   static const reserved = [
@@ -33,7 +35,7 @@ String? validateUsername(String? value) {
   if (!RegExp('^[a-z]').hasMatch(text)) return 'Debe empezar por una letra';
   if (RegExp(r'[._]$').hasMatch(text)) return 'No puede terminar en punto ni en guion bajo';
   if (RegExp(r'[._]{2}').hasMatch(text)) return 'No puede tener dos signos (punto o guion bajo) seguidos';
-  if (RegExp('[a-z]').allMatches(text).length < 3) return 'Debe tener al menos 3 letras';
+  if (RegExp('[a-z]').allMatches(text).length < Username.minLetters) return 'Debe tener al menos ${Username.minLetters} letras';
   if (RegExp(r'(.)\1{3}').hasMatch(text)) return 'No repita un carácter más de 3 veces seguidas';
   if (Username.containsReservedWord(text)) return 'No puede contener palabras reservadas de la app';
   return null;

@@ -15,6 +15,7 @@ import '../../services/user_settings.dart';
 import '../../services/voice.dart';
 import '../theme.dart';
 import '../trips/trip_context.dart';
+import '../navigation.dart';
 import '../widgets/common.dart';
 import 'boarding.dart';
 import 'passengers_screen.dart';
@@ -201,9 +202,9 @@ class _TrackingScreenState extends State<TrackingScreen> {
       leg: _leg!,
       trip: data.trip,
       orderedStops: data.stops,
-      myStopId: me.stopId,
+      myStopId: me.stopIdIn(data.trip.itineraryId),
       share: _sharing,
-      iAmDriver: me.roles.driverId == data.trip.driverId,
+      iAmDriver: data.isDriver(me),
       settings: _settings,
     );
   }
@@ -237,7 +238,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
     final me = context.me;
     final operate = data.canOperate(me);
     final stops = data.orderedStops(leg.direction);
-    final canShare = me.itineraryId == data.trip.itineraryId || me.roles.driverId == data.trip.driverId;
+    final canShare = me.isMemberOf(data.trip.itineraryId) || data.isDriver(me);
 
     return Scaffold(
       appBar: AppBar(
@@ -270,7 +271,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
             ]),
           ),
         Expanded(
-          child: _mapView ? _map(stops, leg) : ProportionalTimeline(stops: stops, leg: leg, highlightStopId: me.stopId),
+          child: _mapView ? _map(stops, leg) : ProportionalTimeline(stops: stops, leg: leg, highlightStopId: me.stopIdIn(data.trip.itineraryId)),
         ),
         if (_nextList != null && operate) _NextStopPanel(stop: _nextStop!, passengers: _nextList!, direction: leg.direction, onClose: () => setState(() => _nextList = null)),
         if (leg.isActive)
@@ -294,12 +295,12 @@ class _TrackingScreenState extends State<TrackingScreen> {
                   onChanged: _toggleBackground,
                 ),
                 Wrap(spacing: 8, runSpacing: 8, alignment: WrapAlignment.center, children: [
-                  if (data.isPassenger(me)) BusyButton.tonal(onPressed: () => selfBoarding(context, leg, me.childrenCount), icon: const Icon(Icons.how_to_reg), child: const Text('Ya subí')),
+                  if (data.isPassenger(me)) BusyButton.tonal(onPressed: () => selfBoarding(context, leg), icon: const Icon(Icons.how_to_reg), child: const Text('Ya subí')),
                   if (data.isPassenger(me))
                     OutlinedButton.icon(
-                      onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => BoardingPassScreen(leg: leg))),
+                      onPressed: () => AppRoutes.myQr(context),
                       icon: const Icon(Icons.qr_code_2),
-                      label: const Text('Mi código QR'),
+                      label: const Text('Mi QR'),
                     ),
                   if (operate)
                     FilledButton.tonalIcon(
@@ -456,8 +457,7 @@ class _NextStopPanel extends StatelessWidget {
                   leading: WorkerAvatar(p.worker, radius: 16),
                   title: Text(p.worker.fullName),
                   subtitle: Wrap(spacing: 8, children: [
-                    if (p.worker.rank != null) RankBadge(p.worker.rank),
-                    if (p.eligibleChildren > 0) Text(plural(p.eligibleChildren, 'niño', 'niños')),
+                    if ((p.eligibleChildren ?? 0) > 0) Text('${plural(p.eligibleChildren!, 'hijo', 'hijos')} con derecho'),
                   ]),
                   trailing: p.boarded ? const Icon(Icons.check_circle, color: Colors.green) : null,
                 ),

@@ -1,0 +1,199 @@
+{
+ "data": [
+  {
+   "type": "worker-roles",
+   "id": "4",
+   "attributes": {
+    "roleName": "Trabajador",
+    "icon": "badge",
+    "createdAt": "2026-11-04T15:46:37+00:00"
+   },
+   "relationships": {
+    "worker": {
+     "data": {
+      "type": "workers",
+      "id": "4"
+     }
+    },
+    "role": {
+     "data": {
+      "type": "roles",
+      "id": "1"
+     }
+    },
+    "itinerary": {
+     "data": null
+    }
+   },
+   "links": {
+    "self": "http://localhost:18000/api/v1/worker-roles/4"
+   }
+  },
+  {
+   "type": "worker-roles",
+   "id": "5",
+   "attributes": {
+    "roleName": "Jefe de Transporte",
+    "icon": "manage_accounts",
+    "createdAt": "2026-11-04T15:46:38+00:00"
+   },
+   "relationships": {
+    "worker": {
+     "data": {
+      "type": "workers",
+      "id": "4"
+     }
+    },
+    "role": {
+     "data": {
+      "type": "roles",
+      "id": "2"
+     }
+    },
+    "itinerary": {
+     "data": null
+    }
+   },
+   "links": {
+    "self": "http://localhost:18000/api/v1/worker-roles/5"
+   }
+  },
+  {
+   "type": "worker-roles",
+   "id": "7",
+   "attributes": {
+    "roleName": "Jefe de itinerario",
+    "icon": "route",
+    "createdAt": "2026-11-04T15:46:38+00:00"
+   },
+   "relationships": {
+    "worker": {
+     "data": {
+      "type": "workers",
+      "id": "4"
+     }
+    },
+    "role": {
+     "data": {
+      "type": "roles",
+      "id": "4"
+     }
+    },
+    "itinerary": {
+     "data": {
+      "type": "itineraries",
+      "id": "1"
+     }
+    }
+   },
+   "links": {
+    "self": "http://localhost:18000/api/v1/worker-roles/7"
+   }
+  }
+ ],
+ "links": {
+  "self": "http://localhost:18000/api/v1/worker-roles?filter%5Bworker%5D=4&include=role%2Citinerary&page%5Bnumber%5D=1&page%5Bsize%5D=25",
+  "first": "http://localhost:18000/api/v1/worker-roles?filter%5Bworker%5D=4&include=role%2Citinerary&page%5Bnumber%5D=1&page%5Bsize%5D=25",
+  "prev": null,
+  "next": null,
+  "last": "http://localhost:18000/api/v1/worker-roles?filter%5Bworker%5D=4&include=role%2Citinerary&page%5Bnumber%5D=1&page%5Bsize%5D=25"
+ },
+ "meta": {
+  "total": 3,
+  "page": 1,
+  "size": 25
+ },
+ "included": [
+  {
+   "type": "roles",
+   "id": "1",
+   "attributes": {
+    "name": "Trabajador",
+    "icon": "badge",
+    "requestable": false,
+    "isDefault": true,
+    "itineraryScoped": false,
+    "isAdministrator": false,
+    "editable": true
+   },
+   "links": {
+    "self": "http://localhost:18000/api/v1/roles/1"
+   }
+  },
+  {
+   "type": "roles",
+   "id": "2",
+   "attributes": {
+    "name": "Jefe de Transporte",
+    "icon": "manage_accounts",
+    "requestable": true,
+    "isDefault": false,
+    "itineraryScoped": false,
+    "isAdministrator": false,
+    "editable": true
+   },
+   "links": {
+    "self": "http://localhost:18000/api/v1/roles/2"
+   }
+  },
+  {
+   "type": "roles",
+   "id": "4",
+   "attributes": {
+    "name": "Jefe de itinerario",
+    "icon": "route",
+    "requestable": true,
+    "isDefault": false,
+    "itineraryScoped": true,
+    "isAdministrator": false,
+    "editable": true
+   },
+   "links": {
+    "self": "http://localhost:18000/api/v1/roles/4"
+   }
+  },
+  {
+   "type": "itineraries",
+   "id": "1",
+   "attributes": {
+    "name": "Ruta Este",
+    "description": null,
+    "observation": null,
+    "imageUrl": null
+   },
+   "relationships": {
+    "entity": {
+     "data": {
+      "type": "entities",
+      "id": "1"
+     }
+    },
+    "referenceOutboundLeg": {
+     "data": null
+    },
+    "referenceReturnLeg": {
+     "data": null
+    }
+   },
+   "meta": {
+    "departurePoint": {
+     "type": "stops",
+     "id": "1"
+    },
+    "returnPoint": {
+     "type": "stops",
+     "id": "3"
+    },
+    "stopIds": [
+     "1",
+     "2",
+     "3"
+    ],
+    "memberCount": 2
+   },
+   "links": {
+    "self": "http://localhost:18000/api/v1/itineraries/1"
+   }
+  }
+ ]
+}

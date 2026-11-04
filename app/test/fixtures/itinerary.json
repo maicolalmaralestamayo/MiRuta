@@ -5,7 +5,8 @@
   "attributes": {
    "name": "Ruta Este",
    "description": null,
-   "observation": null
+   "observation": null,
+   "imageUrl": null
   },
   "relationships": {
    "entity": {
@@ -13,6 +14,12 @@
      "type": "entities",
      "id": "1"
     }
+   },
+   "referenceOutboundLeg": {
+    "data": null
+   },
+   "referenceReturnLeg": {
+    "data": null
    }
   },
   "meta": {
@@ -32,10 +39,10 @@
    "memberCount": 2
   },
   "links": {
-   "self": "http://localhost:8000/api/v1/itineraries/1"
+   "self": "http://localhost:18000/api/v1/itineraries/1"
   }
  },
  "links": {
-  "self": "http://localhost:8000/api/v1/itineraries/1"
+  "self": "http://localhost:18000/api/v1/itineraries/1"
  }
 }

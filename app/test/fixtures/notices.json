@@ -2,43 +2,50 @@
  "data": [
   {
    "type": "notices",
-   "id": "9",
+   "id": "14",
    "attributes": {
-    "type": "application_resolved",
+    "type": "trip_started",
+    "message": "Comenzó el viaje de regreso de Ruta Este (10 min de atraso).",
+    "payload": {
+     "direction": "return",
+     "delayMinutes": 10
+    },
     "readAt": null,
-    "createdAt": "2026-10-31T15:51:04+00:00"
+    "createdAt": "2026-11-04T15:46:39+00:00"
    },
    "relationships": {
     "application": {
-     "data": {
-      "type": "applications",
-      "id": "5"
-     }
+     "data": null
     },
     "trip": {
-     "data": null
+     "data": {
+      "type": "trips",
+      "id": "1"
+     }
     },
     "accessRecovery": {
      "data": null
     }
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/notices/9"
+    "self": "http://localhost:18000/api/v1/notices/14"
    }
   },
   {
    "type": "notices",
-   "id": "6",
+   "id": "11",
    "attributes": {
     "type": "application_resolved",
+    "message": "Se aprobó su solicitud de itinerario y parada (PRUEBA · Ruta Este · Parque). La aprobó Teresa Ana Jefa López.",
+    "payload": null,
     "readAt": null,
-    "createdAt": "2026-10-31T15:51:03+00:00"
+    "createdAt": "2026-11-04T15:46:38+00:00"
    },
    "relationships": {
     "application": {
      "data": {
       "type": "applications",
-      "id": "4"
+      "id": "3"
      }
     },
     "trip": {
@@ -49,19 +56,75 @@
     }
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/notices/6"
+    "self": "http://localhost:18000/api/v1/notices/11"
+   }
+  },
+  {
+   "type": "notices",
+   "id": "2",
+   "attributes": {
+    "type": "application_resolved",
+    "message": "Se aprobó su solicitud de entrar en una Entidad (PRUEBA). La aprobó Ana Isabel Gómez Ruiz.",
+    "payload": null,
+    "readAt": null,
+    "createdAt": "2026-11-04T15:46:36+00:00"
+   },
+   "relationships": {
+    "application": {
+     "data": {
+      "type": "applications",
+      "id": "1"
+     }
+    },
+    "trip": {
+     "data": null
+    },
+    "accessRecovery": {
+     "data": null
+    }
+   },
+   "links": {
+    "self": "http://localhost:18000/api/v1/notices/2"
+   }
+  },
+  {
+   "type": "notices",
+   "id": "4",
+   "attributes": {
+    "type": "application_resolved",
+    "message": "Se aprobó su solicitud de entrar en una Entidad (DOS). La aprobó Ana Isabel Gómez Ruiz.",
+    "payload": null,
+    "readAt": null,
+    "createdAt": "2026-11-04T15:46:36+00:00"
+   },
+   "relationships": {
+    "application": {
+     "data": {
+      "type": "applications",
+      "id": "2"
+     }
+    },
+    "trip": {
+     "data": null
+    },
+    "accessRecovery": {
+     "data": null
+    }
+   },
+   "links": {
+    "self": "http://localhost:18000/api/v1/notices/4"
    }
   }
  ],
  "links": {
-  "self": "http://localhost:8000/api/v1/notices?page%5Bnumber%5D=1&page%5Bsize%5D=25",
-  "first": "http://localhost:8000/api/v1/notices?page%5Bnumber%5D=1&page%5Bsize%5D=25",
+  "self": "http://localhost:18000/api/v1/notices?page%5Bnumber%5D=1&page%5Bsize%5D=25",
+  "first": "http://localhost:18000/api/v1/notices?page%5Bnumber%5D=1&page%5Bsize%5D=25",
   "prev": null,
   "next": null,
-  "last": "http://localhost:8000/api/v1/notices?page%5Bnumber%5D=1&page%5Bsize%5D=25"
+  "last": "http://localhost:18000/api/v1/notices?page%5Bnumber%5D=1&page%5Bsize%5D=25"
  },
  "meta": {
-  "total": 2,
+  "total": 4,
   "page": 1,
   "size": 25
  }

@@ -3,10 +3,14 @@
   "type": "trips",
   "id": "1",
   "attributes": {
-   "departsAt": "2026-10-31T13:51:01+00:00",
-   "returnsAt": "2026-10-31T15:41:01+00:00",
+   "departsAt": "2026-11-04T13:46:35+00:00",
+   "returnsAt": "2026-11-04T15:36:35+00:00",
    "status": "confirmed",
-   "updatedAt": "2026-10-31T15:51:03+00:00"
+   "outboundDelayed": true,
+   "returnDelayed": false,
+   "outboundDelayMinutes": 120,
+   "returnDelayMinutes": 10,
+   "updatedAt": "2026-11-04T15:46:39+00:00"
   },
   "relationships": {
    "itinerary": {
@@ -23,8 +27,8 @@
    },
    "driver": {
     "data": {
-     "type": "drivers",
-     "id": "1"
+     "type": "workers",
+     "id": "3"
     }
    },
    "createdBy": {
@@ -36,7 +40,6 @@
   },
   "meta": {
    "expectedPassengers": 1,
-   "expectedChildren": 1,
    "seats": 1,
    "totalCapacity": 1,
    "occupancyLevel": "normal",
@@ -53,11 +56,11 @@
    }
   },
   "links": {
-   "self": "http://localhost:8000/api/v1/trips/1"
+   "self": "http://localhost:18000/api/v1/trips/1"
   }
  },
  "links": {
-  "self": "http://localhost:8000/api/v1/trips/1?include=itinerary%2Cvehicle.vehicleType%2Cdriver.worker"
+  "self": "http://localhost:18000/api/v1/trips/1?include=itinerary%2Cvehicle.vehicleType%2Cdriver"
  },
  "included": [
   {
@@ -66,7 +69,8 @@
    "attributes": {
     "name": "Ruta Este",
     "description": null,
-    "observation": null
+    "observation": null,
+    "imageUrl": null
    },
    "relationships": {
     "entity": {
@@ -74,6 +78,12 @@
       "type": "entities",
       "id": "1"
      }
+    },
+    "referenceOutboundLeg": {
+     "data": null
+    },
+    "referenceReturnLeg": {
+     "data": null
     }
    },
    "meta": {
@@ -93,7 +103,7 @@
     "memberCount": 2
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/itineraries/1"
+    "self": "http://localhost:18000/api/v1/itineraries/1"
    }
   },
   {
@@ -119,8 +129,8 @@
     },
     "driver": {
      "data": {
-      "type": "drivers",
-      "id": "1"
+      "type": "workers",
+      "id": "3"
      }
     }
    },
@@ -128,7 +138,7 @@
     "totalCapacity": 1
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/vehicles/1"
+    "self": "http://localhost:18000/api/v1/vehicles/1"
    }
   },
   {
@@ -140,40 +150,24 @@
     "observation": null
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/vehicle-types/1"
-   }
-  },
-  {
-   "type": "drivers",
-   "id": "1",
-   "attributes": {
-    "createdAt": "2026-10-31T15:51:03+00:00"
-   },
-   "relationships": {
-    "worker": {
-     "data": {
-      "type": "workers",
-      "id": "2"
-     }
-    }
-   },
-   "links": {
-    "self": "http://localhost:8000/api/v1/drivers/1"
+    "self": "http://localhost:18000/api/v1/vehicle-types/1"
    }
   },
   {
    "type": "workers",
-   "id": "2",
+   "id": "3",
    "attributes": {
     "firstName": "Carlos",
     "middleName": "Luis",
     "firstSurname": "Chofer",
     "secondSurname": "Díaz",
     "fullName": "Carlos Luis Chofer Díaz",
-    "photoUrl": null,
     "sex": "M",
+    "photoUrl": null,
+    "hasPhone": true,
     "active": true,
-    "createdAt": "2026-10-31T15:51:02+00:00"
+    "itineraryAssignedAt": "2026-11-04T15:46:38+00:00",
+    "createdAt": "2026-11-04T15:46:37+00:00"
    },
    "relationships": {
     "user": {
@@ -186,12 +180,6 @@
      "data": {
       "type": "entities",
       "id": "1"
-     }
-    },
-    "rank": {
-     "data": {
-      "type": "ranks",
-      "id": "17"
      }
     },
     "itinerary": {
@@ -208,15 +196,25 @@
     }
    },
    "meta": {
-    "childrenCount": 0,
-    "roles": {
-     "isTransportChief": false,
-     "driverId": "1",
-     "chiefOfItineraries": []
-    }
+    "roles": [
+     {
+      "id": "3",
+      "roleId": "1",
+      "name": "Trabajador",
+      "icon": "badge",
+      "itineraryId": null
+     },
+     {
+      "id": "6",
+      "roleId": "3",
+      "name": "Chofer",
+      "icon": "directions_bus",
+      "itineraryId": null
+     }
+    ]
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/workers/2"
+    "self": "http://localhost:18000/api/v1/workers/3"
    }
   }
  ]

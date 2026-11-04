@@ -216,7 +216,7 @@ class _ItineraryEditorState extends State<ItineraryEditor> {
 
   @override
   Widget build(BuildContext context) {
-    final canManage = context.me.managesTransport;
+    final canManage = context.me.can(Op.itinerariesManage, entityId: _itinerary.entityId);
     return Scaffold(
       appBar: AppBar(
         title: Text(_itinerary.name),

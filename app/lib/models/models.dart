@@ -1,144 +1,71 @@
 /// Modelos de la app, construidos a partir de recursos JSON:API.
+///
+/// La persona, sus hijos y su carné están en person.dart; pertenencias,
+/// roles y permisos en access.dart; solicitudes y ausencias en requests.dart.
 library;
 
 import '../core/json_api.dart';
-import '../services/templates.dart';
+import 'access.dart';
+import 'person.dart';
 
-class Rank {
-  final String id;
-  final String name;
-  final int sortOrder;
-  final String? iconUrl;
-  final String? description;
+export 'access.dart';
+export 'person.dart';
+export 'requests.dart';
 
-  Rank({required this.id, required this.name, this.sortOrder = 0, this.iconUrl, this.description});
-
-  factory Rank.from(Resource r) =>
-      Rank(id: r.id, name: r.string('name') ?? '', sortOrder: r.integer('sortOrder') ?? 0, iconUrl: r.string('iconUrl'), description: r.string('description'));
-}
-
-/// Los cuatro nombres de una persona (cuentas e hijos).
-class PersonName {
-  final String firstName;
-  final String middleName;
-  final String firstSurname;
-  final String secondSurname;
-
-  const PersonName({this.firstName = '', this.middleName = '', this.firstSurname = '', this.secondSurname = ''});
-
-  factory PersonName.from(Resource? r) => PersonName(
-        firstName: r?.string('firstName') ?? '',
-        middleName: r?.string('middleName') ?? '',
-        firstSurname: r?.string('firstSurname') ?? '',
-        secondSurname: r?.string('secondSurname') ?? '',
-      );
-
-  String get full => [firstName, middleName, firstSurname, secondSurname].where((part) => part.isNotEmpty).join(' ');
-
-  /// Primer nombre y primer apellido, para listas y chats.
-  String get short => [firstName, firstSurname].where((part) => part.isNotEmpty).join(' ');
-
-  String get initials => '${firstName.isEmpty ? '' : firstName[0]}${firstSurname.isEmpty ? '' : firstSurname[0]}'.toUpperCase();
-}
-
-/// Entidad: empresa que usa la app. Se muestra por su abreviatura.
-class Entity {
-  final String id;
-  final String abbreviation;
-  final String name;
-  final String? number;
-  final String? description;
-  final String? observation;
-  final bool active;
-
-  Entity({required this.id, required this.abbreviation, required this.name, this.number, this.description, this.observation, this.active = true});
-
-  factory Entity.from(Resource r) => Entity(
-        id: r.id,
-        abbreviation: r.string('abbreviation') ?? '',
-        name: r.string('name') ?? '',
-        number: r.string('number'),
-        description: r.string('description'),
-        observation: r.string('observation'),
-        active: r.attributes['active'] != false,
-      );
-}
-
-class Roles {
-  final bool isTransportChief;
-  final String? driverId;
-  final List<String> chiefOfItineraries;
-
-  const Roles({this.isTransportChief = false, this.driverId, this.chiefOfItineraries = const []});
-
-  factory Roles.from(Map<String, dynamic>? json) => Roles(
-        isTransportChief: json?['isTransportChief'] == true,
-        driverId: json?['driverId']?.toString(),
-        chiefOfItineraries: ((json?['chiefOfItineraries'] as List?) ?? const []).map((e) => e.toString()).toList(),
-      );
-
-  bool get isDriver => driverId != null;
-
-  bool get isItineraryChief => chiefOfItineraries.isNotEmpty;
-}
-
-/// Trabajador de una Entidad. Los nombres vienen de su cuenta.
+/// Pertenencia de una persona a una Entidad (recurso `workers`), con los
+/// datos de la persona. Es lo que se ve en listas de trabajadores, pasajeros
+/// y choferes.
 class Worker {
   final String id;
   final String? userId;
   final PersonName name;
-  final String sex;
+  final String? sex;
   final String? photoUrl;
+  final bool hasPhone;
   final bool active;
-  final int? pass;
-  final bool activated;
+
+  /// Solo si quien consulta puede verlo (workers.view_identity_card).
+  final String? identityCard;
   final String? entityId;
-  final String? rankId;
   final String? itineraryId;
   final String? stopId;
-  final int childrenCount;
-  final Roles roles;
-  final Rank? rank;
+  final DateTime? itineraryAssignedAt;
+  final List<HeldRole> roles;
   final Entity? entity;
 
   Worker({
     required this.id,
     this.userId,
     this.name = const PersonName(),
-    required this.sex,
+    this.sex,
     this.photoUrl,
+    this.hasPhone = true,
     this.active = true,
-    this.pass,
-    this.activated = true,
+    this.identityCard,
     this.entityId,
-    this.rankId,
     this.itineraryId,
     this.stopId,
-    this.childrenCount = 0,
-    this.roles = const Roles(),
-    this.rank,
+    this.itineraryAssignedAt,
+    this.roles = const [],
     this.entity,
   });
 
   factory Worker.from(Resource r) {
-    final rank = r.related('rank');
     final entity = r.related('entity');
     return Worker(
       id: r.id,
       userId: r.relId('user')?.id,
       name: PersonName.from(r),
-      sex: r.string('sex') ?? 'M',
+      sex: r.string('sex'),
       photoUrl: r.string('photoUrl'),
+      hasPhone: r.attributes['hasPhone'] != false,
       active: r.attributes['active'] != false,
-      pass: r.integer('pass'),
-      activated: r.attributes['activated'] != false,
+      identityCard: r.string('identityCard'),
       entityId: r.relId('entity')?.id,
-      rankId: r.relId('rank')?.id,
       itineraryId: r.relId('itinerary')?.id,
       stopId: r.relId('stop')?.id,
-      childrenCount: (r.meta['childrenCount'] as num?)?.toInt() ?? 0,
-      roles: Roles.from(r.meta['roles'] as Map<String, dynamic>?),
-      rank: rank == null ? null : Rank.from(rank),
+      itineraryAssignedAt: r.date('itineraryAssignedAt'),
+      roles: [for (final role in (r.meta['roles'] as List? ?? const [])) HeldRole.fromJson(Map<String, dynamic>.from(role as Map))],
       entity: entity == null ? null : Entity.from(entity),
     );
   }
@@ -150,119 +77,6 @@ class Worker {
   String get initials => name.initials;
 }
 
-/// Cuenta de la app (recurso "users").
-class Account {
-  final String id;
-  final String? username;
-  final PersonName name;
-  final String? photoUrl;
-  final bool isAdmin;
-  final bool active;
-  final bool mustChangePassword;
-  final bool currentPasswordRequired;
-  final DateTime? passwordExpiresAt;
-  final String? workerId;
-
-  Account({
-    required this.id,
-    this.username,
-    this.name = const PersonName(),
-    this.photoUrl,
-    this.isAdmin = false,
-    this.active = true,
-    this.mustChangePassword = false,
-    this.currentPasswordRequired = true,
-    this.passwordExpiresAt,
-    this.workerId,
-  });
-
-  factory Account.from(Resource r) => Account(
-        id: r.id,
-        username: r.string('username'),
-        name: PersonName.from(r),
-        photoUrl: r.string('photoUrl'),
-        isAdmin: r.boolean('isAdmin'),
-        active: r.attributes['active'] != false,
-        mustChangePassword: r.boolean('mustChangePassword'),
-        currentPasswordRequired: r.attributes['currentPasswordRequired'] != false,
-        passwordExpiresAt: r.date('passwordExpiresAt'),
-        workerId: r.relId('worker')?.id,
-      );
-
-  String get fullName => name.full;
-}
-
-/// El usuario de la sesión: su cuenta y, si pertenece a una Entidad, su trabajador.
-///
-/// El Administrador no es trabajador: ve y hace todo, en todas las Entidades.
-class Me {
-  final Account account;
-  final Worker? worker;
-
-  Me(this.account, this.worker);
-
-  factory Me.from(Resource r) {
-    final worker = r.related('worker');
-    return Me(Account.from(r), worker == null ? null : Worker.from(worker));
-  }
-
-  /// Id del trabajador ('' para el Administrador, que no lo es).
-  String get id => worker?.id ?? '';
-
-  String get userId => account.id;
-
-  bool get hasWorker => worker != null;
-
-  bool get isAdmin => account.isAdmin;
-
-  /// Tiene que unirse a una Entidad antes de usar la app.
-  bool get needsEntity => !isAdmin && worker == null;
-
-  String? get username => account.username;
-
-  String get fullName => account.fullName;
-
-  String get firstName => account.name.firstName;
-
-  PersonName get name => account.name;
-
-  String? get photoUrl => account.photoUrl;
-
-  bool get mustChangePassword => account.mustChangePassword;
-
-  String? get entityId => worker?.entityId;
-
-  Entity? get entity => worker?.entity;
-
-  int? get pass => worker?.pass;
-
-  String? get sex => worker?.sex;
-
-  String? get itineraryId => worker?.itineraryId;
-
-  String? get stopId => worker?.stopId;
-
-  Rank? get rank => worker?.rank;
-
-  String? get rankId => worker?.rankId;
-
-  int get childrenCount => worker?.childrenCount ?? 0;
-
-  Roles get roles => worker?.roles ?? const Roles();
-
-  bool get managesTransport => isAdmin || roles.isTransportChief;
-
-  /// El Administrador cuenta como Jefe de todos los itinerarios, y el Jefe de
-  /// Transporte como Jefe de los de su Entidad (el servidor solo le muestra esos).
-  bool isChiefOf(String? itineraryId) => itineraryId != null && (managesTransport || roles.chiefOfItineraries.contains(itineraryId));
-
-  /// Puede planificar viajes de ese itinerario.
-  bool canPlan(String? itineraryId) => isChiefOf(itineraryId);
-
-  /// Puede planificar viajes de algún itinerario.
-  bool get plansTrips => managesTransport || roles.isItineraryChief;
-}
-
 class Stop {
   final String id;
   final String landmark;
@@ -272,6 +86,7 @@ class Stop {
   final double latitude;
   final double longitude;
   final String address;
+  final String? imageUrl;
 
   Stop({
     required this.id,
@@ -282,6 +97,7 @@ class Stop {
     required this.latitude,
     required this.longitude,
     required this.address,
+    this.imageUrl,
   });
 
   factory Stop.from(Resource r) => Stop(
@@ -293,6 +109,7 @@ class Stop {
         latitude: (r.attributes['latitude'] as num?)?.toDouble() ?? 0,
         longitude: (r.attributes['longitude'] as num?)?.toDouble() ?? 0,
         address: r.string('address') ?? '',
+        imageUrl: r.string('imageUrl'),
       );
 
   Map<String, dynamic> toJson() => {
@@ -321,6 +138,8 @@ class Itinerary {
   final String? departureStopId;
   final String? returnStopId;
   final int memberCount;
+  final String? entityId;
+  final String? imageUrl;
 
   /// Recorridos de referencia (viaje de ida / de regreso ya realizados) para detectar desvíos.
   final String? referenceOutboundLegId;
@@ -335,6 +154,8 @@ class Itinerary {
     this.departureStopId,
     this.returnStopId,
     this.memberCount = 0,
+    this.entityId,
+    this.imageUrl,
     this.referenceOutboundLegId,
     this.referenceReturnLegId,
   });
@@ -348,6 +169,8 @@ class Itinerary {
         departureStopId: (r.meta['departurePoint'] as Map?)?['id']?.toString(),
         returnStopId: (r.meta['returnPoint'] as Map?)?['id']?.toString(),
         memberCount: (r.meta['memberCount'] as num?)?.toInt() ?? 0,
+        entityId: r.relId('entity')?.id,
+        imageUrl: r.string('imageUrl'),
         referenceOutboundLegId: r.relId('referenceOutboundLeg')?.id,
         referenceReturnLegId: r.relId('referenceReturnLeg')?.id,
       );
@@ -381,7 +204,10 @@ class Named {
   final String? observation;
   final Map<String, dynamic> extra;
 
-  Named({required this.id, required this.name, this.description, this.observation, this.extra = const {}});
+  /// Ids de sus relaciones a uno (p. ej. `role` de un motivo de conversación).
+  final Map<String, String> relations;
+
+  Named({required this.id, required this.name, this.description, this.observation, this.extra = const {}, this.relations = const {}});
 
   factory Named.from(Resource r) => Named(
         id: r.id,
@@ -389,6 +215,10 @@ class Named {
         description: r.string('description'),
         observation: r.string('observation'),
         extra: r.attributes,
+        relations: {
+          for (final name in r.relationships.keys)
+            if (r.relId(name) != null) name: r.relId(name)!.id,
+        },
       );
 }
 
@@ -450,9 +280,9 @@ class Trip {
   final DateTime? updatedAt;
   final String itineraryId;
   final String vehicleId;
+  /// Pertenencia (`workers`) del chofer.
   final String driverId;
   final int expectedPassengers;
-  final int expectedChildren;
   final int seats;
   final int totalCapacity;
 
@@ -473,7 +303,9 @@ class Trip {
   final String? vehiclePlate;
   final String? vehicleTypeName;
   final String? driverName;
-  final String? driverWorkerId;
+
+  /// Entidad del viaje (la del itinerario, si vino incluido).
+  final String? entityId;
 
   Trip({
     required this.id,
@@ -485,7 +317,6 @@ class Trip {
     required this.vehicleId,
     required this.driverId,
     this.expectedPassengers = 0,
-    this.expectedChildren = 0,
     this.seats = 0,
     this.totalCapacity = 0,
     this.occupancyLevel = 'normal',
@@ -500,7 +331,7 @@ class Trip {
     this.vehiclePlate,
     this.vehicleTypeName,
     this.driverName,
-    this.driverWorkerId,
+    this.entityId,
   });
 
   factory Trip.from(Resource r) {
@@ -508,7 +339,6 @@ class Trip {
     final vehicle = r.related('vehicle');
     final vehicleType = vehicle?.related('vehicleType');
     final driver = r.related('driver');
-    final driverWorker = driver?.related('worker');
     return Trip(
       id: r.id,
       departsAt: r.date('departsAt')!,
@@ -519,7 +349,6 @@ class Trip {
       vehicleId: r.relId('vehicle')!.id,
       driverId: r.relId('driver')!.id,
       expectedPassengers: (r.meta['expectedPassengers'] as num?)?.toInt() ?? 0,
-      expectedChildren: (r.meta['expectedChildren'] as num?)?.toInt() ?? 0,
       seats: (r.meta['seats'] as num?)?.toInt() ?? 0,
       totalCapacity: (r.meta['totalCapacity'] as num?)?.toInt() ?? 0,
       occupancyLevel: r.meta['occupancyLevel']?.toString() ?? (r.meta['overloaded'] == true ? 'overloaded' : 'normal'),
@@ -533,8 +362,8 @@ class Trip {
       itineraryName: itinerary?.string('name'),
       vehiclePlate: vehicle?.string('plate'),
       vehicleTypeName: vehicleType?.string('name'),
-      driverName: driverWorker == null ? null : PersonName.from(driverWorker).short,
-      driverWorkerId: driver?.relId('worker')?.id,
+      driverName: driver == null ? null : PersonName.from(driver).short,
+      entityId: itinerary?.relId('entity')?.id,
     );
   }
 
@@ -547,11 +376,11 @@ class Trip {
   Map<String, dynamic> toJson() => {
         'id': id, 'departsAt': departsAt.toIso8601String(), 'returnsAt': returnsAt.toIso8601String(), 'status': status,
         'updatedAt': updatedAt?.toIso8601String(), 'itineraryId': itineraryId, 'vehicleId': vehicleId, 'driverId': driverId,
-        'expectedPassengers': expectedPassengers, 'expectedChildren': expectedChildren, 'seats': seats, 'totalCapacity': totalCapacity,
+        'expectedPassengers': expectedPassengers, 'seats': seats, 'totalCapacity': totalCapacity,
         'occupancyLevel': occupancyLevel, 'needsReassignment': needsReassignment, 'departureStopId': departureStopId,
         'returnStopId': returnStopId, 'outboundDelayed': outboundDelayed, 'returnDelayed': returnDelayed,
         'outboundDelayMinutes': outboundDelayMinutes, 'returnDelayMinutes': returnDelayMinutes, 'itineraryName': itineraryName, 'vehiclePlate': vehiclePlate,
-        'vehicleTypeName': vehicleTypeName, 'driverName': driverName, 'driverWorkerId': driverWorkerId,
+        'vehicleTypeName': vehicleTypeName, 'driverName': driverName, 'entityId': entityId,
       };
 
   factory Trip.fromJson(Map<String, dynamic> j) => Trip(
@@ -564,7 +393,6 @@ class Trip {
         vehicleId: j['vehicleId'] as String,
         driverId: j['driverId'] as String,
         expectedPassengers: j['expectedPassengers'] as int? ?? 0,
-        expectedChildren: j['expectedChildren'] as int? ?? 0,
         seats: j['seats'] as int? ?? 0,
         totalCapacity: j['totalCapacity'] as int? ?? 0,
         occupancyLevel: j['occupancyLevel'] as String? ?? (j['overloaded'] == true ? 'overloaded' : 'normal'),
@@ -579,7 +407,7 @@ class Trip {
         vehiclePlate: j['vehiclePlate'] as String?,
         vehicleTypeName: j['vehicleTypeName'] as String?,
         driverName: j['driverName'] as String?,
-        driverWorkerId: j['driverWorkerId'] as String?,
+        entityId: j['entityId'] as String?,
       );
 }
 
@@ -693,184 +521,52 @@ class TripIncident {
   String get label => const {'not_stopped': 'No se detuvo', 'skipped': 'Se saltó la parada', 'deviation': 'Se desvió del recorrido'}[type] ?? type;
 }
 
+/// Fila de GET /trips/{id}/passengers: esperados por parada y, al final,
+/// quienes subieron sin ser esperados (`expected: false`).
 class Passenger {
   final Worker worker;
-  final String stopId;
+  final String? stopId;
   final int position;
-  final int eligibleChildren;
+  final bool expected;
+
+  /// Hijos con derecho (informativo; null si no es esperado).
+  final int? eligibleChildren;
   final bool boarded;
   final int? boardedChildren;
+  final List<String> boardedChildIds;
   final String? boardingMethod;
+
+  /// `itinerary` o `entity` si subió siendo de otro itinerario o Entidad.
+  final String? outsider;
+  final String? tripBoardingId;
 
   Passenger({
     required this.worker,
-    required this.stopId,
+    this.stopId,
     required this.position,
-    required this.eligibleChildren,
+    this.expected = true,
+    this.eligibleChildren,
     required this.boarded,
     this.boardedChildren,
+    this.boardedChildIds = const [],
     this.boardingMethod,
+    this.outsider,
+    this.tripBoardingId,
   });
 
   factory Passenger.from(Resource r) => Passenger(
         worker: Worker.from(r.related('worker')!),
-        stopId: r.relId('stop')!.id,
+        stopId: r.relId('stop')?.id,
         position: r.integer('position') ?? 0,
-        eligibleChildren: r.integer('eligibleChildren') ?? 0,
+        expected: r.attributes['expected'] != false,
+        eligibleChildren: r.integer('eligibleChildren'),
         boarded: r.boolean('boarded'),
         boardedChildren: r.integer('boardedChildren'),
+        boardedChildIds: ((r.attributes['boardedChildIds'] as List?) ?? const []).map((e) => '$e').toList(),
         boardingMethod: r.string('boardingMethod'),
+        outsider: r.string('outsider'),
+        tripBoardingId: r.relId('tripBoarding')?.id,
       );
-}
-
-class ApplicationType {
-  static const itineraryMembership = 'itinerary_membership';
-  static const itineraryChief = 'itinerary_chief';
-  static const driver = 'driver';
-  static const transportChief = 'transport_chief';
-  static const childAddition = 'child_addition';
-  static const childRemoval = 'child_removal';
-  static const absence = 'absence';
-  static const itineraryLeave = 'itinerary_leave';
-  static const itineraryChiefLeave = 'itinerary_chief_leave';
-  static const driverLeave = 'driver_leave';
-  static const transportChiefLeave = 'transport_chief_leave';
-  static const itineraryRemoval = 'itinerary_removal';
-
-  static String label(String type) => const {
-        itineraryMembership: 'Itinerario y parada',
-        itineraryChief: 'Rol de Jefe de itinerario',
-        driver: 'Rol de Chofer',
-        transportChief: 'Rol de Jefe de Transporte',
-        childAddition: 'Declarar hijos',
-        childRemoval: 'Quitar hijo',
-        absence: 'Ausencia temporal',
-        itineraryLeave: 'Darme de baja del itinerario',
-        itineraryChiefLeave: 'Baja del rol de Jefe de itinerario',
-        driverLeave: 'Baja del rol de Chofer',
-        transportChiefLeave: 'Baja del rol de Jefe de Transporte',
-        itineraryRemoval: 'Baja por inactividad',
-      }[type] ?? type;
-
-  static String statusLabel(String status) => const {
-        'pending': 'Pendiente',
-        'approved': 'Aprobada',
-        'rejected': 'Rechazada',
-        'cancelled': 'Cancelada',
-      }[status] ?? status;
-}
-
-class Application {
-  final String id;
-  final String type;
-  final String status;
-  final String? resolutionNote;
-  final DateTime? resolvedAt;
-  final DateTime createdAt;
-  final String workerId;
-  final Worker? worker;
-  final String? resolverName;
-  final String? itineraryName;
-  final String? stopName;
-  final String? childName;
-  final bool possibleDuplicate;
-  final bool assigned;
-  final String? absenceTypeName;
-  final String? startsOn;
-  final String? endsOn;
-  final String? observation;
-
-  /// Solicitudes enviadas juntas (varios hijos): el id de la primera.
-  final String? groupId;
-
-  /// Ausencia indefinida, sin fechas.
-  final bool indefinite;
-
-  Application({
-    required this.id,
-    required this.type,
-    required this.status,
-    this.resolutionNote,
-    this.resolvedAt,
-    required this.createdAt,
-    required this.workerId,
-    this.worker,
-    this.resolverName,
-    this.itineraryName,
-    this.stopName,
-    this.childName,
-    this.possibleDuplicate = false,
-    this.assigned = false,
-    this.absenceTypeName,
-    this.startsOn,
-    this.endsOn,
-    this.observation,
-    this.groupId,
-    this.indefinite = false,
-  });
-
-  factory Application.from(Resource r) {
-    final worker = r.related('worker');
-    final resolver = r.related('resolvedBy');
-    return Application(
-      id: r.id,
-      type: r.string('type')!,
-      status: r.string('status')!,
-      resolutionNote: r.string('resolutionNote'),
-      resolvedAt: r.date('resolvedAt'),
-      createdAt: r.date('createdAt')!,
-      workerId: r.relId('worker')!.id,
-      worker: worker == null ? null : Worker.from(worker),
-      resolverName: resolver == null ? null : PersonName.from(resolver).short,
-      itineraryName: r.related('itinerary')?.string('name'),
-      stopName: r.related('stop')?.string('landmark'),
-      childName: r.string('childFullName'),
-      possibleDuplicate: r.boolean('possibleDuplicate'),
-      assigned: r.boolean('assigned'),
-      absenceTypeName: r.related('absenceType')?.string('name'),
-      startsOn: r.string('startsOn'),
-      endsOn: r.string('endsOn'),
-      observation: r.string('observation'),
-      groupId: r.string('groupId'),
-      indefinite: r.boolean('indefinite'),
-    );
-  }
-
-  bool get isPending => status == 'pending';
-
-  String get summary {
-    final parts = <String>[
-      ?itineraryName,
-      ?stopName,
-      ?childName,
-      ?absenceTypeName,
-      if (indefinite) 'indefinida',
-      if (startsOn != null) '${formatDate(DateTime.parse(startsOn!))} al ${formatDate(DateTime.parse(endsOn!))}',
-    ];
-    return parts.join(' · ');
-  }
-}
-
-class Child {
-  final String id;
-  final PersonName name;
-  final String? birthDate;
-  final bool declared;
-  final bool eligible;
-  final String? eligibleUntil;
-
-  Child({required this.id, this.name = const PersonName(), this.birthDate, this.declared = false, this.eligible = false, this.eligibleUntil});
-
-  factory Child.from(Resource r) => Child(
-        id: r.id,
-        name: PersonName.from(r),
-        birthDate: r.string('birthDate'),
-        declared: r.meta['declared'] == true,
-        eligible: r.meta['eligible'] == true,
-        eligibleUntil: r.meta['eligibleUntil']?.toString(),
-      );
-
-  String get fullName => name.full;
 }
 
 class Notice {
@@ -906,8 +602,12 @@ class Notice {
         'inactivity_warning': 'Aviso de inactividad',
         'inactivity_removal': 'Baja por inactividad',
         'trip_needs_reassignment': 'Viaje sin chofer',
-        'role_assigned': 'Asignación de un superior',
-        'role_removed': 'Baja dada por un superior',
+        'role_assigned': 'Rol asignado',
+        'role_removed': 'Rol quitado',
+        'entity_added': 'Alta en una Entidad',
+        'entity_removed': 'Baja de una Entidad',
+        'itinerary_assigned': 'Itinerario y parada asignados',
+        'itinerary_removed': 'Baja del itinerario',
         'access_recovery_requested': 'Solicitud «Olvidé algo»',
         'password_expiring': 'Su contraseña caduca pronto',
         'trip_started': 'Comenzó el viaje',
@@ -949,6 +649,9 @@ class Conversation {
   final DateTime? lastMessageAt;
   final int messageCount;
   final String? topicName;
+
+  /// Rol al que va dirigida (recipient = role).
+  final String? roleName;
   final String? openedById;
   final String? openedByName;
   final bool guest;
@@ -964,6 +667,7 @@ class Conversation {
     this.lastMessageAt,
     this.messageCount = 0,
     this.topicName,
+    this.roleName,
     this.openedById,
     this.openedByName,
     this.guest = false,
@@ -982,6 +686,7 @@ class Conversation {
       lastMessageAt: r.date('lastMessageAt'),
       messageCount: (r.meta['messageCount'] as num?)?.toInt() ?? 0,
       topicName: r.related('topic')?.string('name'),
+      roleName: r.related('topic')?.string('roleName'),
       openedById: r.relId('openedBy')?.id,
       openedByName: opener == null ? null : PersonName.from(opener).full,
       guest: r.boolean('guest'),
@@ -992,11 +697,8 @@ class Conversation {
     );
   }
 
-  static String recipientLabel(String recipient) => const {
-        'itinerary_chiefs': 'Jefes de mi itinerario',
-        'transport_chiefs': 'Jefes de Transporte',
-        'developer': 'Desarrollador',
-      }[recipient] ?? recipient;
+  /// A quién va: el rol («Jefe de itinerario») o «Desarrollador».
+  String get recipientLabel => recipient == 'developer' ? 'Desarrollador' : (roleName ?? 'Rol');
 }
 
 class SettingDefinition {

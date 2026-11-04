@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -22,11 +23,20 @@ class ApiClient {
   /// Se llama cuando la sesión ya no es válida (hay que volver a iniciar sesión).
   void Function()? onSessionExpired;
 
+  /// Se llama tras cada petición: true si el servidor respondió (aunque sea
+  /// con un error) y false si no se pudo llegar a él. Lo usa el punto de
+  /// conexión (services/connection.dart, docs/11 §11.14).
+  void Function(bool reachable)? onReachability;
+
   Future<void>? _refreshing;
 
   ApiClient._(this._dio) {
     _dio.interceptors.add(InterceptorsWrapper(onRequest: _onRequest));
   }
+
+  /// Para pruebas: un cliente con ese Dio (sin leer la dirección guardada).
+  @visibleForTesting
+  factory ApiClient.withDio(Dio dio) => ApiClient._(dio);
 
   static Future<ApiClient> create() async {
     final dio = Dio(BaseOptions(
@@ -114,6 +124,21 @@ class ApiClient {
     handler.next(options);
   }
 
+  /// Comprueba si el servidor responde (sin sesión ni instalación). Avisa
+  /// con [onReachability].
+  Future<bool> ping() async {
+    if (!hasServer) return false;
+    try {
+      await _dio.get('/password-policy', options: Options(extra: {'auth': false}, receiveTimeout: const Duration(seconds: 10)));
+      onReachability?.call(true);
+      return true;
+    } on DioException catch (error) {
+      final reachable = error.response != null;
+      onReachability?.call(reachable);
+      return reachable;
+    }
+  }
+
   // Métodos
 
   /// [headers]: cabeceras extra (p. ej. la clave de mantenimiento; con ellas no se envía la sesión).
@@ -182,8 +207,11 @@ class ApiClient {
   Future<Response> _send(Future<Response> Function() request, {bool retried = false}) async {
     if (!hasServer) throw noServer();
     try {
-      return await request();
+      final response = await request();
+      onReachability?.call(true);
+      return response;
     } on DioException catch (error) {
+      onReachability?.call(error.response != null);
       final apiError = _toApiException(error);
       if (!retried && apiError.statusCode == 401 && apiError.hasCode('TOKEN_EXPIRED')) {
         await refreshTokens();

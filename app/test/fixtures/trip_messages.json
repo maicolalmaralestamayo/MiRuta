@@ -5,7 +5,7 @@
    "id": "1",
    "attributes": {
     "body": "Voy con el niño",
-    "createdAt": "2026-10-31T15:51:04+00:00"
+    "createdAt": "2026-11-04T15:46:39+00:00"
    },
    "relationships": {
     "trip": {
@@ -22,16 +22,16 @@
     }
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/trip-messages/1"
+    "self": "http://localhost:18000/api/v1/trip-messages/1"
    }
   }
  ],
  "links": {
-  "self": "http://localhost:8000/api/v1/trips/1/messages?include=author&page%5Bnumber%5D=1&page%5Bsize%5D=25",
-  "first": "http://localhost:8000/api/v1/trips/1/messages?include=author&page%5Bnumber%5D=1&page%5Bsize%5D=25",
+  "self": "http://localhost:18000/api/v1/trips/1/messages?include=author&page%5Bnumber%5D=1&page%5Bsize%5D=25",
+  "first": "http://localhost:18000/api/v1/trips/1/messages?include=author&page%5Bnumber%5D=1&page%5Bsize%5D=25",
   "prev": null,
   "next": null,
-  "last": "http://localhost:8000/api/v1/trips/1/messages?include=author&page%5Bnumber%5D=1&page%5Bsize%5D=25"
+  "last": "http://localhost:18000/api/v1/trips/1/messages?include=author&page%5Bnumber%5D=1&page%5Bsize%5D=25"
  },
  "meta": {
   "total": 1,
@@ -43,31 +43,31 @@
    "type": "users",
    "id": "2",
    "attributes": {
-    "username": "lucia.perez",
-    "activated": true,
+    "username": "lucia",
     "firstName": "Lucía",
     "middleName": "María",
     "firstSurname": "Pérez",
     "secondSurname": "García",
     "fullName": "Lucía María Pérez García",
+    "sex": "F",
     "photoUrl": null,
     "isAdmin": false,
+    "hasPhone": true,
     "active": true,
+    "entities": [
+     "DOS",
+     "PRUEBA"
+    ],
+    "identityCard": "90052002130",
+    "birthDate": "1990-05-20",
     "mustChangePassword": false,
     "currentPasswordRequired": true,
-    "passwordExpiresAt": "2027-10-31T15:51:02+00:00",
-    "createdAt": "2026-10-31T15:51:02+00:00"
-   },
-   "relationships": {
-    "worker": {
-     "data": {
-      "type": "workers",
-      "id": "1"
-     }
-    }
+    "passwordExpiresAt": "2027-11-04T15:46:36+00:00",
+    "printedQrVersion": 1,
+    "createdAt": "2026-11-04T15:46:36+00:00"
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/users/2"
+    "self": "http://localhost:18000/api/v1/users/2"
    }
   }
  ]

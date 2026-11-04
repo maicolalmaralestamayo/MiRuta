@@ -94,8 +94,8 @@ class Notifications {
 
   /// Texto del aviso de saturación (docs/08-version-2.md §8.9).
   static String saturationText(Trip trip) => trip.overloaded
-      ? '${trip.expectedPassengers - trip.totalCapacity} trabajadores no caben: ${trip.expectedPassengers} trabajadores (+${trip.expectedChildren} niños) para ${trip.totalCapacity} plazas.'
-      : '${trip.expectedPassengers - trip.seats} trabajadores irán de pie: ${trip.expectedPassengers} trabajadores (+${trip.expectedChildren} niños), ${trip.seats} asientos.';
+      ? '${trip.expectedPassengers - trip.totalCapacity} trabajadores no caben: ${trip.expectedPassengers} trabajadores para ${trip.totalCapacity} plazas.'
+      : '${trip.expectedPassengers - trip.seats} trabajadores irán de pie: ${trip.expectedPassengers} trabajadores, ${trip.seats} asientos.';
 
   static String saturationTitle(Trip trip) =>
       '${trip.overloaded ? 'Sobresaturado' : 'Saturado'}: ${trip.itineraryName ?? 'viaje'} ${formatDateTime(trip.departsAt)}';

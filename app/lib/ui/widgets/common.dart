@@ -18,8 +18,8 @@ extension SessionContext on BuildContext {
 
   Me get me => read<Session>().me!;
 
-  /// filter[entity] de la Entidad elegida por el Administrador (nada para los demás:
-  /// el servidor ya les muestra solo la suya).
+  /// filter[entity] de la Entidad elegida en Gestión por el Administrador (nada
+  /// para los demás: el servidor ya les muestra solo lo de su ámbito).
   Map<String, dynamic> get entityFilter {
     final entity = read<Session>().adminEntity;
     return entity == null ? const {} : {'filter[entity]': entity.id};
@@ -210,25 +210,6 @@ class WorkerAvatar extends StatelessWidget {
   }
 }
 
-/// Icono de la jerarquía (o uno por defecto).
-class RankBadge extends StatelessWidget {
-  final Rank? rank;
-
-  const RankBadge(this.rank, {super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    if (rank == null) return const SizedBox.shrink();
-    return Row(mainAxisSize: MainAxisSize.min, children: [
-      rank!.iconUrl == null
-          ? const Icon(rankIcon, size: 16)
-          : Image.network(rank!.iconUrl!, width: 16, height: 16, errorBuilder: (_, _, _) => const Icon(rankIcon, size: 16)),
-      const SizedBox(width: 4),
-      Text(rank!.name, style: Theme.of(context).textTheme.bodySmall),
-    ]);
-  }
-}
-
 class StatusChip extends StatelessWidget {
   final String label;
   final Color? color;
@@ -262,12 +243,8 @@ Color? occupancyColor(String level) => const {'saturated': saturatedColor, 'over
 
 String occupancyLabel(String level) => const {'saturated': 'Saturado', 'overloaded': 'Sobresaturado'}[level] ?? 'Normal';
 
-/// "35 trabajadores (+10 niños) · capacidad 40".
-String occupancyText(int workers, int children, int capacity) =>
-    '${plural(workers, 'trabajador', 'trabajadores')}${children > 0 ? ' (+${plural(children, 'niño', 'niños')})' : ''} · capacidad $capacity';
-
-/// Ícono de la jerarquía en toda la app (docs/09 §13).
-const rankIcon = Icons.star;
+/// "35 trabajadores · capacidad 40" (los niños no se esperan, docs/11 §11.11).
+String occupancyText(int workers, int capacity) => '${plural(workers, 'trabajador', 'trabajadores')} · capacidad $capacity';
 
 /// "1 asiento", "3 asientos" (docs/09: plurales correctos).
 String plural(int count, String one, String many) => '$count ${count == 1 ? one : many}';
@@ -467,19 +444,18 @@ class AppVersionText extends StatelessWidget {
 class OverloadBanner extends StatelessWidget {
   final String level;
   final int expected;
-  final int children;
   final int seats;
   final int capacity;
 
-  const OverloadBanner({super.key, required this.level, required this.expected, this.children = 0, required this.seats, required this.capacity});
+  const OverloadBanner({super.key, required this.level, required this.expected, required this.seats, required this.capacity});
 
   @override
   Widget build(BuildContext context) {
     final overloaded = level == 'overloaded';
     final color = occupancyColor(level) ?? overloadColor;
     final text = overloaded
-        ? 'Transporte sobresaturado: ${expected - capacity} trabajadores no caben (${occupancyText(expected, children, capacity)}).'
-        : 'Transporte saturado: ${expected - seats} trabajadores irán de pie (${occupancyText(expected, children, capacity)}, $seats asientos).';
+        ? 'Transporte sobresaturado: ${expected - capacity} trabajadores no caben (${occupancyText(expected, capacity)}).'
+        : 'Transporte saturado: ${expected - seats} trabajadores irán de pie (${occupancyText(expected, capacity)}, $seats asientos).';
     final foreground = overloaded ? Colors.white : Colors.black;
     return Container(
       width: double.infinity,

@@ -6,6 +6,7 @@ import '../core/json_api.dart';
 import '../core/storage.dart';
 import '../core/username.dart';
 import '../models/models.dart';
+import 'connection.dart';
 import 'notifications.dart';
 import 'sync.dart';
 import 'tracking_service.dart';
@@ -25,12 +26,24 @@ class Session extends ChangeNotifier {
   /// ajuste remember_password_days.
   static const passwordEnteredAtKey = 'security.password_entered_at';
 
+  /// Entidad elegida en Inicio (se recuerda en el teléfono, docs/11 §11.10).
+  static const selectedEntityKey = 'user.selected_entity';
+
   final ApiClient api;
+
+  /// Punto de conexión de la barra superior (docs/11 §11.14).
+  late final ConnectionMonitor connection = ConnectionMonitor(api);
   SessionState state = SessionState.loading;
   Me? me;
   UserSettings settings = UserSettings({});
 
-  /// Entidad que el Administrador está mirando (null = todas).
+  /// Acaba de registrarse: Inicio abre «Otros datos del registro» (docs/11 §11.5).
+  bool justRegistered = false;
+
+  String? _selectedEntityId;
+
+  /// Entidad que se mira en Gestión (null = todas las de su ámbito). Para el
+  /// Administrador puede ser cualquier Entidad, aunque no pertenezca a ella.
   Entity? adminEntity;
 
   Session(this.api) {
@@ -77,52 +90,66 @@ class Session extends ChangeNotifier {
     await Storage.saveLastLogin(remember ? me?.username : null);
   }
 
-  Future<void> changeUsername(String username) async {
-    await api.patch('/me', resourceData('users', attributes: {'username': Username.normalize(username)}));
-    await reloadMe();
-    await _rememberLogin();
-    notifyListeners();
-  }
-
-  /// Paso 1 del registro: crear la cuenta. La primera es la del Administrador.
-  Future<void> register({required PersonName name, required String username, required String password}) async {
+  /// Registro (docs/11 §11.5): sin Entidad. El primero que se registra es el
+  /// Administrador. Después entra y abre «Otros datos del registro».
+  Future<void> register({required PersonName name, required String identityCard, required String username, required String password}) async {
     await api.post('/users', resourceData('users', attributes: {
-      ...nameAttributes(name),
+      ...name.toAttributes(),
+      'identityCard': identityCard.trim(),
       'username': Username.normalize(username),
       'password': password,
     }), auth: false, withInstallation: true);
+    justRegistered = true;
     await login(username, password);
   }
 
-  /// Paso 2 del registro: unirse a la Entidad.
-  Future<void> joinEntity({required String abbreviation, required int pass, required String sex, required String rankId}) async {
-    await api.post('/me/worker', resourceData('workers', attributes: {
-      'entityAbbreviation': abbreviation.trim(),
-      'pass': pass,
-      'sex': sex,
-    }, relationships: {'rank': ResourceId('ranks', rankId)}));
-    await _enter();
+  /// Ya vio «Otros datos del registro».
+  void finishRegistration() {
+    justRegistered = false;
   }
 
-  /// "Ya me registró un superior": elige usuario y contraseña con su código.
-  Future<void> activate({required String abbreviation, required int pass, required String code, required String username, required String password}) async {
-    final document = await api.post('/activations', resourceData('activations', attributes: {
-      'entityAbbreviation': abbreviation.trim(),
-      'pass': pass,
-      'code': code.trim(),
-      'username': Username.normalize(username),
-      'password': password,
-      'deviceName': 'Android',
-    }), auth: false, withInstallation: true);
-    await _start(document);
+  /// Guarda su perfil (docs/11 §11.18): nombres, carné y usuario.
+  Future<void> updateProfile({PersonName? name, String? identityCard, String? username}) async {
+    await api.patch('/me', resourceData('users', attributes: {
+      ...?name?.toAttributes(),
+      if (identityCard != null) 'identityCard': identityCard.trim(),
+      if (username != null) 'username': Username.normalize(username),
+    }));
+    await reloadMe();
+    if (username != null) await _rememberLogin();
   }
 
-  /// "No puedo entrar": contraseña nueva tras la aprobación del Administrador.
-  Future<void> recoverWithNewPassword(String recoveryId, String password) async {
-    final document = await api.post('/guest/access-recoveries/$recoveryId/password',
-        resourceData('access-recoveries', attributes: {'password': password, 'deviceName': 'Android'}),
-        guest: true);
-    await _start(document);
+  // Entidades
+
+  /// Pertenencia de la Entidad elegida: la última que eligió o, si ya no
+  /// pertenece a ella, la primera. null si no tiene Entidad.
+  Membership? get selectedMembership {
+    final memberships = me?.memberships ?? const <Membership>[];
+    if (memberships.isEmpty) return null;
+    return me!.membershipIn(_selectedEntityId) ?? memberships.first;
+  }
+
+  String? get selectedEntityId => selectedMembership?.entityId;
+
+  /// Elige la Entidad que se ve (solo cambia lo que se ve: sigue activo en todas).
+  Future<void> selectEntity(String entityId) async {
+    _selectedEntityId = entityId;
+    notifyListeners();
+    await Storage.setString(selectedEntityKey, entityId);
+  }
+
+  /// El Administrador entra en una Entidad sin solicitud (docs/11 §11.13).
+  Future<void> joinEntity(String abbreviation) async {
+    final document = await api.post('/me/entities', resourceData('workers', attributes: {'entityAbbreviation': abbreviation.trim()}));
+    await reloadMe();
+    final entityId = document.resource.relId('entity')?.id;
+    if (entityId != null) await selectEntity(entityId);
+  }
+
+  /// Darse de baja de una Entidad: pierde allí itinerario, parada y roles.
+  Future<void> leaveEntity(String entityId) async {
+    await api.delete('/me/entities/$entityId');
+    await reloadMe();
   }
 
   /// Contraseña nueva cuando caducó o tras recuperar el acceso. Si caducó,
@@ -138,23 +165,13 @@ class Session extends ChangeNotifier {
     SyncService.run(api).catchError((_) {});
   }
 
-  static Map<String, dynamic> nameAttributes(PersonName name, {String prefix = ''}) {
-    String key(String field) => prefix.isEmpty ? field : '$prefix${field[0].toUpperCase()}${field.substring(1)}';
-    return {
-      key('firstName'): name.firstName.trim(),
-      // El segundo nombre es opcional (docs/09 §3): vacío se envía como null.
-      key('middleName'): name.middleName.trim().isEmpty ? null : name.middleName.trim(),
-      key('firstSurname'): name.firstSurname.trim(),
-      key('secondSurname'): name.secondSurname.trim(),
-    };
-  }
-
   Future<void> _enter() async {
     try {
       await reloadMe();
-      if (me!.mustChangePassword || me!.needsEntity) {
-        // Hasta cambiar la contraseña o unirse a la Entidad, la API solo
-        // permite el perfil propio.
+      _selectedEntityId = await Storage.getString(selectedEntityKey);
+      connection.start();
+      if (me!.mustChangePassword) {
+        // Hasta cambiar la contraseña, la API solo permite el perfil propio.
         state = SessionState.ready;
         notifyListeners();
         return;
@@ -171,7 +188,7 @@ class Session extends ChangeNotifier {
   }
 
   Future<void> reloadMe() async {
-    me = Me.from((await api.get('/me', query: {'include': 'worker,worker.entity,worker.rank'})).resource);
+    me = Me.from((await api.get('/me')).resource);
     await SyncService.rememberMe(me!);
     notifyListeners();
   }
@@ -238,8 +255,11 @@ class Session extends ChangeNotifier {
     await Notifications.cancelAll();
     await Storage.clearUserData();
     await Storage.setString(passwordEnteredAtKey, null);
+    connection.stop();
     me = null;
     adminEntity = null;
+    _selectedEntityId = null;
+    justRegistered = false;
     state = SessionState.loggedOut;
     notifyListeners();
   }

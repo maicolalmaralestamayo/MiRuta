@@ -1,196 +1,157 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:provider/provider.dart';
 
-import '../../core/json_api.dart';
+import '../../core/api_exception.dart';
+import '../../core/username.dart';
 import '../../models/models.dart';
-import '../../services/session.dart';
-import '../applications/application_forms.dart';
-import '../theme.dart';
-import '../widgets/common.dart';
 import '../../services/templates.dart';
+import '../auth/names_fields.dart';
+import '../widgets/actions.dart';
+import '../widgets/app_scaffold.dart';
+import '../widgets/cards.dart';
+import '../widgets/common.dart';
 import 'account_screens.dart';
-import 'children_screen.dart';
-import 'username_dialog.dart';
 
-class ProfileScreen extends StatelessWidget {
+/// Perfil (docs/11 §11.18; maqueta pantallas-final.png, 2): foto; nombres,
+/// apellidos, carné y usuario editables; sexo y fecha de nacimiento de solo
+/// lectura (salen del carné). Acciones: Guardar perfil y Cambiar contraseña.
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
-  Future<_ProfileData> _load(BuildContext context, Me me) async {
-    final api = context.api;
-    Itinerary? itinerary;
-    Stop? stop;
-    if (me.itineraryId != null) {
-      itinerary = Itinerary.from((await api.get('/itineraries/${me.itineraryId}')).resource);
-      stop = Stop.from((await api.get('/stops/${me.stopId}')).resource);
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  final _form = GlobalKey<FormState>();
+  late final Person _person = context.me.person;
+  late final _firstName = TextEditingController(text: _person.name.firstName);
+  late final _middleName = TextEditingController(text: _person.name.middleName);
+  late final _firstSurname = TextEditingController(text: _person.name.firstSurname);
+  late final _secondSurname = TextEditingController(text: _person.name.secondSurname);
+  late final _identityCard = TextEditingController(text: _person.identityCard ?? '');
+  late final _username = TextEditingController(text: _person.username ?? '');
+  late final _names = NamesFields(firstName: _firstName, middleName: _middleName, firstSurname: _firstSurname, secondSurname: _secondSurname);
+  ApiException? _error;
+
+  @override
+  void dispose() {
+    for (final c in [_firstName, _middleName, _firstSurname, _secondSurname, _identityCard, _username]) {
+      c.dispose();
     }
-    final chiefs = me.roles.isItineraryChief
-        ? (await api.getAll('/itinerary-chiefs', query: {'filter[worker]': me.id, 'include': 'itinerary'}))
-        : <Resource>[];
-    final transportChief = me.roles.isTransportChief ? (await api.get('/transport-chiefs', query: {'filter[worker]': me.id})).resources.firstOrNull : null;
-    return _ProfileData(itinerary, stop, chiefs, transportChief?.id);
+    super.dispose();
   }
 
-  Future<void> _photo(BuildContext context) async {
-    final choice = await pickFrom<String>(context, 'Foto de perfil', ['camera', 'gallery', if (context.me.photoUrl != null) 'delete'],
+  Future<void> _save() async {
+    if (!_form.currentState!.validate()) return;
+    setState(() => _error = null);
+    final card = _identityCard.text.trim();
+    final username = Username.normalize(_username.text);
+    try {
+      await context.session.updateProfile(
+        name: _names.value,
+        identityCard: card == (_person.identityCard ?? '') ? null : card,
+        username: username == _person.username ? null : username,
+      );
+      if (mounted) showMessage(context, 'Perfil guardado');
+    } on ApiException catch (error) {
+      if (mounted) setState(() => _error = error);
+    }
+  }
+
+  Future<void> _photo() async {
+    final me = context.me;
+    final choice = await pickFrom<String>(context, 'Foto de perfil', ['camera', 'gallery', if (me.photoUrl != null) 'delete'],
         (c) => const {'camera': 'Hacer una foto', 'gallery': 'Elegir de la galería', 'delete': 'Quitar la foto'}[c]!);
-    if (choice == null || !context.mounted) return;
+    if (choice == null || !mounted) return;
     final session = context.session;
     if (choice == 'delete') {
       await runAction(context, () => session.api.delete('/me/photo'));
     } else {
       final file = await ImagePicker().pickImage(source: choice == 'camera' ? ImageSource.camera : ImageSource.gallery, maxWidth: 800, imageQuality: 85);
-      if (file == null || !context.mounted) return;
+      if (file == null || !mounted) return;
       await runAction(context, () => session.api.upload('/me/photo', 'photo', file.path), success: 'Foto actualizada');
     }
     await session.reloadMe();
+    if (mounted) setState(() {});
   }
-
-  Future<void> _editNames(BuildContext context) =>
-      Navigator.push(context, MaterialPageRoute(builder: (_) => const EditNamesScreen()));
-
-  Future<void> _changePassword(BuildContext context) =>
-      Navigator.push(context, MaterialPageRoute(builder: (_) => const ChangePasswordScreen()));
-
-  /// La jerarquía la cambia cada uno, sin solicitud (solo sirve para estadísticas).
-  Future<void> _changeRank(BuildContext context) async {
-    final ranks = (await context.api.getAll('/ranks', query: {'sort': 'sortOrder,name'})).map(Rank.from).toList();
-    if (!context.mounted) return;
-    final rank = await pickFrom<Rank>(context, 'Jerarquía', ranks, (r) => r.name);
-    if (rank == null || !context.mounted) return;
-    await runAction(context, () => context.api.patch('/me', resourceData('users', relationships: {'rank': ResourceId('ranks', rank.id)})), success: 'Jerarquía cambiada');
-    if (context.mounted) await context.session.reloadMe();
-  }
-
-  Future<void> _leave(BuildContext context, String title, Future<void> Function() action) async {
-    if (!await confirm(context, title, 'Se avisará a sus superiores. ¿Continuar?', accept: 'Darme de baja', destructive: true)) return;
-    if (!context.mounted) return;
-    await runAction(context, action, success: 'Baja registrada');
-    if (context.mounted) await context.session.reloadMe();
-  }
-
-  Widget _leaveButton(BuildContext context, String title, Future<void> Function() action) => TextButton.icon(
-        icon: const Icon(Icons.logout, color: overloadColor),
-        label: const Text('Darme de baja'),
-        onPressed: () => _leave(context, title, action),
-      );
-
-  /// Fila con el nombre del dato y su valor; si se puede editar, al tocarla se edita.
-  Widget _row(IconData icon, String label, String value, {VoidCallback? onTap}) =>
-      ListTile(leading: Icon(icon), title: Text(label), subtitle: Text(value), onTap: onTap);
 
   @override
   Widget build(BuildContext context) {
-    final me = context.watch<Session>().me!;
-    final expires = me.account.passwordExpiresAt;
-    return Scaffold(
-      appBar: AppBar(title: const Text('Mi perfil')),
-      body: AsyncView<_ProfileData>(
-        key: ValueKey('${me.itineraryId}-${me.roles.chiefOfItineraries.length}-${me.roles.isDriver}-${me.roles.isTransportChief}'),
-        load: () => _load(context, me),
-        builder: (context, data, reload) => ListView(padding: const EdgeInsets.only(bottom: 32), children: [
-          const SizedBox(height: 16),
+    final me = context.me;
+    final card = _identityCard.text.trim();
+    final birth = IdentityCard.birthDate(card) ?? (me.person.birthDate == null ? null : DateTime.tryParse(me.person.birthDate!));
+    final sex = IdentityCard.sex(card) ?? me.person.sex;
+    final expires = me.person.passwordExpiresAt;
+    return AppScaffold(
+      title: 'Perfil',
+      actions: [
+        ActionItem(icon: Icons.save, label: 'Guardar perfil', onPressed: _save),
+        ActionItem(
+          icon: Icons.password,
+          label: 'Cambiar contraseña',
+          onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ChangePasswordScreen())),
+        ),
+      ],
+      body: Form(
+        key: _form,
+        child: ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 96), children: [
           Center(
             child: GestureDetector(
-              onTap: () => _photo(context),
+              onTap: _photo,
               child: Stack(children: [
-                WorkerAvatar.of(photoUrl: me.photoUrl, name: me.name, radius: 48),
-                const Positioned(right: 0, bottom: 0, child: CircleAvatar(radius: 14, child: Icon(Icons.camera_alt, size: 16))),
+                CardImage(url: me.photoUrl, icon: Icons.person, round: true, size: 104),
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: CircleAvatar(radius: 18, backgroundColor: Theme.of(context).colorScheme.secondary, child: const Icon(Icons.photo_camera, size: 18, color: Colors.black)),
+                ),
               ]),
             ),
           ),
-          const SizedBox(height: 8),
-          Center(
-            child: InkWell(
-              borderRadius: BorderRadius.circular(8),
-              onTap: () => _editNames(context),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                child: Text(me.fullName, textAlign: TextAlign.center, style: Theme.of(context).textTheme.titleLarge),
-              ),
+          const SizedBox(height: 16),
+          _names,
+          TextFormField(
+            controller: _identityCard,
+            decoration: InputDecoration(
+              labelText: 'Carné de identidad',
+              prefixIcon: const Icon(Icons.badge_outlined),
+              errorText: _error?.fieldError('/identityCard'),
+              errorMaxLines: 4,
             ),
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(IdentityCard.length)],
+            autovalidateMode: AutovalidateMode.onUserInteraction,
+            onChanged: (_) => setState(() {}),
+            validator: IdentityCard.validate,
           ),
-          Center(child: RankBadge(me.rank)),
-          const SectionTitle('Mis datos'),
-          _row(Icons.person_outline, 'Nombre de usuario', me.username ?? '', onTap: () => editUsername(context)),
-          if (me.hasWorker) ...[
-            _row(Icons.apartment_outlined, 'Entidad', [me.entity?.abbreviation, me.entity?.name].whereType<String>().where((s) => s.isNotEmpty).join(' · ')),
-            _row(Icons.badge_outlined, 'Pase', '${me.pass ?? ''}'),
+          const SizedBox(height: 12),
+          InputDecorator(
+            decoration: const InputDecoration(labelText: 'Sexo y nacimiento', suffixIcon: Icon(Icons.lock_outline, size: 18)),
+            child: Text([sexLabel(sex), if (birth != null) formatShortDate(birth)].where((s) => s.isNotEmpty).join(' • ')),
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _username,
+            decoration: InputDecoration(labelText: 'Usuario', prefixIcon: const Icon(Icons.alternate_email), errorText: _error?.fieldError('/username'), errorMaxLines: 3),
+            keyboardType: TextInputType.visiblePassword,
+            autocorrect: false,
+            enableSuggestions: false,
+            inputFormatters: [LengthLimitingTextInputFormatter(Username.maxLength)],
+            autovalidateMode: AutovalidateMode.onUserInteraction,
+            validator: validateUsername,
+          ),
+          if (expires != null) ...[
+            const SizedBox(height: 12),
+            Text('Su contraseña caduca el ${formatDate(expires)}.', style: Theme.of(context).textTheme.bodySmall),
           ],
-          _row(Icons.password, 'Contraseña', expires == null ? '••••••••' : 'caduca el ${formatDate(expires.toLocal())}', onTap: () => _changePassword(context)),
-          if (me.hasWorker) ...[
-            BusyListTile(
-              leading: const Icon(rankIcon),
-              title: const Text('Jerarquía'),
-              subtitle: Text(me.rank?.name ?? ''),
-              onTap: () => _changeRank(context),
-            ),
-            _row(Icons.child_care, 'Hijos con derecho a viajar', plural(me.childrenCount, 'hijo', 'hijos'),
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ChildrenScreen()))),
-            const SectionTitle('Mi itinerario'),
-            if (data.itinerary == null) ...[
-              _row(Icons.route, 'Itinerario', 'Sin itinerario'),
-              Align(
-                alignment: Alignment.centerRight,
-                child: Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: TextButton.icon(
-                    icon: const Icon(Icons.send),
-                    label: const Text('Solicitar itinerario y parada'),
-                    onPressed: () => showApplicationForm(context, ApplicationType.itineraryMembership),
-                  ),
-                ),
-              ),
-            ] else ...[
-              _row(Icons.route, 'Itinerario', data.itinerary!.name),
-              _row(Icons.place_outlined, 'Parada', data.stop?.landmark ?? ''),
-              _row(Icons.signpost_outlined, 'Dirección', data.stop?.address ?? ''),
-              Align(
-                alignment: Alignment.centerRight,
-                child: Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: TextButton.icon(
-                    icon: const Icon(Icons.swap_horiz),
-                    label: const Text('Solicitar cambio de itinerario'),
-                    onPressed: () => showApplicationForm(context, ApplicationType.itineraryMembership),
-                  ),
-                ),
-              ),
-            ],
+          if (_error != null && _error!.fieldError('/username') == null && _error!.fieldError('/identityCard') == null) ...[
+            const SizedBox(height: 12),
+            Text(_error!.message, style: TextStyle(color: Theme.of(context).colorScheme.error)),
           ],
-          const SectionTitle('Mis roles'),
-          if (me.isAdmin) const ListTile(leading: Icon(Icons.admin_panel_settings), title: Text('Administrador')),
-          if (data.transportChiefId != null)
-            ListTile(
-              leading: const Icon(Icons.directions_bus),
-              title: const Text('Jefe de Transporte'),
-              trailing: _leaveButton(context, 'Baja como Jefe de Transporte', () => context.api.delete('/transport-chiefs/${data.transportChiefId}')),
-            ),
-          for (final chief in data.chiefs)
-            ListTile(
-              leading: const Icon(Icons.groups),
-              title: Text('Jefe de itinerario · ${chief.related('itinerary')?.string('name') ?? ''}'),
-              trailing: _leaveButton(context, 'Baja como Jefe de itinerario', () => context.api.delete('/itinerary-chiefs/${chief.id}')),
-            ),
-          if (me.roles.isDriver)
-            ListTile(
-              leading: const Icon(Icons.airline_seat_recline_normal),
-              title: const Text('Chofer'),
-              trailing: _leaveButton(context, 'Baja como Chofer', () => context.api.delete('/drivers/${me.roles.driverId}')),
-            ),
-          if (!me.isAdmin && data.transportChiefId == null && data.chiefs.isEmpty && !me.roles.isDriver)
-            const ListTile(title: Text('No tiene roles.')),
         ]),
       ),
     );
   }
-}
-
-class _ProfileData {
-  final Itinerary? itinerary;
-  final Stop? stop;
-  final List<Resource> chiefs;
-  final String? transportChiefId;
-
-  _ProfileData(this.itinerary, this.stop, this.chiefs, this.transportChiefId);
 }

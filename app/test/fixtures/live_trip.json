@@ -45,6 +45,16 @@
      "type": "integer"
     },
     {
+     "key": "stopsNotStopped",
+     "label": "Paradas donde no se detuvo",
+     "type": "integer"
+    },
+    {
+     "key": "stopsSkipped",
+     "label": "Paradas saltadas",
+     "type": "integer"
+    },
+    {
      "key": "startDelayMinutes",
      "label": "Retraso al iniciar (min)",
      "type": "number"
@@ -72,8 +82,10 @@
      "boarded": 1,
      "expected": 1,
      "capacity": 1,
-     "children": 1,
+     "children": 0,
      "stopsPassed": 1,
+     "stopsNotStopped": 0,
+     "stopsSkipped": 0,
      "stopsRemaining": 2,
      "startDelayMinutes": 10.1,
      "traveledKm": 0,
@@ -84,8 +96,8 @@
   },
   "meta": {
    "period": {
-    "from": "2026-10-02",
-    "to": "2026-10-31",
+    "from": "2026-10-06",
+    "to": "2026-11-04",
     "dates": null
    }
   }

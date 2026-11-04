@@ -4,38 +4,53 @@ import 'package:provider/provider.dart';
 import '../../models/models.dart';
 import '../../services/session.dart';
 import '../../services/sync.dart';
+import '../navigation.dart';
+import '../widgets/app_scaffold.dart';
 import '../widgets/common.dart';
+import '../widgets/entity_selector.dart';
 import 'trip_card.dart';
 import 'trip_context.dart';
 
-/// Viajes: los de mi itinerario, los que conduzco y los de los itinerarios que dirijo.
+/// Viajes (pestaña Viajes). PROVISIONAL de la base 3.0: la rehace «pantallas
+/// del trabajador» con la forma de docs/11 §11.18 (selector de Entidad;
+/// secciones «En curso» y «Confirmados»; sin botón Acciones; tocar un viaje
+/// abre su detalle con AppRoutes.tripDetail). Mientras tanto, los de la
+/// Entidad elegida: su itinerario, los que conduce y todos los que puede ver.
 class TripsScreen extends StatelessWidget {
   const TripsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final me = context.watch<Session>().me!;
+    final session = context.watch<Session>();
+    final me = session.me!;
+    final membership = session.selectedMembership;
+    final entityId = membership?.entityId;
     final tabs = <(String, Map<String, dynamic>, bool)>[
-      if (me.itineraryId != null) ('Mi itinerario', {'filter[itinerary]': me.itineraryId}, me.isChiefOf(me.itineraryId) || me.managesTransport),
-      if (me.roles.isDriver) ('Como chofer', {'filter[driver]': me.roles.driverId}, true),
-      if (me.roles.isItineraryChief || me.managesTransport) ('Todos los que veo', <String, dynamic>{}, true),
+      if (membership?.itineraryId != null)
+        ('Mi itinerario', {'filter[itinerary]': membership!.itineraryId}, me.can(Op.tripsEdit, entityId: entityId, itineraryId: membership.itineraryId)),
+      if (membership != null && me.can(Op.trackingDrive, entityId: entityId)) ('Como chofer', {'filter[driver]': membership.workerId}, true),
+      if (entityId != null && me.permissions.canInEntity(Op.tripsView, entityId)) ('Todos los que veo', <String, dynamic>{}, true),
     ];
 
     if (tabs.isEmpty) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Viajes')),
-        body: const EmptyView(icon: Icons.directions_bus_outlined, message: 'Cuando sea miembro de un itinerario verá aquí sus viajes.'),
+      return const AppScaffold(
+        title: 'Viajes',
+        tab: MainTab.trips,
+        body: EmptyView(icon: Icons.directions_bus_outlined, message: 'Cuando sea miembro de un itinerario verá aquí sus viajes.'),
       );
     }
 
     return DefaultTabController(
+      key: ValueKey(entityId),
       length: tabs.length,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Viajes'),
-          bottom: tabs.length > 1 ? TabBar(isScrollable: true, tabs: [for (final tab in tabs) Tab(text: tab.$1)]) : null,
-        ),
-        body: TabBarView(children: [for (final tab in tabs) _TripList(filters: tab.$2, showOverload: tab.$3)]),
+      child: AppScaffold(
+        title: 'Viajes',
+        tab: MainTab.trips,
+        bottom: tabs.length > 1 ? TabBar(isScrollable: true, tabs: [for (final tab in tabs) Tab(text: tab.$1)]) : null,
+        body: Column(children: [
+          const EntitySelector(),
+          Expanded(child: TabBarView(children: [for (final tab in tabs) _TripList(filters: tab.$2, showOverload: tab.$3, entityId: entityId)])),
+        ]),
       ),
     );
   }
@@ -44,8 +59,9 @@ class TripsScreen extends StatelessWidget {
 class _TripList extends StatefulWidget {
   final Map<String, dynamic> filters;
   final bool showOverload;
+  final String? entityId;
 
-  const _TripList({required this.filters, required this.showOverload});
+  const _TripList({required this.filters, required this.showOverload, this.entityId});
 
   @override
   State<_TripList> createState() => _TripListState();
@@ -65,7 +81,7 @@ class _TripListState extends State<_TripList> {
       'page[size]': 50,
     };
     final api = context.api;
-    final trips = (await api.get('/trips', query: query)).resources.map(Trip.from).toList();
+    final trips = (await api.get('/trips', query: query)).resources.map(Trip.from).where((t) => t.entityId == null || t.entityId == widget.entityId).toList();
     return (trips, await TripContext.legsOf(api, trips));
   }
 

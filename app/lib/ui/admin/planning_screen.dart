@@ -30,12 +30,16 @@ class _PlanningScreenState extends State<PlanningScreen> {
     final today = DateTime.now();
     _range = DateTimeRange(start: DateTime(today.year, today.month, today.day), end: DateTime(today.year, today.month, today.day + 14));
     final me = context.me;
-    // Los Jefes de itinerario solo planifican el suyo.
-    if (!me.managesTransport && me.roles.chiefOfItineraries.isNotEmpty) _itineraryId = me.roles.chiefOfItineraries.first;
+    // Quien solo planifica su itinerario (trips.plan con ámbito itinerario) ve el suyo.
+    final own = me.permissions.itinerariesFor(Op.tripsPlan);
+    if (!_plansWholeEntities(me) && own.isNotEmpty) _itineraryId = own.first;
     context.api.getAll('/itineraries', query: {'sort': 'name', ...context.entityFilter}).then((r) {
-      if (mounted) setState(() => _itineraries = r.map(Itinerary.from).where((i) => me.canPlan(i.id)).toList());
+      if (mounted) setState(() => _itineraries = r.map(Itinerary.from).where((i) => me.can(Op.tripsPlan, entityId: i.entityId, itineraryId: i.id)).toList());
     }).catchError((_) {});
   }
+
+  /// Planifica en Entidades enteras (no solo en su itinerario).
+  bool _plansWholeEntities(Me me) => me.permissions.entitiesFor(Op.tripsPlan)?.isNotEmpty ?? true;
 
   String _day(DateTime d) => d.toIso8601String().substring(0, 10);
 
@@ -120,7 +124,7 @@ class _PlanningScreenState extends State<PlanningScreen> {
                 isExpanded: true,
                 decoration: const InputDecoration(labelText: 'Itinerario'),
                 items: [
-                  if (context.me.managesTransport) const DropdownMenuItem<String?>(value: null, child: Text('Todos')),
+                  if (_plansWholeEntities(context.me)) const DropdownMenuItem<String?>(value: null, child: Text('Todos')),
                   for (final i in _itineraries) DropdownMenuItem<String?>(value: i.id, child: Text(i.name)),
                 ],
                 onChanged: (value) {

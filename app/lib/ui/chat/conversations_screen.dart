@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import '../../core/json_api.dart';
 import '../../models/models.dart';
 import '../../services/templates.dart';
+import '../navigation.dart';
+import '../widgets/actions.dart';
+import '../widgets/app_scaffold.dart';
 import '../widgets/common.dart';
 import 'chat_screen.dart';
 
@@ -23,20 +26,25 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     return resources.map(Conversation.from).toList();
   }
 
+  /// A quién va un motivo: el rol al que va dirigido o el desarrollador.
+  static String _recipientOf(Named topic) => topic.extra['recipient'] == 'developer' ? 'Desarrollador' : '${topic.extra['roleName'] ?? 'Rol'}';
+
   Future<void> _new() async {
-    final recipient = await pickFrom<String>(context, '¿A quién desea escribir?', ['itinerary_chiefs', 'transport_chiefs', 'developer'], Conversation.recipientLabel);
-    if (recipient == null || !mounted) return;
-    final topics = (await context.api.getAll('/conversation-topics', query: {'filter[recipient]': recipient})).map(Named.from).toList();
+    // Motivos dirigidos a un rol (Jefe de itinerario, Jefe de Transporte…) o al desarrollador.
+    final topics = (await context.api.getAll('/conversation-topics', query: {'sort': 'name'})).map(Named.from).toList();
     if (!mounted) return;
-    final topic = await pickFrom<Named>(context, 'Motivo', topics, (t) => t.name);
+    final topic = await pickFrom<Named>(context, '¿Sobre qué desea escribir?', topics, (t) => t.name, subtitle: _recipientOf);
     if (topic == null || !mounted) return;
+    final entityId = context.session.selectedEntityId;
     try {
       final conversation = Conversation.from((await context.api.post('/conversations', resourceData('conversations', relationships: {
         'topic': ResourceId('conversation-topics', topic.id),
+        // Si pertenece a varias Entidades, a la elegida.
+        if (topic.extra['recipient'] != 'developer' && entityId != null) 'entity': ResourceId('entities', entityId),
       }))).resource);
       if (!mounted) return;
       await Navigator.push(context, MaterialPageRoute(builder: (_) => ChatScreen.conversation(conversation: Conversation(
-            id: conversation.id, recipient: recipient, createdAt: conversation.createdAt, topicName: topic.name))));
+            id: conversation.id, recipient: '${topic.extra['recipient']}', createdAt: conversation.createdAt, topicName: topic.name, roleName: topic.extra['roleName'] as String?))));
       _view.currentState?.reload();
     } catch (error) {
       if (mounted) showError(context, error);
@@ -46,9 +54,10 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
   @override
   Widget build(BuildContext context) {
     final meId = context.me.userId;
-    return Scaffold(
-      appBar: AppBar(title: const Text('Mensajes')),
-      floatingActionButton: FloatingActionButton.extended(onPressed: _new, icon: const Icon(Icons.edit), label: const Text('Escribir mensaje')),
+    return AppScaffold(
+      title: 'Mensajes',
+      tab: MainTab.messages,
+      actions: [ActionItem(icon: Icons.edit, label: 'Escribir mensaje', onPressed: _new)],
       body: AsyncView<List<Conversation>>(
         key: _view,
         load: _load,
@@ -61,10 +70,10 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
                   final c = conversations[index];
                   final incoming = c.guest || (c.openedById != null && c.openedById != meId);
                   return ListTile(
-                    leading: Icon(const {'itinerary_chiefs': Icons.groups, 'transport_chiefs': Icons.directions_bus, 'developer': Icons.code}[c.recipient] ?? Icons.forum),
+                    leading: Icon(c.recipient == 'developer' ? Icons.code : Icons.groups),
                     title: Text(c.topicName ?? 'Conversación'),
                     subtitle: Text([
-                      Conversation.recipientLabel(c.recipient),
+                      c.recipientLabel,
                       if (incoming) 'de ${c.guest ? '${c.guestName ?? ''} (sin cuenta)' : c.openedByName ?? ''}',
                       plural(c.messageCount, 'mensaje', 'mensajes'),
                       if (c.lastMessageAt != null) formatDateTime(c.lastMessageAt!),

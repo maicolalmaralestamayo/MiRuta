@@ -21,7 +21,7 @@
     }
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/itinerary-stops/1"
+    "self": "http://localhost:18000/api/v1/itinerary-stops/1"
    }
   },
   {
@@ -45,7 +45,7 @@
     }
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/itinerary-stops/2"
+    "self": "http://localhost:18000/api/v1/itinerary-stops/2"
    }
   },
   {
@@ -69,16 +69,16 @@
     }
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/itinerary-stops/3"
+    "self": "http://localhost:18000/api/v1/itinerary-stops/3"
    }
   }
  ],
  "links": {
-  "self": "http://localhost:8000/api/v1/itinerary-stops?filter%5Bitinerary%5D=1&include=stop&sort=position&page%5Bnumber%5D=1&page%5Bsize%5D=25",
-  "first": "http://localhost:8000/api/v1/itinerary-stops?filter%5Bitinerary%5D=1&include=stop&sort=position&page%5Bnumber%5D=1&page%5Bsize%5D=25",
+  "self": "http://localhost:18000/api/v1/itinerary-stops?filter%5Bitinerary%5D=1&include=stop&sort=position&page%5Bnumber%5D=1&page%5Bsize%5D=25",
+  "first": "http://localhost:18000/api/v1/itinerary-stops?filter%5Bitinerary%5D=1&include=stop&sort=position&page%5Bnumber%5D=1&page%5Bsize%5D=25",
   "prev": null,
   "next": null,
-  "last": "http://localhost:8000/api/v1/itinerary-stops?filter%5Bitinerary%5D=1&include=stop&sort=position&page%5Bnumber%5D=1&page%5Bsize%5D=25"
+  "last": "http://localhost:18000/api/v1/itinerary-stops?filter%5Bitinerary%5D=1&include=stop&sort=position&page%5Bnumber%5D=1&page%5Bsize%5D=25"
  },
  "meta": {
   "total": 3,
@@ -96,7 +96,8 @@
     "crossStreet2": "B",
     "latitude": 23.1,
     "longitude": -82.3,
-    "address": "Empresa, Calle 1 entre A y B"
+    "address": "Empresa, Calle 1 entre A y B",
+    "imageUrl": null
    },
    "relationships": {
     "entity": {
@@ -107,7 +108,7 @@
     }
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/stops/1"
+    "self": "http://localhost:18000/api/v1/stops/1"
    }
   },
   {
@@ -120,7 +121,8 @@
     "crossStreet2": null,
     "latitude": 23.11,
     "longitude": -82.3,
-    "address": "Parque, Calle 2"
+    "address": "Parque, Calle 2",
+    "imageUrl": null
    },
    "relationships": {
     "entity": {
@@ -131,7 +133,7 @@
     }
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/stops/2"
+    "self": "http://localhost:18000/api/v1/stops/2"
    }
   },
   {
@@ -144,7 +146,8 @@
     "crossStreet2": null,
     "latitude": 23.12,
     "longitude": -82.3,
-    "address": "Hospital, Calle 3"
+    "address": "Hospital, Calle 3",
+    "imageUrl": null
    },
    "relationships": {
     "entity": {
@@ -155,7 +158,7 @@
     }
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/stops/3"
+    "self": "http://localhost:18000/api/v1/stops/3"
    }
   }
  ]

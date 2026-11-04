@@ -5,7 +5,6 @@ import '../../core/json_api.dart';
 import '../../models/models.dart';
 import '../trips/trip_context.dart';
 import '../widgets/common.dart';
-import 'boarding.dart';
 
 /// Trabajadores por parada (en el orden del trayecto) y, dentro de cada una,
 /// alfabéticamente; con el registro de subida manual o por QR.
@@ -38,9 +37,8 @@ class _PassengersScreenState extends State<PassengersScreen> {
       showMessage(context, 'El ${TripLeg.directionName(_direction).toLowerCase()} no está en curso.');
       return;
     }
-    final count = await askChildren(context, passenger.eligibleChildren, initial: passenger.boardedChildren);
-    if (count == null || !mounted) return;
-    await runAction(context, () => context.api.post('/trip-boardings', resourceData('trip-boardings', attributes: {'method': 'manual', 'childrenCount': count}, relationships: {
+    // Los hijos que suben se marcan al escanear el QR (parte «QR», docs/11 §11.11).
+    await runAction(context, () => context.api.post('/trip-boardings', resourceData('trip-boardings', attributes: {'method': 'manual'}, relationships: {
           'tripLeg': ResourceId('trip-legs', leg.id),
           'worker': ResourceId('workers', passenger.worker.id),
         })));
@@ -87,11 +85,11 @@ class _PassengersScreenState extends State<PassengersScreen> {
             load: _load,
             builder: (context, passengers, reload) {
               final boarded = passengers.where((p) => p.boarded).length;
-              final children = passengers.fold<int>(0, (sum, p) => sum + p.eligibleChildren);
+              final children = passengers.fold<int>(0, (sum, p) => sum + (p.boardedChildren ?? 0));
               return ListView(children: [
                 ListTile(
                   title: Text('$boarded de ${plural(passengers.length, 'trabajador registrado', 'trabajadores registrados')}'),
-                  subtitle: children > 0 ? Text(plural(children, 'niño', 'niños')) : null,
+                  subtitle: children > 0 ? Text('Subieron ${plural(children, 'niño', 'niños')}') : null,
                 ),
                 for (final stop in stops) ...[
                   if (passengers.any((p) => p.stopId == stop.id)) SectionTitle(stop.landmark),
@@ -100,8 +98,8 @@ class _PassengersScreenState extends State<PassengersScreen> {
                       leading: WorkerAvatar(p.worker),
                       title: Text(p.worker.fullName),
                       subtitle: Wrap(spacing: 8, runSpacing: 2, crossAxisAlignment: WrapCrossAlignment.center, children: [
-                        if (p.worker.rank != null) RankBadge(p.worker.rank),
-                        if (p.eligibleChildren > 0) Text(plural(p.eligibleChildren, 'niño', 'niños')),
+                        if ((p.eligibleChildren ?? 0) > 0) Text('${plural(p.eligibleChildren!, 'hijo', 'hijos')} con derecho'),
+                        if (p.outsider != null) Text(p.outsider == 'entity' ? 'De otra Entidad' : 'De otro itinerario'),
                         if (p.boarded)
                           Text('Subió (${_method(p.boardingMethod)}'
                               '${p.boardedChildren != null && p.boardedChildren! > 0 ? ', ${plural(p.boardedChildren!, 'niño', 'niños')}' : ''})'),

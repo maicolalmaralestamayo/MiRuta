@@ -60,7 +60,7 @@ class _GlobalSettingsScreenState extends State<GlobalSettingsScreen> {
       );
     }
     return Scaffold(
-      appBar: AppBar(title: Text(widget.entityLevel ? 'Ajustes de ${context.session.adminEntity?.abbreviation ?? me.entity?.abbreviation ?? 'la Entidad'}' : 'Ajustes de la app')),
+      appBar: AppBar(title: Text(widget.entityLevel ? 'Ajustes de ${context.session.adminEntity?.abbreviation ?? context.session.selectedMembership?.entity.abbreviation ?? 'la Entidad'}' : 'Ajustes de la app')),
       body: AsyncView<(Map<String, SettingDefinition>, List<Resource>)>(
         key: _view,
         load: _load,

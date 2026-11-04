@@ -116,8 +116,7 @@ class _AccessRecoveriesScreenState extends State<AccessRecoveriesScreen> {
                               title: Text(worker.fullName),
                               subtitle: itinerary == null ? null : Text(itinerary),
                             ),
-                          _readOnly('Entidad', recovery.string('entityAbbreviation') ?? ''),
-                          _readOnly('Pase', '${recovery.integer('pass') ?? ''}'),
+                          _readOnly('Carné de identidad', recovery.string('identityCard') ?? ''),
                           _readOnly(
                             'Teléfono',
                             phone,

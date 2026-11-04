@@ -5,10 +5,13 @@
    "id": "1-1",
    "attributes": {
     "position": 1,
+    "expected": true,
     "eligibleChildren": 1,
     "boarded": true,
-    "boardedChildren": 1,
-    "boardingMethod": "self"
+    "boardedChildren": 0,
+    "boardedChildIds": [],
+    "boardingMethod": "self",
+    "outsider": null
    },
    "relationships": {
     "worker": {
@@ -21,6 +24,12 @@
      "data": {
       "type": "stops",
       "id": "2"
+     }
+    },
+    "tripBoarding": {
+     "data": {
+      "type": "trip-boardings",
+      "id": "1"
      }
     }
    }
@@ -40,10 +49,12 @@
     "firstSurname": "Pérez",
     "secondSurname": "García",
     "fullName": "Lucía María Pérez García",
-    "photoUrl": null,
     "sex": "F",
+    "photoUrl": null,
+    "hasPhone": true,
     "active": true,
-    "createdAt": "2026-10-31T15:51:02+00:00"
+    "itineraryAssignedAt": "2026-11-04T15:46:38+00:00",
+    "createdAt": "2026-11-04T15:46:36+00:00"
    },
    "relationships": {
     "user": {
@@ -56,12 +67,6 @@
      "data": {
       "type": "entities",
       "id": "1"
-     }
-    },
-    "rank": {
-     "data": {
-      "type": "ranks",
-      "id": "17"
      }
     },
     "itinerary": {
@@ -78,15 +83,18 @@
     }
    },
    "meta": {
-    "childrenCount": 1,
-    "roles": {
-     "isTransportChief": false,
-     "driverId": null,
-     "chiefOfItineraries": []
-    }
+    "roles": [
+     {
+      "id": "1",
+      "roleId": "1",
+      "name": "Trabajador",
+      "icon": "badge",
+      "itineraryId": null
+     }
+    ]
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/workers/1"
+    "self": "http://localhost:18000/api/v1/workers/1"
    }
   },
   {
@@ -98,34 +106,18 @@
     "firstSurname": "Pérez",
     "secondSurname": "García",
     "fullName": "Lucía María Pérez García",
+    "sex": "F",
     "photoUrl": null,
     "isAdmin": false,
-    "active": true
-   },
-   "relationships": {
-    "worker": {
-     "data": {
-      "type": "workers",
-      "id": "1"
-     }
-    }
+    "hasPhone": true,
+    "active": true,
+    "entities": [
+     "DOS",
+     "PRUEBA"
+    ]
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/users/2"
-   }
-  },
-  {
-   "type": "ranks",
-   "id": "17",
-   "attributes": {
-    "name": "Trabajador civil",
-    "description": null,
-    "observation": null,
-    "sortOrder": 17,
-    "iconUrl": null
-   },
-   "links": {
-    "self": "http://localhost:8000/api/v1/ranks/17"
+    "self": "http://localhost:18000/api/v1/users/2"
    }
   }
  ]

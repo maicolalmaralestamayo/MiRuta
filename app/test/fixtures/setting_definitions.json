@@ -5,19 +5,22 @@
    "id": "access_recovery_max_per_hour",
    "attributes": {
     "key": "access_recovery_max_per_hour",
-    "name": "Solicitudes \"No puedo entrar\" por hora desde un teléfono",
-    "description": null,
+    "name": "Solicitudes \"Olvidé algo\" por hora desde un teléfono",
+    "description": "Evita el abuso desde un mismo teléfono.",
     "valueType": "integer",
     "defaultValue": "3",
     "minValue": 1,
     "maxValue": 20,
     "minSetting": null,
+    "maxSetting": null,
     "level": "app",
     "userOverridable": false,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/access_recovery_max_per_hour"
+    "self": "http://localhost:18000/api/v1/setting-definitions/access_recovery_max_per_hour"
    }
   },
   {
@@ -25,19 +28,22 @@
    "id": "access_recovery_ttl_hours",
    "attributes": {
     "key": "access_recovery_ttl_hours",
-    "name": "Validez de una solicitud \"No puedo entrar\" (horas)",
-    "description": null,
+    "name": "Validez de una solicitud \"Olvidé algo\" (horas)",
+    "description": "Pasado ese plazo sin aprobarse, la solicitud caduca.",
     "valueType": "integer",
     "defaultValue": "72",
     "minValue": 1,
     "maxValue": 720,
     "minSetting": null,
+    "maxSetting": null,
     "level": "app",
     "userOverridable": false,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/access_recovery_ttl_hours"
+    "self": "http://localhost:18000/api/v1/setting-definitions/access_recovery_ttl_hours"
    }
   },
   {
@@ -46,38 +52,21 @@
    "attributes": {
     "key": "access_token_ttl_minutes",
     "name": "Validez del token de acceso (min)",
-    "description": null,
+    "description": "La app lo renueva sola sin pedir la contraseña.",
     "valueType": "integer",
     "defaultValue": "30",
     "minValue": 5,
     "maxValue": 240,
     "minSetting": null,
+    "maxSetting": null,
     "level": "app",
     "userOverridable": false,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/access_token_ttl_minutes"
-   }
-  },
-  {
-   "type": "setting-definitions",
-   "id": "activation_code_ttl_days",
-   "attributes": {
-    "key": "activation_code_ttl_days",
-    "name": "Validez del código de activación (días)",
-    "description": null,
-    "valueType": "integer",
-    "defaultValue": "7",
-    "minValue": 1,
-    "maxValue": 90,
-    "minSetting": null,
-    "level": "app",
-    "userOverridable": false,
-    "options": []
-   },
-   "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/activation_code_ttl_days"
+    "self": "http://localhost:18000/api/v1/setting-definitions/access_token_ttl_minutes"
    }
   },
   {
@@ -86,18 +75,21 @@
    "attributes": {
     "key": "app_max_mb",
     "name": "Tamaño máximo del APK de una actualización (MB)",
-    "description": null,
+    "description": "Los APK más grandes se rechazan.",
     "valueType": "integer",
     "defaultValue": "150",
     "minValue": 10,
     "maxValue": 500,
     "minSetting": null,
+    "maxSetting": null,
     "level": "app",
     "userOverridable": false,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/app_max_mb"
+    "self": "http://localhost:18000/api/v1/setting-definitions/app_max_mb"
    }
   },
   {
@@ -105,19 +97,22 @@
    "id": "auto_boarding_distance_m",
    "attributes": {
     "key": "auto_boarding_distance_m",
-    "name": "Distancia máxima al vehículo para la subida automática (m)",
-    "description": null,
+    "name": "Distancia al vehículo para la subida automática (m)",
+    "description": "Cerca de esa distancia se registra la subida sola.",
     "valueType": "integer",
     "defaultValue": "50",
     "minValue": 10,
     "maxValue": 500,
     "minSetting": null,
+    "maxSetting": null,
     "level": "app",
     "userOverridable": false,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/auto_boarding_distance_m"
+    "self": "http://localhost:18000/api/v1/setting-definitions/auto_boarding_distance_m"
    }
   },
   {
@@ -125,19 +120,22 @@
    "id": "auto_boarding_samples",
    "attributes": {
     "key": "auto_boarding_samples",
-    "name": "Posiciones seguidas necesarias para la subida automática",
-    "description": null,
+    "name": "Posiciones seguidas para la subida automática",
+    "description": "Cuántas veces seguidas tiene que estar cerca.",
     "valueType": "integer",
     "defaultValue": "3",
     "minValue": 2,
     "maxValue": 20,
     "minSetting": null,
+    "maxSetting": null,
     "level": "app",
     "userOverridable": false,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/auto_boarding_samples"
+    "self": "http://localhost:18000/api/v1/setting-definitions/auto_boarding_samples"
    }
   },
   {
@@ -146,38 +144,21 @@
    "attributes": {
     "key": "background_sync_enabled",
     "name": "Sincronización en segundo plano",
-    "description": null,
+    "description": "Consultar viajes, avisos y mensajes con la app cerrada.",
     "valueType": "boolean",
     "defaultValue": "1",
     "minValue": null,
     "maxValue": null,
     "minSetting": null,
+    "maxSetting": null,
     "level": "entity",
     "userOverridable": true,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/background_sync_enabled"
-   }
-  },
-  {
-   "type": "setting-definitions",
-   "id": "boarding_pass_ttl_seconds",
-   "attributes": {
-    "key": "boarding_pass_ttl_seconds",
-    "name": "Validez del código QR de subida (s)",
-    "description": null,
-    "valueType": "integer",
-    "defaultValue": "120",
-    "minValue": 30,
-    "maxValue": 3600,
-    "minSetting": null,
-    "level": "app",
-    "userOverridable": false,
-    "options": []
-   },
-   "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/boarding_pass_ttl_seconds"
+    "self": "http://localhost:18000/api/v1/setting-definitions/background_sync_enabled"
    }
   },
   {
@@ -186,18 +167,21 @@
    "attributes": {
     "key": "cancel_notice_template",
     "name": "Texto del aviso de cancelación",
-    "description": null,
+    "description": "Las palabras entre llaves se sustituyen por los datos.",
     "valueType": "string",
-    "defaultValue": "Se canceló tu viaje de {itinerario} del {fecha_salida}.",
+    "defaultValue": "Se canceló su viaje de {itinerario} del {fecha_salida}.",
     "minValue": 1,
     "maxValue": 500,
     "minSetting": null,
+    "maxSetting": null,
     "level": "entity",
     "userOverridable": true,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/cancel_notice_template"
+    "self": "http://localhost:18000/api/v1/setting-definitions/cancel_notice_template"
    }
   },
   {
@@ -206,18 +190,21 @@
    "attributes": {
     "key": "change_notice_template",
     "name": "Texto del aviso de cambio",
-    "description": null,
+    "description": "Las palabras entre llaves se sustituyen por los datos.",
     "valueType": "string",
-    "defaultValue": "Cambió tu viaje de {itinerario} del {fecha_salida}: {cambios}.",
+    "defaultValue": "Cambió su viaje de {itinerario} del {fecha_salida}: {cambios}.",
     "minValue": 1,
     "maxValue": 500,
     "minSetting": null,
+    "maxSetting": null,
     "level": "entity",
     "userOverridable": true,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/change_notice_template"
+    "self": "http://localhost:18000/api/v1/setting-definitions/change_notice_template"
    }
   },
   {
@@ -226,18 +213,44 @@
    "attributes": {
     "key": "child_max_age",
     "name": "Edad máxima de los hijos para viajar",
-    "description": "Tienen derecho hasta el 31 de agosto siguiente al cumpleaños de esta edad.",
+    "description": "Hasta el 31 de agosto siguiente al cumpleaños de esa edad.",
     "valueType": "integer",
     "defaultValue": "16",
     "minValue": 0,
     "maxValue": 25,
     "minSetting": null,
+    "maxSetting": null,
     "level": "entity",
     "userOverridable": false,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/child_max_age"
+    "self": "http://localhost:18000/api/v1/setting-definitions/child_max_age"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "conversation_notice_enabled",
+   "attributes": {
+    "key": "conversation_notice_enabled",
+    "name": "Avisos de mensajes nuevos en las conversaciones",
+    "description": "Notificación al llegar una respuesta.",
+    "valueType": "boolean",
+    "defaultValue": "1",
+    "minValue": null,
+    "maxValue": null,
+    "minSetting": null,
+    "maxSetting": null,
+    "level": "entity",
+    "userOverridable": true,
+    "itineraryLevel": false,
+    "stopLevel": false,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:18000/api/v1/setting-definitions/conversation_notice_enabled"
    }
   },
   {
@@ -252,12 +265,15 @@
     "minValue": 1,
     "maxValue": 365,
     "minSetting": null,
+    "maxSetting": null,
     "level": "app",
     "userOverridable": false,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/conversation_retention_days"
+    "self": "http://localhost:18000/api/v1/setting-definitions/conversation_retention_days"
    }
   },
   {
@@ -266,18 +282,21 @@
    "attributes": {
     "key": "conversations_poll_background_minutes",
     "name": "Conversaciones: consulta en segundo plano (min)",
-    "description": null,
+    "description": "Con la app cerrada.",
     "valueType": "integer",
     "defaultValue": "30",
     "minValue": null,
     "maxValue": 1440,
     "minSetting": "min_background_poll_minutes",
+    "maxSetting": null,
     "level": "entity",
     "userOverridable": true,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/conversations_poll_background_minutes"
+    "self": "http://localhost:18000/api/v1/setting-definitions/conversations_poll_background_minutes"
    }
   },
   {
@@ -286,18 +305,21 @@
    "attributes": {
     "key": "conversations_poll_foreground_seconds",
     "name": "Conversaciones: consulta con la app abierta (s)",
-    "description": null,
+    "description": "Cada cuánto se buscan respuestas nuevas.",
     "valueType": "integer",
     "defaultValue": "10",
     "minValue": null,
     "maxValue": 600,
     "minSetting": "min_foreground_poll_seconds",
+    "maxSetting": null,
     "level": "entity",
     "userOverridable": true,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/conversations_poll_foreground_seconds"
+    "self": "http://localhost:18000/api/v1/setting-definitions/conversations_poll_foreground_seconds"
    }
   },
   {
@@ -305,15 +327,18 @@
    "id": "departure_notice_fallback",
    "attributes": {
     "key": "departure_notice_fallback",
-    "name": "Si la hora fija del aviso de salida no sirve",
-    "description": null,
+    "name": "Si la hora fija del aviso de viaje de ida ya pasó",
+    "description": "Qué hacer si el viaje se planifica después de esa hora.",
     "valueType": "option",
     "defaultValue": "default",
     "minValue": null,
     "maxValue": null,
     "minSetting": null,
+    "maxSetting": null,
     "level": "entity",
     "userOverridable": true,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": [
      {
       "value": "default",
@@ -326,7 +351,7 @@
     ]
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/departure_notice_fallback"
+    "self": "http://localhost:18000/api/v1/setting-definitions/departure_notice_fallback"
    }
   },
   {
@@ -334,19 +359,22 @@
    "id": "departure_notice_fixed_days_before",
    "attributes": {
     "key": "departure_notice_fixed_days_before",
-    "name": "Días antes de la hora fija del aviso de salida",
-    "description": null,
+    "name": "Días antes de la hora fija del aviso de viaje de ida",
+    "description": "0 = el mismo día del viaje.",
     "valueType": "integer",
     "defaultValue": "0",
     "minValue": 0,
     "maxValue": 7,
     "minSetting": null,
+    "maxSetting": null,
     "level": "entity",
     "userOverridable": true,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/departure_notice_fixed_days_before"
+    "self": "http://localhost:18000/api/v1/setting-definitions/departure_notice_fixed_days_before"
    }
   },
   {
@@ -354,19 +382,22 @@
    "id": "departure_notice_fixed_time",
    "attributes": {
     "key": "departure_notice_fixed_time",
-    "name": "Hora fija del aviso de salida",
-    "description": null,
+    "name": "Hora fija del aviso de viaje de ida",
+    "description": "Con la forma \"Hora fija\".",
     "valueType": "time",
     "defaultValue": "14:00",
     "minValue": null,
     "maxValue": null,
     "minSetting": null,
+    "maxSetting": null,
     "level": "entity",
     "userOverridable": true,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/departure_notice_fixed_time"
+    "self": "http://localhost:18000/api/v1/setting-definitions/departure_notice_fixed_time"
    }
   },
   {
@@ -374,19 +405,22 @@
    "id": "departure_notice_minutes_before",
    "attributes": {
     "key": "departure_notice_minutes_before",
-    "name": "Minutos antes del aviso de salida",
-    "description": null,
+    "name": "Minutos antes del aviso de viaje de ida",
+    "description": "Con la forma \"Tiempo antes\".",
     "valueType": "integer",
     "defaultValue": "60",
     "minValue": 0,
     "maxValue": 1440,
     "minSetting": null,
+    "maxSetting": null,
     "level": "entity",
     "userOverridable": true,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/departure_notice_minutes_before"
+    "self": "http://localhost:18000/api/v1/setting-definitions/departure_notice_minutes_before"
    }
   },
   {
@@ -394,15 +428,18 @@
    "id": "departure_notice_mode",
    "attributes": {
     "key": "departure_notice_mode",
-    "name": "Forma del aviso de salida",
-    "description": null,
+    "name": "Forma del aviso de viaje de ida",
+    "description": "Avisar un tiempo antes o a una hora fija.",
     "valueType": "option",
     "defaultValue": "relative",
     "minValue": null,
     "maxValue": null,
     "minSetting": null,
+    "maxSetting": null,
     "level": "entity",
     "userOverridable": true,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": [
      {
       "value": "relative",
@@ -415,7 +452,7 @@
     ]
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/departure_notice_mode"
+    "self": "http://localhost:18000/api/v1/setting-definitions/departure_notice_mode"
    }
   },
   {
@@ -423,19 +460,22 @@
    "id": "departure_notice_template",
    "attributes": {
     "key": "departure_notice_template",
-    "name": "Texto del aviso de salida",
-    "description": null,
+    "name": "Texto del aviso de viaje de ida",
+    "description": "Las palabras entre llaves se sustituyen por los datos del viaje.",
     "valueType": "string",
-    "defaultValue": "Salida {fecha_salida} a las {hora_salida} desde {punto_salida}. {tipo} {matricula}, chofer {chofer}, capacidad {capacidad}. Regreso {fecha_regreso} a las {hora_regreso} desde {punto_regreso}.",
+    "defaultValue": "Viaje de ida: {fecha_salida} a las {hora_salida} desde {punto_salida}. {tipo} {matricula}, chofer {chofer}, capacidad {capacidad}. Viaje de regreso: {fecha_regreso} a las {hora_regreso} desde {punto_regreso}.",
     "minValue": 1,
     "maxValue": 500,
     "minSetting": null,
+    "maxSetting": null,
     "level": "entity",
     "userOverridable": true,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/departure_notice_template"
+    "self": "http://localhost:18000/api/v1/setting-definitions/departure_notice_template"
    }
   },
   {
@@ -450,12 +490,15 @@
     "minValue": 1,
     "maxValue": 365,
     "minSetting": null,
+    "maxSetting": null,
     "level": "app",
     "userOverridable": false,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/guest_conversation_retention_days"
+    "self": "http://localhost:18000/api/v1/setting-definitions/guest_conversation_retention_days"
    }
   },
   {
@@ -464,18 +507,21 @@
    "attributes": {
     "key": "guest_messages_max_per_hour",
     "name": "Mensajes por hora sin cuenta desde un teléfono",
-    "description": null,
+    "description": "Evita el abuso desde un mismo teléfono.",
     "valueType": "integer",
     "defaultValue": "10",
     "minValue": 1,
     "maxValue": 100,
     "minSetting": null,
+    "maxSetting": null,
     "level": "app",
     "userOverridable": false,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/guest_messages_max_per_hour"
+    "self": "http://localhost:18000/api/v1/setting-definitions/guest_messages_max_per_hour"
    }
   },
   {
@@ -484,18 +530,21 @@
    "attributes": {
     "key": "inactivity_days",
     "name": "Días sin viajar para la baja automática",
-    "description": null,
+    "description": "Pasados esos días sin viajar, sale del itinerario.",
     "valueType": "integer",
     "defaultValue": "30",
     "minValue": 1,
     "maxValue": 365,
     "minSetting": null,
+    "maxSetting": null,
     "level": "entity",
     "userOverridable": false,
+    "itineraryLevel": true,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/inactivity_days"
+    "self": "http://localhost:18000/api/v1/setting-definitions/inactivity_days"
    }
   },
   {
@@ -504,18 +553,21 @@
    "attributes": {
     "key": "inactivity_warning_days",
     "name": "Días de aviso previo a la baja por inactividad",
-    "description": null,
+    "description": "Se avisa antes de dar la baja.",
     "valueType": "integer",
     "defaultValue": "5",
     "minValue": 0,
     "maxValue": 30,
     "minSetting": null,
+    "maxSetting": null,
     "level": "entity",
     "userOverridable": false,
+    "itineraryLevel": true,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/inactivity_warning_days"
+    "self": "http://localhost:18000/api/v1/setting-definitions/inactivity_warning_days"
    }
   },
   {
@@ -524,18 +576,44 @@
    "attributes": {
     "key": "location_interval_seconds",
     "name": "Frecuencia de envío de ubicación (s)",
-    "description": null,
+    "description": "Cada cuánto se envía la ubicación durante el recorrido.",
     "valueType": "integer",
     "defaultValue": "10",
     "minValue": null,
     "maxValue": 600,
     "minSetting": "min_location_interval_seconds",
+    "maxSetting": null,
     "level": "entity",
     "userOverridable": true,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/location_interval_seconds"
+    "self": "http://localhost:18000/api/v1/setting-definitions/location_interval_seconds"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "map_tiles_url",
+   "attributes": {
+    "key": "map_tiles_url",
+    "name": "Dirección de las imágenes del mapa",
+    "description": "Del servidor de mapas propio; relativa a la dirección del servidor.",
+    "valueType": "string",
+    "defaultValue": "/tiles/{z}/{x}/{y}.png",
+    "minValue": 1,
+    "maxValue": 500,
+    "minSetting": null,
+    "maxSetting": null,
+    "level": "app",
+    "userOverridable": false,
+    "itineraryLevel": false,
+    "stopLevel": false,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:18000/api/v1/setting-definitions/map_tiles_url"
    }
   },
   {
@@ -544,18 +622,21 @@
    "attributes": {
     "key": "message_max_length",
     "name": "Longitud máxima de un mensaje de chat",
-    "description": null,
+    "description": "Cantidad máxima de caracteres por mensaje.",
     "valueType": "integer",
     "defaultValue": "1000",
     "minValue": 50,
     "maxValue": 5000,
     "minSetting": null,
+    "maxSetting": null,
     "level": "app",
     "userOverridable": false,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/message_max_length"
+    "self": "http://localhost:18000/api/v1/setting-definitions/message_max_length"
    }
   },
   {
@@ -563,19 +644,22 @@
    "id": "min_background_poll_minutes",
    "attributes": {
     "key": "min_background_poll_minutes",
-    "name": "Frecuencia mínima de sincronización en segundo plano (min)",
-    "description": null,
+    "name": "Frecuencia mínima en segundo plano (min)",
+    "description": "Ningún usuario puede sincronizar más a menudo.",
     "valueType": "integer",
     "defaultValue": "30",
     "minValue": 15,
     "maxValue": 1440,
     "minSetting": null,
+    "maxSetting": null,
     "level": "app",
     "userOverridable": false,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/min_background_poll_minutes"
+    "self": "http://localhost:18000/api/v1/setting-definitions/min_background_poll_minutes"
    }
   },
   {
@@ -584,18 +668,21 @@
    "attributes": {
     "key": "min_foreground_poll_seconds",
     "name": "Frecuencia mínima de consulta con la app abierta (s)",
-    "description": null,
+    "description": "Ningún usuario puede consultar más a menudo.",
     "valueType": "integer",
     "defaultValue": "5",
     "minValue": 1,
     "maxValue": 60,
     "minSetting": null,
+    "maxSetting": null,
     "level": "app",
     "userOverridable": false,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/min_foreground_poll_seconds"
+    "self": "http://localhost:18000/api/v1/setting-definitions/min_foreground_poll_seconds"
    }
   },
   {
@@ -604,18 +691,21 @@
    "attributes": {
     "key": "min_in_trip_background_poll_seconds",
     "name": "Frecuencia mínima en segundo plano durante un recorrido (s)",
-    "description": null,
+    "description": "Ningún usuario puede consultar más a menudo durante el recorrido.",
     "valueType": "integer",
     "defaultValue": "30",
     "minValue": 10,
     "maxValue": 600,
     "minSetting": null,
+    "maxSetting": null,
     "level": "app",
     "userOverridable": false,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/min_in_trip_background_poll_seconds"
+    "self": "http://localhost:18000/api/v1/setting-definitions/min_in_trip_background_poll_seconds"
    }
   },
   {
@@ -624,18 +714,21 @@
    "attributes": {
     "key": "min_location_interval_seconds",
     "name": "Frecuencia mínima de envío de ubicación (s)",
-    "description": null,
+    "description": "Ningún sensor puede enviar más a menudo.",
     "valueType": "integer",
     "defaultValue": "5",
     "minValue": 1,
     "maxValue": 60,
     "minSetting": null,
+    "maxSetting": null,
     "level": "app",
     "userOverridable": false,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/min_location_interval_seconds"
+    "self": "http://localhost:18000/api/v1/setting-definitions/min_location_interval_seconds"
    }
   },
   {
@@ -644,18 +737,21 @@
    "attributes": {
     "key": "notices_poll_background_minutes",
     "name": "Solicitudes y avisos: consulta en segundo plano (min)",
-    "description": null,
+    "description": "Con la app cerrada.",
     "valueType": "integer",
     "defaultValue": "30",
     "minValue": null,
     "maxValue": 1440,
     "minSetting": "min_background_poll_minutes",
+    "maxSetting": null,
     "level": "entity",
     "userOverridable": true,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/notices_poll_background_minutes"
+    "self": "http://localhost:18000/api/v1/setting-definitions/notices_poll_background_minutes"
    }
   },
   {
@@ -664,18 +760,21 @@
    "attributes": {
     "key": "notices_poll_foreground_seconds",
     "name": "Solicitudes y avisos: consulta con la app abierta (s)",
-    "description": null,
+    "description": "Cada cuánto se buscan avisos nuevos.",
     "valueType": "integer",
     "defaultValue": "60",
     "minValue": null,
     "maxValue": 3600,
     "minSetting": "min_foreground_poll_seconds",
+    "maxSetting": null,
     "level": "entity",
     "userOverridable": true,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/notices_poll_foreground_seconds"
+    "self": "http://localhost:18000/api/v1/setting-definitions/notices_poll_foreground_seconds"
    }
   },
   {
@@ -683,19 +782,22 @@
    "id": "notify_during_absence",
    "attributes": {
     "key": "notify_during_absence",
-    "name": "Recibir avisos de viaje durante una ausencia",
-    "description": null,
+    "name": "Avisos de viaje durante una ausencia",
+    "description": "Recibirlos aunque tenga una ausencia aprobada.",
     "valueType": "boolean",
     "defaultValue": "0",
     "minValue": null,
     "maxValue": null,
     "minSetting": null,
+    "maxSetting": null,
     "level": "entity",
     "userOverridable": true,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/notify_during_absence"
+    "self": "http://localhost:18000/api/v1/setting-definitions/notify_during_absence"
    }
   },
   {
@@ -704,78 +806,44 @@
    "attributes": {
     "key": "password_expiry_days",
     "name": "Caducidad de la contraseña (días)",
-    "description": null,
+    "description": "Al caducar, hay que cambiarla para seguir.",
     "valueType": "integer",
     "defaultValue": "365",
     "minValue": 30,
     "maxValue": 1095,
     "minSetting": null,
+    "maxSetting": null,
     "level": "app",
     "userOverridable": false,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/password_expiry_days"
+    "self": "http://localhost:18000/api/v1/setting-definitions/password_expiry_days"
    }
   },
   {
    "type": "setting-definitions",
-   "id": "password_expiry_warning_days",
+   "id": "password_expiry_notice_days",
    "attributes": {
-    "key": "password_expiry_warning_days",
-    "name": "Aviso antes de que caduque la contraseña (días)",
-    "description": null,
+    "key": "password_expiry_notice_days",
+    "name": "Días de aviso antes de que caduque la contraseña",
+    "description": "Un aviso cada día durante esos días; 0 = sin avisos.",
     "valueType": "integer",
     "defaultValue": "15",
     "minValue": 0,
     "maxValue": 60,
     "minSetting": null,
-    "level": "app",
-    "userOverridable": false,
+    "maxSetting": null,
+    "level": "entity",
+    "userOverridable": true,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/password_expiry_warning_days"
-   }
-  },
-  {
-   "type": "setting-definitions",
-   "id": "password_forbid_common",
-   "attributes": {
-    "key": "password_forbid_common",
-    "name": "La contraseña no puede ser una de las más comunes",
-    "description": null,
-    "valueType": "boolean",
-    "defaultValue": "1",
-    "minValue": null,
-    "maxValue": null,
-    "minSetting": null,
-    "level": "app",
-    "userOverridable": false,
-    "options": []
-   },
-   "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/password_forbid_common"
-   }
-  },
-  {
-   "type": "setting-definitions",
-   "id": "password_forbid_personal_data",
-   "attributes": {
-    "key": "password_forbid_personal_data",
-    "name": "La contraseña no puede contener el usuario ni los nombres",
-    "description": null,
-    "valueType": "boolean",
-    "defaultValue": "1",
-    "minValue": null,
-    "maxValue": null,
-    "minSetting": null,
-    "level": "app",
-    "userOverridable": false,
-    "options": []
-   },
-   "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/password_forbid_personal_data"
+    "self": "http://localhost:18000/api/v1/setting-definitions/password_expiry_notice_days"
    }
   },
   {
@@ -784,18 +852,21 @@
    "attributes": {
     "key": "password_history_count",
     "name": "Contraseñas anteriores que no se pueden repetir",
-    "description": null,
+    "description": "Evita volver a poner las últimas contraseñas.",
     "valueType": "integer",
     "defaultValue": "5",
     "minValue": 0,
     "maxValue": 24,
     "minSetting": null,
+    "maxSetting": null,
     "level": "app",
     "userOverridable": false,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/password_history_count"
+    "self": "http://localhost:18000/api/v1/setting-definitions/password_history_count"
    }
   },
   {
@@ -804,18 +875,21 @@
    "attributes": {
     "key": "password_min_length",
     "name": "Longitud mínima de la contraseña",
-    "description": null,
+    "description": "Cantidad mínima de caracteres.",
     "valueType": "integer",
     "defaultValue": "8",
     "minValue": 6,
     "maxValue": 64,
     "minSetting": null,
+    "maxSetting": null,
     "level": "app",
     "userOverridable": false,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/password_min_length"
+    "self": "http://localhost:18000/api/v1/setting-definitions/password_min_length"
    }
   },
   {
@@ -823,19 +897,22 @@
    "id": "password_required_classes",
    "attributes": {
     "key": "password_required_classes",
-    "name": "Tipos de carácter exigidos en la contraseña (de mayúscula, minúscula, número y símbolo)",
-    "description": null,
+    "name": "Tipos de carácter exigidos en la contraseña",
+    "description": "De mayúsculas, minúsculas, números y símbolos.",
     "valueType": "integer",
     "defaultValue": "3",
     "minValue": 1,
     "maxValue": 4,
     "minSetting": null,
+    "maxSetting": null,
     "level": "app",
     "userOverridable": false,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/password_required_classes"
+    "self": "http://localhost:18000/api/v1/setting-definitions/password_required_classes"
    }
   },
   {
@@ -843,39 +920,45 @@
    "id": "photo_max_kb",
    "attributes": {
     "key": "photo_max_kb",
-    "name": "Tamaño máximo de la foto de perfil (KB)",
-    "description": null,
+    "name": "Tamaño máximo de una foto o imagen (KB)",
+    "description": "Fotos de perfil y de los hijos, e imágenes de Entidades, itinerarios y paradas.",
     "valueType": "integer",
     "defaultValue": "2048",
     "minValue": 100,
     "maxValue": 10240,
     "minSetting": null,
+    "maxSetting": null,
     "level": "app",
     "userOverridable": false,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/photo_max_kb"
+    "self": "http://localhost:18000/api/v1/setting-definitions/photo_max_kb"
    }
   },
   {
    "type": "setting-definitions",
-   "id": "rank_icon_max_kb",
+   "id": "plate_letters",
    "attributes": {
-    "key": "rank_icon_max_kb",
-    "name": "Tamaño máximo del icono de jerarquía (KB)",
-    "description": null,
-    "valueType": "integer",
-    "defaultValue": "512",
-    "minValue": 50,
-    "maxValue": 2048,
+    "key": "plate_letters",
+    "name": "Letras permitidas en las matrículas",
+    "description": "Separadas por comas; la matrícula es una letra y 6 dígitos.",
+    "valueType": "string",
+    "defaultValue": "B,P,T",
+    "minValue": 1,
+    "maxValue": 500,
     "minSetting": null,
+    "maxSetting": null,
     "level": "app",
     "userOverridable": false,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/rank_icon_max_kb"
+    "self": "http://localhost:18000/api/v1/setting-definitions/plate_letters"
    }
   },
   {
@@ -884,18 +967,21 @@
    "attributes": {
     "key": "read_notice_retention_days",
     "name": "Días de conservación de los avisos leídos",
-    "description": null,
+    "description": "Pasado ese plazo los avisos leídos se borran.",
     "valueType": "integer",
     "defaultValue": "90",
     "minValue": 1,
     "maxValue": 3650,
     "minSetting": null,
+    "maxSetting": null,
     "level": "app",
     "userOverridable": false,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/read_notice_retention_days"
+    "self": "http://localhost:18000/api/v1/setting-definitions/read_notice_retention_days"
    }
   },
   {
@@ -904,18 +990,90 @@
    "attributes": {
     "key": "refresh_token_ttl_days",
     "name": "Validez del token de renovación (días)",
-    "description": null,
+    "description": "Tiempo máximo de una sesión sin volver a entrar.",
     "valueType": "integer",
     "defaultValue": "90",
     "minValue": 1,
     "maxValue": 365,
     "minSetting": null,
+    "maxSetting": null,
     "level": "app",
     "userOverridable": false,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/refresh_token_ttl_days"
+    "self": "http://localhost:18000/api/v1/setting-definitions/refresh_token_ttl_days"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "remember_password",
+   "attributes": {
+    "key": "remember_password",
+    "name": "Recordar contraseña",
+    "description": "No pedirla al abrir la app durante los días indicados.",
+    "valueType": "boolean",
+    "defaultValue": "1",
+    "minValue": null,
+    "maxValue": null,
+    "minSetting": null,
+    "maxSetting": null,
+    "level": "entity",
+    "userOverridable": true,
+    "itineraryLevel": false,
+    "stopLevel": false,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:18000/api/v1/setting-definitions/remember_password"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "remember_password_days",
+   "attributes": {
+    "key": "remember_password_days",
+    "name": "Días para recordar la contraseña",
+    "description": "Pasado ese plazo se vuelve a pedir.",
+    "valueType": "integer",
+    "defaultValue": "7",
+    "minValue": 1,
+    "maxValue": 365,
+    "minSetting": null,
+    "maxSetting": "remember_password_max_days",
+    "level": "entity",
+    "userOverridable": true,
+    "itineraryLevel": false,
+    "stopLevel": false,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:18000/api/v1/setting-definitions/remember_password_days"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "remember_password_max_days",
+   "attributes": {
+    "key": "remember_password_max_days",
+    "name": "Máximo de días para recordar la contraseña",
+    "description": "Límite del ajuste \"Días para recordar la contraseña\".",
+    "valueType": "integer",
+    "defaultValue": "30",
+    "minValue": 1,
+    "maxValue": 365,
+    "minSetting": null,
+    "maxSetting": null,
+    "level": "app",
+    "userOverridable": false,
+    "itineraryLevel": false,
+    "stopLevel": false,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:18000/api/v1/setting-definitions/remember_password_max_days"
    }
   },
   {
@@ -923,15 +1081,18 @@
    "id": "return_notice_fallback",
    "attributes": {
     "key": "return_notice_fallback",
-    "name": "Si la hora fija del aviso de regreso no sirve",
-    "description": null,
+    "name": "Si la hora fija del aviso de viaje de regreso ya pasó",
+    "description": "Qué hacer si el viaje se planifica después de esa hora.",
     "valueType": "option",
     "defaultValue": "default",
     "minValue": null,
     "maxValue": null,
     "minSetting": null,
+    "maxSetting": null,
     "level": "entity",
     "userOverridable": true,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": [
      {
       "value": "default",
@@ -944,7 +1105,7 @@
     ]
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/return_notice_fallback"
+    "self": "http://localhost:18000/api/v1/setting-definitions/return_notice_fallback"
    }
   },
   {
@@ -952,19 +1113,22 @@
    "id": "return_notice_fixed_days_before",
    "attributes": {
     "key": "return_notice_fixed_days_before",
-    "name": "Días antes de la hora fija del aviso de regreso",
-    "description": null,
+    "name": "Días antes de la hora fija del aviso de viaje de regreso",
+    "description": "0 = el mismo día del viaje.",
     "valueType": "integer",
     "defaultValue": "1",
     "minValue": 0,
     "maxValue": 7,
     "minSetting": null,
+    "maxSetting": null,
     "level": "entity",
     "userOverridable": true,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/return_notice_fixed_days_before"
+    "self": "http://localhost:18000/api/v1/setting-definitions/return_notice_fixed_days_before"
    }
   },
   {
@@ -972,19 +1136,22 @@
    "id": "return_notice_fixed_time",
    "attributes": {
     "key": "return_notice_fixed_time",
-    "name": "Hora fija del aviso de regreso",
-    "description": null,
+    "name": "Hora fija del aviso de viaje de regreso",
+    "description": "Con la forma \"Hora fija\".",
     "valueType": "time",
     "defaultValue": "23:00",
     "minValue": null,
     "maxValue": null,
     "minSetting": null,
+    "maxSetting": null,
     "level": "entity",
     "userOverridable": true,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/return_notice_fixed_time"
+    "self": "http://localhost:18000/api/v1/setting-definitions/return_notice_fixed_time"
    }
   },
   {
@@ -992,19 +1159,22 @@
    "id": "return_notice_minutes_before",
    "attributes": {
     "key": "return_notice_minutes_before",
-    "name": "Minutos antes del aviso de regreso",
-    "description": null,
+    "name": "Minutos antes del aviso de viaje de regreso",
+    "description": "Con la forma \"Tiempo antes\".",
     "valueType": "integer",
     "defaultValue": "60",
     "minValue": 0,
     "maxValue": 1440,
     "minSetting": null,
+    "maxSetting": null,
     "level": "entity",
     "userOverridable": true,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/return_notice_minutes_before"
+    "self": "http://localhost:18000/api/v1/setting-definitions/return_notice_minutes_before"
    }
   },
   {
@@ -1012,15 +1182,18 @@
    "id": "return_notice_mode",
    "attributes": {
     "key": "return_notice_mode",
-    "name": "Forma del aviso de regreso",
-    "description": null,
+    "name": "Forma del aviso de viaje de regreso",
+    "description": "Avisar un tiempo antes o a una hora fija.",
     "valueType": "option",
     "defaultValue": "relative",
     "minValue": null,
     "maxValue": null,
     "minSetting": null,
+    "maxSetting": null,
     "level": "entity",
     "userOverridable": true,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": [
      {
       "value": "relative",
@@ -1033,7 +1206,7 @@
     ]
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/return_notice_mode"
+    "self": "http://localhost:18000/api/v1/setting-definitions/return_notice_mode"
    }
   },
   {
@@ -1041,19 +1214,45 @@
    "id": "return_notice_template",
    "attributes": {
     "key": "return_notice_template",
-    "name": "Texto del aviso de regreso",
-    "description": null,
+    "name": "Texto del aviso de viaje de regreso",
+    "description": "Las palabras entre llaves se sustituyen por los datos del viaje.",
     "valueType": "string",
-    "defaultValue": "Regreso {fecha_regreso} a las {hora_regreso} desde {punto_regreso}. {tipo} {matricula}, chofer {chofer}, capacidad {capacidad}.",
+    "defaultValue": "Viaje de regreso: {fecha_regreso} a las {hora_regreso} desde {punto_regreso}. {tipo} {matricula}, chofer {chofer}, capacidad {capacidad}.",
     "minValue": 1,
     "maxValue": 500,
     "minSetting": null,
+    "maxSetting": null,
     "level": "entity",
     "userOverridable": true,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/return_notice_template"
+    "self": "http://localhost:18000/api/v1/setting-definitions/return_notice_template"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "route_deviation_m",
+   "attributes": {
+    "key": "route_deviation_m",
+    "name": "Distancia al recorrido de referencia para un desvío (m)",
+    "description": "Si se aleja más, se avisa del desvío.",
+    "valueType": "integer",
+    "defaultValue": "300",
+    "minValue": 50,
+    "maxValue": 5000,
+    "minSetting": null,
+    "maxSetting": null,
+    "level": "entity",
+    "userOverridable": false,
+    "itineraryLevel": true,
+    "stopLevel": false,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:18000/api/v1/setting-definitions/route_deviation_m"
    }
   },
   {
@@ -1062,18 +1261,21 @@
    "attributes": {
     "key": "saturation_notice_enabled",
     "name": "Avisos de saturación del transporte",
-    "description": null,
+    "description": "Cuando los trabajadores esperados superan la capacidad.",
     "valueType": "boolean",
     "defaultValue": "1",
     "minValue": null,
     "maxValue": null,
     "minSetting": null,
+    "maxSetting": null,
     "level": "entity",
     "userOverridable": true,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/saturation_notice_enabled"
+    "self": "http://localhost:18000/api/v1/setting-definitions/saturation_notice_enabled"
    }
   },
   {
@@ -1082,14 +1284,17 @@
    "attributes": {
     "key": "saturation_notice_level",
     "name": "Avisar cuando el transporte esté",
-    "description": null,
+    "description": "A partir de qué nivel avisar.",
     "valueType": "option",
     "defaultValue": "overloaded",
     "minValue": null,
     "maxValue": null,
     "minSetting": null,
+    "maxSetting": null,
     "level": "entity",
     "userOverridable": true,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": [
      {
       "value": "overloaded",
@@ -1102,7 +1307,7 @@
     ]
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/saturation_notice_level"
+    "self": "http://localhost:18000/api/v1/setting-definitions/saturation_notice_level"
    }
   },
   {
@@ -1111,18 +1316,21 @@
    "attributes": {
     "key": "saturation_notice_minutes_before",
     "name": "Minutos antes de la salida para el aviso de saturación",
-    "description": null,
+    "description": "Con \"Antes de la salida\".",
     "valueType": "integer",
     "defaultValue": "120",
     "minValue": 0,
     "maxValue": 1440,
     "minSetting": null,
+    "maxSetting": null,
     "level": "entity",
     "userOverridable": true,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/saturation_notice_minutes_before"
+    "self": "http://localhost:18000/api/v1/setting-definitions/saturation_notice_minutes_before"
    }
   },
   {
@@ -1131,14 +1339,17 @@
    "attributes": {
     "key": "saturation_notice_scope",
     "name": "Avisos de saturación de",
-    "description": null,
+    "description": "Qué viajes vigilar.",
     "valueType": "option",
     "defaultValue": "managed",
     "minValue": null,
     "maxValue": null,
     "minSetting": null,
+    "maxSetting": null,
     "level": "entity",
     "userOverridable": true,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": [
      {
       "value": "own",
@@ -1151,7 +1362,7 @@
     ]
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/saturation_notice_scope"
+    "self": "http://localhost:18000/api/v1/setting-definitions/saturation_notice_scope"
    }
   },
   {
@@ -1160,14 +1371,17 @@
    "attributes": {
     "key": "saturation_notice_when",
     "name": "Cuándo avisar de la saturación",
-    "description": null,
+    "description": "Al cambiar la ocupación, antes de salir o en los dos casos.",
     "valueType": "option",
     "defaultValue": "change",
     "minValue": null,
     "maxValue": null,
     "minSetting": null,
+    "maxSetting": null,
     "level": "entity",
     "userOverridable": true,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": [
      {
       "value": "change",
@@ -1184,7 +1398,7 @@
     ]
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/saturation_notice_when"
+    "self": "http://localhost:18000/api/v1/setting-definitions/saturation_notice_when"
    }
   },
   {
@@ -1193,18 +1407,21 @@
    "attributes": {
     "key": "sensor_outlier_distance_m",
     "name": "Distancia para descartar un sensor (m)",
-    "description": null,
+    "description": "Un teléfono tan alejado de los demás no se tiene en cuenta.",
     "valueType": "integer",
     "defaultValue": "300",
     "minValue": 50,
     "maxValue": 5000,
     "minSetting": null,
+    "maxSetting": null,
     "level": "app",
     "userOverridable": false,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/sensor_outlier_distance_m"
+    "self": "http://localhost:18000/api/v1/setting-definitions/sensor_outlier_distance_m"
    }
   },
   {
@@ -1213,18 +1430,21 @@
    "attributes": {
     "key": "sensor_stale_seconds",
     "name": "Segundos sin enviar para dejar de contar un sensor",
-    "description": null,
+    "description": "Un teléfono que deja de enviar su ubicación deja de contar.",
     "valueType": "integer",
     "defaultValue": "60",
     "minValue": 10,
     "maxValue": 600,
     "minSetting": null,
+    "maxSetting": null,
     "level": "app",
     "userOverridable": false,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/sensor_stale_seconds"
+    "self": "http://localhost:18000/api/v1/setting-definitions/sensor_stale_seconds"
    }
   },
   {
@@ -1233,18 +1453,21 @@
    "attributes": {
     "key": "share_location",
     "name": "Compartir ubicación como sensor",
-    "description": null,
+    "description": "Ayuda a saber dónde va el vehículo.",
     "valueType": "boolean",
     "defaultValue": "0",
     "minValue": null,
     "maxValue": null,
     "minSetting": null,
+    "maxSetting": null,
     "level": "entity",
     "userOverridable": true,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/share_location"
+    "self": "http://localhost:18000/api/v1/setting-definitions/share_location"
    }
   },
   {
@@ -1253,18 +1476,44 @@
    "attributes": {
     "key": "stop_detection_radius_m",
     "name": "Radio de detección de paradas (m)",
-    "description": null,
+    "description": "Distancia a la que se considera que el vehículo está en la parada.",
     "valueType": "integer",
     "defaultValue": "100",
     "minValue": 20,
     "maxValue": 1000,
     "minSetting": null,
+    "maxSetting": null,
     "level": "app",
     "userOverridable": false,
+    "itineraryLevel": true,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/stop_detection_radius_m"
+    "self": "http://localhost:18000/api/v1/setting-definitions/stop_detection_radius_m"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "stop_min_dwell_seconds",
+   "attributes": {
+    "key": "stop_min_dwell_seconds",
+    "name": "Segundos mínimos detenido en una parada",
+    "description": "Si se detiene menos, se considera que no paró.",
+    "valueType": "integer",
+    "defaultValue": "15",
+    "minValue": 0,
+    "maxValue": 600,
+    "minSetting": null,
+    "maxSetting": null,
+    "level": "entity",
+    "userOverridable": false,
+    "itineraryLevel": true,
+    "stopLevel": true,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:18000/api/v1/setting-definitions/stop_min_dwell_seconds"
    }
   },
   {
@@ -1273,18 +1522,21 @@
    "attributes": {
     "key": "stop_notice_after_boarding",
     "name": "Seguir avisando después de subir",
-    "description": null,
+    "description": "Avisos de paradas aunque ya haya subido.",
     "valueType": "boolean",
     "defaultValue": "0",
     "minValue": null,
     "maxValue": null,
     "minSetting": null,
+    "maxSetting": null,
     "level": "entity",
     "userOverridable": true,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/stop_notice_after_boarding"
+    "self": "http://localhost:18000/api/v1/setting-definitions/stop_notice_after_boarding"
    }
   },
   {
@@ -1293,14 +1545,17 @@
    "attributes": {
     "key": "stop_notice_scope",
     "name": "Avisos de paso por paradas",
-    "description": null,
+    "description": "De qué paradas anteriores a la suya avisar.",
     "valueType": "option",
     "defaultValue": "previous",
     "minValue": null,
     "maxValue": null,
     "minSetting": null,
+    "maxSetting": null,
     "level": "entity",
     "userOverridable": true,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": [
      {
       "value": "none",
@@ -1317,7 +1572,7 @@
     ]
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/stop_notice_scope"
+    "self": "http://localhost:18000/api/v1/setting-definitions/stop_notice_scope"
    }
   },
   {
@@ -1326,18 +1581,44 @@
    "attributes": {
     "key": "stop_notice_template",
     "name": "Texto del aviso de paso por parada",
-    "description": null,
+    "description": "Las palabras entre llaves se sustituyen por los datos.",
     "valueType": "string",
-    "defaultValue": "El transporte pasó por {parada} a las {hora}. Faltan {paradas_restantes} paradas para la tuya.",
+    "defaultValue": "El transporte pasó por {parada} a las {hora}. Faltan {paradas_restantes} paradas para la suya.",
     "minValue": 1,
     "maxValue": 500,
     "minSetting": null,
+    "maxSetting": null,
     "level": "entity",
     "userOverridable": true,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/stop_notice_template"
+    "self": "http://localhost:18000/api/v1/setting-definitions/stop_notice_template"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "stop_pass_speed_kmh",
+   "attributes": {
+    "key": "stop_pass_speed_kmh",
+    "name": "Velocidad a partir de la cual no se detuvo (km/h)",
+    "description": "Si no baja de esa velocidad en la parada, no paró.",
+    "valueType": "integer",
+    "defaultValue": "5",
+    "minValue": 1,
+    "maxValue": 60,
+    "minSetting": null,
+    "maxSetting": null,
+    "level": "entity",
+    "userOverridable": false,
+    "itineraryLevel": true,
+    "stopLevel": true,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:18000/api/v1/setting-definitions/stop_pass_speed_kmh"
    }
   },
   {
@@ -1346,18 +1627,21 @@
    "attributes": {
     "key": "tracking_poll_background_seconds",
     "name": "Recorrido: consulta en segundo plano (s)",
-    "description": null,
+    "description": "Con la app cerrada durante el recorrido.",
     "valueType": "integer",
     "defaultValue": "60",
     "minValue": null,
     "maxValue": 3600,
     "minSetting": "min_in_trip_background_poll_seconds",
+    "maxSetting": null,
     "level": "entity",
     "userOverridable": true,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/tracking_poll_background_seconds"
+    "self": "http://localhost:18000/api/v1/setting-definitions/tracking_poll_background_seconds"
    }
   },
   {
@@ -1366,18 +1650,21 @@
    "attributes": {
     "key": "tracking_poll_foreground_seconds",
     "name": "Recorrido: consulta con la app abierta (s)",
-    "description": null,
+    "description": "Cada cuánto se actualiza la posición del vehículo.",
     "valueType": "integer",
     "defaultValue": "10",
     "minValue": null,
     "maxValue": 600,
     "minSetting": "min_foreground_poll_seconds",
+    "maxSetting": null,
     "level": "entity",
     "userOverridable": true,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/tracking_poll_foreground_seconds"
+    "self": "http://localhost:18000/api/v1/setting-definitions/tracking_poll_foreground_seconds"
    }
   },
   {
@@ -1385,19 +1672,45 @@
    "id": "trip_auto_complete_delay_minutes",
    "attributes": {
     "key": "trip_auto_complete_delay_minutes",
-    "name": "Minutos tras el regreso para marcar el viaje como realizado",
-    "description": null,
+    "name": "Minutos tras el regreso para dar el viaje por realizado",
+    "description": "Si nadie lo marca antes como realizado.",
     "valueType": "integer",
     "defaultValue": "0",
     "minValue": 0,
     "maxValue": 1440,
     "minSetting": null,
+    "maxSetting": null,
     "level": "app",
     "userOverridable": false,
+    "itineraryLevel": true,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/trip_auto_complete_delay_minutes"
+    "self": "http://localhost:18000/api/v1/setting-definitions/trip_auto_complete_delay_minutes"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "trip_chat_notice_enabled",
+   "attributes": {
+    "key": "trip_chat_notice_enabled",
+    "name": "Avisos de mensajes nuevos en el chat del viaje",
+    "description": "Notificación al llegar un mensaje.",
+    "valueType": "boolean",
+    "defaultValue": "1",
+    "minValue": null,
+    "maxValue": null,
+    "minSetting": null,
+    "maxSetting": null,
+    "level": "entity",
+    "userOverridable": true,
+    "itineraryLevel": false,
+    "stopLevel": false,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:18000/api/v1/setting-definitions/trip_chat_notice_enabled"
    }
   },
   {
@@ -1406,18 +1719,21 @@
    "attributes": {
     "key": "trip_chat_poll_background_minutes",
     "name": "Chat del viaje: consulta en segundo plano (min)",
-    "description": null,
+    "description": "Con la app cerrada.",
     "valueType": "integer",
     "defaultValue": "30",
     "minValue": null,
     "maxValue": 1440,
     "minSetting": "min_background_poll_minutes",
+    "maxSetting": null,
     "level": "entity",
     "userOverridable": true,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/trip_chat_poll_background_minutes"
+    "self": "http://localhost:18000/api/v1/setting-definitions/trip_chat_poll_background_minutes"
    }
   },
   {
@@ -1426,18 +1742,21 @@
    "attributes": {
     "key": "trip_chat_poll_foreground_seconds",
     "name": "Chat del viaje: consulta con la app abierta (s)",
-    "description": null,
+    "description": "Cada cuánto se buscan mensajes nuevos.",
     "valueType": "integer",
     "defaultValue": "5",
     "minValue": null,
     "maxValue": 600,
     "minSetting": "min_foreground_poll_seconds",
+    "maxSetting": null,
     "level": "entity",
     "userOverridable": true,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/trip_chat_poll_foreground_seconds"
+    "self": "http://localhost:18000/api/v1/setting-definitions/trip_chat_poll_foreground_seconds"
    }
   },
   {
@@ -1445,19 +1764,91 @@
    "id": "trip_chat_retention_days",
    "attributes": {
     "key": "trip_chat_retention_days",
-    "name": "Días de conservación del chat de un viaje tras su regreso",
-    "description": "0 = se borra en cuanto el viaje deja de estar confirmado.",
+    "name": "Días de conservación del chat de un viaje",
+    "description": "Desde el regreso; 0 = se borra en cuanto el viaje termina.",
     "valueType": "integer",
     "defaultValue": "0",
     "minValue": 0,
     "maxValue": 365,
     "minSetting": null,
+    "maxSetting": null,
     "level": "app",
     "userOverridable": false,
+    "itineraryLevel": true,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/trip_chat_retention_days"
+    "self": "http://localhost:18000/api/v1/setting-definitions/trip_chat_retention_days"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "trip_delay_notice_enabled",
+   "attributes": {
+    "key": "trip_delay_notice_enabled",
+    "name": "Aviso de viaje atrasado",
+    "description": "Cuando el viaje no comienza a su hora.",
+    "valueType": "boolean",
+    "defaultValue": "1",
+    "minValue": null,
+    "maxValue": null,
+    "minSetting": null,
+    "maxSetting": null,
+    "level": "entity",
+    "userOverridable": true,
+    "itineraryLevel": false,
+    "stopLevel": false,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:18000/api/v1/setting-definitions/trip_delay_notice_enabled"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "trip_delay_tolerance_minutes",
+   "attributes": {
+    "key": "trip_delay_tolerance_minutes",
+    "name": "Minutos de tolerancia antes de dar un viaje por atrasado",
+    "description": "Si el viaje no ha comenzado pasado ese tiempo, está atrasado.",
+    "valueType": "integer",
+    "defaultValue": "5",
+    "minValue": 0,
+    "maxValue": 120,
+    "minSetting": null,
+    "maxSetting": null,
+    "level": "entity",
+    "userOverridable": false,
+    "itineraryLevel": true,
+    "stopLevel": false,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:18000/api/v1/setting-definitions/trip_delay_tolerance_minutes"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "trip_start_notice_enabled",
+   "attributes": {
+    "key": "trip_start_notice_enabled",
+    "name": "Aviso de comienzo del viaje",
+    "description": "Cuando comienza el viaje de ida o de regreso, a tiempo o con atraso.",
+    "valueType": "boolean",
+    "defaultValue": "1",
+    "minValue": null,
+    "maxValue": null,
+    "minSetting": null,
+    "maxSetting": null,
+    "level": "entity",
+    "userOverridable": true,
+    "itineraryLevel": false,
+    "stopLevel": false,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:18000/api/v1/setting-definitions/trip_start_notice_enabled"
    }
   },
   {
@@ -1466,14 +1857,17 @@
    "attributes": {
     "key": "trip_view",
     "name": "Vista del recorrido",
-    "description": null,
+    "description": "Cómo se abre el recorrido en tiempo real.",
     "valueType": "option",
     "defaultValue": "timeline",
     "minValue": null,
     "maxValue": null,
     "minSetting": null,
+    "maxSetting": null,
     "level": "entity",
     "userOverridable": true,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": [
      {
       "value": "map",
@@ -1486,7 +1880,7 @@
     ]
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/trip_view"
+    "self": "http://localhost:18000/api/v1/setting-definitions/trip_view"
    }
   },
   {
@@ -1495,18 +1889,21 @@
    "attributes": {
     "key": "trips_poll_background_minutes",
     "name": "Viajes: consulta en segundo plano (min)",
-    "description": null,
+    "description": "Cada cuánto se actualizan con la app cerrada.",
     "valueType": "integer",
     "defaultValue": "30",
     "minValue": null,
     "maxValue": 1440,
     "minSetting": "min_background_poll_minutes",
+    "maxSetting": null,
     "level": "entity",
     "userOverridable": true,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/trips_poll_background_minutes"
+    "self": "http://localhost:18000/api/v1/setting-definitions/trips_poll_background_minutes"
    }
   },
   {
@@ -1515,18 +1912,21 @@
    "attributes": {
     "key": "trips_poll_foreground_seconds",
     "name": "Viajes: consulta con la app abierta (s)",
-    "description": null,
+    "description": "Cada cuánto se actualizan los viajes.",
     "valueType": "integer",
     "defaultValue": "60",
     "minValue": null,
     "maxValue": 3600,
     "minSetting": "min_foreground_poll_seconds",
+    "maxSetting": null,
     "level": "entity",
     "userOverridable": true,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/trips_poll_foreground_seconds"
+    "self": "http://localhost:18000/api/v1/setting-definitions/trips_poll_foreground_seconds"
    }
   },
   {
@@ -1535,18 +1935,44 @@
    "attributes": {
     "key": "tts_enabled",
     "name": "Voz durante el recorrido",
-    "description": null,
+    "description": "Anuncia las paradas en voz alta.",
     "valueType": "boolean",
     "defaultValue": "1",
     "minValue": null,
     "maxValue": null,
     "minSetting": null,
+    "maxSetting": null,
     "level": "entity",
     "userOverridable": true,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/tts_enabled"
+    "self": "http://localhost:18000/api/v1/setting-definitions/tts_enabled"
+   }
+  },
+  {
+   "type": "setting-definitions",
+   "id": "update_check_hours",
+   "attributes": {
+    "key": "update_check_hours",
+    "name": "Comprobar actualizaciones de la app (h)",
+    "description": "Cada cuánto se busca una versión nueva.",
+    "valueType": "integer",
+    "defaultValue": "24",
+    "minValue": 1,
+    "maxValue": 168,
+    "minSetting": null,
+    "maxSetting": null,
+    "level": "entity",
+    "userOverridable": true,
+    "itineraryLevel": false,
+    "stopLevel": false,
+    "options": []
+   },
+   "links": {
+    "self": "http://localhost:18000/api/v1/setting-definitions/update_check_hours"
    }
   },
   {
@@ -1554,23 +1980,26 @@
    "id": "username_reuse_block_days",
    "attributes": {
     "key": "username_reuse_block_days",
-    "name": "Días que un usuario abandonado queda bloqueado para los demás",
-    "description": null,
+    "name": "Días de reserva de un nombre de usuario abandonado",
+    "description": "Nadie más puede usarlo durante ese tiempo.",
     "valueType": "integer",
     "defaultValue": "30",
     "minValue": 0,
     "maxValue": 365,
     "minSetting": null,
+    "maxSetting": null,
     "level": "app",
     "userOverridable": false,
+    "itineraryLevel": false,
+    "stopLevel": false,
     "options": []
    },
    "links": {
-    "self": "http://localhost:8000/api/v1/setting-definitions/username_reuse_block_days"
+    "self": "http://localhost:18000/api/v1/setting-definitions/username_reuse_block_days"
    }
   }
  ],
  "links": {
-  "self": "http://localhost:8000/api/v1/setting-definitions"
+  "self": "http://localhost:18000/api/v1/setting-definitions"
  }
 }

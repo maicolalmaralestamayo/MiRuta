@@ -8,26 +8,27 @@
    "firstSurname": "Pérez",
    "secondSurname": "García",
    "fullName": "Pepito Juan Pérez García",
-   "birthDate": "2015-03-05"
-  },
-  "relationships": {
-   "worker": {
-    "data": {
-     "type": "workers",
-     "id": "1"
-    }
-   }
+   "sex": "M",
+   "birthDate": "2018-03-05",
+   "eligibleUntil": "2034-08-31",
+   "eligible": true,
+   "active": true,
+   "photoUrl": null,
+   "identityCard": "18030564140"
   },
   "meta": {
-   "declared": true,
-   "eligible": true,
-   "eligibleUntil": "2031-08-31"
+   "parents": [
+    {
+     "id": "2",
+     "fullName": "Lucía María Pérez García"
+    }
+   ]
   },
   "links": {
-   "self": "http://localhost:8000/api/v1/children/1"
+   "self": "http://localhost:18000/api/v1/children/1"
   }
  },
  "links": {
-  "self": "http://localhost:8000/api/v1/children/1"
+  "self": "http://localhost:18000/api/v1/children/1"
  }
 }

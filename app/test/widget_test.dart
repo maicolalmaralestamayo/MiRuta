@@ -39,14 +39,14 @@ void main() {
     final document = JsonApiDocument.fromJson({
       'data': {
         'type': 'workers', 'id': '1', 'attributes': {'firstName': 'Ana'},
-        'relationships': {'rank': {'data': {'type': 'ranks', 'id': '17'}}},
+        'relationships': {'entity': {'data': {'type': 'entities', 'id': '17'}}},
       },
       'included': [
-        {'type': 'ranks', 'id': '17', 'attributes': {'name': 'Trabajador civil'}},
+        {'type': 'entities', 'id': '17', 'attributes': {'abbreviation': 'UMIM'}},
       ],
     });
     expect(document.resource.string('firstName'), 'Ana');
-    expect(document.resource.related('rank')!.string('name'), 'Trabajador civil');
+    expect(document.resource.related('entity')!.string('abbreviation'), 'UMIM');
   });
 
   test('requisitos de la contraseña', () {

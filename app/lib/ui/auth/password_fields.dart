@@ -15,7 +15,10 @@ class PasswordFields extends StatefulWidget {
   /// nombres (docs/09 §32). Se conserva para no romper a quien lo pasa.
   final List<String> Function()? personal;
 
-  const PasswordFields({super.key, required this.password, required this.confirmation, this.personal, this.label = 'Contraseña'});
+  /// Se ve la contraseña desde el principio (p. ej. la propuesta en el registro).
+  final bool initiallyVisible;
+
+  const PasswordFields({super.key, required this.password, required this.confirmation, this.personal, this.label = 'Contraseña', this.initiallyVisible = false});
 
   @override
   State<PasswordFields> createState() => _PasswordFieldsState();
@@ -23,8 +26,8 @@ class PasswordFields extends StatefulWidget {
 
 class _PasswordFieldsState extends State<PasswordFields> {
   PasswordPolicy _policy = const PasswordPolicy();
-  bool _hidden = true;
-  bool _hiddenConfirmation = true;
+  late bool _hidden = !widget.initiallyVisible;
+  late bool _hiddenConfirmation = !widget.initiallyVisible;
 
   @override
   void initState() {

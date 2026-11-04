@@ -2,16 +2,20 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import 'package:flutter/services.dart';
+
 import '../../core/api_exception.dart';
 import '../../core/json_api.dart';
 import '../../core/storage.dart';
+import '../../models/models.dart';
+import '../../services/api/accounts_api.dart';
 import '../widgets/common.dart';
-import 'entity_field.dart';
-import 'password_fields.dart';
 
-/// «Olvidé algo» (docs/09 §6; docs/08-version-2.md §8.6): olvidé el usuario, la
-/// contraseña o los dos. El Administrador lo verifica por su cuenta y, si lo
-/// aprueba, aquí mismo se ve el usuario o se elige una contraseña nueva.
+/// «Olvidé algo» (docs/11 §11.7): olvidé el usuario, la contraseña o los dos,
+/// con el carné de identidad y un teléfono. Solo el Administrador lo aprueba,
+/// tras confirmarlo por una tercera vía. Al aprobarse, aquí se ve una sola vez
+/// solo lo pedido (el usuario y/o una contraseña propuesta, que habrá que
+/// cambiar al entrar).
 class AccessRecoveryScreen extends StatefulWidget {
   const AccessRecoveryScreen({super.key});
 
@@ -23,11 +27,8 @@ class _AccessRecoveryScreenState extends State<AccessRecoveryScreen> {
   static const _storageKey = 'access_recovery_id';
 
   final _form = GlobalKey<FormState>();
-  final _abbreviation = TextEditingController();
-  final _pass = TextEditingController();
+  final _identityCard = TextEditingController();
   final _phone = TextEditingController(text: phonePrefix);
-  final _password = TextEditingController();
-  final _confirmation = TextEditingController();
   bool _forgotUsername = false;
   bool _forgotPassword = true;
   String? _recoveryId;
@@ -59,8 +60,8 @@ class _AccessRecoveryScreenState extends State<AccessRecoveryScreen> {
 
   Future<void> _refresh() async {
     try {
-      final document = await context.api.get('/guest/access-recoveries/$_recoveryId', guest: true);
-      if (mounted) setState(() => _recovery = document.resource);
+      final recovery = await AccountsApi(context.api).accessRecovery(_recoveryId!);
+      if (mounted) setState(() => _recovery = recovery);
     } on ApiException catch (error) {
       if (error.statusCode == 404) await _forget();
     } finally {
@@ -84,27 +85,19 @@ class _AccessRecoveryScreenState extends State<AccessRecoveryScreen> {
       showMessage(context, 'Marque qué olvidó.');
       return;
     }
-    final document = await context.api.post('/guest/access-recoveries', resourceData('access-recoveries', attributes: {
-      'forgotUsername': _forgotUsername,
-      'forgotPassword': _forgotPassword,
-      'entityAbbreviation': _abbreviation.text.trim(),
-      'pass': int.parse(_pass.text),
-      'phone': _phone.text.trim(),
-    }), guest: true);
-    await Storage.setString(_storageKey, document.resource.id);
+    final recovery = await AccountsApi(context.api).requestAccessRecovery(
+      forgotUsername: _forgotUsername,
+      forgotPassword: _forgotPassword,
+      identityCard: _identityCard.text,
+      phone: _phone.text,
+    );
+    await Storage.setString(_storageKey, recovery.id);
     if (mounted) {
       setState(() {
-        _recoveryId = document.resource.id;
-        _recovery = document.resource;
+        _recoveryId = recovery.id;
+        _recovery = recovery;
       });
     }
-  }
-
-  Future<void> _setPassword() async {
-    if (!_form.currentState!.validate()) return;
-    await context.session.recoverWithNewPassword(_recoveryId!, _password.text);
-    await Storage.setString(_storageKey, null);
-    if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
   }
 
   @override
@@ -125,9 +118,14 @@ class _AccessRecoveryScreenState extends State<AccessRecoveryScreen> {
       CheckboxListTile(value: _forgotUsername, onChanged: (v) => setState(() => _forgotUsername = v ?? false), title: const Text('Mi nombre de usuario')),
       CheckboxListTile(value: _forgotPassword, onChanged: (v) => setState(() => _forgotPassword = v ?? false), title: const Text('Mi contraseña')),
       const SizedBox(height: 8),
-      EntityAbbreviationField(controller: _abbreviation, guest: true),
-      const SizedBox(height: 12),
-      PassField(controller: _pass),
+      TextFormField(
+        controller: _identityCard,
+        decoration: const InputDecoration(labelText: 'Carné de identidad', hintText: 'p. ej. 85031512345', prefixIcon: Icon(Icons.badge_outlined)),
+        keyboardType: TextInputType.number,
+        inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(IdentityCard.length)],
+        autovalidateMode: AutovalidateMode.onUserInteraction,
+        validator: IdentityCard.validate,
+      ),
       const SizedBox(height: 12),
       TextFormField(
         controller: _phone,
@@ -149,7 +147,7 @@ class _AccessRecoveryScreenState extends State<AccessRecoveryScreen> {
     final recovery = _recovery!;
     final status = recovery.string('status');
     final username = recovery.string('username');
-    final forgotPassword = recovery.boolean('forgotPassword');
+    final password = recovery.string('password');
 
     if (status == 'pending') {
       return ListView(padding: const EdgeInsets.all(16), children: [
@@ -168,7 +166,7 @@ class _AccessRecoveryScreenState extends State<AccessRecoveryScreen> {
       ]);
     }
 
-    if (status == 'approved') {
+    if (status == 'approved' || (status == 'completed' && (username != null || password != null))) {
       return ListView(padding: const EdgeInsets.all(16), children: [
         const Card(child: ListTile(leading: Icon(Icons.check_circle, color: Colors.green), title: Text('Solicitud aprobada'))),
         if (username != null) ...[
@@ -176,24 +174,32 @@ class _AccessRecoveryScreenState extends State<AccessRecoveryScreen> {
           const Text('Su nombre de usuario es:'),
           SelectableText(username, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
         ],
-        if (forgotPassword) ...[
-          const SizedBox(height: 16),
-          const Text('Elija su contraseña nueva:'),
-          const SizedBox(height: 8),
-          PasswordFields(password: _password, confirmation: _confirmation, label: 'Contraseña nueva'),
-          const SizedBox(height: 20),
-          BusyButton(onPressed: _setPassword, icon: const Icon(Icons.login), child: const Text('Guardar contraseña y entrar')),
-        ] else ...[
-          const SizedBox(height: 20),
-          FilledButton.icon(
-            onPressed: () async {
-              await _forget();
-              if (mounted) Navigator.pop(context);
-            },
-            icon: const Icon(Icons.login),
-            label: const Text('Ir a iniciar sesión'),
-          ),
+        if (password != null) ...[
+          const SizedBox(height: 12),
+          const Text('Su contraseña nueva es:'),
+          SelectableText(password, style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 4),
+          const Text('Al entrar con ella tendrá que elegir una contraseña propia.'),
         ],
+        if (username != null || password != null) ...[
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: () => Clipboard.setData(ClipboardData(text: [?username, ?password].join('\n'))),
+            icon: const Icon(Icons.copy),
+            label: const Text('Copiar'),
+          ),
+          const SizedBox(height: 4),
+          Text('Anótelo ahora: solo se muestra esta vez.', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+        ],
+        const SizedBox(height: 20),
+        FilledButton.icon(
+          onPressed: () async {
+            await _forget();
+            if (mounted) Navigator.pop(context);
+          },
+          icon: const Icon(Icons.login),
+          label: const Text('Ir a iniciar sesión'),
+        ),
       ]);
     }
 

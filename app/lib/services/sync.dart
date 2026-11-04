@@ -37,18 +37,22 @@ class SyncService {
   static const _tripChatsKey = 'user.trip_chats_seen';
   static const meKey = 'user.me';
 
-  static const tripInclude = 'itinerary,vehicle.vehicleType,driver.worker';
+  /// El chofer (`driver`) es una pertenencia (`workers`) con los nombres de la persona.
+  static const tripInclude = 'itinerary,vehicle.vehicleType,driver';
 
   /// Guarda los datos del usuario que necesitan las tareas en segundo plano.
   static Future<void> rememberMe(Me me) => Storage.setJson(meKey, {
         'id': me.id,
         'userId': me.userId,
-        'itineraryId': me.itineraryId,
-        'stopId': me.stopId,
-        'driverId': me.roles.driverId,
-        'managesTransport': me.managesTransport,
-        'chiefOf': me.roles.chiefOfItineraries,
+        'isAdmin': me.isAdmin,
+        'workerIds': me.workerIds.toList(),
+        'itineraryIds': me.itineraryIds.toList(),
+        'itineraryEntities': {for (final m in me.memberships) if (m.itineraryId != null) m.itineraryId!: m.entityId},
+        'permissions': me.permissions.toJson(),
       });
+
+  static Permissions _permissions(Map<String, dynamic> me) => Permissions.fromJson(me['permissions'] as List?,
+      isAdmin: me['isAdmin'] == true, itineraryEntities: Map<String, String>.from(me['itineraryEntities'] as Map? ?? const {}));
 
   static Future<Map<String, dynamic>> cachedMe() => Storage.getJson(meKey);
 
@@ -73,7 +77,9 @@ class SyncService {
 
     if (parts.contains(SyncPart.trips)) {
       final settings = await UserSettings.refresh(api).catchError((_) => UserSettings.cached());
-      await _syncStops(api, me['itineraryId'] as String?);
+      for (final itineraryId in (me['itineraryIds'] as List? ?? const [])) {
+        await _syncStops(api, '$itineraryId');
+      }
       await _syncTrips(api, me, settings, notifyChanges);
     }
     if (parts.contains(SyncPart.notices)) await _syncNotices(api);
@@ -84,14 +90,15 @@ class SyncService {
     if (parts.contains(SyncPart.tripChats)) await _syncTripChats(api, (me['userId'] ?? '') as String, settings.boolean('trip_chat_notice_enabled', true));
   }
 
-  static Future<void> _syncStops(ApiClient api, String? itineraryId) async {
-    if (itineraryId == null) return;
+  static Future<void> _syncStops(ApiClient api, String itineraryId) async {
     final stops = await api.getAll('/stops', query: {'filter[itinerary]': itineraryId});
-    await Storage.setJson(_stopsKey, {for (final r in stops) r.id: Stop.from(r).toJson()});
+    final cached = await Storage.getJson(_stopsKey);
+    await Storage.setJson(_stopsKey, {...cached, for (final r in stops) r.id: Stop.from(r).toJson()});
   }
 
+  /// De su itinerario (en cualquiera de sus Entidades) o lo conduce.
   static bool _isMine(Trip trip, Map<String, dynamic> me) =>
-      trip.itineraryId == me['itineraryId'] || (me['driverId'] != null && trip.driverId == me['driverId']);
+      ((me['itineraryIds'] as List?) ?? const []).contains(trip.itineraryId) || ((me['workerIds'] as List?) ?? const []).contains(trip.driverId);
 
   static Future<void> _syncTrips(ApiClient api, Map<String, dynamic> me, UserSettings settings, bool notifyChanges) async {
     final lastSync = await Storage.getString(_lastSyncKey);
@@ -152,7 +159,7 @@ class SyncService {
     levels[trip.id] = trip.occupancyLevel;
 
     final pending = trip.status == TripStatus.confirmed || trip.status == TripStatus.unconfirmed;
-    final managed = me['managesTransport'] == true || ((me['chiefOf'] as List?) ?? const []).contains(trip.itineraryId);
+    final managed = _permissions(me).can(Op.tripsEdit, entityId: trip.entityId, itineraryId: trip.itineraryId);
     final inScope = _isMine(trip, me) || (settings.string('saturation_notice_scope', 'managed') == 'managed' && managed);
     final wanted = settings.boolean('saturation_notice_enabled', true) && pending && inScope && trip.departsAt.isAfter(DateTime.now());
     final qualifies = settings.string('saturation_notice_level', 'overloaded') == 'saturated' ? trip.occupancyLevel != 'normal' : trip.overloaded;
@@ -203,11 +210,9 @@ class SyncService {
 
   /// Ausencias aprobadas propias, como rangos [inicio, fin + 1 día).
   static Future<List<(DateTime, DateTime)>> _myAbsences(ApiClient api) async {
-    final resources = await api.getAll('/applications', query: {'filter[mine]': 'true', 'filter[type]': 'absence', 'filter[status]': 'approved'});
-    return resources
-        .where((r) => r.string('startsOn') != null)
-        .map((r) => (DateTime.parse(r.string('startsOn')!), DateTime.parse(r.string('endsOn')!).add(const Duration(days: 1))))
-        .toList();
+    // Ausencias sin aprobación (docs/11 §11.12); las indefinidas, hasta dentro de un año.
+    final resources = await api.getAll('/absences', query: {'filter[mine]': 'true'});
+    return resources.map(Absence.from).map((a) => (a.start, (a.end ?? DateTime.now().add(const Duration(days: 365))).add(const Duration(days: 1)))).toList();
   }
 
   static Future<void> _syncNotices(ApiClient api) async {
@@ -237,7 +242,7 @@ class SyncService {
       if (last == null) continue;
       final previous = seen[conversation.id] == null ? null : DateTime.parse(seen[conversation.id] as String);
       if (notify && !first && (previous == null || last.isAfter(previous))) {
-        await Notifications.showMessage('Mensaje nuevo', '${conversation.topicName ?? 'Conversación'} · ${Conversation.recipientLabel(conversation.recipient)}', payload: 'conversation:${conversation.id}');
+        await Notifications.showMessage('Mensaje nuevo', '${conversation.topicName ?? 'Conversación'} · ${conversation.recipientLabel}', payload: 'conversation:${conversation.id}');
       }
       seen[conversation.id] = last.toUtc().toIso8601String();
     }

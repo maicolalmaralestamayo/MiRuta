@@ -9,6 +9,8 @@ import '../chat/chat_screen.dart';
 import '../tracking/boarding.dart';
 import '../tracking/passengers_screen.dart';
 import '../tracking/tracking_screen.dart';
+import '../navigation.dart';
+import '../widgets/app_scaffold.dart';
 import '../widgets/common.dart';
 import 'trip_card.dart';
 import 'trip_context.dart';
@@ -84,8 +86,8 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final me = context.me;
-    return Scaffold(
-      appBar: AppBar(title: const Text('Viaje')),
+    return AppScaffold(
+      title: 'Viaje',
       body: AsyncView<TripContext>(
         key: _view,
         load: () => TripContext.load(context.api, widget.tripId),
@@ -102,9 +104,9 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
               title: Text(trip.itineraryName ?? '', style: Theme.of(context).textTheme.titleLarge),
               trailing: StatusChip(TripStatus.label(trip.status), color: tripStatusColor(trip.status)),
             ),
-            if ((operate || me.managesTransport) && trip.occupancyLevel != 'normal')
-              OverloadBanner(level: trip.occupancyLevel, expected: trip.expectedPassengers, children: trip.expectedChildren, seats: trip.seats, capacity: trip.totalCapacity),
-            if (me.managesTransport && trip.needsReassignment)
+            if ((operate || data.can(me, Op.tripsEdit)) && trip.occupancyLevel != 'normal')
+              OverloadBanner(level: trip.occupancyLevel, expected: trip.expectedPassengers, seats: trip.seats, capacity: trip.totalCapacity),
+            if (data.can(me, Op.tripsEdit) && trip.needsReassignment)
               const ListTile(leading: Icon(Icons.person_off, color: Colors.red), title: Text('El chofer de este viaje se dio de baja. Hay que reasignarlo.')),
             Card(
               child: Column(children: [
@@ -130,8 +132,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                 ListTile(leading: const Icon(Icons.person), title: Text(trip.driverName ?? 'Sin chofer'), subtitle: const Text('Chofer')),
                 ListTile(
                   leading: const Icon(Icons.people_alt_outlined),
-                  title: Text('${plural(trip.expectedPassengers, 'trabajador esperado', 'trabajadores esperados')}'
-                      '${trip.expectedChildren > 0 ? ' · ${plural(trip.expectedChildren, 'niño', 'niños')}' : ''}'),
+                  title: Text(plural(trip.expectedPassengers, 'trabajador esperado', 'trabajadores esperados')),
                   subtitle: Text(occupancyLabel(trip.occupancyLevel)),
                 ),
               ]),
@@ -163,7 +164,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                 },
               ),
             if (data.legs.isEmpty) const ListTile(title: Text('El recorrido aún no ha comenzado.')),
-            if (me.isChiefOf(trip.itineraryId))
+            if (data.can(me, Op.itinerariesReferenceRoute))
               for (final leg in data.legs.where((leg) => !leg.isActive && data.referenceLegId(leg.direction) != leg.id))
                 BusyListTile(
                   leading: const Icon(Icons.alt_route),
@@ -175,14 +176,14 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Wrap(spacing: 8, runSpacing: 8, children: [
                   BusyButton(
-                    onPressed: () => selfBoarding(context, active, me.childrenCount),
+                    onPressed: () => selfBoarding(context, active),
                     icon: const Icon(Icons.how_to_reg),
                     child: const Text('Ya subí'),
                   ),
                   OutlinedButton.icon(
-                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => BoardingPassScreen(leg: active))),
+                    onPressed: () => AppRoutes.myQr(context),
                     icon: const Icon(Icons.qr_code_2),
-                    label: const Text('Mi código QR'),
+                    label: const Text('Mi QR'),
                   ),
                 ]),
               ),
@@ -202,7 +203,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
               if (trip.status != TripStatus.cancelled && trip.status != TripStatus.completed)
                 BusyListTile(leading: const Icon(Icons.task_alt), title: const Text('Marcar como realizado'), onTap: () => _markCompleted(data)),
             ],
-            if (me.canPlan(trip.itineraryId))
+            if (data.can(me, Op.tripsEdit))
               ListTile(
                 leading: const Icon(Icons.edit_calendar),
                 title: const Text('Editar viaje'),
@@ -211,7 +212,7 @@ class _TripDetailScreenState extends State<TripDetailScreen> {
                   reload();
                 },
               ),
-            if (me.canPlan(trip.itineraryId) && trip.status != TripStatus.cancelled && trip.status != TripStatus.completed)
+            if (data.can(me, Op.tripsConfirmCancel) && trip.status != TripStatus.cancelled && trip.status != TripStatus.completed)
               BusyListTile(leading: const Icon(Icons.cancel_outlined, color: overloadColor), title: const Text('Cancelar viaje'), onTap: () => _cancel(data)),
           ]);
         },

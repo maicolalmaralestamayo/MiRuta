@@ -1,0 +1,304 @@
+{
+ "data": {
+  "type": "users",
+  "id": "4",
+  "attributes": {
+   "username": "teresa",
+   "firstName": "Teresa",
+   "middleName": "Ana",
+   "firstSurname": "Jefa",
+   "secondSurname": "López",
+   "fullName": "Teresa Ana Jefa López",
+   "sex": "F",
+   "photoUrl": null,
+   "isAdmin": false,
+   "hasPhone": true,
+   "active": true,
+   "entities": [
+    "PRUEBA"
+   ],
+   "identityCard": "78110203130",
+   "birthDate": "1978-11-02",
+   "mustChangePassword": false,
+   "currentPasswordRequired": true,
+   "passwordExpiresAt": "2027-11-04T15:46:38+00:00",
+   "printedQrVersion": 1,
+   "createdAt": "2026-11-04T15:46:37+00:00"
+  },
+  "links": {
+   "self": "http://localhost:18000/api/v1/users/4"
+  },
+  "meta": {
+   "permissions": [
+    {
+     "operation": "children.view",
+     "scope": "own",
+     "entityId": "1",
+     "itineraryId": null
+    },
+    {
+     "operation": "tracking.view_live",
+     "scope": "own",
+     "entityId": "1",
+     "itineraryId": null
+    },
+    {
+     "operation": "trips.view",
+     "scope": "own",
+     "entityId": "1",
+     "itineraryId": null
+    },
+    {
+     "operation": "chat.role_conversations",
+     "scope": "entity",
+     "entityId": "1",
+     "itineraryId": null
+    },
+    {
+     "operation": "itineraries.view",
+     "scope": "entity",
+     "entityId": "1",
+     "itineraryId": null
+    },
+    {
+     "operation": "roles.approve",
+     "scope": "entity",
+     "entityId": "1",
+     "itineraryId": null
+    },
+    {
+     "operation": "roles.assign",
+     "scope": "entity",
+     "entityId": "1",
+     "itineraryId": null
+    },
+    {
+     "operation": "statistics.view",
+     "scope": "entity",
+     "entityId": "1",
+     "itineraryId": null
+    },
+    {
+     "operation": "tracking.view_live",
+     "scope": "entity",
+     "entityId": "1",
+     "itineraryId": null
+    },
+    {
+     "operation": "trips.complete",
+     "scope": "entity",
+     "entityId": "1",
+     "itineraryId": null
+    },
+    {
+     "operation": "trips.confirm_cancel",
+     "scope": "entity",
+     "entityId": "1",
+     "itineraryId": null
+    },
+    {
+     "operation": "trips.delete",
+     "scope": "entity",
+     "entityId": "1",
+     "itineraryId": null
+    },
+    {
+     "operation": "trips.edit",
+     "scope": "entity",
+     "entityId": "1",
+     "itineraryId": null
+    },
+    {
+     "operation": "trips.plan",
+     "scope": "entity",
+     "entityId": "1",
+     "itineraryId": null
+    },
+    {
+     "operation": "trips.view",
+     "scope": "entity",
+     "entityId": "1",
+     "itineraryId": null
+    },
+    {
+     "operation": "vehicles.assign_driver",
+     "scope": "entity",
+     "entityId": "1",
+     "itineraryId": null
+    },
+    {
+     "operation": "vehicles.manage",
+     "scope": "entity",
+     "entityId": "1",
+     "itineraryId": null
+    },
+    {
+     "operation": "vehicles.view",
+     "scope": "entity",
+     "entityId": "1",
+     "itineraryId": null
+    },
+    {
+     "operation": "workers.view",
+     "scope": "entity",
+     "entityId": "1",
+     "itineraryId": null
+    },
+    {
+     "operation": "absences.view",
+     "scope": "itinerary",
+     "entityId": "1",
+     "itineraryId": "1"
+    },
+    {
+     "operation": "chat.role_conversations",
+     "scope": "itinerary",
+     "entityId": "1",
+     "itineraryId": "1"
+    },
+    {
+     "operation": "itineraries.reference_route",
+     "scope": "itinerary",
+     "entityId": "1",
+     "itineraryId": "1"
+    },
+    {
+     "operation": "itineraries.view",
+     "scope": "itinerary",
+     "entityId": "1",
+     "itineraryId": "1"
+    },
+    {
+     "operation": "members.approve",
+     "scope": "itinerary",
+     "entityId": "1",
+     "itineraryId": "1"
+    },
+    {
+     "operation": "statistics.view",
+     "scope": "itinerary",
+     "entityId": "1",
+     "itineraryId": "1"
+    },
+    {
+     "operation": "tracking.allow_outsiders",
+     "scope": "itinerary",
+     "entityId": "1",
+     "itineraryId": "1"
+    },
+    {
+     "operation": "tracking.fix_passengers",
+     "scope": "itinerary",
+     "entityId": "1",
+     "itineraryId": "1"
+    },
+    {
+     "operation": "tracking.scan_boarding",
+     "scope": "itinerary",
+     "entityId": "1",
+     "itineraryId": "1"
+    },
+    {
+     "operation": "tracking.view_live",
+     "scope": "itinerary",
+     "entityId": "1",
+     "itineraryId": "1"
+    },
+    {
+     "operation": "trips.complete",
+     "scope": "itinerary",
+     "entityId": "1",
+     "itineraryId": "1"
+    },
+    {
+     "operation": "trips.confirm_cancel",
+     "scope": "itinerary",
+     "entityId": "1",
+     "itineraryId": "1"
+    },
+    {
+     "operation": "trips.edit",
+     "scope": "itinerary",
+     "entityId": "1",
+     "itineraryId": "1"
+    },
+    {
+     "operation": "trips.plan",
+     "scope": "itinerary",
+     "entityId": "1",
+     "itineraryId": "1"
+    },
+    {
+     "operation": "trips.view",
+     "scope": "itinerary",
+     "entityId": "1",
+     "itineraryId": "1"
+    },
+    {
+     "operation": "workers.printed_qr",
+     "scope": "itinerary",
+     "entityId": "1",
+     "itineraryId": "1"
+    },
+    {
+     "operation": "workers.view",
+     "scope": "itinerary",
+     "entityId": "1",
+     "itineraryId": "1"
+    },
+    {
+     "operation": "workers.view_identity_card",
+     "scope": "itinerary",
+     "entityId": "1",
+     "itineraryId": "1"
+    }
+   ],
+   "memberships": [
+    {
+     "workerId": "4",
+     "entity": {
+      "id": "1",
+      "abbreviation": "PRUEBA",
+      "name": "Empresa de prueba",
+      "imageUrl": null,
+      "workerCount": 3
+     },
+     "itinerary": null,
+     "stop": null,
+     "roles": [
+      {
+       "id": "4",
+       "roleId": "1",
+       "name": "Trabajador",
+       "icon": "badge",
+       "isDefault": true,
+       "itineraryId": null,
+       "itineraryName": null
+      },
+      {
+       "id": "5",
+       "roleId": "2",
+       "name": "Jefe de Transporte",
+       "icon": "manage_accounts",
+       "isDefault": false,
+       "itineraryId": null,
+       "itineraryName": null
+      },
+      {
+       "id": "7",
+       "roleId": "4",
+       "name": "Jefe de itinerario",
+       "icon": "route",
+       "isDefault": false,
+       "itineraryId": "1",
+       "itineraryName": "Ruta Este"
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "links": {
+  "self": "http://localhost:18000/api/v1/me"
+ }
+}
