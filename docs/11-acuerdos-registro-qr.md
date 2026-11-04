@@ -226,6 +226,9 @@ itinerario. Mientras no tiene ninguno de los dos, en Inicio sale la tarjeta «Si
 - **El sistema verifica el derecho** al guardar, con la regla de siempre: hasta el 31 de agosto siguiente al
   cumpleaños en que alcanza `child_max_age`. Si el niño no tiene derecho, no se deja añadir. Cuando lo pierde,
   deja de mostrarse (§11.9).
+- **Posible duplicado:** si en la misma Entidad ya hay un niño con el mismo primer nombre, primer apellido y fecha
+  de nacimiento, **se avisa al padre** al guardar y puede continuar. Además, **se avisa al Jefe de Transporte** de
+  la Entidad para que lo revise.
 - **Al subir** a la guagua se indica con **cuántos niños subió realmente** (de 0 a los que tiene con derecho).
 - **El sistema mantiene las estadísticas** de los niños: declarados con derecho y los que viajan realmente.
 
