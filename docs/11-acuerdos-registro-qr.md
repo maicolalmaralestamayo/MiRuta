@@ -1,113 +1,269 @@
-# 11. Acuerdos: registro, usuarios, contraseñas, tarjeta de usuario y QR
+# 11. Acuerdos: registro, personas y Entidades, contraseñas, tarjetas, hijos y QR
 
-Acuerdos con el Product Owner del 03/11/2026, **pendientes de implementar**. Cambian lo descrito en
-`02-procesos.md` (§2.1 y §2.9), `05-app.md` y `09-repaso-pantallas.md` en lo que se indica.
+Acuerdos con el Product Owner del 03 y 04/11/2026, **pendientes de implementar**. Cambian lo descrito en
+`02-procesos.md`, `05-app.md` y `09-repaso-pantallas.md` en lo que se indica.
 
-## 11.1 Jerarquías
+## 11.1 Se eliminan el Pase y la jerarquía
 
-- Nuevo campo **abreviatura**. Tanto el **nombre** como la **abreviatura** son **obligatorios y únicos**.
-- La app arranca **sin jerarquías**: se quita la lista inicial (Coronel, Teniente coronel…) y las crea el
-  Administrador.
-- **La lista de jerarquías no es pública.** Solo se ve con sesión iniciada; hoy `GET /ranks` es público y deja de
-  serlo.
-- El trabajador **elige su jerarquía de un listado** (por su nombre) en «Otros datos del registro» (§11.4).
-  Es **obligatoria**.
+- **Se elimina el Pase de toda la app**: registro, tarjetas, búsquedas, «Olvidé algo», QR, estadísticas y API. En
+  la práctica daba problemas (a veces no se tiene Pase y hay que acceder al transporte).
+- **Se elimina la jerarquía, por ahora**: nomenclador, campo de la persona, su elección y las estadísticas por
+  jerarquía.
 
-## 11.2 Tarjeta de usuario
+## 11.2 La persona se identifica por su carné de identidad
+
+- **El carné de identidad** (11 dígitos) identifica a la persona y es **único en toda la app**, como en la primera
+  versión (`07-algoritmos.md` §7.1 de entonces):
+  - los 6 primeros dígitos (`AAMMDD`) son la **fecha de nacimiento**, que se calcula y no se escribe;
+  - el **7.º dígito** da el siglo: 9 → 1800; 0–5 → 1900; 6–8 → 2000;
+  - el **penúltimo dígito** da el **sexo**: par → masculino; impar → femenino. El sexo se calcula y no se elige.
+- Se guarda **cifrado**, con una huella (HMAC) para buscarlo y comprobar que no se repite.
+- **Quién lo ve:**
+  - el propio trabajador;
+  - el Administrador;
+  - el Jefe de Transporte de las Entidades a las que pertenece o en las que solicita entrar.
+  - No lo ven los demás trabajadores ni el Jefe de itinerario.
+- Los **hijos** también se identifican por su carné, del que salen su fecha de nacimiento y su sexo (§11.11).
+
+## 11.3 Tarjeta de usuario
 
 **Tarjeta:** visualización resumida y compacta de los datos de un objeto. No lleva los nombres de los campos,
 solo los valores.
 
-La tarjeta de usuario, igual en toda la app:
-
 | Posición | Contenido | Ejemplo |
 |---|---|---|
 | Izquierda | Foto de perfil (sin foto: ícono genérico de persona) | — |
-| Línea 1 | ★ (siempre la estrella, no el ícono de la jerarquía) + abreviatura de la jerarquía + apellidos | ★ Cap. Almarales Tamayo |
-| Línea 2 | Abreviatura de la Entidad • Pase número | UMIM • Pase 1024 |
+| Línea 1 | Nombres y apellidos | Maicol Almarales Tamayo |
+| Línea 2 | Abreviaturas de sus Entidades separadas por •; si no tiene ninguna: **Sin Entidad** | UMIM • DPTRANS |
 
-- El itinerario, la parada y los roles **no van en la tarjeta del usuario**: tienen sus propias tarjetas (§11.9).
+- El itinerario, la parada y los roles **no van en la tarjeta del usuario**: tienen sus propias tarjetas (§11.10).
 - Si un texto no cabe, se corta con «…».
-- En las tarjetas, la parada se nombra por su **punto de referencia**, porque no tiene campo «nombre». Campos de la parada: Entidad, punto de
-  referencia, calle, entrecalle 1 (opcional), entrecalle 2 (opcional), latitud y longitud.
+- En las tarjetas, la parada se nombra por su **punto de referencia**, porque no tiene campo «nombre». Campos de la
+  parada: Entidad, punto de referencia, calle, entrecalle 1 (opcional), entrecalle 2 (opcional), latitud y
+  longitud.
 
-## 11.3 Usuario
+## 11.4 Usuario
 
 - Longitud: **de 2 a 50 caracteres** (antes de 4 a 20).
 - La regla «al menos 3 letras» pasa a **al menos 2 letras**. El resto de reglas de formación y las palabras
   reservadas se mantienen.
 
-**Usuario propuesto.** El sistema siempre propone un usuario; quien registra (el trabajador o su superior) puede
+**Usuario propuesto.** El sistema siempre propone un usuario; quien registra (la persona o un jefe) puede
 cambiarlo. Se van añadiendo partes, separadas por punto, solo mientras el resultado esté ocupado o no sea válido,
 todo en minúsculas y sin tildes:
 
 1. primer nombre → `maicol`
 2. \+ segundo nombre, si tiene → `maicol.alberto`
 3. \+ primer apellido → `maicol.alberto.almarales`
-4. \+ abreviatura de la Entidad → `maicol.alberto.almarales.umim`
-5. \+ número de Pase → `maicol.alberto.almarales.umim.1024`
+4. \+ segundo apellido → `maicol.alberto.almarales.tamayo`
+5. \+ un número → `maicol.alberto.almarales.tamayo.2` (3, 4…)
 
-## 11.4 Registro
+## 11.5 Registro
 
-### Pantalla 1: Registro (una sola pantalla)
+### Pantalla 1: Registro
 
-- Primer nombre, segundo nombre (opcional), primer apellido, segundo apellido y **sexo**.
-- **Abreviatura de la Entidad**: se comprueba que existe y se muestra su nombre para confirmar; **si no existe,
-  no se puede registrar**. Nunca se muestra la lista de Entidades.
-- **Pase**.
+- Primer nombre, segundo nombre (opcional), primer apellido, segundo apellido y **carné de identidad**. El sexo y la
+  fecha de nacimiento salen del carné.
 - **Usuario** y **contraseña** (con su repetición), ya **propuestos por el sistema** y modificables.
-- Si el Pase ya está registrado en esa Entidad:
-  > «Alguien ya se registró con este número de pase. Si fue usted, emplee la opción Olvidé algo. Si no fue usted,
-  > comuníquese con el Administrador de la aplicación, su Jefe de Itinerario o el Jefe de Transporte de su
+- **Sin Entidad.** La Entidad se solicita después, ya dentro de la app (§11.6).
+- Si el carné ya está registrado:
+  > «Alguien ya se registró con este carné de identidad. Si fue usted, emplee la opción Olvidé algo. Si no fue
+  > usted, comuníquese con el Administrador de la aplicación, su Jefe de Itinerario o el Jefe de Transporte de su
   > Entidad.»
-- Al registrarse, la cuenta queda creada y **unida a su Entidad**: desaparece el antiguo segundo paso «unirse a la
-  Entidad».
 
 **Primer registro (Administrador).**
 - La app pregunta al servidor (consulta pública que solo responde sí o no) **si ya hay Administrador**.
-- Si no lo hay, **Entidad y Pase quedan inhabilitados**. El **sexo sí está habilitado** y se guarda en la cuenta,
-  porque el Administrador no es trabajador.
-- El servidor también lo comprueba: si ya hay Administrador, exige Entidad y Pase. El primero que completa el
+- Si no lo hay, quien se registra es el **Administrador**. El servidor lo comprueba: el primero que completa el
   registro es el Administrador, aunque dos lo intenten a la vez.
 
 ### Pantalla 2: «Otros datos del registro»
 
 Se abre justo después del registro, ya con la sesión iniciada:
 
-- **Jerarquía**: se elige de un listado por su nombre. **Obligatoria.**
-- **Solicitar itinerario y parada** (siempre juntos).
-- **Añadir hijos** (directamente, sin solicitud: §11.10).
+- **Solicitar entrar en una Entidad**: se escribe su abreviatura, se comprueba que existe y se muestra su nombre
+  para confirmar. Nunca se muestra la lista de Entidades.
+- **Solicitar itinerario y parada** (siempre juntos), una vez aprobada la Entidad.
+- **Añadir hijos** (directamente, sin solicitud: §11.11).
 - **Solicitar roles**: chofer, Jefe de itinerario o Jefe de Transporte.
-- **Mi QR**: para que un jefe le dé de alta directamente en un itinerario y su parada (§11.7).
+- **Mi QR**: para que un jefe le dé de alta directamente en un itinerario y su parada (§11.8).
 - **Hablar con el desarrollador** en esta pantalla y en todas las que se abren desde ella.
 
-**Itinerario y parada siempre van juntos.** Ningún trabajador tiene itinerario sin parada ni parada sin
-itinerario. Mientras no tiene ninguno de los dos, en Inicio sale la tarjeta «Sin itinerario» (§11.9).
+**Itinerario y parada siempre van juntos.** Nadie tiene itinerario sin parada ni parada sin itinerario. Mientras no
+tiene ninguno de los dos en una Entidad, en Inicio sale la tarjeta «Sin itinerario» (§11.10).
 
-### Registro por un superior
+### Registro por un jefe
 
-- Lo hacen el Administrador, el Jefe de Transporte o el Jefe de itinerario.
-- El sistema propone usuario y contraseña; el registrador puede cambiarlos.
-- Al guardar, se muestran la tarjeta del trabajador, su **usuario** y su **contraseña**, con botones para copiarlos
+- Lo hacen el Administrador, el Jefe de Transporte o el Jefe de itinerario, **en su Entidad**.
+- Datos: nombres y apellidos, **carné de identidad** y si **tiene teléfono** (§11.9).
+- El sistema propone usuario y contraseña; el jefe puede cambiarlos.
+- Al guardar, se muestran la tarjeta de la persona, su **usuario** y su **contraseña**, con botones para copiarlos
   y compartirlos.
+- **Si el carné ya existe** (la persona ya tiene cuenta, quizá en otra Entidad): **no se crea otra cuenta**; se le
+  añade la Entidad del jefe, ya aprobada. Si tiene teléfono, se le avisa; si no, se lo comunica el jefe.
 - **Desaparecen** «Me registró un superior» y los códigos de activación.
 
-## 11.5 Contraseñas
+## 11.6 Varias Entidades por persona
 
-- **Contraseña puesta por otro:** al entrar por primera vez con una contraseña que no eligió él mismo, el
-  trabajador **debe cambiarla**.
-- El trabajador cambia su propia contraseña desde **Mi perfil** cuando quiera. **Nadie se la resetea sin que él lo
+- **La cuenta es de la persona**: usuario, contraseña, nombres y apellidos, carné (y con él sexo y fecha de
+  nacimiento), **hijos** y **QR**.
+- **En cada Entidad tiene**: itinerario y parada, y roles (Chofer, Jefe de itinerario, Jefe de Transporte).
+- **Está activo a la vez en todas las Entidades** en las que solicitó entrar y se le aprobó: en cada una cuenta
+  como pasajero esperado y en sus estadísticas.
+- **Solicitar entrar en una Entidad:**
+  - la solicita la persona, indicando la abreviatura de la Entidad;
+  - la aprueba el **Jefe de Transporte de esa Entidad** o el **Administrador**.
+- **Darse de baja de una Entidad:** cuando quiera. Se borran su itinerario, su parada y sus roles en esa Entidad.
+  Para volver a pertenecer a ella, tiene que **solicitarlo de nuevo**. Si era su única Entidad, se queda con la
+  cuenta **sin Entidad**.
+- **Ausencias:** no hacen falta para nada de esto. Se declaran para **no perder el derecho a viajar** (§11.12).
+
+## 11.7 Contraseñas
+
+- **Contraseña puesta por otro:** al entrar por primera vez con una contraseña que no eligió él mismo, debe
+  **cambiarla**.
+- Cada uno cambia su propia contraseña desde **Mi perfil** cuando quiera. **Nadie se la resetea sin que él lo
   pida.**
 
 **Olvidé algo.**
-1. El trabajador lo pide indicando su **Entidad** y su **Pase**.
+1. La persona lo pide indicando su **carné de identidad** y un **teléfono**.
 2. **Solo el Administrador** lo aprueba, tras verificar los datos y confirmarlo por una tercera vía (llamada o
    WhatsApp).
 3. Al aprobarlo, el sistema propone una contraseña nueva. Se comunica **solo lo que se olvidó y se pidió**
    (usuario, contraseña o ambos), por esa tercera vía o enviándolo al teléfono que hizo la solicitud.
-4. Al entrar con la contraseña nueva, el trabajador debe cambiarla.
+4. Al entrar con la contraseña nueva, debe cambiarla.
 
-## 11.6 Servidor y conexión
+## 11.8 Código QR del trabajador
+
+**Un solo QR por persona para toda la app**, generado siempre de la misma forma. Identifica a la **persona**, no
+una Entidad: sirve en todas sus Entidades.
+
+**Usos**
+1. **Subida al transporte.** Lo escanea el chofer o el Jefe de itinerario.
+   - Si la persona **no pertenece a ese itinerario o a esa Entidad**, se avisa a quien escanea, que **decide si lo
+     deja subir**.
+   - Si lo deja, se registra y **cuenta como pasajero**.
+   - Estadística nueva: **trabajadores que viajan fuera de su itinerario** (o de su Entidad).
+   - Se marca **qué hijos suben con él** (§11.11).
+2. **Alta directa en un itinerario**, sin solicitud.
+   - La hace el **Jefe de ese itinerario o el Jefe de Transporte**, y solo si la persona **pertenece a su
+     Entidad**.
+   - Quien escanea elige la **parada**.
+   - Si la persona tenía otro itinerario **en esa Entidad**, **se le cambia y pierde el anterior**.
+   - Si era Jefe del itinerario anterior, sigue siéndolo: cambiar de itinerario no quita jefaturas.
+
+**Funcionamiento con o sin conexión en ambos teléfonos.** La conexión mejora, pero no limita su uso.
+1. Al iniciar sesión, el teléfono crea una clave propia en el almacén seguro de Android, que no se puede copiar ni
+   exportar.
+2. El servidor firma un **certificado** de esa clave: persona y fecha de caducidad.
+3. El teléfono genera el QR **sin conexión**, firmando el identificador de la persona, la fecha y hora y un número
+   aleatorio. **Se renueva cada pocos segundos.**
+4. El teléfono que escanea comprueba **sin conexión** la firma del servidor sobre el certificado (con la clave
+   pública del servidor guardada al sincronizar) y la firma del QR.
+5. La tarjeta de la persona sale de la lista de trabajadores de la Entidad guardada al sincronizar: **el QR no
+   lleva datos personales**.
+6. Sin conexión, las subidas y las altas se guardan en el teléfono y se envían al recuperarla.
+
+**Para que no se pueda copiar ni reutilizar**
+- La pantalla del QR **no admite capturas ni grabación** de pantalla.
+- Una foto de la pantalla deja de valer en segundos.
+- Una copia de la app en otro teléfono no tiene la clave.
+- Cada código es de **un solo uso**: el teléfono que escanea no acepta dos veces el mismo, y el servidor descarta
+  los repetidos al sincronizar.
+- Diferencia de hora admitida entre los dos teléfonos: **±2 minutos**.
+
+## 11.9 QR impreso para quien no tiene teléfono
+
+- Al registrar a alguien, el jefe indica **si tiene teléfono**.
+- **Sin teléfono:** el sistema genera un **QR fijo**, que **no caduca**, se puede **imprimir** y se puede
+  **compartir** con la lista de Android (WhatsApp, Telegram, Bluetooth…).
+- **Un único QR por persona que no cambia nunca**: sirve en todas sus Entidades sin reimprimirlo.
+- **Usos:** los mismos que el QR del trabajador (§11.8): subir a la guagua y que un jefe le dé de alta o le
+  **cambie de itinerario y parada**.
+- **Funciona sin conexión.** El código solo lleva el identificador de la persona y la firma del servidor, sin datos
+  personales. Quien escanea con MiRuta ve la tarjeta de la persona.
+- **Tarjeta impresa:** el QR y, impresos al lado, solo **nombres, apellidos y sexo**.
+- **La foto no es obligatoria.** Si tiene foto, se muestra al escanear para comparar; si no, se compara con el
+  nombre.
+- **Quién lo ve, lo reimprime y lo anula:** el Administrador, el Jefe de Transporte de cualquiera de sus Entidades y
+  el Jefe de su itinerario.
+- **Protección ante copias** (una fotocopia funciona igual que el original):
+  - se puede **anular y generar uno nuevo** en cualquier momento; sin conexión, el teléfono que escanea se entera al
+    sincronizar;
+  - **una sola subida por trayecto**: si el mismo QR se usa dos veces en el mismo viaje, se avisa.
+- **Cuenta:** también se le crea usuario y contraseña, propuestos por el sistema. Cuando entra por primera vez en la
+  app, su QR impreso **se anula** y pasa a usar el QR que cambia cada pocos segundos.
+- **Alta en otra Entidad:** la registra el **Jefe de Transporte de esa Entidad** (§11.5, registro por un jefe).
+
+## 11.10 Pantalla de Inicio y tarjetas modelo
+
+**Imagen por defecto:** cuando no se ha subido imagen, se muestra un **ícono**.
+
+**Campos nuevos de imagen** (opcionales): foto de los **hijos**, imagen de la **Entidad**, del **itinerario** y de
+la **parada**.
+
+**Pantalla de Inicio**, de arriba abajo, con un título pequeño encima de cada grupo:
+
+| Grupo | Tarjeta |
+|---|---|
+| (sin título) | **Usuario** (§11.3) |
+| Hijos | Una por hijo con derecho. **Foto a la derecha**. Línea 1: nombres y apellidos. Línea 2: `Nacimiento 20/01/20`. Línea 3: `Derecho 20/01/30`. |
+| Entidad | **Entidad elegida.** Imagen a la izquierda. Línea 1: abreviatura. Línea 2: nombre. Línea 3: `50 trabajadores`. Sin Entidad: tarjeta «Sin Entidad», que al tocarla abre la solicitud. |
+| Itinerario y parada | De la Entidad elegida. Las dos imágenes juntas a la izquierda (itinerario y parada). Línea 1: nombre del itinerario. Línea 2: `calle • punto de referencia`. Línea 3: `50 trabajadores` (del itinerario). Sin itinerario: tarjeta «Sin itinerario», que al tocarla abre la solicitud de itinerario y parada. |
+| Roles | De la Entidad elegida. **Siempre primero la tarjeta «Trabajador»** (línea 2: abreviatura de la Entidad); después una por cada rol aprobado, con su ícono. Línea 1: el rol. Línea 2: **Jefe de itinerario** → nombre de su itinerario; **Jefe de Transporte** y **Chofer** → abreviatura de la Entidad. |
+| Viajes | De la Entidad elegida: los planificados y los que están en curso (tarjeta de viaje actual). |
+
+- **Elegir la Entidad:** se toca la tarjeta de la Entidad y se abre la lista de sus Entidades. Al final de la lista:
+  **«Solicitar entrar en otra Entidad»** y **«Darme de baja de esta Entidad»**. La app recuerda la última elegida.
+  Elegir solo cambia lo que se ve: la persona sigue activa en todas.
+- **Hijos:** son de la persona; se muestran siempre, sea cual sea la Entidad elegida. Cuando un hijo pierde el
+  derecho por edad, **deja de mostrarse**.
+- **«Trabajador» no es un rol que se solicite:** es la condición de quien pertenece a una Entidad. Sin Entidad no
+  hay tarjeta «Trabajador».
+- **Botones al final de la pantalla:**
+  - **Añadir hijo** (directo, §11.11), cuando no tiene hijos registrados;
+  - **Solicitar rol**, cuando no tiene en esa Entidad ningún rol además de Trabajador.
+- **Al tocar cualquier tarjeta** se abre su formulario de edición, de detalle o de solicitud.
+- **Barra inferior sin «Solicitudes»**: queda Inicio, Viajes, Mensajes y Más. Las solicitudes se hacen desde
+  las tarjetas.
+- **Tarjetas modelo:** estas tarjetas son el modelo para toda la app. Cuando se mencione la tarjeta de un usuario,
+  hijo, Entidad, itinerario y parada, rol o viaje, se usa esta forma.
+
+## 11.11 Hijos
+
+- **Se eliminan las solicitudes de hijos** (`child_addition` y `child_removal`), con su aprobación por los jefes.
+- **Los padres añaden, corrigen y quitan a sus hijos directamente**, cuando quieran, desde la tarjeta de hijos en
+  Inicio o desde Mi perfil.
+- **Se identifican por su carné de identidad**: nombres, apellidos y carné. La fecha de nacimiento y el sexo salen
+  del carné.
+- **Un mismo niño puede tenerlo declarado más de una persona** (sus padres). Si ya está registrado, la app avisa de
+  que ya está declarado y se lo asigna igualmente.
+- **El sistema verifica el derecho** al guardar, con la regla de siempre: hasta el 31 de agosto siguiente al
+  cumpleaños en que alcanza `child_max_age`. Si no tiene derecho, no se deja añadir. Cuando lo pierde, deja de
+  mostrarse.
+- **En la planificación no se espera a ningún niño**: los pasajeros esperados son solo trabajadores y la ocupación
+  prevista no suma niños.
+- **Al subir**, se marca **qué hijos suben** con ese trabajador. Cada niño **cuenta una sola vez**, en el viaje en
+  que sube el padre que lo lleva, aunque lo tengan declarado los dos padres.
+- **El sistema mantiene las estadísticas** de los niños: declarados con derecho y los que viajan realmente.
+
+## 11.12 Ausencias sin aprobación
+
+- **Las ausencias no llevan aprobación**: las **declara la propia persona** cuando lo necesite, con su tipo y
+  fechas, o indefinida. Cambia lo que había (aprobación del Jefe de su itinerario o del Jefe de Transporte).
+- Se declaran para **no perder el derecho a viajar**: durante la ausencia **no cuenta como pasajero esperado** y se
+  **pausa la baja automática por inactividad**.
+
+## 11.13 El Administrador también puede ser trabajador
+
+- El Administrador se registra como cualquiera, con su carné, y queda **sin Entidad**.
+- Cuando ya existen Entidades, puede **entrar en las que quiera sin solicitud ni aprobación**.
+- Desde ese momento, en esas Entidades es un trabajador más: tarjeta **Trabajador** en Roles, itinerario y parada,
+  hijos, QR y viajes, y **cuenta** en sus trabajadores y estadísticas.
+- **Dónde:** botón **«Unirme a una Entidad»** en Inicio, junto a los otros botones del final de la pantalla
+  (Añadir hijo, Solicitar rol). Abre un formulario con la abreviatura de la Entidad.
+- **Sigue siendo Administrador**, con todos sus permisos sobre todas las Entidades.
+
+## 11.14 Servidor y conexión
 
 - Por defecto **la app no trae la dirección del servidor**: las APK se compilan sin ella.
 - Botón del servidor en la pantalla de inicio de sesión (como ya funciona):
@@ -123,168 +279,3 @@ itinerario. Mientras no tiene ninguno de los dos, en Inicio sale la tarjeta «Si
   - **verde** si hay conexión con el servidor y **rojo** si no;
   - se actualiza con cada petición y, si no hay actividad, comprobando cada 30 segundos;
   - al tocarlo: «Conectado a <servidor>» o «Sin conexión con el servidor desde las hh:mm».
-
-## 11.7 Código QR del trabajador
-
-**Un solo QR para toda la app**, generado siempre de la misma forma.
-
-**Usos**
-1. **Subida al transporte.** Lo escanea el chofer o el Jefe de itinerario.
-   - Si el trabajador no pertenece a ese itinerario, se avisa a quien escanea, que **decide si lo deja subir**.
-   - Si lo deja, se registra y **cuenta como pasajero**.
-   - Estadística nueva: **trabajadores que viajan fuera de su itinerario**.
-2. **Alta directa en un itinerario**, sin solicitud.
-   - La hace el **Jefe de ese itinerario o el Jefe de Transporte**, siempre de la **misma Entidad** que el
-     trabajador.
-   - Quien escanea elige la **parada**.
-   - Si el trabajador tenía otro itinerario, **se le cambia y pierde el anterior**.
-   - Si era Jefe del itinerario anterior, sigue siéndolo: cambiar de itinerario no quita jefaturas.
-
-**Funcionamiento con o sin conexión en ambos teléfonos.** La conexión mejora, pero no limita su uso.
-1. Al iniciar sesión, el teléfono del trabajador crea una clave propia en el almacén seguro de Android, que no se
-   puede copiar ni exportar.
-2. El servidor firma un **certificado** de esa clave: trabajador, Entidad y fecha de caducidad.
-3. El teléfono genera el QR **sin conexión**, firmando el identificador del trabajador, la fecha y hora y un
-   número aleatorio. **Se renueva cada pocos segundos.**
-4. El teléfono que escanea comprueba **sin conexión** la firma del servidor sobre el certificado (con la clave
-   pública del servidor guardada al sincronizar) y la firma del QR.
-5. La tarjeta del trabajador sale de la lista de trabajadores de la Entidad guardada al sincronizar: **el QR no
-   lleva datos personales**.
-6. Sin conexión, las subidas y las altas se guardan en el teléfono y se envían al recuperarla.
-
-**Para que no se pueda copiar ni reutilizar**
-- La pantalla del QR **no admite capturas ni grabación** de pantalla.
-- Una foto de la pantalla deja de valer en segundos.
-- Una copia de la app en otro teléfono no tiene la clave.
-- Cada código es de **un solo uso**: el teléfono que escanea no acepta dos veces el mismo, y el servidor descarta
-  los repetidos al sincronizar.
-- Diferencia de hora admitida entre los dos teléfonos: **±2 minutos**.
-
-## 11.8 QR impreso para trabajadores sin teléfono
-
-- Al registrar a un trabajador, el Administrador, el Jefe de Transporte o el Jefe de itinerario indican **si tiene
-  teléfono**.
-- **Sin teléfono:** el sistema genera un **QR fijo**, que **no caduca**, se puede **imprimir** y se puede
-  **compartir** con la lista de Android (WhatsApp, Telegram, Bluetooth…).
-- **Usos:** los mismos que el QR del trabajador (§11.7):
-  - subir a la guagua;
-  - que un jefe le dé de alta o le **cambie de itinerario y parada**.
-- **Funciona sin conexión.**
-  - El código solo lleva el número del trabajador y la firma del servidor, sin datos personales.
-  - Quien escanea con MiRuta ve la tarjeta del trabajador, que sale de la lista de la Entidad guardada en su
-    teléfono.
-- **Tarjeta impresa:** el QR y, impresos al lado, solo **nombres, apellidos y sexo**.
-  - **Un único QR por persona que no cambia nunca**: sirve en cualquiera de sus Entidades (§11.12) sin reimprimirlo.
-  - Sin jerarquía, Entidad, Pase, itinerario ni parada, porque pueden cambiar.
-- **La foto no es obligatoria.** Si tiene foto, se muestra al escanear para comparar; si no, se compara con el
-  nombre y el Pase.
-- **Quién lo ve, lo reimprime y lo anula:** el Administrador, el Jefe de Transporte de su Entidad y el Jefe de su
-  itinerario.
-- **Protección ante copias** (una fotocopia funciona igual que el original):
-  - se puede **anular y generar uno nuevo** en cualquier momento; sin conexión, el teléfono que escanea se entera al
-    sincronizar;
-  - **una sola subida por trayecto**: si el mismo QR se usa dos veces en el mismo viaje, se avisa.
-- **Cuenta del trabajador sin teléfono:**
-  - también se le crea usuario y contraseña, propuestos por el sistema;
-  - cuando entra por primera vez en la app, su QR impreso **se anula** y pasa a usar el QR que cambia cada pocos
-    segundos.
-
-## 11.9 Pantalla de Inicio y tarjetas modelo
-
-**Imagen por defecto:** cuando no se ha subido imagen, se muestra un **ícono**.
-
-**Campos nuevos de imagen** (opcionales):
-- foto de los **hijos**;
-- imagen de la **Entidad**;
-- imagen del **itinerario**;
-- imagen de la **parada**.
-
-**Pantalla de Inicio**, de arriba abajo, con un título pequeño encima de cada grupo:
-
-| Grupo | Tarjeta |
-|---|---|
-| (sin título) | **Usuario** (§11.2) |
-| Hijos | Una por hijo con derecho. **Foto a la derecha**. Línea 1: nombres y apellidos. Línea 2: `Nacimiento 20/01/20`. Línea 3: `Derecho 20/01/30`. |
-| Entidad | Imagen a la izquierda. Línea 1: abreviatura. Línea 2: nombre. Línea 3: `50 trabajadores`. |
-| Itinerario y parada | Las dos imágenes juntas a la izquierda (itinerario y parada). Línea 1: nombre del itinerario. Línea 2: `calle • punto de referencia`. Línea 3: `50 trabajadores` (del itinerario). Sin itinerario: tarjeta «Sin itinerario», que al tocarla abre la solicitud de itinerario y parada. |
-| Roles | **Siempre primero la tarjeta «Trabajador»** (línea 2: abreviatura de la Entidad); después una por cada rol solicitado y aprobado, con su ícono. Línea 1: el rol. Línea 2: **Jefe de itinerario** → nombre de su itinerario; **Jefe de Transporte** y **Chofer** → abreviatura de la Entidad. |
-| Viajes | Los planificados y los que están en curso (tarjeta de viaje actual). |
-
-- **Hijos sin derecho:** cuando un hijo pierde el derecho por edad, **deja de mostrarse**.
-- **«Trabajador» no es un rol que se solicite:** es la condición de todo el que está unido a una Entidad con su
-  Pase. Su tarjeta sale siempre en «Roles», así que esa sección nunca queda vacía. El Administrador no la tiene.
-- **Botones al final de la pantalla:**
-  - **Añadir hijo** (directo, §11.10), cuando no tiene hijos registrados;
-  - **Solicitar rol**, cuando no tiene ningún rol además de Trabajador.
-- **Al tocar cualquier tarjeta** se abre su formulario de edición, de detalle o de solicitud.
-- **Barra inferior sin «Solicitudes»**: queda Inicio, Viajes, Mensajes y Más. Las solicitudes se hacen desde
-  las tarjetas.
-- **Tarjetas modelo:** estas tarjetas son el modelo para toda la app. Cuando se mencione la tarjeta de un usuario,
-  hijo, Entidad, itinerario y parada, rol o viaje, se usa esta forma.
-
-## 11.10 Hijos sin solicitud
-
-- **Se eliminan las solicitudes de hijos** (`child_addition` y `child_removal`), con su aprobación por los jefes.
-- **Los padres añaden, corrigen y quitan a sus hijos directamente**, cuando quieran, desde su tarjeta de hijos en
-  Inicio o desde Mi perfil.
-- **El sistema verifica el derecho** al guardar, con la regla de siempre: hasta el 31 de agosto siguiente al
-  cumpleaños en que alcanza `child_max_age`. Si el niño no tiene derecho, no se deja añadir. Cuando lo pierde,
-  deja de mostrarse (§11.9).
-- **Posible duplicado:** si en la misma Entidad ya hay un niño con el mismo primer nombre, primer apellido y fecha
-  de nacimiento, **se avisa al padre** al guardar y puede continuar. Además, **se avisa al Jefe de Transporte** de
-  la Entidad para que lo revise.
-- **Al subir** a la guagua se indica con **cuántos niños subió realmente** (de 0 a los que tiene con derecho).
-- **El sistema mantiene las estadísticas** de los niños: declarados con derecho y los que viajan realmente.
-
-
-## 11.11 El Administrador también puede ser trabajador
-
-- El Administrador se registra sin Entidad ni Pase (§11.4). Cuando ya existen Entidades, puede **declararse a sí
-  mismo** trabajador de una de ellas, con su **Pase** y su **jerarquía**, **sin solicitud ni aprobación**.
-- Se aplican las mismas reglas que a cualquier trabajador:
-  - la Entidad debe existir;
-  - el Pase debe ser único en esa Entidad, con el mismo mensaje si ya está registrado (§11.4).
-- Desde ese momento:
-  - tiene **tarjeta de usuario completa** (★ jerarquía y apellidos; Entidad • Pase);
-  - aparece la tarjeta **Trabajador** en sus Roles;
-  - puede tener **itinerario y parada, hijos, QR y viajes** como cualquier trabajador;
-  - **cuenta** en los trabajadores de su Entidad y en las estadísticas.
-- **Dónde:** botón **«Unirme a una Entidad»** en Inicio, junto a los otros botones del final de la pantalla
-  (Añadir hijo, Solicitar rol). Solo lo ve el Administrador mientras no es trabajador. Abre un formulario con
-  Entidad, Pase y jerarquía.
-- **Puede registrarse en otras Entidades sin solicitud** e indicar en cada una su Pase. Como cualquier trabajador,
-  tiene una sola Entidad activa y las demás quedan dormidas **con todos sus datos** (§11.12).
-- **Sigue siendo Administrador**, con todos sus permisos sobre todas las Entidades.
-
-## 11.12 Varias Entidades por persona (una sola activa)
-
-- **La cuenta es de la persona**: usuario, contraseña, nombres y apellidos, sexo, **jerarquía** (la misma en todas
-  sus Entidades), **hijos** y **QR** (§11.7 y §11.8).
-- **En cada Entidad tiene un registro propio**: Pase, itinerario y parada, y roles (Chofer, Jefe de itinerario,
-  Jefe de Transporte).
-- **Una sola Entidad activa a la vez.** Las demás quedan **dormidas con todos sus datos**: Pase, itinerario,
-  parada y roles se conservan. Al volver, tiene **todo igual**.
-- **En una Entidad dormida no cuenta**: ni como pasajero esperado ni en las estadísticas. Los hijos solo cuentan en
-  la Entidad activa.
-- **Registrarse en otra Entidad:**
-  - lo solicita el trabajador, con su Pase en la nueva Entidad;
-  - lo aprueba el **Jefe de Transporte de la nueva Entidad** o el **Administrador**;
-  - mientras no se aprueba, sigue activa la anterior.
-- **Cambiar de Entidad activa:**
-  - lo hace **el propio trabajador**, cuando quiera, entre sus Entidades ya aprobadas;
-  - necesita una **ausencia** en la Entidad que deja (§11.13): si ya la tiene declarada, cambia directamente; si no,
-    la app se la pide en el mismo paso.
-- **Darse de baja de una Entidad:**
-  - puede darse de baja de **cualquiera**, activa o dormida; se borra su registro en esa Entidad;
-  - si era la **activa** y tiene otras, la app le pide **elegir cuál activar**;
-  - si era la **única**, se queda con la cuenta **sin Entidad** y puede pedir registrarse en otra cuando quiera.
-- **Trabajador sin teléfono:** el **Jefe de Transporte de la Entidad a la que va** aprueba o registra su alta allí,
-  le activa esa Entidad y declara por él la ausencia en la que deja. Su QR impreso sigue valiendo.
-
-## 11.13 Ausencias sin aprobación
-
-- **Las ausencias no llevan aprobación**: las **declara el propio trabajador** cuando lo necesite, con su tipo y
-  fechas, o indefinida. Cambia lo que había (aprobación del Jefe de su itinerario o del Jefe de Transporte).
-- Siguen teniendo sus efectos: durante la ausencia **no cuenta como pasajero esperado** y se **pausa el contador de
-  inactividad**.
-
