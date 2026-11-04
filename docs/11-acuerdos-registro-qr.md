@@ -173,8 +173,9 @@ itinerario. Mientras no tiene ninguno de los dos, en Inicio sale la tarjeta «Si
   - El código solo lleva el número del trabajador y la firma del servidor, sin datos personales.
   - Quien escanea con MiRuta ve la tarjeta del trabajador, que sale de la lista de la Entidad guardada en su
     teléfono.
-- **Tarjeta impresa:** el QR y, impresos al lado, nombres y apellidos, sexo, Entidad y Pase.
-  - **Sin jerarquía, itinerario ni parada**, para que siga valiendo dentro de la misma Entidad sin reimprimirla.
+- **Tarjeta impresa:** el QR y, impresos al lado, solo **nombres, apellidos y sexo**.
+  - **Un único QR por persona que no cambia nunca**: sirve en cualquiera de sus Entidades (§11.12) sin reimprimirlo.
+  - Sin jerarquía, Entidad, Pase, itinerario ni parada, porque pueden cambiar.
 - **La foto no es obligatoria.** Si tiene foto, se muestra al escanear para comparar; si no, se compara con el
   nombre y el Pase.
 - **Quién lo ve, lo reimprime y lo anula:** el Administrador, el Jefe de Transporte de su Entidad y el Jefe de su
@@ -251,7 +252,39 @@ itinerario. Mientras no tiene ninguno de los dos, en Inicio sale la tarjeta «Si
 - **Dónde:** botón **«Unirme a una Entidad»** en Inicio, junto a los otros botones del final de la pantalla
   (Añadir hijo, Solicitar rol). Solo lo ve el Administrador mientras no es trabajador. Abre un formulario con
   Entidad, Pase y jerarquía.
-- **Puede cambiar de Entidad sin solicitud**, indicando su Pase en la nueva. Al cambiar, pierde lo que dependía de
-  la Entidad anterior: itinerario y parada, y los roles de Chofer, Jefe de itinerario y Jefe de Transporte. Sus
-  hijos se mantienen.
+- **Puede registrarse en otras Entidades sin solicitud** e indicar en cada una su Pase. Como cualquier trabajador,
+  tiene una sola Entidad activa y las demás quedan dormidas **con todos sus datos** (§11.12).
 - **Sigue siendo Administrador**, con todos sus permisos sobre todas las Entidades.
+
+## 11.12 Varias Entidades por persona (una sola activa)
+
+- **La cuenta es de la persona**: usuario, contraseña, nombres y apellidos, sexo, **jerarquía** (la misma en todas
+  sus Entidades), **hijos** y **QR** (§11.7 y §11.8).
+- **En cada Entidad tiene un registro propio**: Pase, itinerario y parada, y roles (Chofer, Jefe de itinerario,
+  Jefe de Transporte).
+- **Una sola Entidad activa a la vez.** Las demás quedan **dormidas con todos sus datos**: Pase, itinerario,
+  parada y roles se conservan. Al volver, tiene **todo igual**.
+- **En una Entidad dormida no cuenta**: ni como pasajero esperado ni en las estadísticas. Los hijos solo cuentan en
+  la Entidad activa.
+- **Registrarse en otra Entidad:**
+  - lo solicita el trabajador, con su Pase en la nueva Entidad;
+  - lo aprueba el **Jefe de Transporte de la nueva Entidad** o el **Administrador**;
+  - mientras no se aprueba, sigue activa la anterior.
+- **Cambiar de Entidad activa:**
+  - lo hace **el propio trabajador**, cuando quiera, entre sus Entidades ya aprobadas;
+  - necesita una **ausencia** en la Entidad que deja (§11.13): si ya la tiene declarada, cambia directamente; si no,
+    la app se la pide en el mismo paso.
+- **Darse de baja de una Entidad:**
+  - puede darse de baja de **cualquiera**, activa o dormida; se borra su registro en esa Entidad;
+  - si era la **activa** y tiene otras, la app le pide **elegir cuál activar**;
+  - si era la **única**, se queda con la cuenta **sin Entidad** y puede pedir registrarse en otra cuando quiera.
+- **Trabajador sin teléfono:** el **Jefe de Transporte de la Entidad a la que va** aprueba o registra su alta allí,
+  le activa esa Entidad y declara por él la ausencia en la que deja. Su QR impreso sigue valiendo.
+
+## 11.13 Ausencias sin aprobación
+
+- **Las ausencias no llevan aprobación**: las **declara el propio trabajador** cuando lo necesite, con su tipo y
+  fechas, o indefinida. Cambia lo que había (aprobación del Jefe de su itinerario o del Jefe de Transporte).
+- Siguen teniendo sus efectos: durante la ausencia **no cuenta como pasajero esperado** y se **pausa el contador de
+  inactividad**.
+
