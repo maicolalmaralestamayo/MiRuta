@@ -217,10 +217,10 @@ la **parada**.
   derecho por edad, **deja de mostrarse**.
 - **«Trabajador» no es un rol que se solicite:** es la condición de quien pertenece a una Entidad. Sin Entidad no
   hay tarjeta «Trabajador».
-- **Botones al final de la pantalla:**
-  - **Añadir hijo** (directo, §11.11), cuando no tiene hijos registrados;
-  - **Solicitar rol**, cuando no tiene en esa Entidad ningún rol además de Trabajador.
-- **Al tocar cualquier tarjeta** se abre su formulario de edición, de detalle o de solicitud.
+- **Botones de Inicio**, debajo de la tarjeta del usuario, con **ícono y una sola palabra** debajo:
+  **Perfil**, **Hijos**, **Entidades**, **Itinerario**, **Roles** y **Viajes**. Cada uno lleva a su pantalla
+  (§11.18).
+- **Las tarjetas de Inicio no hacen nada al tocarlas**, salvo la de la Entidad, que es el **selector de Entidad**.
 - **Barra inferior sin «Solicitudes»**: queda Inicio, Viajes, Mensajes y Más. Las solicitudes se hacen desde
   las tarjetas.
 - **Tarjetas modelo:** estas tarjetas son el modelo para toda la app. Cuando se mencione la tarjeta de un usuario,
@@ -437,4 +437,35 @@ Entidad.
   itinerario (tolerancia de atraso, desvíos, avisos, retención del chat del viaje…) y los de la parada por parada
   (tiempo mínimo de parada, velocidad de paso…).
 - **Gana el más concreto:** trabajador → parada del itinerario → itinerario → Entidad → app.
+
+## 11.18 Pantallas interiores y forma de uso
+
+Todas las pantallas tienen la **misma forma**; lo que cambia son los datos: título, selector de Entidad arriba si
+hace falta, tarjetas y una barra de botones abajo.
+
+**Selector de Entidad:** en todas las pantallas es como el de Inicio, la **tarjeta de la Entidad con ↕**. Al
+tocarla se abre «Mis Entidades» para elegir, con ✓ en la elegida.
+
+**Tarjetas y acciones**
+- **Las tarjetas no llevan botones dentro.**
+- **Tocar una tarjeta** abre directamente su formulario de edición.
+- **Mantenerla pulsada** entra en **modo selección**: queda marcada con ✓ y cada toque marca o desmarca otras,
+  así que se pueden seleccionar varias. Arriba: «N seleccionadas» y ✕ para salir.
+- **Una sola barra de botones abajo**, siempre la misma en cada pantalla, con el **botón principal y los de
+  acción juntos**, todos con ícono:
+  - los que no necesitan selección (Crear, Agregar, Solicitar, Declarar…) están **siempre activos**;
+  - **Editar** se activa con **una** tarjeta seleccionada y abre el mismo formulario que tocarla;
+  - **Desactivar, Eliminar, Darme de baja, Cancelar solicitud…** se activan con **una o varias** seleccionadas y
+    piden confirmación.
+
+**Pantallas**
+
+| Pantalla | Selector de Entidad | Contenido | Botones |
+|---|---|---|---|
+| **Perfil** | No | Foto; nombres y apellidos, carné y usuario editables; sexo y fecha de nacimiento de solo lectura (salen del carné) | Cambiar contraseña, Guardar |
+| **Hijos** | No | Con derecho a viajar; Desactivados (en gris). Si otro padre también lo tiene declarado, se indica. | Crear (hijo nuevo), Agregar (ya registrado, por carné), Editar, Desactivar / Reactivar, Eliminar |
+| **Entidades** | No | Mis Entidades; Solicitudes pendientes | Solicitar (entrar en una Entidad), Darme de baja, Cancelar solicitud |
+| **Itinerario y parada** | Sí | Mi itinerario y parada; Ausencias | Solicitar (otro itinerario y parada), Darme de baja, Declarar (ausencia), Editar, Eliminar |
+| **Roles** | Sí | Mis roles (Trabajador siempre); Solicitudes pendientes | Solicitar (un rol), Darme de baja (no aplica a Trabajador), Cancelar solicitud |
+| **Viajes** | Sí | En curso; Confirmados | — (tocar un viaje abre su detalle) |
 
