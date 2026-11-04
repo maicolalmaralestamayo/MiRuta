@@ -447,7 +447,8 @@ Entidad.
 ## 11.18 Pantallas interiores y forma de uso
 
 Todas las pantallas tienen la **misma forma**; lo que cambia son los datos: título, selector de Entidad arriba si
-hace falta, tarjetas y una barra de botones abajo.
+hace falta, tarjetas, el botón **Acciones** y, siempre abajo, la **barra principal** (Inicio, Viajes, Mensajes y
+Más), también en las pantallas interiores.
 
 **Selector de Entidad:** en todas las pantallas es como el de Inicio, la **tarjeta de la Entidad con ↕**. Al
 tocarla se abre «Mis Entidades» para elegir, con ✓ en la elegida.
@@ -457,27 +458,30 @@ tocarla se abre «Mis Entidades» para elegir, con ✓ en la elegida.
 - **Tocar una tarjeta** abre directamente su formulario de edición.
 - **Mantenerla pulsada** entra en **modo selección**: queda marcada con ✓ y cada toque marca o desmarca otras,
   así que se pueden seleccionar varias. Arriba: «N seleccionadas» y ✕ para salir.
-- **Una sola barra de botones abajo**, siempre la misma en cada pantalla, con el **botón principal y los de
-  acción juntos**, todos con ícono:
-  - los que no necesitan selección (Crear, Agregar, Solicitar, Declarar…) están **siempre activos**;
+- **Botón «Acciones»**, naranja, abajo a la derecha, encima de la barra principal. Al tocarlo **sube desde abajo
+  una hoja «Acciones»**, igual que «Mis Entidades» en Inicio: esquinas redondeadas, título y la lista de acciones
+  con ícono y texto. Tiene **todas las acciones de la pantalla**:
+  - las que no necesitan selección (Crear, Agregar, Solicitar, Declarar, Guardar…) están **siempre activas**;
   - **Editar** se activa con **una** tarjeta seleccionada y abre el mismo formulario que tocarla;
-  - **Desactivar, Eliminar, Darme de baja, Cancelar solicitud…** se activan con **una o varias** seleccionadas y
-    piden confirmación.
+  - **Desactivar, Eliminar, Darme de baja, Cancelar solicitud…** se activan con **una o varias** seleccionadas
+    y piden confirmación. Eliminar va en rojo;
+  - las que no se pueden usar en ese momento salen **en gris**.
 
-**Barra de botones:** **3 botones por fila**, **centrados** y **todos del mismo tamaño** en todas las pantallas
-(ícono y una palabra). Si hay más de 3, pasan a una segunda fila.
+**Inicio:** mantiene, de momento, sus **seis botones** (Perfil, Hijos, Entidades, Itinerario, Roles y Viajes),
+3 por fila, centrados y del mismo tamaño, con ícono y una palabra.
 
 **Formulario de un hijo:** sus datos editables, **quién más lo tiene declarado** (solo aquí, no en la tarjeta) y la
 opción de **desactivarlo** (o reactivarlo).
 
 **Pantallas**
 
-| Pantalla | Selector de Entidad | Contenido | Botones |
+| Pantalla | Selector de Entidad | Contenido | Acciones |
 |---|---|---|---|
-| **Perfil** | No | Foto; nombres y apellidos, carné y usuario editables; sexo y fecha de nacimiento de solo lectura (salen del carné) | Cambiar contraseña, Guardar |
+| **Perfil** | No | Foto; nombres y apellidos, carné y usuario editables; sexo y fecha de nacimiento de solo lectura (salen del carné) | Guardar perfil, Cambiar contraseña |
+| **Formulario de un hijo** | No | Foto; nombres, apellidos y carné editables; sexo, nacimiento y derecho a viajar de solo lectura; quién más lo tiene declarado | Guardar, Desactivar / Reactivar, Eliminar |
 | **Hijos** | No | Con derecho a viajar; Desactivados (en gris). Las tarjetas mantienen sus tres líneas. | Crear (hijo nuevo), Agregar (ya registrado, por carné), Editar, Desactivar / Reactivar, Eliminar |
 | **Entidades** | No | Mis Entidades; Solicitudes pendientes | Solicitar (entrar en una Entidad), Darme de baja, Cancelar solicitud |
 | **Itinerario y parada** | Sí | Mi itinerario y parada; Ausencias | Solicitar (otro itinerario y parada), Darme de baja, Declarar (ausencia), Editar, Eliminar |
 | **Roles** | Sí | Mis roles (Trabajador siempre); Solicitudes pendientes | Solicitar (un rol), Darme de baja (no aplica a Trabajador), Cancelar solicitud |
-| **Viajes** | Sí | En curso; Confirmados | — (tocar un viaje abre su detalle) |
+| **Viajes** | Sí | En curso; Confirmados | Sin botón Acciones (tocar un viaje abre su detalle) |
 
