@@ -464,12 +464,18 @@ tocarla se abre «Mis Entidades» para elegir, con ✓ en la elegida.
   - **Desactivar, Eliminar, Darme de baja, Cancelar solicitud…** se activan con **una o varias** seleccionadas y
     piden confirmación.
 
+**Barra de botones:** **3 botones por fila**, **centrados** y **todos del mismo tamaño** en todas las pantallas
+(ícono y una palabra). Si hay más de 3, pasan a una segunda fila.
+
+**Formulario de un hijo:** sus datos editables, **quién más lo tiene declarado** (solo aquí, no en la tarjeta) y la
+opción de **desactivarlo** (o reactivarlo).
+
 **Pantallas**
 
 | Pantalla | Selector de Entidad | Contenido | Botones |
 |---|---|---|---|
 | **Perfil** | No | Foto; nombres y apellidos, carné y usuario editables; sexo y fecha de nacimiento de solo lectura (salen del carné) | Cambiar contraseña, Guardar |
-| **Hijos** | No | Con derecho a viajar; Desactivados (en gris). Si otro padre también lo tiene declarado, se indica. | Crear (hijo nuevo), Agregar (ya registrado, por carné), Editar, Desactivar / Reactivar, Eliminar |
+| **Hijos** | No | Con derecho a viajar; Desactivados (en gris). Las tarjetas mantienen sus tres líneas. | Crear (hijo nuevo), Agregar (ya registrado, por carné), Editar, Desactivar / Reactivar, Eliminar |
 | **Entidades** | No | Mis Entidades; Solicitudes pendientes | Solicitar (entrar en una Entidad), Darme de baja, Cancelar solicitud |
 | **Itinerario y parada** | Sí | Mi itinerario y parada; Ausencias | Solicitar (otro itinerario y parada), Darme de baja, Declarar (ausencia), Editar, Eliminar |
 | **Roles** | Sí | Mis roles (Trabajador siempre); Solicitudes pendientes | Solicitar (un rol), Darme de baja (no aplica a Trabajador), Cancelar solicitud |
