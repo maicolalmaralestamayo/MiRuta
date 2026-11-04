@@ -251,4 +251,7 @@ itinerario. Mientras no tiene ninguno de los dos, en Inicio sale la tarjeta «Si
 - **Dónde:** botón **«Unirme a una Entidad»** en Inicio, junto a los otros botones del final de la pantalla
   (Añadir hijo, Solicitar rol). Solo lo ve el Administrador mientras no es trabajador. Abre un formulario con
   Entidad, Pase y jerarquía.
+- **Puede cambiar de Entidad sin solicitud**, indicando su Pase en la nueva. Al cambiar, pierde lo que dependía de
+  la Entidad anterior: itinerario y parada, y los roles de Chofer, Jefe de itinerario y Jefe de Transporte. Sus
+  hijos se mantienen.
 - **Sigue siendo Administrador**, con todos sus permisos sobre todas las Entidades.
