@@ -248,4 +248,7 @@ itinerario. Mientras no tiene ninguno de los dos, en Inicio sale la tarjeta «Si
   - aparece la tarjeta **Trabajador** en sus Roles;
   - puede tener **itinerario y parada, hijos, QR y viajes** como cualquier trabajador;
   - **cuenta** en los trabajadores de su Entidad y en las estadísticas.
+- **Dónde:** botón **«Unirme a una Entidad»** en Inicio, junto a los otros botones del final de la pantalla
+  (Añadir hijo, Solicitar rol). Solo lo ve el Administrador mientras no es trabajador. Abre un formulario con
+  Entidad, Pase y jerarquía.
 - **Sigue siendo Administrador**, con todos sus permisos sobre todas las Entidades.
