@@ -3,70 +3,93 @@ import 'package:flutter/material.dart';
 import '../../core/json_api.dart';
 import '../../models/models.dart';
 import '../../services/user_settings.dart';
+import '../admin/management.dart';
+import '../navigation.dart';
+import '../widgets/app_scaffold.dart';
 import '../widgets/common.dart';
 import 'setting_editor.dart';
 
-/// Ajustes en tres niveles (docs/08-version-2.md §8.2):
-/// - de la app: solo el Administrador (caducidades, contraseñas, mínimos…);
-/// - de la Entidad: su Jefe de Transporte (y el Administrador), incluidos los
-///   valores por defecto de los ajustes de cada usuario.
+/// Ajustes de la app (settings.app) y de una Entidad (settings.entity), con
+/// la forma común (docs/11 §11.18). Los de la Entidad llevan el selector de
+/// Entidad e incluyen los valores por defecto de los ajustes de cada
+/// usuario. Los de itinerario, parada y trabajador están en
+/// ScopedSettingsScreen.
 class GlobalSettingsScreen extends StatefulWidget {
   final bool entityLevel;
 
-  const GlobalSettingsScreen.app({super.key}) : entityLevel = false;
+  /// Entidad con la que empezar (por defecto, la última elegida en Gestión).
+  final Entity? entity;
 
-  const GlobalSettingsScreen.entity({super.key}) : entityLevel = true;
+  const GlobalSettingsScreen.app({super.key})
+      : entityLevel = false,
+        entity = null;
+
+  const GlobalSettingsScreen.entity({super.key, this.entity}) : entityLevel = true;
 
   @override
   State<GlobalSettingsScreen> createState() => _GlobalSettingsScreenState();
 }
 
-class _GlobalSettingsScreenState extends State<GlobalSettingsScreen> {
+class _GlobalSettingsScreenState extends State<GlobalSettingsScreen> with ManagementEntityState {
   final _view = GlobalKey<AsyncViewState<(Map<String, SettingDefinition>, List<Resource>)>>();
+
+  @override
+  String get entityOperation => Op.settingsEntity;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.entityLevel) {
+      if (widget.entity != null) {
+        entity = widget.entity;
+        entityResolved = true;
+      } else {
+        initEntity();
+      }
+    }
+  }
+
+  @override
+  void onEntityChanged() => _view.currentState?.reload();
 
   String get _path => widget.entityLevel ? '/entity-settings' : '/settings';
 
+  Map<String, dynamic> get _filter => widget.entityLevel ? {'filter[entity]': entity!.id} : const {};
+
+  String get _suffix => widget.entityLevel ? '?filter[entity]=${entity!.id}' : '';
+
   Future<(Map<String, SettingDefinition>, List<Resource>)> _load() async {
     final api = context.api;
-    final settings = (await api.get(_path, query: widget.entityLevel ? context.entityFilter : null)).resources;
+    final settings = (await api.get(_path, query: _filter)).resources;
     return (await loadSettingDefinitions(api), settings);
   }
 
   Future<void> _edit(SettingDefinition definition, String current) async {
     final value = await editSettingValue(context, definition, current);
     if (value == null || !mounted) return;
-    final query = widget.entityLevel ? context.entityFilter : const <String, dynamic>{};
-    final suffix = query.isEmpty ? '' : '?filter[entity]=${query['filter[entity]']}';
-    await runAction(context, () => context.api.patch('$_path/${definition.key}$suffix', {
+    await runAction(context, () => context.api.patch('$_path/${definition.key}$_suffix', {
           'data': {'type': widget.entityLevel ? 'entity-settings' : 'settings', 'id': definition.key, 'attributes': {'value': value}},
         }));
     _view.currentState?.reload();
   }
 
   Future<void> _reset(SettingDefinition definition) async {
-    final query = context.entityFilter;
-    final suffix = query.isEmpty ? '' : '?filter[entity]=${query['filter[entity]']}';
-    await context.api.delete('$_path/${definition.key}$suffix');
+    await runAction(context, () => context.api.delete('$_path/${definition.key}$_suffix'));
     _view.currentState?.reload();
   }
 
   @override
   Widget build(BuildContext context) {
-    final me = context.me;
-    if (widget.entityLevel && me.isAdmin && context.session.adminEntity == null) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Ajustes de la Entidad')),
-        body: const EmptyView(icon: Icons.apartment_outlined, message: 'Elija primero una Entidad en Gestión.'),
-      );
-    }
-    return Scaffold(
-      appBar: AppBar(title: Text(widget.entityLevel ? 'Ajustes de ${context.session.adminEntity?.abbreviation ?? context.session.selectedMembership?.entity.abbreviation ?? 'la Entidad'}' : 'Ajustes de la app')),
-      body: AsyncView<(Map<String, SettingDefinition>, List<Resource>)>(
+    final placeholder = widget.entityLevel ? entityPlaceholder() : null;
+    return AppScaffold(
+      title: widget.entityLevel ? 'Ajustes de la Entidad' : 'Ajustes de la app',
+      tab: MainTab.more,
+      body: placeholder ?? AsyncView<(Map<String, SettingDefinition>, List<Resource>)>(
         key: _view,
         load: _load,
         builder: (context, data, reload) {
           final (definitions, settings) = data;
-          final rows = settings.where((s) => widget.entityLevel || s.boolean('editable')).toList();
+          final rows = settings.where((s) => definitions[s.id] != null && (widget.entityLevel || s.boolean('editable'))).toList();
           final ownOnly = rows.where((s) => definitions[s.id]?.userOverridable == false).toList();
           final defaults = rows.where((s) => definitions[s.id]?.userOverridable == true).toList();
 
@@ -93,7 +116,8 @@ class _GlobalSettingsScreenState extends State<GlobalSettingsScreen> {
             );
           }
 
-          return ListView(children: [
+          return ListView(padding: const EdgeInsets.only(bottom: 32), children: [
+            if (widget.entityLevel) entitySelector(),
             SectionTitle(widget.entityLevel ? 'De la Entidad' : 'De toda la app'),
             for (final s in ownOnly) tile(s),
             if (defaults.isNotEmpty) ...[

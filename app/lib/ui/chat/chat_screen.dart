@@ -7,6 +7,8 @@ import '../../core/json_api.dart';
 import '../../models/models.dart';
 import '../../services/sync.dart';
 import '../../services/templates.dart';
+import '../navigation.dart';
+import '../widgets/app_scaffold.dart';
 import '../widgets/common.dart';
 
 /// Chat de solo texto: el del viaje, el de una conversación con motivo o,
@@ -165,9 +167,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget build(BuildContext context) {
     final meId = widget.guest ? null : context.me.userId;
     final closed = widget.closed;
-    return Scaffold(
-      appBar: AppBar(title: Text(widget.title)),
-      body: Column(children: [
+    final body = Column(children: [
         if (_error != null) MaterialBanner(content: Text(_error!), actions: [TextButton.icon(onPressed: _load, icon: const Icon(Icons.refresh), label: const Text('Reintentar'))]),
         Expanded(
           child: _messages.isEmpty
@@ -237,7 +237,9 @@ class _ChatScreenState extends State<ChatScreen> {
             ]),
           ),
         ),
-      ]),
-    );
+      ]);
+    // Sin cuenta no hay barra principal; con sesión, la forma común (docs/11 §11.18).
+    if (widget.guest) return Scaffold(appBar: AppBar(title: Text(widget.title)), body: body);
+    return AppScaffold(title: widget.title, tab: widget.tripId != null ? MainTab.trips : MainTab.messages, body: body);
   }
 }

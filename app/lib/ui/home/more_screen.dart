@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../models/models.dart';
 import '../../services/session.dart';
 import '../admin/admin_menu.dart';
 import '../navigation.dart';
@@ -27,6 +28,8 @@ class MoreScreen extends StatelessWidget {
         UserCard.person(me.person, onTap: () => AppRoutes.profile(context)),
         const Divider(),
         ListTile(leading: const Icon(Icons.qr_code_2), title: const Text('Mi QR'), onTap: () => AppRoutes.myQr(context)),
+        if (me.canAnywhere(Op.membersAssignByQr))
+          ListTile(leading: const Icon(Icons.qr_code_scanner), title: const Text('Alta en itinerario con QR'), onTap: () => AppRoutes.assignByQr(context)),
         ListTile(leading: const Icon(Icons.notifications_outlined), title: const Text('Avisos'), onTap: () => open(const NoticesScreen())),
         ListTile(leading: const Icon(Icons.bar_chart), title: const Text('Estadísticas'), onTap: () => open(const StatisticsScreen())),
         ListTile(leading: const Icon(Icons.settings_outlined), title: const Text('Ajustes'), onTap: () => open(const SettingsScreen())),

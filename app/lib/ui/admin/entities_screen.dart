@@ -4,10 +4,17 @@ import 'package:flutter/services.dart';
 import '../../core/api_exception.dart';
 import '../../core/json_api.dart';
 import '../../models/models.dart';
+import '../navigation.dart';
+import '../settings/global_settings_screen.dart';
+import '../widgets/actions.dart';
+import '../widgets/app_scaffold.dart';
+import '../widgets/cards.dart';
 import '../widgets/common.dart';
+import '../widgets/selection.dart';
+import 'management.dart';
 
-/// Entidades (solo el Administrador, docs/08-version-2.md §8.2): abreviatura
-/// (obligatoria y única), número (opcional), nombre y campos de nomenclador.
+/// Entidades (Gestión, docs/11 §11.10 y §11.15): tarjetas de Entidad con su
+/// imagen. Crear, editar, desactivar y reactivar (entities.manage).
 class EntitiesScreen extends StatefulWidget {
   const EntitiesScreen({super.key});
 
@@ -17,68 +24,99 @@ class EntitiesScreen extends StatefulWidget {
 
 class _EntitiesScreenState extends State<EntitiesScreen> {
   final _view = GlobalKey<AsyncViewState<List<Entity>>>();
+  final _selection = SelectionController();
+  List<Entity> _entities = const [];
 
-  /// Filtro de la lista: 'true' (activadas), 'false' (desactivadas) o 'all'.
-  String _filter = 'true';
+  @override
+  void dispose() {
+    _selection.dispose();
+    super.dispose();
+  }
 
-  Future<List<Entity>> _load() async => (await context.api.getAll('/entities', query: {
-        'sort': 'abbreviation',
-        'filter[active]': _filter == 'false' ? 'all' : _filter,
-      }))
-          .map(Entity.from)
-          .where((e) => _filter != 'false' || !e.active)
-          .toList();
+  Future<List<Entity>> _load() async {
+    final entities = (await context.api.getAll('/entities', query: {'sort': 'abbreviation', 'filter[active]': 'all'})).map(Entity.from).toList();
+    _entities = entities;
+    _selection.retain(entities.map((e) => e.id));
+    return entities;
+  }
 
-  Future<void> _edit(Entity? entity) async {
-    final saved = await Navigator.push<bool>(context, MaterialPageRoute(builder: (_) => EntityFormScreen(entity: entity)));
-    if (saved == true) _view.currentState?.reload();
+  Future<void> _open(Entity? entity) async {
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => EntityFormScreen(entity: entity)));
+    _view.currentState?.reload();
+  }
+
+  Future<void> _setActive(bool active) async {
+    final selected = _selection.selectedOf(_entities, (e) => e.id);
+    final api = context.api;
+    final ok = await runAction(context, () async {
+      for (final e in selected) {
+        await api.patch('/entities/${e.id}', resourceData('entities', id: e.id, attributes: {'active': active}));
+      }
+    }, success: active ? 'Reactivadas.' : 'Desactivadas.');
+    if (ok) {
+      _selection.clear();
+      _view.currentState?.reload();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Entidades')),
-      floatingActionButton: FloatingActionButton.extended(onPressed: () => _edit(null), icon: const Icon(Icons.add), label: const Text('Nueva Entidad')),
-      body: Column(children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-          child: DropdownButtonFormField<String>(
-            initialValue: _filter,
-            decoration: const InputDecoration(labelText: 'Mostrar', isDense: true),
-            items: const [
-              DropdownMenuItem(value: 'true', child: Text('Activadas')),
-              DropdownMenuItem(value: 'false', child: Text('Desactivadas')),
-              DropdownMenuItem(value: 'all', child: Text('Todas')),
-            ],
-            onChanged: (value) {
-              setState(() => _filter = value!);
-              _view.currentState?.reload();
-            },
-          ),
-        ),
-        Expanded(
-          child: AsyncView<List<Entity>>(
+    final manage = context.me.canAnywhere(Op.entitiesManage);
+    return ListenableBuilder(
+      listenable: _selection,
+      builder: (context, _) {
+        final selected = _selection.selectedOf(_entities, (e) => e.id);
+        return AppScaffold(
+          title: 'Entidades',
+          tab: MainTab.more,
+          selection: _selection,
+          selectionTitle: (n) => n == 1 ? '1 seleccionada' : '$n seleccionadas',
+          actions: [
+            ActionItem(icon: Icons.add_business_outlined, label: 'Crear Entidad', enabled: manage, onPressed: () => _open(null)),
+            const ActionItem.divider(),
+            ActionItem(icon: Icons.edit_outlined, label: 'Editar', needs: ActionNeeds.one, onPressed: () => _open(selected.first)),
+            ActionItem(
+              icon: Icons.toggle_off_outlined,
+              label: 'Desactivar',
+              needs: ActionNeeds.some,
+              enabled: manage && selected.every((e) => e.active),
+              confirmation: 'Sus trabajadores no podrán unirse a ellas mientras estén desactivadas. ¿Desactivarlas?',
+              onPressed: () => _setActive(false),
+            ),
+            ActionItem(
+              icon: Icons.toggle_on_outlined,
+              label: 'Reactivar',
+              needs: ActionNeeds.some,
+              enabled: manage && selected.every((e) => !e.active),
+              onPressed: () => _setActive(true),
+            ),
+          ],
+          body: AsyncView<List<Entity>>(
             key: _view,
             load: _load,
-            builder: (context, entities, reload) => entities.isEmpty
-                ? const EmptyView(icon: Icons.apartment_outlined, message: 'No hay Entidades que mostrar.')
-                : ListView(padding: const EdgeInsets.only(bottom: 88), children: [
-                    for (final entity in entities)
-                      ListTile(
-                        leading: CircleAvatar(child: Text(entity.abbreviation.isEmpty ? '?' : entity.abbreviation[0])),
-                        title: Text(entity.abbreviation, style: TextStyle(decoration: entity.active ? null : TextDecoration.lineThrough)),
-                        subtitle: Text([entity.name, if (entity.number != null) 'Nº ${entity.number}', if (!entity.active) 'Desactivada'].join(' · ')),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () => _edit(entity),
-                      ),
-                  ]),
+            builder: (context, entities, reload) => SelectableCardList<Entity>(
+              controller: _selection,
+              sections: [
+                CardSection(title: 'Activas', items: entities.where((e) => e.active).toList()),
+                CardSection(title: 'Desactivadas', items: entities.where((e) => !e.active).toList()),
+              ],
+              emptyText: 'Todavía no hay Entidades.',
+              keyOf: (e) => e.id,
+              onOpen: _open,
+              cardBuilder: (context, e, selected, onTap, onLongPress) => Opacity(
+                opacity: e.active ? 1 : 0.55,
+                child: EntityCard(e, selected: selected, onTap: onTap, onLongPress: onLongPress),
+              ),
+            ),
           ),
-        ),
-      ]),
+        );
+      },
     );
   }
 }
 
+/// Crear o editar una Entidad: imagen, abreviatura (única), número, nombre,
+/// descripción y observación.
 class EntityFormScreen extends StatefulWidget {
   final Entity? entity;
 
@@ -90,50 +128,95 @@ class EntityFormScreen extends StatefulWidget {
 
 class _EntityFormScreenState extends State<EntityFormScreen> {
   final _form = GlobalKey<FormState>();
-  late final _abbreviation = TextEditingController(text: widget.entity?.abbreviation);
-  late final _number = TextEditingController(text: widget.entity?.number);
-  late final _name = TextEditingController(text: widget.entity?.name);
-  late final _description = TextEditingController(text: widget.entity?.description);
-  late final _observation = TextEditingController(text: widget.entity?.observation);
-  late bool _active = widget.entity?.active ?? true;
+  late Entity? _entity = widget.entity;
+  late final _abbreviation = TextEditingController(text: _entity?.abbreviation);
+  late final _number = TextEditingController(text: _entity?.number);
+  late final _name = TextEditingController(text: _entity?.name);
+  late final _description = TextEditingController(text: _entity?.description);
+  late final _observation = TextEditingController(text: _entity?.observation);
   ApiException? _error;
 
+  String? _optional(TextEditingController c) => c.text.trim().isEmpty ? null : c.text.trim();
+
+  Future<void> _reload() async {
+    final id = _entity?.id;
+    if (id == null) return;
+    try {
+      final entity = Entity.from((await context.api.get('/entities/$id', query: {'filter[active]': 'all'})).resource);
+      if (mounted) setState(() => _entity = entity);
+    } catch (_) {}
+  }
+
   Future<void> _save() async {
-    if (!_form.currentState!.validate()) return;
     setState(() => _error = null);
-    final entity = widget.entity;
-    if (entity != null && entity.active && !_active &&
-        !await confirm(context, 'Desactivar ${entity.abbreviation}', 'Sus trabajadores no podrán unirse a ella mientras esté desactivada.', accept: 'Desactivar', destructive: true)) {
-      return;
-    }
-    if (!mounted) return;
+    if (!_form.currentState!.validate()) return;
+    final entity = _entity;
     final body = resourceData('entities', id: entity?.id, attributes: {
       'abbreviation': _abbreviation.text.trim().toUpperCase(),
-      'number': _number.text.trim().isEmpty ? null : _number.text.trim(),
+      'number': _optional(_number),
       'name': _name.text.trim(),
-      'description': _description.text.trim().isEmpty ? null : _description.text.trim(),
-      'observation': _observation.text.trim().isEmpty ? null : _observation.text.trim(),
-      if (entity != null && entity.active != _active) 'active': _active,
+      'description': _optional(_description),
+      'observation': _optional(_observation),
     });
     try {
-      entity == null ? await context.api.post('/entities', body) : await context.api.patch('/entities/${entity.id}', body);
-      if (mounted) Navigator.pop(context, true);
+      final api = context.api;
+      final document = entity == null ? await api.post('/entities', body) : await api.patch('/entities/${entity.id}', body);
+      if (!mounted) return;
+      setState(() => _entity = Entity.from(document.resource));
+      showMessage(context, entity == null ? 'Entidad creada. Ya puede ponerle una imagen.' : 'Entidad guardada.');
     } on ApiException catch (error) {
       setState(() => _error = error);
     }
   }
 
+  Future<void> _setActive(bool active) async {
+    final e = _entity!;
+    final ok = await runAction(context, () => context.api.patch('/entities/${e.id}', resourceData('entities', id: e.id, attributes: {'active': active})),
+        success: active ? 'Entidad reactivada.' : 'Entidad desactivada.');
+    if (ok) await _reload();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(widget.entity == null ? 'Nueva Entidad' : widget.entity!.abbreviation)),
+    final me = context.me;
+    final e = _entity;
+    final manage = me.canAnywhere(Op.entitiesManage);
+    return AppScaffold(
+      title: e == null ? 'Entidad nueva' : e.abbreviation,
+      tab: MainTab.more,
+      actions: [
+        ActionItem(icon: Icons.save, label: 'Guardar', enabled: manage, onPressed: _save),
+        ActionItem(
+          icon: Icons.tune,
+          label: 'Ajustes de la Entidad',
+          enabled: e != null && me.can(Op.settingsEntity, entityId: e.id),
+          onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => GlobalSettingsScreen.entity(entity: e))),
+        ),
+        const ActionItem.divider(),
+        if (e == null || e.active)
+          ActionItem(
+            icon: Icons.toggle_off_outlined,
+            label: 'Desactivar',
+            enabled: e != null && manage,
+            confirmation: 'Sus trabajadores no podrán unirse a ella mientras esté desactivada. ¿Desactivarla?',
+            onPressed: () => _setActive(false),
+          )
+        else
+          ActionItem(icon: Icons.toggle_on_outlined, label: 'Reactivar', enabled: manage, onPressed: () => _setActive(true)),
+      ],
       body: Form(
         key: _form,
-        child: ListView(padding: const EdgeInsets.all(16), children: [
+        child: ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 96), children: [
+          ImageEditor(url: e?.imageUrl, icon: Icons.apartment, uploadPath: e != null && manage ? '/entities/${e.id}/image' : null, onChanged: _reload),
+          if (e == null)
+            const Padding(padding: EdgeInsets.only(top: 8), child: Center(child: Text('La imagen se pone después de crearla.'))),
+          if (e != null && !e.active) const Padding(padding: EdgeInsets.only(top: 8), child: Center(child: CardChip('Desactivada', color: Colors.grey))),
+          const SizedBox(height: 16),
           TextFormField(
             controller: _abbreviation,
+            readOnly: !manage,
             autovalidateMode: AutovalidateMode.onUserInteraction,
-            decoration: InputDecoration(labelText: 'Abreviatura', hintText: 'p. ej. EMPRESA1', errorText: _error?.fieldError('/abbreviation')),
+            decoration: InputDecoration(labelText: 'Abreviatura', hintText: 'p. ej. UMIM', errorText: _error?.fieldError('/abbreviation')),
             textCapitalization: TextCapitalization.characters,
             inputFormatters: [FilteringTextInputFormatter.allow(RegExp('[A-Za-z0-9]')), LengthLimitingTextInputFormatter(15)],
             validator: (v) => (v?.trim().length ?? 0) < 2 ? 'Escriba de 2 a 15 letras y números.' : null,
@@ -141,6 +224,7 @@ class _EntityFormScreenState extends State<EntityFormScreen> {
           const SizedBox(height: 12),
           TextFormField(
             controller: _number,
+            readOnly: !manage,
             autovalidateMode: AutovalidateMode.onUserInteraction,
             decoration: InputDecoration(labelText: 'Número (opcional)', hintText: 'p. ej. 0123', errorText: _error?.fieldError('/number')),
             keyboardType: TextInputType.number,
@@ -150,71 +234,22 @@ class _EntityFormScreenState extends State<EntityFormScreen> {
           const SizedBox(height: 12),
           TextFormField(
             controller: _name,
+            readOnly: !manage,
             autovalidateMode: AutovalidateMode.onUserInteraction,
-            decoration: const InputDecoration(labelText: 'Nombre', hintText: 'p. ej. Empresa de Servicios'),
+            decoration: const InputDecoration(labelText: 'Nombre', hintText: 'p. ej. Unidad Militar de Ingeniería Mecánica'),
             textCapitalization: TextCapitalization.sentences,
             validator: (v) => v == null || v.trim().isEmpty ? 'Escriba el nombre.' : null,
           ),
           const SizedBox(height: 12),
-          TextFormField(controller: _description, decoration: const InputDecoration(labelText: 'Descripción (opcional)'), maxLines: 3),
+          TextFormField(controller: _description, readOnly: !manage, decoration: const InputDecoration(labelText: 'Descripción (opcional)'), maxLines: 3, minLines: 1),
           const SizedBox(height: 12),
-          TextFormField(controller: _observation, decoration: const InputDecoration(labelText: 'Observación (opcional)'), maxLines: 3),
-          if (widget.entity != null) ...[
-            const SizedBox(height: 12),
-            DropdownButtonFormField<bool>(
-              initialValue: _active,
-              decoration: const InputDecoration(labelText: 'Estado'),
-              items: const [
-                DropdownMenuItem(value: true, child: Text('Activada')),
-                DropdownMenuItem(value: false, child: Text('Desactivada')),
-              ],
-              onChanged: (value) => setState(() => _active = value!),
-            ),
-          ],
+          TextFormField(controller: _observation, readOnly: !manage, decoration: const InputDecoration(labelText: 'Observación (opcional)'), maxLines: 3, minLines: 1),
           if (_error != null && _error!.fieldError('/abbreviation') == null && _error!.fieldError('/number') == null) ...[
             const SizedBox(height: 12),
             Text(_error!.message, style: TextStyle(color: Theme.of(context).colorScheme.error)),
           ],
-          const SizedBox(height: 20),
-          BusyButton(onPressed: _save, showErrors: false, icon: const Icon(Icons.save), child: const Text('Guardar Entidad')),
         ]),
       ),
-    );
-  }
-}
-
-/// Selector de la Entidad con la que trabaja el Administrador en la gestión
-/// (null = todas). Al crear itinerarios, paradas, vehículos o trabajadores
-/// tiene que haber una elegida.
-class AdminEntitySelector extends StatefulWidget {
-  final VoidCallback? onChanged;
-
-  const AdminEntitySelector({super.key, this.onChanged});
-
-  @override
-  State<AdminEntitySelector> createState() => _AdminEntitySelectorState();
-}
-
-class _AdminEntitySelectorState extends State<AdminEntitySelector> {
-  Future<void> _pick() async {
-    final entities = (await context.api.getAll('/entities', query: {'sort': 'abbreviation'})).map(Entity.from).toList();
-    if (!mounted) return;
-    final all = Entity(id: '', abbreviation: 'Todas', name: 'Ver todas las Entidades');
-    final picked = await pickFrom<Entity>(context, 'Entidad', [all, ...entities], (e) => e.abbreviation, subtitle: (e) => e.name);
-    if (picked == null || !mounted) return;
-    setState(() => context.session.adminEntity = picked.id.isEmpty ? null : picked);
-    widget.onChanged?.call();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final entity = context.session.adminEntity;
-    return BusyListTile(
-      leading: const Icon(Icons.apartment_outlined),
-      title: Text(entity == null ? 'Todas las Entidades' : '${entity.abbreviation} · ${entity.name}'),
-      subtitle: const Text('Entidad con la que trabaja'),
-      trailing: const Icon(Icons.swap_horiz),
-      onTap: _pick,
     );
   }
 }

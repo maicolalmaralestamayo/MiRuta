@@ -5,7 +5,9 @@ import 'admin/admin_menu.dart';
 import 'auth/other_registration_data_screen.dart';
 import 'guest/developer_chat_screen.dart';
 import 'profile/profile_screen.dart';
+import 'qr/assign_by_qr.dart';
 import 'qr/my_qr_screen.dart';
+import 'qr/pending_scans_screen.dart';
 import 'trips/trip_detail_screen.dart';
 import 'worker/child_form_screen.dart';
 import 'worker/children_screen.dart';
@@ -53,6 +55,9 @@ abstract final class AppRoutes {
   /// Formulario de un hijo ([child] null = hijo nuevo).
   static Future<void> childForm(BuildContext context, [Child? child]) => _push(context, ChildFormScreen(child: child));
 
+  /// Agregar un hijo ya registrado por otra persona (por su carné).
+  static Future<void> addRegisteredChild(BuildContext context) => _push(context, const ChildFormScreen(registered: true));
+
   static Future<void> entities(BuildContext context) => _push(context, const MyEntitiesScreen());
 
   /// Itinerario y parada (de la Entidad elegida).
@@ -70,4 +75,10 @@ abstract final class AppRoutes {
   // QR (stub en ui/qr/)
 
   static Future<void> myQr(BuildContext context) => _push(context, const MyQrScreen());
+
+  /// Alta directa en un itinerario escaneando el QR (members.assign_by_qr).
+  static Future<void> assignByQr(BuildContext context) => assignItineraryByQr(context);
+
+  /// Escaneos hechos sin conexión y su resultado al enviarlos.
+  static Future<void> pendingScans(BuildContext context) => _push(context, const PendingScansScreen());
 }

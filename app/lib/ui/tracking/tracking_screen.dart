@@ -16,6 +16,8 @@ import '../../services/voice.dart';
 import '../theme.dart';
 import '../trips/trip_context.dart';
 import '../navigation.dart';
+import '../qr/boarding_scan.dart';
+import '../widgets/app_scaffold.dart';
 import '../widgets/common.dart';
 import 'boarding.dart';
 import 'passengers_screen.dart';
@@ -233,17 +235,17 @@ class _TrackingScreenState extends State<TrackingScreen> {
     final data = _context;
     final leg = _leg;
     if (data == null || leg == null) {
-      return Scaffold(appBar: AppBar(title: const Text('Recorrido')), body: Center(child: _error == null ? const CircularProgressIndicator() : Text(_error!)));
+      return AppScaffold(title: 'Recorrido', tab: MainTab.trips, body: Center(child: _error == null ? const CircularProgressIndicator() : Text(_error!)));
     }
     final me = context.me;
     final operate = data.canOperate(me);
     final stops = data.orderedStops(leg.direction);
     final canShare = me.isMemberOf(data.trip.itineraryId) || data.isDriver(me);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('${leg.directionLabel} · ${data.trip.itineraryName ?? ''}'),
-        actions: [
+    return AppScaffold(
+        title: '${leg.directionLabel} · ${data.trip.itineraryName ?? ''}',
+        tab: MainTab.trips,
+        appBarActions: [
           IconButton(
             tooltip: _mapView ? 'Ver línea con hitos' : 'Ver mapa',
             icon: Icon(_mapView ? Icons.timeline : Icons.map_outlined),
@@ -256,7 +258,6 @@ class _TrackingScreenState extends State<TrackingScreen> {
               onPressed: () => setState(() => _voice.enabled = !_voice.enabled),
             ),
         ],
-      ),
       body: Column(children: [
         _StatusBar(leg: leg, live: _live),
         if (leg.deviating)
@@ -302,11 +303,13 @@ class _TrackingScreenState extends State<TrackingScreen> {
                       icon: const Icon(Icons.qr_code_2),
                       label: const Text('Mi QR'),
                     ),
+                  if (data.isDriver(me) || data.can(me, Op.trackingScanBoarding))
+                    BusyButton(onPressed: () => scanBoardings(context, data, leg), icon: const Icon(Icons.qr_code_scanner), child: const Text('Escanear QR')),
                   if (operate)
                     FilledButton.tonalIcon(
                       onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => PassengersScreen(context: data, direction: leg.direction, leg: leg))),
                       icon: const Icon(Icons.groups),
-                      label: const Text('Trabajadores'),
+                      label: const Text('Pasajeros'),
                     ),
                   if (operate) BusyButton.outlined(onPressed: _end, icon: const Icon(Icons.stop_circle_outlined), child: const Text('Finalizar viaje')),
                 ]),

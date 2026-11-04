@@ -8,6 +8,7 @@ import '../core/username.dart';
 import '../models/models.dart';
 import 'connection.dart';
 import 'notifications.dart';
+import 'qr/qr_device.dart';
 import 'sync.dart';
 import 'tracking_service.dart';
 import 'user_settings.dart';
@@ -185,6 +186,8 @@ class Session extends ChangeNotifier {
     notifyListeners();
     await scheduleBackgroundSync();
     SyncService.run(api).catchError((_) {});
+    // Certificado de la clave del teléfono para el QR (se renueva antes de caducar).
+    QrDevice.ensureCertificate(api, me!.userId).then((_) {}, onError: (_) {});
   }
 
   Future<void> reloadMe() async {

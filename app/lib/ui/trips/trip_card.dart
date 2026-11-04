@@ -14,11 +14,14 @@ class TripCard extends StatelessWidget {
   final Widget? leading;
   final VoidCallback? onTap;
 
+  /// En curso (un trayecto activo): la etiqueta dice «En curso».
+  final bool running;
+
   /// Tramos del viaje (viaje de ida / de regreso) para mostrar el estado del
   /// recorrido. Sin ellos se muestra al menos el atraso.
   final List<TripLeg>? legs;
 
-  const TripCard({super.key, required this.trip, this.showOverload = false, this.onChanged, this.leading, this.onTap, this.legs});
+  const TripCard({super.key, required this.trip, this.showOverload = false, this.onChanged, this.leading, this.onTap, this.legs, this.running = false});
 
   @override
   Widget build(BuildContext context) {
@@ -42,7 +45,9 @@ class TripCard extends StatelessWidget {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(children: [
                   Expanded(child: Text(trip.itineraryName ?? 'Viaje', style: Theme.of(context).textTheme.titleMedium)),
-                  StatusChip(TripStatus.label(trip.status), color: tripStatusColor(trip.status)),
+                  running
+                      ? StatusChip('En curso', color: Theme.of(context).colorScheme.primary)
+                      : StatusChip(TripStatus.label(trip.status), color: tripStatusColor(trip.status)),
                 ]),
                 TripLegsStatus(trip: trip, legs: legs),
                 const SizedBox(height: 4),
@@ -117,7 +122,7 @@ class TripLegsStatus extends StatelessWidget {
           Row(mainAxisSize: MainAxisSize.min, children: [
             Icon(outbound ? Icons.north_east : Icons.south_west, size: 16),
             const SizedBox(width: 4),
-            Text('${TripLeg.directionName(direction)} ${formatDateTime(outbound ? trip.departsAt : trip.returnsAt)}'),
+            Flexible(child: Text('${TripLeg.directionName(direction)} ${formatDateTime(outbound ? trip.departsAt : trip.returnsAt)}')),
           ]),
           ...chips,
         ]),

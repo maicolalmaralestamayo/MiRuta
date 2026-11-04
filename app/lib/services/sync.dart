@@ -3,6 +3,7 @@ import '../core/storage.dart';
 import '../models/models.dart';
 import 'app_updates.dart';
 import 'notifications.dart';
+import 'qr/qr_store.dart';
 import 'templates.dart';
 import 'user_settings.dart';
 
@@ -76,6 +77,8 @@ class SyncService {
     if (me['id'] == null) return;
 
     if (parts.contains(SyncPart.trips)) {
+      // QR: clave del servidor, listas para escanear sin conexión y envío de la cola.
+      await QrSync.run(api, me);
       final settings = await UserSettings.refresh(api).catchError((_) => UserSettings.cached());
       for (final itineraryId in (me['itineraryIds'] as List? ?? const [])) {
         await _syncStops(api, '$itineraryId');

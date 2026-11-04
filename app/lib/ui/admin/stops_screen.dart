@@ -3,7 +3,11 @@ import 'package:latlong2/latlong.dart';
 
 import '../../core/json_api.dart';
 import '../../models/models.dart';
+import '../navigation.dart';
+import '../widgets/actions.dart';
+import '../widgets/app_scaffold.dart';
 import '../widgets/common.dart';
+import 'management.dart';
 import 'map_picker.dart';
 
 /// Las paradas se gestionan desde la ficha del itinerario (docs/09 §32):
@@ -18,14 +22,16 @@ String stopAddress(Stop stop) {
 /// Crear o editar una parada. Devuelve la parada guardada (o la borrada).
 /// [itineraryCount] es en cuántos itinerarios se usa: al editarla se avisa de
 /// que el cambio afecta a todos ellos.
-Future<Stop?> editStop(BuildContext context, Stop? stop, {int itineraryCount = 0}) =>
-    Navigator.push<Stop>(context, MaterialPageRoute(builder: (_) => _StopForm(stop: stop, itineraryCount: itineraryCount)));
+/// [entityId] es la Entidad de la parada (obligatoria al crearla).
+Future<Stop?> editStop(BuildContext context, Stop? stop, {int itineraryCount = 0, String? entityId}) =>
+    Navigator.push<Stop>(context, MaterialPageRoute(builder: (_) => _StopForm(stop: stop, itineraryCount: itineraryCount, entityId: entityId)));
 
 class _StopForm extends StatefulWidget {
   final Stop? stop;
   final int itineraryCount;
+  final String? entityId;
 
-  const _StopForm({this.stop, this.itineraryCount = 0});
+  const _StopForm({this.stop, this.itineraryCount = 0, this.entityId});
 
   @override
   State<_StopForm> createState() => _StopFormState();
@@ -52,9 +58,8 @@ class _StopFormState extends State<_StopForm> {
       return;
     }
     if (!mounted) return;
-    final entity = widget.stop == null ? context.entityRelationship() : const <String, ResourceId?>{};
-    if (entity == null) return;
-    final body = resourceData('stops', id: widget.stop?.id, relationships: entity.isEmpty ? null : entity, attributes: {
+    final entityId = widget.entityId;
+    final body = resourceData('stops', id: widget.stop?.id, relationships: widget.stop == null && entityId != null ? {'entity': ResourceId('entities', entityId)} : null, attributes: {
       'landmark': _landmark.text.trim(),
       'street': _street.text.trim(),
       'crossStreet1': _optional(_cross1),
@@ -67,25 +72,45 @@ class _StopFormState extends State<_StopForm> {
     if (mounted) Navigator.pop(context, Stop.from(document.resource));
   }
 
+  late Stop? _current = widget.stop;
+
+  Future<void> _reloadImage() async {
+    final id = _current?.id;
+    if (id == null) return;
+    try {
+      final stop = Stop.from((await context.api.get('/stops/$id')).resource);
+      if (mounted) setState(() => _current = stop);
+    } catch (_) {}
+  }
+
   @override
   Widget build(BuildContext context) {
     final stop = widget.stop;
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(stop == null ? 'Nueva parada' : 'Parada'),
-        actions: [
-          if (stop != null)
-            DeleteButton(
-              what: 'la parada ${stop.landmark}${widget.itineraryCount > 0 ? ' (se quitará de ${plural(widget.itineraryCount, 'itinerario', 'itinerarios')})' : ''}',
-              onDelete: () async {
-                if (await runAction(context, () => context.api.delete('/stops/${stop.id}')) && context.mounted) Navigator.pop(context, stop);
-              },
-            ),
-        ],
-      ),
+    final manage = widget.entityId == null ? context.me.canAnywhere(Op.stopsManage) : context.me.can(Op.stopsManage, entityId: widget.entityId);
+    return AppScaffold(
+      title: stop == null ? 'Parada nueva' : 'Parada',
+      tab: MainTab.more,
+      actions: [
+        ActionItem(icon: Icons.save, label: stop == null ? 'Crear parada' : 'Guardar parada', enabled: manage, onPressed: _save),
+        ActionItem(
+          icon: Icons.delete_outline,
+          label: 'Eliminar',
+          destructive: true,
+          enabled: stop != null && manage,
+          confirmation: stop == null
+              ? null
+              : '¿Eliminar la parada ${stop.landmark}${widget.itineraryCount > 0 ? '? Se quitará de ${plural(widget.itineraryCount, 'itinerario', 'itinerarios')}' : ''}?',
+          onPressed: () async {
+            if (await runAction(context, () => context.api.delete('/stops/${stop!.id}')) && context.mounted) Navigator.pop(context, stop);
+          },
+        ),
+      ],
       body: Form(
         key: _form,
-        child: ListView(padding: const EdgeInsets.all(16), children: [
+        child: ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 96), children: [
+          ImageEditor(url: _current?.imageUrl, icon: Icons.place, uploadPath: stop != null && manage ? '/stops/${stop.id}/image' : null, onChanged: _reloadImage),
+          if (stop == null) const Padding(padding: EdgeInsets.only(top: 8), child: Center(child: Text('La imagen se pone después de crearla.'))),
+          const SizedBox(height: 12),
           if (stop != null && widget.itineraryCount > 1)
             Card(
               child: ListTile(
@@ -142,8 +167,6 @@ class _StopFormState extends State<_StopForm> {
               child: _point == null ? null : Text('${_point!.latitude.toStringAsFixed(6)}, ${_point!.longitude.toStringAsFixed(6)}'),
             ),
           ),
-          const SizedBox(height: 20),
-          BusyButton(onPressed: _save, icon: const Icon(Icons.save), child: Text(stop == null ? 'Crear parada' : 'Guardar parada')),
         ]),
       ),
     );

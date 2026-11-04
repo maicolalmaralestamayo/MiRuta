@@ -61,23 +61,15 @@ final List<ManagementEntry> managementEntries = [
 List<ManagementEntry> allowedManagementEntries(Me me) => managementEntries.where((e) => e.allowed(me)).toList();
 
 /// Gestión (Más → Gestión): solo las entradas permitidas.
-class AdminMenu extends StatefulWidget {
+class AdminMenu extends StatelessWidget {
   const AdminMenu({super.key});
 
-  @override
-  State<AdminMenu> createState() => _AdminMenuState();
-}
-
-class _AdminMenuState extends State<AdminMenu> {
   @override
   Widget build(BuildContext context) {
     final me = context.watch<Session>().me!;
     final entries = allowedManagementEntries(me);
     final sections = <String>{for (final e in entries) e.section};
     return AppScaffold.list(title: 'Gestión', tab: MainTab.more, children: [
-      // Entidad con la que se trabaja en las pantallas de gestión antiguas
-      // (Session.adminEntity / context.entityFilter).
-      if (me.isAdmin) AdminEntitySelector(onChanged: () => setState(() {})),
       for (final section in sections) ...[
         SectionTitle(section),
         for (final entry in entries.where((e) => e.section == section))
