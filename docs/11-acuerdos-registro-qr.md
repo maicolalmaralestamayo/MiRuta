@@ -76,7 +76,7 @@ Se abre justo después del registro, ya con la sesión iniciada:
 
 - **Jerarquía**: se elige de un listado por su nombre. **Obligatoria.**
 - **Solicitar itinerario y parada** (siempre juntos).
-- **Declarar hijos.**
+- **Añadir hijos** (directamente, sin solicitud: §11.10).
 - **Solicitar roles**: chofer, Jefe de itinerario o Jefe de Transporte.
 - **Mi QR**: para que un jefe le dé de alta directamente en un itinerario y su parada (§11.7).
 - **Hablar con el desarrollador** en esta pantalla y en todas las que se abren desde ella.
@@ -211,10 +211,21 @@ itinerario. Mientras no tiene ninguno de los dos, en Inicio sale la tarjeta «Si
 
 - **Hijos sin derecho:** cuando un hijo pierde el derecho por edad, **deja de mostrarse**.
 - **Sin hijos o sin roles:** en lugar de esas tarjetas, al final de la pantalla aparecen dos botones para ir a
-  las solicitudes correspondientes: **Declarar hijos** y **Solicitar rol**.
+  sus formularios: **Añadir hijo** (directo, §11.10) y **Solicitar rol**.
 - **Al tocar cualquier tarjeta** se abre su formulario de edición, de detalle o de solicitud.
 - **Barra inferior sin «Solicitudes»**: queda Inicio, Viajes, Mensajes y Más. Las solicitudes se hacen desde
   las tarjetas.
 - **Tarjetas modelo:** estas tarjetas son el modelo para toda la app. Cuando se mencione la tarjeta de un usuario,
   hijo, Entidad, itinerario y parada, rol o viaje, se usa esta forma.
+
+## 11.10 Hijos sin solicitud
+
+- **Se eliminan las solicitudes de hijos** (`child_addition` y `child_removal`), con su aprobación por los jefes.
+- **Los padres añaden, corrigen y quitan a sus hijos directamente**, cuando quieran, desde su tarjeta de hijos en
+  Inicio o desde Mi perfil.
+- **El sistema verifica el derecho** al guardar, con la regla de siempre: hasta el 31 de agosto siguiente al
+  cumpleaños en que alcanza `child_max_age`. Si el niño no tiene derecho, no se deja añadir. Cuando lo pierde,
+  deja de mostrarse (§11.9).
+- **Al subir** a la guagua se indica con **cuántos niños subió realmente** (de 0 a los que tiene con derecho).
+- **El sistema mantiene las estadísticas** de los niños: declarados con derecho y los que viajan realmente.
 
