@@ -21,6 +21,7 @@ $router->group(['prefix' => 'api/v1', 'middleware' => 'jsonapi'], function () us
     $router->get('conversation-topics', 'ConversationTopicController@index');
     $router->get('conversation-topics/{id}', 'ConversationTopicController@show');
     $router->get('app-versions/latest', 'AppVersionController@latest');
+    $router->get('qr-public-key', 'QrController@publicKey');
 
     // Mantenimiento del servidor (maintenance.run o clave de mantenimiento)
     $router->group(['middleware' => 'maintenance'], function () use ($router) {
@@ -54,6 +55,11 @@ $router->group(['prefix' => 'api/v1', 'middleware' => 'jsonapi'], function () us
         $router->get('me/settings', 'UserSettingController@index');
         $router->patch('me/settings/{id}', 'UserSettingController@update');
         $router->delete('me/settings/{id}', 'UserSettingController@destroy');
+        $router->post('me/qr-devices', 'QrController@storeDevice');
+        // Ajustes de otro trabajador (settings.worker)
+        $router->get('users/{userId}/settings', 'UserSettingController@indexFor');
+        $router->patch('users/{userId}/settings/{id}', 'UserSettingController@updateFor');
+        $router->delete('users/{userId}/settings/{id}', 'UserSettingController@destroyFor');
 
         $router->get('notices', 'NoticeController@index');
         $router->patch('notices/{id}', 'NoticeController@update');
@@ -64,6 +70,7 @@ $router->group(['prefix' => 'api/v1', 'middleware' => 'jsonapi'], function () us
         $router->patch('conversations/{id}', 'ConversationController@update');
         $router->get('conversations/{id}/messages', 'ConversationController@messages');
         $router->post('conversation-messages', 'ConversationController@storeMessage');
+        $router->delete('conversation-messages/{id}', 'ConversationController@destroyMessage');
 
         $router->get('map', 'MapController@show');
         $router->get('setting-definitions', 'SettingDefinitionController@index');
@@ -107,6 +114,12 @@ $router->group(['prefix' => 'api/v1', 'middleware' => 'jsonapi'], function () us
         $resource('users', 'AccountController', ['index', 'show', 'update']);
         $resource('workers', 'WorkerController');
         $router->delete('workers/{id}/itinerary', 'WorkerController@removeItinerary');
+        $router->get('workers/{id}/printed-qr', 'QrController@printed');
+        $router->post('workers/{id}/printed-qr/revoke', 'QrController@revokePrinted');
+        $router->post('qr-scans', 'QrController@scan');
+        $router->post('offline-scans', 'QrController@offline');
+        $router->post('itinerary-assignments', 'QrController@assign');
+        $router->get('entities/{id}/scan-roster', 'QrController@roster');
         $resource('roles', 'RoleController');
         $router->get('operations', 'OperationCatalogController@index');
         $resource('worker-roles', 'WorkerRoleController', ['index', 'show', 'store', 'destroy']);
@@ -122,10 +135,10 @@ $router->group(['prefix' => 'api/v1', 'middleware' => 'jsonapi'], function () us
         $resource('trip-legs', 'TripLegController', ['index', 'show', 'store', 'update']);
         $resource('trip-positions', 'TripPositionController', ['index', 'store']);
         $resource('trip-stop-passes', 'TripStopPassController', ['index']);
-        $resource('trip-boardings', 'TripBoardingController', ['index', 'store']);
-        $router->post('boarding-passes', 'BoardingPassController@store');
+        $resource('trip-boardings', 'TripBoardingController');
         $router->get('trips/{id}/messages', 'TripMessageController@index');
         $router->post('trip-messages', 'TripMessageController@store');
+        $router->delete('trip-messages/{id}', 'TripMessageController@destroy');
         $router->get('statistics/{name}', 'StatisticController@show');
         $router->get('app-versions', 'AppVersionController@index');
         $router->delete('app-versions/{id}', 'AppVersionController@destroy');

@@ -7,13 +7,13 @@ Diagramas de flujo de los algoritmos que van más allá de crear, leer, modifica
 | Algoritmo | API | App | Tarea programada |
 |---|:-:|:-:|:-:|
 | 7.1 Usuario y contraseña | ✔ | ✔ | |
-| 7.2 Registro en dos pasos y activación | ✔ | | |
+| 7.2 Registro, carné y primer Administrador | ✔ | ✔ | |
 | 7.3 Inicio de sesión | ✔ | | |
 | 7.4 Renovación de tokens con rotación | ✔ | | |
 | 7.5 Valor efectivo de un ajuste | ✔ | ✔ | |
-| 7.6 Permiso para resolver una solicitud | ✔ | | |
+| 7.6 Permisos por roles y permiso para resolver una solicitud | ✔ | ✔ | |
 | 7.7 Efectos de aprobar una solicitud | ✔ | | |
-| 7.8 Bajas voluntarias | ✔ | | |
+| 7.8 Bajas | ✔ | | |
 | 7.9 Derecho a viajar de un niño | ✔ | ✔ | |
 | 7.10 Copia de un viaje a un rango de fechas | ✔ | ✔ | |
 | 7.11 Cambio de estado de un viaje | ✔ | | |
@@ -35,12 +35,14 @@ Diagramas de flujo de los algoritmos que van más allá de crear, leer, modifica
 | 7.27 Borrado de chats | | | ✔ |
 | 7.28 Periodo de una estadística | ✔ | ✔ | |
 | 7.29 Olvidé algo | ✔ | ✔ | ✔ |
-| 7.30 Compartimentación por Entidad | ✔ | | |
+| 7.30 Ámbito de los permisos (antes, compartimentación por Entidad) | ✔ | | |
 | 7.31 Viajes atrasados y aviso de comienzo | ✔ | ✔ | ✔ |
 | 7.32 Recordar contraseña | | ✔ | |
 | 7.33 Desvío del recorrido de referencia | ✔ | | |
 | 7.34 Lectura de la versión del APK y comprobación de actualizaciones | ✔ | ✔ | |
 | 7.35 Aviso diario de caducidad de la contraseña | | | ✔ |
+| 7.36 Código QR de la persona | ✔ | ✔ | ✔ |
+| 7.37 Carné de identidad | ✔ | ✔ | |
 
 ---
 
@@ -49,7 +51,7 @@ Diagramas de flujo de los algoritmos que van más allá de crear, leer, modifica
 ```mermaid
 flowchart TD
     A(["Inicio: usuario U, contraseña P"]) --> B["u = U en minúsculas, sin espacios"]
-    B --> C{"¿4 a 20 caracteres de a-z, 0-9, punto y guion bajo; empieza por letra; no termina en signo; sin dos signos seguidos; al menos 3 letras; sin un carácter repetido 4 veces?"}
+    B --> C{"¿2 a 50 caracteres de a-z, 0-9, punto y guion bajo; empieza por letra; no termina en signo; sin dos signos seguidos; al menos 2 letras; sin un carácter repetido 4 veces?"}
     C -->|No| X1["422 USERNAME_INVALID"]
     C -->|Sí| D["plano = u sin signos, con los números camuflados convertidos en letras"]
     D --> E{"¿plano contiene una palabra reservada (admin, soporte, miruta, mitransporte…)?"}
@@ -61,36 +63,33 @@ flowchart TD
     H -->|Sí| Z(["Fin: se guarda u y el hash bcrypt de P; la anterior pasa al historial; password_changed_at = ahora"])
 ```
 
-**Caducidad:** la contraseña caduca a los `password_expiry_days` días de `password_changed_at`. A partir de ahí, y tras recuperar el acceso, la API solo permite el perfil propio (`PASSWORD_CHANGE_REQUIRED`). La tarea `passwords:warn-expiry` avisa cada día durante los últimos `password_expiry_notice_days` días de cada usuario (7.35).
+**Usuario propuesto** (`GET /username-suggestion`, docs/11 §11.4): se prueban, en minúsculas, sin tildes y con la ñ como n, `primer nombre` → `+.segundo nombre` (si tiene) → `+.primer apellido` → `+.segundo apellido` → `+.2`, `.3`… y se devuelve el primero que es válido y está libre. **Contraseña propuesta** (`GET /password-suggestion`): aleatoria y conforme a la política.
 
-**Desde la versión 2.1** ya no se comprueban palabras no permitidas en el usuario, ni contraseñas comunes, ni que la contraseña contenga el usuario o los nombres. Los mensajes de error tratan de usted.
+**Contraseña puesta por otro** (registro por el Administrador, «Olvidé algo»): `must_change_password = true`; hasta cambiarla, la API solo permite el perfil propio (`PASSWORD_CHANGE_REQUIRED`). Lo mismo cuando caduca (`password_expiry_days`; aviso diario en 7.35).
 
-## 7.2 Registro en dos pasos y activación
+## 7.2 Registro, carné y primer Administrador
 
 ```mermaid
 flowchart TD
-    A(["Inicio: nombres (segundo nombre opcional), usuario, contraseña"]) --> B["Validar usuario y contraseña (7.1)"]
-    B --> C["Abrir transacción y bloquear la tabla users para el conteo"]
-    C --> D{"¿Hay alguna cuenta?"}
-    D -->|No| E["is_admin = verdadero: es el Administrador, sin trabajador"]
+    A(["Inicio: nombres, apellidos, carné C, usuario, contraseña"]) --> B{"¿C es un carné válido? (7.37)"}
+    B -->|No| X0["422 IDENTITY_CARD_INVALID"]
+    B -->|Sí| B2["Validar usuario y contraseña (7.1)"]
+    B2 --> C["Abrir transacción y bloquear las filas de Administrador"]
+    C --> C2{"¿Ya existe una persona con la huella HMAC de C (también inactiva)?"}
+    C2 -->|Sí| X1["409 IDENTITY_CARD_TAKEN: «Alguien ya se registró con este carné…» (docs/11 §11.5)"]
+    C2 -->|No| D{"¿Hay algún Administrador?"}
+    D -->|No| E["is_admin = verdadero"]
     D -->|Sí| F["is_admin = falso"]
-    E --> G["Guardar la cuenta"]
+    E --> G["Guardar la persona: carné cifrado + huella, sexo y nacimiento del carné, has_phone = verdadero; sin Entidad"]
     F --> G
-    G --> H(["Fin del paso 1: 201 con la cuenta; la app inicia sesión"])
-    H --> I{"¿Es el Administrador?"}
-    I -->|Sí| Z(["Fin"])
-    I -->|No| J(["Paso 2: abreviatura, Pase, sexo, jerarquía"])
-    J --> K{"¿Existe una Entidad activa con esa abreviatura (sin distinguir mayúsculas)?"}
-    K -->|No| X1["422 ENTITY_NOT_FOUND"]
-    K -->|Sí| L{"¿Ya hay un trabajador con ese Pase en la Entidad, aunque esté inactivo?"}
-    L -->|Sí| X2["409 PASS_TAKEN"]
-    L -->|No| M["Crear el trabajador de la cuenta en esa Entidad"]
-    M --> Z
+    G --> H(["Fin: 201; la app inicia sesión y abre «Otros datos del registro»"])
 ```
 
-**Registro por un superior** (trabajador sin teléfono): se crea la cuenta **sin usuario ni contraseña** y su trabajador, y un **código de activación** (8 caracteres sin los que se confunden, guardado como HMAC) que caduca a los `activation_code_ttl_days` días. Generar otro anula el anterior.
+`GET /registration-status` → `{adminExists}` para que la app diga si quien se registra será el Administrador.
 
-**Activación** ("Me registró un superior"): se busca el trabajador por Entidad y Pase; su cuenta tiene que estar sin activar y su último código, vigente, con menos de 5 intentos fallidos. Si el código no coincide se suma un intento. Si todo es correcto, se validan usuario y contraseña (7.1), se guardan, se marca el código como usado y se devuelven los tokens. Cualquier dato incorrecto responde igual: `422 ACTIVATION_INVALID`.
+**Después del registro**, todo se pide dentro de la app: entrar en una Entidad (solicitud `entity_membership`, la aprueba quien tenga `entities.approve_membership`: por defecto, el Administrador; al aprobarse se le asigna el rol por defecto), itinerario y parada (`itinerary_membership`), roles (`role`) e hijos (directo, 7.9). El Administrador entra en Entidades sin solicitud (`POST /me/entities`).
+
+**Registro por el Administrador** (`POST /workers`, `workers.register`): nombres, apellidos, carné, Entidad, `hasPhone` y, opcionales, usuario y contraseña (si faltan se proponen). Si el carné **no existe**, crea la persona con `must_change_password = true` y la pertenencia ya aprobada (con el rol por defecto) y devuelve, solo en esa respuesta, usuario y contraseña. Si **ya existe**, no crea otra cuenta: le añade esa Entidad, aprobada (aviso `entity_added` si tiene teléfono). Sin teléfono, se le genera el QR impreso (7.36).
 
 ## 7.3 Inicio de sesión
 
@@ -109,6 +108,8 @@ flowchart TD
 ```
 
 Si la petición trae `X-Installation`, la instalación pasa a ser de esa cuenta, y sus conversaciones sin cuenta, también.
+
+**Primer inicio de sesión con teléfono:** si la persona tenía `has_phone = falso` (la registró el Administrador sin teléfono), pasa a `verdadero` y `printed_qr_version` sube en 1: su QR impreso queda anulado y usa el del teléfono (7.36).
 
 ## 7.4 Renovación de tokens con rotación
 
@@ -137,10 +138,14 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    A(["Inicio: clave del ajuste, cuenta U (opcional), Entidad E (la de U si no se indica)"]) --> B["Leer setting_definitions por clave"]
+    A(["Inicio: clave del ajuste, persona U (opcional), Entidad E, itinerario I y parada S (opcionales)"]) --> B["Leer setting_definitions por clave"]
     B --> C{"¿user_overridable y hay fila en user_settings para U?"}
     C -->|Sí| D["valor = user_settings.value"]
-    C -->|No| E{"¿level = entity y hay fila en entity_settings para E?"}
+    C -->|No| CS{"¿stop_level y hay fila en itinerary_stop_settings para (I, S)?"}
+    CS -->|Sí| D
+    CS -->|No| CI{"¿itinerary_level y hay fila en itinerary_settings para I?"}
+    CI -->|Sí| D
+    CI -->|No| E{"¿level = entity y hay fila en entity_settings para E?"}
     E -->|Sí| E2["valor = entity_settings.value"]
     E -->|No| F{"¿Hay fila en settings (valor de la app)?"}
     F -->|Sí| F2["valor = settings.value"]
@@ -158,100 +163,68 @@ flowchart TD
     J --> Z(["Fin: valor"])
 ```
 
-**Al guardar un ajuste** se valida que el valor sea del tipo correcto y esté entre `min_value` y `max_value` (o en `setting_options`); si tiene ajuste máximo asociado, tampoco puede superar su valor actual. Los valores de la app (`settings`) solo los cambia el Administrador; los de una Entidad (`entity_settings`), su Jefe de Transporte o el Administrador. Si no, `SETTING_OUT_OF_RANGE` o `FORBIDDEN`.
+**Al guardar un ajuste** se valida que el valor sea del tipo correcto y esté entre `min_value` y `max_value` (o en `setting_options`); si tiene ajuste máximo asociado, tampoco puede superar su valor actual. Gana el más concreto: persona → parada del itinerario → itinerario → Entidad → app. Permisos: `settings.app`, `settings.entity`, `settings.itinerary` (itinerario y parada) y `settings.worker` (los de otra persona, `/users/{id}/settings`). Si no, `SETTING_OUT_OF_RANGE` o `FORBIDDEN`.
 
-## 7.6 Permiso para resolver o asignar una solicitud
+## 7.6 Permisos por roles y permiso para resolver una solicitud
+
+**Comprobar una operación** (`Permissions::can(persona, operación, Entidad?, itinerario?)`):
 
 ```mermaid
 flowchart TD
-    A(["Inicio: cuenta U, solicitud S del trabajador W"]) --> B{"¿S está pendiente?"}
-    B -->|No| X1["409 APPLICATION_NOT_PENDING"]
-    B -->|Sí| C{"¿W es el trabajador de U?"}
-    C -->|Sí| X2["403 SELF_APPROVAL"]
-    C -->|No| D{"¿U es Administrador?"}
-    D -->|Sí| OK(["Fin: puede resolver"])
-    D -->|No| D2{"¿W es de la Entidad de U?"}
-    D2 -->|No| X3["403 FORBIDDEN"]
-    D2 -->|Sí| E{"¿Tipo de S?"}
-    E -->|transport_chief| X3
-    E -->|"itinerary_chief o driver"| F{"¿U es Jefe de Transporte?"}
-    E -->|itinerary_membership| G{"¿U es Jefe del itinerario pedido? (el Jefe de Transporte lo es de todos los de su Entidad)"}
-    E -->|"child_addition, child_removal o absence"| H{"¿U es Jefe del itinerario actual de W?"}
+    A(["Inicio: persona U, operación O, Entidad E y/o itinerario I del objeto"]) --> B{"¿U es Administrador?"}
+    B -->|Sí| OK(["Puede"])
+    B -->|No| C["Permisos de U: para cada rol de cada pertenencia activa (worker_roles), las operaciones del rol con su ámbito"]
+    C --> D{"¿Algún permiso de O con ámbito all?"}
+    D -->|Sí| OK
+    D -->|No| E{"¿Alguno con ámbito entity en la Entidad E (si solo hay I, la Entidad de I)?"}
+    E -->|Sí| OK
+    E -->|No| F{"¿Alguno con ámbito itinerary cuyo itinerario es I? (el del rol si es por itinerario; si no, el del que U es miembro en esa Entidad)"}
     F -->|Sí| OK
-    F -->|No| X3
-    G -->|Sí| OK
-    G -->|No| X3
-    H -->|Sí| OK
-    H -->|No| X3
+    F -->|No| NO(["403 FORBIDDEN"])
 ```
 
-La **bandeja de solicitudes** (`filter[toResolve]=true`) aplica este mismo algoritmo como filtro de la consulta.
+El ámbito `own` no cuenta aquí: lo propio (sus viajes con `trips.view own`, lo suyo en general) se comprueba aparte. Los permisos se leen una vez por petición. Las listas se filtran con el mismo criterio (`Permissions::restrict`).
 
-**Asignación directa:** si un superior crea una solicitud para **otro** trabajador (relación `worker`), se crea con `created_by` = el superior, se comprueba este mismo permiso y, si lo tiene, se aprueba al instante (7.7) y se avisa al trabajador con `role_assigned`. Solo se pueden asignar `itinerary_membership`, `itinerary_chief`, `driver` y `transport_chief`.
+**Resolver una solicitud:**
+- Nadie resuelve la suya (`403 SELF_APPROVAL`); debe estar pendiente (`409 APPLICATION_NOT_PENDING`).
+- `entity_membership`: `entities.approve_membership` en esa Entidad.
+- `itinerary_membership`: `members.approve` sobre el itinerario pedido.
+- `role`: el Administrador, o quien tenga `roles.approve` en la Entidad **y** tenga allí uno de los roles aprobadores de ese rol (`role_approvers`).
+
+La bandeja (`filter[toResolve]=true`) aplica este mismo criterio. Al crear una solicitud se avisa (`application_received`) a todos los que pueden resolverla.
 
 ## 7.7 Efectos de aprobar una solicitud
 
-Todo se hace dentro de una transacción. Si algún paso falla, no se aplica nada.
+Todo se hace dentro de una transacción.
 
 ```mermaid
 flowchart TD
     A(["Inicio: solicitud S aprobada por U"]) --> B["S.status = approved, resolved_by = U, resolved_at = ahora"]
     B --> C{"¿Tipo de S?"}
-    C -->|itinerary_membership| D["Trabajador: itinerary_id y stop_id = los de S"]
-    C -->|itinerary_chief| E["Crear o restaurar itinerary_chiefs (itinerario, trabajador)"]
-    E --> E2{"¿El itinerario o la parada de S son distintos de los actuales?"}
-    E2 -->|Sí| E3["Trabajador: itinerary_id y stop_id = los de S"]
-    E2 -->|No| E4["Sin cambio de itinerario"]
-    E3 --> E5["Cancelar sus solicitudes itinerary_membership pendientes"]
-    E4 --> E5
-    C -->|driver| F["Crear o restaurar drivers (trabajador)"]
-    C -->|transport_chief| G["Crear o restaurar transport_chiefs (trabajador)"]
-    C -->|child_addition| I["El niño queda declarado (se deriva de la solicitud aprobada)"]
-    C -->|child_removal| J["Borrado lógico del niño"]
-    C -->|absence| K["Sin cambios en tablas: la ausencia aprobada se consulta por fechas (sin fechas = indefinida, cubre todos los días)"]
-    D --> N["Crear notice application_resolved para la cuenta del trabajador (role_assigned si fue una asignación)"]
-    E5 --> N
+    C -->|entity_membership| D["Crear o restaurar la pertenencia (user, entity) y asignarle el rol por defecto"]
+    C -->|itinerary_membership| E["Pertenencia: itinerary_id y stop_id = los de S (pierde el anterior en esa Entidad; no pierde jefaturas)"]
+    C -->|role| F["Crear worker_roles (pertenencia, rol, itinerario si el rol es por itinerario)"]
+    D --> N["Aviso application_resolved al solicitante"]
+    E --> N
     F --> N
-    G --> N
-    I --> N
-    J --> N
-    K --> N
     N --> Z(["Fin"])
 ```
 
-**Al rechazar:** el motivo (`resolution_note`) es obligatorio; se cambia el estado y se avisa al solicitante con el motivo. **Al cancelar:** solo se cambia el estado. Una solicitud `child_addition` rechazada o cancelada aplica además borrado lógico al niño, para que pueda volver a declararse.
+**Al rechazar:** el motivo (`resolution_note`) es obligatorio y se avisa al solicitante con él. **Al cancelar** (solo el solicitante): se cambia el estado.
 
-**Al crear una solicitud** se buscan todos los usuarios que podrían resolverla (7.6) y se crea un `notice` `application_received` para cada uno.
+**Asignaciones directas** (sin solicitud): itinerario y parada (`members.assign`, o con el QR: `members.assign_by_qr`, 7.36), roles (`roles.assign` + ser rol aprobador), Entidad (`entities.assign_members`). Se avisa con `itinerary_assigned`, `role_assigned` o `entity_added`.
 
-**Varios hijos a la vez** (`children[]`): dentro de una transacción se crea una solicitud `child_addition` por hijo; la primera toma su propio id como `group_id` y las demás, el de la primera. Cada hijo se valida (7.9); si uno falla, no se crea ninguna y el error apunta a ese hijo. Se envía un único `application_received` (el de la primera). Después cada solicitud se aprueba o se rechaza por separado.
+## 7.8 Bajas
 
-**Ausencia indefinida:** se crea sin `starts_on` ni `ends_on`. Una vez aprobada, solo el propio trabajador puede ponerle fechas (`PATCH` sin `status`); se guardan sin nueva aprobación. Si la ausencia no es indefinida o no está aprobada: `409 ABSENCE_NOT_INDEFINITE`.
+Las bajas son acciones directas (no dejan solicitud):
 
-## 7.8 Bajas y retiradas
-
-Las bajas las pide el propio trabajador; las **retiradas** las hace un superior: el Administrador cualquiera; el Jefe de Transporte, en su Entidad, `itinerary_chief_leave`, `driver_leave` e `itinerary_leave`; el Jefe de itinerario, `itinerary_leave` de los de su itinerario. En una retirada, `created_by` y `resolved_by` son el superior y el trabajador recibe `role_removed`.
-
-```mermaid
-flowchart TD
-    A(["Inicio: baja de tipo B del trabajador T, la pida él o un superior"]) --> B["Crear solicitud B, ya aprobada"]
-    B --> C{"¿Tipo B?"}
-    C -->|itinerary_leave| D["Guardar el itinerario y la parada actuales en itinerary_applications"]
-    D --> D2["T: itinerary_id y stop_id = vacíos"]
-    D2 --> D3["Avisar a los Jefes de ese itinerario"]
-    C -->|itinerary_chief_leave| E["Borrado lógico de itinerary_chiefs de ese itinerario"]
-    E --> E2["Avisar a los Jefes de Transporte de su Entidad"]
-    C -->|driver_leave| F["Borrado lógico de drivers"]
-    F --> F2["Quitar a T como chofer habitual de los vehículos"]
-    F2 --> F3["Buscar viajes futuros no cancelados con T de chofer"]
-    F3 --> F4["Avisar a los Jefes de Transporte de su Entidad: trip_needs_reassignment por cada viaje"]
-    F4 --> F5["Avisarles también: resignation"]
-    C -->|transport_chief_leave| G["Borrado lógico de transport_chiefs"]
-    G --> G2["Avisar al Administrador"]
-    D3 --> Z(["Fin"])
-    E2 --> Z
-    F5 --> Z
-    G2 --> Z
-```
+| Baja | Quién | Efectos |
+|---|---|---|
+| De una Entidad (`DELETE /me/entities/{id}` o `DELETE /workers/{id}`) | La persona o `entities.assign_members` | Borrado lógico de la pertenencia; se borran su itinerario, su parada y sus roles allí; se cancelan sus solicitudes pendientes de esa Entidad; si era chofer habitual deja de serlo y sus viajes futuros avisan `trip_needs_reassignment`. Para volver, lo solicita de nuevo |
+| Del itinerario (`DELETE /workers/{id}/itinerary`) | La persona o `members.assign` | itinerario y parada = vacíos (aviso `itinerary_removed` si lo hizo otro) |
+| De un rol (`DELETE /worker-roles/{id}`) | La persona (aviso `resignation` a quien puede asignarlo) o quien puede asignarlo (aviso `role_removed`) | Borrado lógico del rol; si conducía y pierde `tracking.drive`, como en la baja de la Entidad |
+| Desactivar la pertenencia (`PATCH /workers/{id}` `active`) | `workers.deactivate` | Conserva itinerario y roles |
+| Eliminar la cuenta (`PATCH /users/{id}` `active`) | `workers.delete` | Borrado lógico de la persona (`409 LAST_ADMIN` si es el último Administrador) |
 
 ## 7.9 Derecho a viajar de un niño
 
@@ -272,10 +245,13 @@ flowchart TD
 - Nacido el 10/03/2011 → L = 10/03/2027 → F = 31/08/2027.
 - Nacido el 15/10/2011 → L = 15/10/2027 → F = 31/08/2028.
 
-**Al declarar un hijo:**
-1. La fecha de nacimiento no puede ser futura.
-2. Se comprueba el derecho con D = hoy. Si no lo tiene: `CHILD_NOT_ELIGIBLE`.
-3. **Posible duplicado:** mientras la solicitud está pendiente, si en la misma Entidad hay otro niño declarado o pendiente con la misma fecha de nacimiento, primer nombre y primer apellido, la solicitud se muestra con `possibleDuplicate = true` a quien la aprueba. No se bloquea.
+**Entidad de referencia:** la de sus padres si todos pertenecen a una sola; si no, el valor de la app.
+
+**Al añadir un hijo** (`POST /children`, directo, sin solicitud):
+1. Carné válido (7.37); de él salen el nacimiento y el sexo.
+2. Se comprueba el derecho con D = hoy. Si no lo tiene: `422 CHILD_NOT_ELIGIBLE` (con la fecha).
+3. Si el carné ya existe, no se crea otro niño: se vincula al nuevo padre (`child_parents`) y la respuesta lo avisa (`meta.alreadyDeclared`). Si ya era suyo: `409 CHILD_ALREADY_DECLARED`.
+4. Eliminar = desvincular del padre; sin padres, borrado lógico. Desactivado o sin derecho, deja de mostrarse y no puede subir.
 
 ## 7.10 Copia de un viaje a un rango de fechas
 
@@ -360,19 +336,18 @@ Se ejecuta con una sola consulta, apoyada en los índices `(vehicle_id, status, 
 ```mermaid
 flowchart TD
     A(["Inicio: viaje V"]) --> B["M = trabajadores activos con itinerary_id = V.itinerario"]
-    B --> C["Quitar de M a quienes tienen una ausencia aprobada que incluye la fecha de salida de V"]
+    B --> C["Quitar de M a quienes tienen una ausencia (sin aprobación) que incluye la fecha de salida de V"]
     C --> D{"¿El chofer de V está en M?"}
     D -->|Sí| E["Quitar al chofer de M"]
     D -->|No| F
     E --> F["esperados = tamaño de M"]
-    F --> G["niños esperados = suma de hijos con derecho en la fecha de V (7.9) de cada miembro de M; no cuentan para la ocupación"]
-    G --> H["asientos = asientos del vehículo; capacidad = asientos + capacidad de pie"]
+    F --> H["asientos = asientos del vehículo; capacidad = asientos + capacidad de pie"]
     H --> I{"¿esperados es mayor que capacidad?"}
     I -->|Sí| J["nivel = overloaded (sobresaturado)"]
     I -->|No| K{"¿esperados es mayor que asientos?"}
     K -->|Sí| L["nivel = saturated (saturado: van de pie)"]
     K -->|No| N["nivel = normal"]
-    J --> Z(["Fin: esperados, niños esperados, asientos, capacidad, nivel"])
+    J --> Z(["Fin: esperados (solo trabajadores: no se espera a ningún niño), asientos, capacidad, nivel"])
     L --> Z
     N --> Z
 ```
@@ -389,16 +364,13 @@ flowchart TD
     C -->|Sistema| R["rol = system, trabajador vacío"]
     C -->|Usuario| D{"¿U es Administrador?"}
     D -->|Sí| R1["rol = administrator"]
-    D -->|No| E{"¿U es Jefe de Transporte?"}
-    E -->|Sí| R2["rol = transport_chief"]
-    E -->|No| F{"¿U es el chofer de V?"}
+    D -->|No| F{"¿U es el chofer de V?"}
     F -->|Sí| R3["rol = driver"]
-    F -->|No| G{"¿U es Jefe del itinerario de V?"}
-    G -->|Sí| R4["rol = itinerary_chief"]
+    F -->|No| G{"¿U tiene trips.complete sobre el itinerario de V?"}
+    G -->|Sí| R4["rol = manager"]
     G -->|No| X2["403 FORBIDDEN"]
     R --> H
     R1 --> H
-    R2 --> H
     R3 --> H
     R4 --> H{"¿Existe una marca de U en V, aunque esté borrada?"}
     H -->|"Sí, activa"| I["No se duplica"]
@@ -528,7 +500,7 @@ flowchart TD
 
 - Se recorren **todas** las paradas sin paso, no solo la siguiente: si el vehículo se salta una parada, se detecta la siguiente y la saltada queda marcada como `skipped`.
 - **La parada de salida** no genera incidencias: se da por detenida aunque arranque sin parar, y nunca se marca como saltada. La última se da por detenida al llegar, porque ahí termina el trayecto.
-- **Incidencia:** se crea una fila en `trip_leg_incidents` (tipo, parada, coordenadas, `started_at`) y un aviso `trip_incident` (con `payload` `direction`, `type` y `stop`) para los **Jefes del itinerario y los Jefes de Transporte de la Entidad**. A los pasajeros no se les avisa.
+- **Incidencia:** se crea una fila en `trip_leg_incidents` (tipo, parada, coordenadas, `started_at`) y un aviso `trip_incident` (con `payload` `direction`, `type` y `stop`) para quienes tienen `trips.edit` sobre el itinerario. A los pasajeros no se les avisa.
 - Después se comprueba el desvío (7.33) y se guarda p como última posición del trayecto.
 - **Finalizar a mano** (`PATCH /trip-legs/{id}` con `endedAt`) pone `end_reason = manual`. Gana lo que ocurra primero.
 
@@ -582,51 +554,60 @@ flowchart TD
 
 ## 7.21 Lista de pasajeros
 
-No hay orden de subida (docs/08-version-2.md §8.10).
-
 ```mermaid
 flowchart TD
-    A(["Inicio: viaje V, parada opcional"]) --> B["Pasajeros = M de 7.13, filtrados por parada si se indicó"]
-    B --> C["Para cada pasajero: niños = hijos con derecho en la fecha de V (7.9)"]
+    A(["Inicio: viaje V, parada opcional, sentido"]) --> B["Pasajeros = M de 7.13 (solo trabajadores), filtrados por parada si se indicó"]
+    B --> C["Para cada pasajero: hijos con derecho (informativo) y su subida en el trayecto, con los hijos que subieron"]
     C --> D["Clave de orden: 1. posición de su parada en el itinerario"]
-    D --> E["2. primer apellido, 3. segundo apellido, 4. primer nombre, 5. segundo nombre (alfabético, sin tildes y con la ñ después de la n)"]
-    E --> F["Ordenar de menor a mayor por la clave"]
-    F --> Z(["Fin: lista con su posición, niños y estado de subida"])
+    D --> E["2. primer apellido, 3. segundo apellido, 4. primer nombre, 5. segundo nombre (sin tildes, ñ después de n)"]
+    E --> F["Ordenar por la clave"]
+    F --> G["Añadir al final quienes subieron sin ser esperados (de otro itinerario o Entidad, ausentes…), con expected = falso"]
+    G --> Z(["Fin"])
 ```
 
 ## 7.22 Registro de subida
 
+Una sola subida por persona y trayecto; con QR, ver también 7.36.
+
 ```mermaid
 flowchart TD
-    A(["Inicio: trayecto T, trabajador W, método, niños n, quien registra U"]) --> B{"¿T está activo?"}
-    B -->|No| X1["409: el trayecto no está en curso"]
+    A(["Inicio: trayecto T del viaje V, persona P, método, hijos H, quien registra U, hora h (del escaneo o ahora)"]) --> B{"¿T está activo, o h cae dentro de T (±2 min), o U tiene tracking.fix_passengers?"}
+    B -->|No| X1["409 LEG_NOT_ACTIVE"]
     B -->|Sí| C{"¿Método?"}
-    C -->|self| D{"¿U = W?"}
-    D -->|No| X2["403 FORBIDDEN"]
-    C -->|manual| E{"¿U es el chofer, un Jefe del itinerario, un Jefe de Transporte o el Administrador?"}
-    E -->|No| X2
-    C -->|qr| F{"¿U tiene uno de esos roles?"}
-    F -->|No| X2
-    F -->|Sí| G["Verificar la firma y la caducidad del token del QR"]
-    G --> H{"¿Válido y emitido para T?"}
-    H -->|No| X3["422 BOARDING_PASS_INVALID"]
-    H -->|Sí| I["W = trabajador del token"]
-    C -->|automatic| J["Lo genera el servidor (7.23)"]
-    D -->|Sí| K
-    E -->|Sí| K
-    I --> K
-    J --> K{"¿W es pasajero esperado del viaje?"}
-    K -->|No| X4["422: no es miembro del itinerario"]
-    K -->|Sí| L["máximo = hijos con derecho de W en la fecha del viaje (7.9)"]
-    L --> M{"¿n es mayor que máximo?"}
-    M -->|Sí| X5["422 CHILDREN_COUNT_EXCEEDED"]
-    M -->|No| N["Crear trip_boardings (T, W, método, marked_by = U, n, ahora)"]
-    N --> Z(["Fin"])
+    C -->|self| C1["P = U"]
+    C -->|"qr o manual"| C2{"¿U es el chofer de V o tiene tracking.scan_boarding sobre su itinerario?"}
+    C2 -->|No| X2["403 FORBIDDEN"]
+    C2 -->|Sí| C3["qr: P = persona del QR (7.36); manual: P = la de la pertenencia indicada"]
+    C1 --> D
+    C3 --> D["Pertenencia W de P en la Entidad de V"]
+    D --> E{"¿W existe y su itinerario es el de V?"}
+    E -->|Sí| G["outsider = null"]
+    E -->|"W existe, otro itinerario"| F1["outsider = itinerary"]
+    E -->|"No pertenece a la Entidad"| F2{"¿P pertenece a alguna Entidad?"}
+    F2 -->|No| X3["422 NOT_A_WORKER"]
+    F2 -->|Sí| F3["outsider = entity; W = una de sus pertenencias"]
+    F1 --> O{"¿Método self?"}
+    F3 --> O
+    O -->|Sí| X4["422 NOT_A_PASSENGER"]
+    O -->|No| O2{"¿U tiene tracking.allow_outsiders sobre el itinerario de V?"}
+    O2 -->|No| X5["403 OUTSIDER_NOT_ALLOWED"]
+    O2 -->|Sí| O3{"¿allowOutsider = verdadero?"}
+    O3 -->|No| X6["409 OUTSIDER_CONFIRMATION_REQUIRED (meta.outsider): la app pregunta a quien escanea"]
+    O3 -->|Sí| G
+    G --> K{"¿P ya tiene una subida en T?"}
+    K -->|"Sí, escaneada (qr o manual) y ahora se escanea"| X7["409 ALREADY_BOARDED (QR impreso: «puede ser una copia»)"]
+    K -->|"Sí, automática o self"| K2["Se actualiza: pasa a escaneada (método, quien la marcó, outsider)"]
+    K -->|No| K3["Crear trip_boardings (T, W, método, marked_by, outsider, qr_kind, boarded_at = h)"]
+    K2 --> L
+    K3 --> L{"¿Cada hijo de H es hijo activo de P con derecho en la fecha de V (7.9)?"}
+    L -->|No| X8["422 CHILD_NOT_ELIGIBLE"]
+    L -->|Sí| M{"¿Alguno ya subió en T con otra persona?"}
+    M -->|Sí| X9["409 CHILD_ALREADY_BOARDED"]
+    M -->|No| N["trip_boarding_children = H (único por trayecto y niño); children_count = |H|"]
+    N --> Z(["Fin: con QR dinámico, se gasta el código en la misma transacción"])
 ```
 
-**Token del QR** (`POST /boarding-passes`): un JWT firmado con `sub` (trabajador), `leg` (trayecto) y `exp` = ahora + `boarding_pass_ttl_seconds`. No se guarda en la base de datos y no contiene datos personales. La app lo renueva antes de que caduque mientras se muestra el QR.
-
-**Niños de la subida:** si hay varios registros del mismo trabajador en el mismo trayecto, vale `children_count` del más reciente.
+**Corrección de pasajeros** (`tracking.fix_passengers`): cambiar los hijos de una subida (`PATCH`), quitarla (`DELETE`) o registrarla con el trayecto ya terminado. Mientras el trayecto está en curso, quien escanea y la propia persona también pueden cambiar los hijos.
 
 ## 7.23 Subida automática
 
@@ -643,7 +624,7 @@ flowchart TD
     E -->|No| Z0
     E -->|Sí| F{"¿La posición combinada se movió más de auto_boarding_distance_m entre la primera y la última muestra?"}
     F -->|No| Z0
-    F -->|Sí| G["Registrar subida automática (7.22) con niños = todos los que tiene con derecho"]
+    F -->|Sí| G["Registrar subida automática (7.22), sin hijos: los marca quien escanea o la persona"]
     G --> Z(["Fin"])
 ```
 
@@ -693,11 +674,11 @@ flowchart TD
     A(["Inicio: tarea diaria"]) --> B["Para cada trabajador activo W con itinerario I"]
     B --> C["N = inactivity_days y Av = inactivity_warning_days de la Entidad de W"]
     C --> D["desde = la más reciente entre: su última subida en un viaje realizado de I, el último viaje realizado que condujo, y la fecha en que entró en I"]
-    D --> E["días contados = días entre desde y hoy en los que I tuvo al menos un viaje realizado, W no tenía ausencia aprobada y no condujo un viaje realizado"]
+    D --> E["días contados = días entre desde y hoy en los que I tuvo al menos un viaje realizado, W no tenía ausencia declarada y no condujo un viaje realizado"]
     E --> F{"¿días contados es mayor o igual que N?"}
-    F -->|Sí| G["Crear solicitud itinerary_removal, ya aprobada, con el itinerario y la parada"]
-    G --> H["W: itinerary_id y stop_id = vacíos"]
-    H --> I2["notice inactivity_removal para W, y avisar a los Jefes de I"]
+    F -->|Sí| G["Quitarle el itinerario (sin solicitud)"]
+    G --> H["W: itinerary_id, stop_id e itinerary_assigned_at = vacíos"]
+    H --> I2["notice inactivity_removal para W, y avisar a quienes tienen members.approve sobre I"]
     F -->|No| J{"¿días contados = N - Av y no se le avisó ya en este periodo?"}
     J -->|Sí| K["notice inactivity_warning para W"]
     J -->|No| L
@@ -707,7 +688,7 @@ flowchart TD
     L -->|No| Z(["Fin"])
 ```
 
-**"La fecha en que entró en I"** es la de resolución de la última solicitud aprobada (`itinerary_membership` o `itinerary_chief`) que lo llevó a ese itinerario. Así, un trabajador recién llegado no pierde la plaza por los días anteriores.
+**"La fecha en que entró en I"** es `workers.itinerary_assigned_at` (se pone al asignarle el itinerario, por solicitud, directamente o con el QR). Así, un trabajador recién llegado no pierde la plaza por los días anteriores.
 
 ## 7.27 Borrado de chats y avisos
 
@@ -759,41 +740,43 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    A(["Inicio: instalación I, qué olvidó, abreviatura, Pase, teléfono"]) --> B{"¿I está bloqueada?"}
+    A(["Inicio: instalación I, qué olvidó, carné, teléfono"]) --> B{"¿I está bloqueada?"}
     B -->|Sí| X1["403 INSTALLATION_BLOCKED"]
     B -->|No| C{"¿I hizo access_recovery_max_per_hour solicitudes en la última hora?"}
     C -->|Sí| X2["429 TOO_MANY_REQUESTS"]
-    C -->|No| D["Buscar el trabajador por Entidad y Pase (solo si su cuenta está activada)"]
+    C -->|No| D["Buscar la persona por la huella del carné"]
     D --> E["Cerrar las solicitudes abiertas de I"]
-    E --> F["Crear la solicitud pendiente: teléfono cifrado, trabajador encontrado o vacío, caduca en access_recovery_ttl_hours"]
-    F --> G["Avisar al Administrador (access_recovery_requested)"]
+    E --> F["Crear la solicitud pendiente: carné y teléfono cifrados, persona encontrada o vacía, caduca en access_recovery_ttl_hours"]
+    F --> G["Avisar a quien tiene access_recoveries.manage (access_recovery_requested)"]
     G --> Z1(["201: la misma respuesta coincidan o no los datos"])
     Z1 --> H(["El Administrador verifica a la persona por su cuenta"])
     H --> J{"¿Aprueba?"}
     J -->|No| K["rejected; se borra el teléfono"]
-    J -->|Sí, y hay trabajador| L["approved"]
+    J -->|Sí, y hay persona| L["approved"]
     L --> M{"¿Olvidó la contraseña?"}
-    M -->|No| N["La instalación lee el usuario y la solicitud termina"]
-    M -->|Sí| O["La instalación envía la contraseña nueva (7.1): se guarda, se cierran las demás sesiones, termina y se devuelven los tokens"]
+    M -->|Sí| O["Contraseña nueva propuesta (7.1), must_change_password = verdadero, se cierran sus sesiones"]
+    M -->|No| N
+    O --> N["Se comunica solo lo pedido (usuario y/o contraseña) por la tercera vía o a la instalación, que lo lee una vez y la solicitud termina"]
 ```
 
 La tarea `access-recoveries:expire` cierra cada hora las caducadas y borra su teléfono.
 
-## 7.30 Compartimentación por Entidad
+## 7.30 Ámbito de los permisos
+
+Desde la 3.0 no hay «una Entidad por persona»: cada persona pertenece a 0..n Entidades y lo que ve y hace lo deciden sus permisos (7.6).
 
 ```mermaid
 flowchart TD
-    A(["Inicio: petición de la cuenta U sobre el recurso R"]) --> B{"¿U es Administrador?"}
-    B -->|Sí| OK(["Ve y actúa sobre todas las Entidades; filter[entity] para limitar"])
-    B -->|No| C{"¿U tiene trabajador?"}
-    C -->|No| X1["403 ENTITY_REQUIRED (salvo perfil, avisos y conversaciones)"]
-    C -->|Sí| D["Entidad de R: la de su tabla raíz (trabajador, itinerario, parada o vehículo)"]
-    D --> E{"¿Es la Entidad de U?"}
-    E -->|No| X2["404, como si no existiera"]
-    E -->|Sí| F{"¿Al crear o modificar, lo relacionado es de la misma Entidad?"}
-    F -->|No| X3["422 ENTITY_MISMATCH"]
-    F -->|Sí| OK2(["Se aplican los permisos del rol"])
+    A(["Inicio: petición de U sobre el recurso R (de la Entidad E, itinerario I)"]) --> B{"¿Es suyo (su persona, sus hijos, sus ausencias, sus solicitudes, sus ajustes, su QR)?"}
+    B -->|Sí| OK(["Puede"])
+    B -->|No| C{"¿Tiene la operación con ámbito que cubra E o I (7.6)?"}
+    C -->|Sí| OK
+    C -->|No| D{"¿Puede verlo?"}
+    D -->|No| X1["404, como si no existiera"]
+    D -->|Sí| X2["403 FORBIDDEN"]
 ```
+
+Al crear o modificar, lo relacionado debe ser de la misma Entidad (`422 ENTITY_MISMATCH`). Sin Entidad, las listas salen vacías.
 
 ## 7.31 Viajes atrasados y aviso de comienzo
 
@@ -929,3 +912,64 @@ flowchart TD
 ```
 
 Antes era un único aviso a los 15 días (ajuste de la app `password_expiry_warning_days`); ahora es uno por día durante los últimos N días, y N es un ajuste de cada usuario (15 por defecto; 0 = sin avisos).
+
+## 7.36 Código QR de la persona
+
+Un solo QR por persona para toda la app (docs/11 §11.8 y §11.9). Servicios `QrCodes` (formato y firmas) y `QrScans` (usos). **Todas las firmas son ECDSA P-256 con SHA-256, en formato DER (ASN.1 `SEQUENCE {r, s}`)**, sobre los **bytes JSON** exactamente como se transmiten (los que resultan de decodificar el segmento base64url). base64url sin relleno (`=`); las claves públicas, SPKI DER en base64 **estándar** (con `+`, `/` y relleno).
+
+| Pieza | Formato |
+|---|---|
+| Clave del servidor | `server_keys` (purpose `qr`): pública SPKI DER base64; privada PEM cifrada con `Crypt` (APP_KEY). Se crea la primera vez que se necesita. `GET /qr-public-key` |
+| Certificado del teléfono | `base64url(J) "." base64url(firma_servidor(J))`, J = `{"u":<userId>,"k":"<SPKI base64 del teléfono>","e":<caducidad unix>,"v":1}`. 30 días (`POST /me/qr-devices`) |
+| QR dinámico | `MR1.<certificado>.<base64url(P)>.<base64url(firma_teléfono(P))>`, P = `{"u":<userId>,"t":<unix segundos>,"n":"<8 bytes en hex, 16 caracteres>"}`. 5 segmentos separados por `.` |
+| QR impreso | `MRP1.<base64url(J)>.<base64url(firma_servidor(J))>`, J = `{"u":<userId>,"v":<printed_qr_version>}`. 3 segmentos |
+
+**Verificación** (igual en el servidor y, sin conexión, en el teléfono que escanea; h = hora del escaneo):
+
+```mermaid
+flowchart TD
+    A(["Inicio: texto Q, hora h"]) --> B{"¿Empieza por MR1. y tiene 5 segmentos, o por MRP1. y tiene 3?"}
+    B -->|No| X1["QR_INVALID"]
+    B -->|MR1| C["J = b64url⁻¹(seg1); P = b64url⁻¹(seg3)"]
+    C --> D{"¿firma seg2 válida sobre J con la clave del servidor?"}
+    D -->|No| X2["QR_CERTIFICATE_INVALID"]
+    D -->|Sí| E{"¿J.u = P.u?"}
+    E -->|No| X2
+    E -->|Sí| F{"¿J.e ≥ h?"}
+    F -->|No| X3["QR_CERTIFICATE_EXPIRED"]
+    F -->|Sí| G{"¿firma seg4 válida sobre P con la clave J.k?"}
+    G -->|No| X4["QR_SIGNATURE_INVALID"]
+    G -->|Sí| H{"¿abs(P.t − h) ≤ 120 s?"}
+    H -->|No| X5["QR_EXPIRED"]
+    H -->|Sí| I{"¿(P.u, P.n) ya usado? (qr_nonces; en el teléfono, su lista local)"}
+    I -->|Sí| X6["409 QR_ALREADY_USED"]
+    I -->|No| OK(["Persona P.u"])
+    B -->|MRP1| K{"¿firma seg2 válida sobre J con la clave del servidor?"}
+    K -->|No| X4
+    K -->|Sí| L{"¿La persona J.u no tiene teléfono y su printed_qr_version = J.v? (sin conexión: printedQrVersion de la lista)"}
+    L -->|No| X7["QR_REVOKED"]
+    L -->|Sí| OK
+```
+
+- **Un solo uso:** el código dinámico se gasta al registrar la subida o el alta (no al comprobarlo con `POST /qr-scans`). `qr_nonces` guarda (persona, nonce, uso, registro) hasta P.t + 120 s + 7 días; la tarea `qr:purge-nonces` (cada hora) borra los caducados. Un reintento del mismo uso (misma subida o mismo alta) devuelve el registro anterior (`repeated`).
+- **Sin conexión:** el teléfono que escanea guarda la clave del servidor y la lista de la Entidad (`GET /entities/{id}/scan-roster`), comprueba como arriba con su hora, lleva su propia lista de nonces usados y guarda el escaneo con su hora local. Al sincronizar (`POST /offline-scans` o `POST /trip-boardings` con `scannedAt`), el servidor revalida todo con h = `scannedAt` (no posterior a ahora + 2 min ni anterior a 7 días: `QR_SCAN_TIME_INVALID`, `QR_SCAN_TOO_OLD`) y descarta los nonces repetidos.
+- **QR impreso:** `GET /workers/{id}/printed-qr` (`workers.printed_qr`); anular = `printed_qr_version + 1` (`POST …/revoke`). Al entrar por primera vez con teléfono (inicio de sesión o certificado del teléfono) se anula solo (7.3). Una sola subida por trayecto: si el mismo QR se usa dos veces en el mismo viaje, `409 ALREADY_BOARDED` con aviso de posible copia.
+- **Alta directa** (`POST /itinerary-assignments`, `members.assign_by_qr` sobre el itinerario): la persona debe pertenecer a la Entidad del itinerario (`422 NOT_A_MEMBER`); se le cambian itinerario y parada (pierde el anterior en esa Entidad, conserva sus jefaturas) y se le avisa.
+- **De fuera:** ver 7.22 (`tracking.allow_outsiders` y confirmación).
+
+## 7.37 Carné de identidad
+
+Clase `App\Support\IdentityCard` (docs/11 §11.2).
+
+```mermaid
+flowchart TD
+    A(["Inicio: carné C"]) --> B{"¿11 dígitos?"}
+    B -->|No| X["422 IDENTITY_CARD_INVALID"]
+    B -->|Sí| C["AA = C[0..1], MM = C[2..3], DD = C[4..5]; siglo por C[6]: 9 → 1800, 0–5 → 1900, 6–8 → 2000"]
+    C --> D{"¿AAAA-MM-DD es una fecha válida y no futura?"}
+    D -->|No| X
+    D -->|Sí| E["sexo = M si C[9] (penúltimo) es par; F si es impar"]
+    E --> Z(["Fin: nacimiento, sexo; se guarda cifrado (Crypt) y con huella HMAC-SHA256 (APP_KEY) única"])
+```
+
+Se busca y se comprueba que no se repite por la huella; el carné en claro solo lo ven la propia persona, el Administrador y quien tenga `workers.view_identity_card` en su ámbito (también sobre quien solicita entrar en su itinerario). Los hijos usan la misma regla (huella única en `children`).

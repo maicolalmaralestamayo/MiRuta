@@ -1,6 +1,6 @@
 # 5. App móvil (Flutter, Android)
 
-La app se llama **MiRuta** en todas partes (lanzador, textos, avisos y APK). Interfaz en **español**, con **trato de usted** en todos los textos (sin exagerar: las etiquetas de los campos dicen el dato a secas, "Nombre", "Teléfono"; el usted va en las frases). Las opciones de menú solo aparecen si el rol del usuario las permite. Los acuerdos de detalle de cada pantalla están en [09-repaso-pantallas.md](09-repaso-pantallas.md).
+La app se llama **MiRuta** en todas partes (lanzador, textos, avisos y APK). Interfaz en **español**, con **trato de usted** en todos los textos (sin exagerar: las etiquetas de los campos dicen el dato a secas, "Nombre", "Teléfono"; el usted va en las frases). Las opciones de menú solo aparecen si los permisos del usuario las permiten (`GET /me` → `meta.permissions`, versión 3.0). Los acuerdos de detalle de cada pantalla están en [09-repaso-pantallas.md](09-repaso-pantallas.md).
 
 ## 5.1 Arquitectura
 
@@ -15,7 +15,7 @@ La app se llama **MiRuta** en todas partes (lanzador, textos, avisos y APK). Int
 | Notificaciones | `flutter_local_notifications` |
 | Mapa | `flutter_map` con las imágenes del **servidor de mapas propio** (`GET /map`, `tools/maps`). La vista no sale de Cuba; cada imagen vista se guarda en el teléfono y se puede descargar la zona de la Entidad para usarla sin conexión. La app no crece: no lleva mapas dentro |
 | Ubicación | `geolocator` |
-| QR | `qr_flutter` (mostrar) y `mobile_scanner` (escanear) |
+| QR | `qr_flutter` (mostrar) y `mobile_scanner` (escanear). **3.0:** clave EC P-256 propia en el almacén seguro de Android (Keystore, no exportable), certificada por el servidor (`POST /me/qr-devices`, 30 días); QR dinámico `MR1…` firmado en el teléfono y renovado cada 15 s con `FLAG_SECURE`; verificación sin conexión con la clave del servidor (`GET /qr-public-key`) y la lista de la Entidad (`GET /entities/{id}/scan-roster`); escaneos sin conexión guardados con su hora y enviados con `POST /offline-scans`. Formato exacto: [07-algoritmos.md §7.36](07-algoritmos.md#736-código-qr-de-la-persona) |
 | Voz | `flutter_tts` |
 | Recordar contraseña | Sustituye al PIN propio de la app, que **se eliminó**. No se guarda la contraseña: se mantiene la sesión `remember_password_days` días (7 por defecto, con el máximo que fija el Administrador); pasado ese plazo, o si el ajuste está desactivado, se pide la contraseña al abrir la app (ver [07-algoritmos.md §7.32](07-algoritmos.md#732-recordar-contraseña-app)) |
 | Servidor | La dirección **no se pide al abrir la app**: puede venir puesta al compilar (`./build_release.sh <dirección>`, opcional) y el usuario la indica en la pantalla **Servidor**, con un **selector de protocolo** (`https` por defecto o `http`). Se guarda en el teléfono. Si el servidor redirige de `http` a `https`, se guarda la dirección `https` |
@@ -39,7 +39,6 @@ La app se llama **MiRuta** en todas partes (lanzador, textos, avisos y APK). Int
 | Eliminar | Ícono de cesto de basura en rojo, siempre con confirmación |
 | Estados | Lista desplegable (p. ej. Estado: Activada / Desactivada), no botones ni íconos |
 | Foto de perfil | Si no hay foto, ícono genérico de persona (no iniciales) |
-| Jerarquía | Ícono de estrella en toda la app |
 | Plurales | Corregidos ("1 asiento", "1 niño", "1 trabajador esperado") |
 | Hablar con el desarrollador | Botón tonal, igual en todas las pantallas donde aparece, al final |
 
@@ -49,10 +48,9 @@ La app se llama **MiRuta** en todas partes (lanzador, textos, avisos y APK). Int
 |---|---|
 | **Inicio de sesión** | Ícono, usuario (recordado en el teléfono) y contraseña. Debajo, en una línea y del mismo tamaño: **Entrar** (azul) y **Olvidé algo** (naranja). Separador; **Registrarme por primera vez** y **Me registró un superior** (tonales, uno debajo del otro). Separador; **botón de servidor** de tres estados: "Indicar servidor" (naranja, sin dirección), "Conectado al servidor" (verde) o "Desconectado del servidor" (rojo); se comprueba al abrir y al volver de Servidor. Al final, **Hablar con el desarrollador** y, al pie, versión · arquitectura |
 | **Servidor** | "Elija el protocolo de conexión e indique la dirección del servidor que le facilitó el administrador de la aplicación." Selector de protocolo (`https`/`http`) y dirección en la misma línea; si se pega una URL completa, el selector toma su protocolo. La app añade `/api/v1`, comprueba que responde MiRuta y la guarda. Si falla: "Fue imposible conectarse al servidor. Revise el protocolo de conexión que seleccionó, la dirección del servidor que indicó y asegúrese de tener conexión a Internet." Si la dirección cambia, la instalación se vuelve a registrar |
-| **Registrarme por primera vez** | Primer nombre, segundo nombre (opcional), apellidos, nombre de usuario, contraseña y "Repita la contraseña". Botón **Registrarme** |
-| **Otros datos del registro** | Entidad (abreviatura; la app muestra su nombre para confirmar), Pase, sexo (Masculino por defecto) y jerarquía. Obligatoria salvo para el Administrador |
-| **Me registró un superior** | Entidad, Pase, código de activación, nombre de usuario, contraseña y su repetición |
-| **Olvidé algo** | Arriba, "El Administrador comprobará sus datos…"; después, qué olvidó (usuario, contraseña o los dos), Entidad, Pase y teléfono. Luego muestra el estado; al aprobarse, el usuario o la contraseña nueva |
+| **Registrarme por primera vez** | Nombres, apellidos y **carné** (`POST /users`); usuario y contraseña ya propuestos (`GET /username-suggestion`, `GET /password-suggestion`) y modificables. `GET /registration-status` dice si será el Administrador. Carné repetido: `409 IDENTITY_CARD_TAKEN` con su texto |
+| **Otros datos del registro** | Solicitar Entidad (`POST /applications` `entity_membership`; el nombre se confirma con `GET /entities/lookup`), itinerario y parada, añadir hijos (`POST /children`), solicitar roles y **Mi QR**. Sin Pase ni jerarquía |
+| **Olvidé algo** | Arriba, "El Administrador comprobará sus datos…"; después, qué olvidó (usuario, contraseña o los dos), **carné** y teléfono. Luego muestra el estado; al aprobarse, solo lo pedido (usuario y/o contraseña propuesta, que habrá que cambiar al entrar) |
 | **Hablar con el desarrollador (sin cuenta)** | Nombre y apellidos, teléfono, motivo y mensaje; las respuestas llegan a ese teléfono |
 | **Contraseña nueva obligatoria** | Cuando caduca la contraseña (pide también la actual) o tras recuperar el acceso |
 | **Contraseña** (al abrir) | Si "Recordar contraseña" está desactivado o pasaron sus días, se pide la contraseña del usuario de la sesión. Sustituye a la antigua pantalla de PIN |
@@ -61,9 +59,10 @@ La app se llama **MiRuta** en todas partes (lanzador, textos, avisos y APK). Int
 | **Viajes** | Viajes confirmados de su itinerario con la etiqueta del recorrido y el estado de cada tramo; indicador de cambios |
 | **Detalle del viaje** | Viaje de ida y viaje de regreso (fecha, hora y punto de salida de cada uno), vehículo (matrícula `B 123 456`, "Cap. total · Cap. sentados · Cap. de pie"), chofer, atraso, chat del viaje, **"Ya subí"**, **"Mi QR"**, **"Seguir recorrido"** |
 | **Recorrido en tiempo real** | Título "Viaje de ida · X" / "Viaje de regreso · X". Cabecera con paradas pasadas, **paradas donde no se detuvo y saltadas**, atraso y sensores activos. **Línea con hitos** (línea centrada del mismo alto siempre, paradas como puntos gruesos encima, distancias proporcionales, hora de paso y km junto al nombre) o **mapa** (recorrido de referencia, si existe, y trazado real; nunca líneas rectas entre paradas). Botón **Trabajadores** |
-| **Trabajadores del viaje** | Selector Viaje de ida / Viaje de regreso; por parada y alfabéticamente, con foto (o ícono de persona), estrella de jerarquía y niños; sin número de posición |
-| **Mi código QR** | Pestañas con colores legibles sobre la barra azul marino; se mantienen los textos de ayuda |
-| **Mi perfil** | Foto, nombre (se edita tocándolo), usuario, Entidad, Pase, jerarquía, contraseña ("caduca el <día> dd/mm/aa"), itinerario y parada, roles, hijos. Sin lápices ni textos de ayuda: tocar un dato editable lo edita. Ya no tiene "Darme de baja del itinerario" |
+| **Trabajadores del viaje** | Selector Viaje de ida / Viaje de regreso; por parada y alfabéticamente, con foto (o ícono de persona) y los hijos que subieron (`boardedChildIds`); al final, quienes subieron sin ser esperados (`expected: false`, `outsider`). Sin número de posición ni jerarquía |
+| **Mi código QR** | Un solo QR de la persona (sin trayecto): el dinámico del teléfono, con capturas bloqueadas. Ver [07-algoritmos.md §7.36](07-algoritmos.md#736-código-qr-de-la-persona) |
+| **Escanear** (chofer, quien escanea la subida o da altas con QR) | `POST /qr-scans` (o comprobación local sin conexión) → tarjeta de la persona; si es de otro itinerario o Entidad, pregunta si la deja subir (`allowOutsider`); marcar qué hijos suben (`childIds`); avisar si ya subió (QR impreso: posible copia). Alta en itinerario: elegir parada y `POST /itinerary-assignments` |
+| **Mi perfil** | Foto, nombre (se edita tocándolo), carné (sexo y nacimiento de solo lectura), usuario, Entidades, contraseña ("caduca el <día> dd/mm/aa"), itinerario y parada, roles, hijos. Sin lápices ni textos de ayuda: tocar un dato editable lo edita. Ya no tiene "Darme de baja del itinerario" |
 | **Mis hijos** | "Pepito Pérez García" / "Fecha Nac.: sáb. 16/07/92" / "Derecho a viajar: sáb. 14/03/26" |
 | **Solicitudes** | Historial de las propias, con "Aprobada <fecha> por X" o "Rechazada <fecha> por X". **Nueva:** "Itinerario y parada", "Darme de baja del itinerario" (inmediata, con confirmación), "Rol de Jefe de itinerario", "Rol de Jefe de Transporte", "Rol de Chofer", "Declarar hijos" (varios en una misma solicitud, con la nota para parejas) y "Ausencia temporal" (con la opción **"Ausencia indefinida"**; después se le ponen fechas o se quita). Cancelar las pendientes |
 | **Bajas de roles** | Darse de baja como Jefe de itinerario, como chofer o como Jefe de Transporte, con confirmación |
@@ -142,3 +141,23 @@ Cada ajuste lleva debajo una explicación breve de **una línea** (excepción a 
 | **Mapa sin conexión** (solo en el teléfono) | Descargar la zona de la Entidad (sus paradas con unos 2 km de margen), respetando "solo con Wi-Fi"; fecha de la última descarga |
 
 Cada ajuste vale lo que elija el usuario; si no eligió nada, lo que fije su Entidad; y si tampoco, el valor de la app.
+
+## 5.5 Datos de la API para la app (versión 3.0)
+
+Las pantallas de la 3.0 (tarjetas, Inicio, «Acciones») las define docs/11 §11.3, §11.10 y §11.18; aquí, solo lo que la app pide a la API. Detalle en [04-api.md](04-api.md) y `api/V3-PARTE-B.md`.
+
+| Necesidad | API |
+|---|---|
+| Qué mostrar en Gestión / Más | `GET /me` → `meta.permissions` (`operation`, `scope`, `entityId`, `itineraryId`) |
+| Tarjetas de Inicio (Entidades, itinerario y parada, roles) | `GET /me` → `meta.memberships` |
+| Hijos | `GET/POST/PATCH/DELETE /children` (+ foto) |
+| Entidades, itinerario, roles | `POST /applications` (`entity_membership`, `itinerary_membership`, `role`); bajas: `DELETE /me/entities/{id}`, `DELETE /workers/{id}/itinerary`, `DELETE /worker-roles/{id}` |
+| Ausencias | `GET/POST/PATCH/DELETE /absences` (sin aprobación) |
+| Mi QR | `GET /qr-public-key`, `POST /me/qr-devices` (al iniciar sesión y antes de que caduque el certificado) |
+| Escanear y subir | `POST /qr-scans`, `POST /trip-boardings` (`qr`, `childIds`, `allowOutsider`, `scannedAt`), `PATCH`/`DELETE /trip-boardings/{id}` (corrección) |
+| Sin conexión | `GET /entities/{id}/scan-roster` (al sincronizar), `POST /offline-scans` (al recuperar la conexión) |
+| QR impreso | `GET /workers/{id}/printed-qr`, `POST /workers/{id}/printed-qr/revoke` |
+| Alta con QR | `POST /itinerary-assignments` |
+| Ajustes de otro trabajador | `GET/PATCH/DELETE /users/{id}/settings` (`settings.worker`) |
+| Borrar mensajes | `DELETE /trip-messages/{id}`, `DELETE /conversation-messages/{id}` |
+| Estadísticas nuevas | `outsider-travellers`; `children-transported` con niños que viajan realmente |

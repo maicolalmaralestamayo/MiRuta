@@ -31,6 +31,7 @@ class Statistics
         'trips-by-status', 'punctuality', 'duration', 'trips-by-driver', 'trips-by-vehicle', 'overloaded-trips',
         'occupancy', 'attendance', 'children-transported', 'workers-distribution', 'worker-trips',
         'applications-summary', 'stop-activity', 'stop-pass-times', 'distance', 'live-trip', 'trip-incidents',
+        'outsider-travellers',
     ];
 
     /** Las que puede pedir cualquier trabajador (limitadas a lo suyo). */
@@ -40,6 +41,7 @@ class Statistics
     const DRIVER_NAMES = [
         'trips-by-status', 'punctuality', 'duration', 'overloaded-trips', 'occupancy', 'attendance',
         'children-transported', 'stop-activity', 'stop-pass-times', 'distance', 'worker-trips', 'live-trip', 'trip-incidents',
+        'outsider-travellers',
     ];
 
     /** @var Trips */
@@ -414,21 +416,115 @@ class Statistics
         ], $rows];
     }
 
+    /**
+     * Niños que viajan realmente (docs/11 §11.11): los marcados al subir.
+     * Cada niño cuenta una vez por viaje, aunque suba a la ida y al regreso.
+     * Con los hijos con derecho declarados por los miembros del itinerario (hoy).
+     */
     private function childrenTransported(): array
     {
         $rows = [];
 
         foreach ($this->tripQuery()->where('status', Trip::STATUS_COMPLETED)->with('itinerary')->get() as $trip) {
-            $children = array_sum(array_map(function (TripBoarding $boarding) {
-                return $boarding->children_count;
-            }, $this->latestBoardings($trip, 'return')));
+            $children = DB::table('trip_boarding_children')
+                ->join('trip_legs', 'trip_legs.id', '=', 'trip_boarding_children.trip_leg_id')
+                ->where('trip_legs.trip_id', $trip->id)->whereNull('trip_boarding_children.deleted_at')
+                ->distinct()->pluck('trip_boarding_children.child_id')->map(function ($id) {
+                    return (int) $id;
+                })->all();
             $key = $trip->itinerary_id;
-            $rows[$key] = isset($rows[$key]) ? $rows[$key] : ['itinerary' => $trip->itinerary->name, 'trips' => 0, 'children' => 0];
+
+            if (! isset($rows[$key])) {
+                $rows[$key] = ['itinerary' => $trip->itinerary->name, 'trips' => 0, 'children' => 0, 'distinct' => [], 'itineraryId' => (int) $trip->itinerary_id];
+            }
+
             $rows[$key]['trips']++;
-            $rows[$key]['children'] += $children;
+            $rows[$key]['children'] += count($children);
+            $rows[$key]['distinct'] = array_merge($rows[$key]['distinct'], $children);
         }
 
-        return [[['itinerary', 'Itinerario', 'string'], ['trips', 'Viajes', 'integer'], ['children', 'Niños transportados', 'integer']], $rows];
+        $rows = array_map(function ($row) {
+            $parents = Worker::where('itinerary_id', $row['itineraryId'])->pluck('user_id')->map(function ($id) {
+                return (int) $id;
+            })->all();
+            $declared = [];
+
+            foreach (array_unique($parents) as $userId) {
+                foreach ($this->childEligibility->eligibleChildrenOf($userId) as $child) {
+                    $declared[(int) $child->id] = true;
+                }
+            }
+
+            return [
+                'itinerary' => $row['itinerary'],
+                'trips' => $row['trips'],
+                'children' => $row['children'],
+                'distinctChildren' => count(array_unique($row['distinct'])),
+                'eligibleChildren' => count($declared),
+            ];
+        }, $rows);
+
+        return [[
+            ['itinerary', 'Itinerario', 'string'], ['trips', 'Viajes', 'integer'], ['children', 'Niños transportados', 'integer'],
+            ['distinctChildren', 'Niños distintos', 'integer'], ['eligibleChildren', 'Hijos con derecho declarados', 'integer'],
+        ], $rows];
+    }
+
+    /**
+     * Trabajadores que viajan fuera de su itinerario o de su Entidad (docs/11
+     * §11.8): subidas con `outsider`, por persona, itinerario del viaje y tipo.
+     */
+    private function outsiderTravellers(): array
+    {
+        $labels = ['itinerary' => 'De otro itinerario', 'entity' => 'De otra Entidad'];
+        $rows = [];
+        $query = DB::table('trip_boardings')
+            ->join('trip_legs', 'trip_legs.id', '=', 'trip_boardings.trip_leg_id')
+            ->join('trips', 'trips.id', '=', 'trip_legs.trip_id')
+            ->join('itineraries', 'itineraries.id', '=', 'trips.itinerary_id')
+            ->join('workers', 'workers.id', '=', 'trip_boardings.worker_id')
+            ->join('users', 'users.id', '=', 'workers.user_id')
+            ->join('entities', 'entities.id', '=', 'workers.entity_id')
+            ->leftJoin('itineraries AS own', 'own.id', '=', 'workers.itinerary_id')
+            ->whereNull('trip_boardings.deleted_at')->whereNotNull('trip_boardings.outsider')
+            ->whereIn('trips.id', $this->tripQuery()->where('status', '!=', Trip::STATUS_CANCELLED)->select('trips.id'))
+            ->orderBy('users.first_surname')->orderBy('users.first_name')
+            ->get(['users.id AS user_id', 'users.first_name', 'users.middle_name', 'users.first_surname', 'users.second_surname',
+                'entities.abbreviation', 'own.name AS own_itinerary', 'itineraries.name AS itinerary', 'trips.itinerary_id',
+                'trip_boardings.outsider', 'trips.id AS trip_id', 'trip_boardings.children_count']);
+
+        foreach ($query as $row) {
+            $key = $row->user_id.'-'.$row->itinerary_id.'-'.$row->outsider;
+
+            if (! isset($rows[$key])) {
+                $rows[$key] = [
+                    'worker' => implode(' ', array_filter([$row->first_name, $row->middle_name, $row->first_surname, $row->second_surname], 'strlen')),
+                    'entity' => $row->abbreviation,
+                    'ownItinerary' => $row->outsider === 'entity' ? null : $row->own_itinerary,
+                    'itinerary' => $row->itinerary,
+                    'outsider' => $labels[$row->outsider],
+                    'trips' => [],
+                    'boardings' => 0,
+                    'children' => 0,
+                ];
+            }
+
+            $rows[$key]['trips'][(int) $row->trip_id] = true;
+            $rows[$key]['boardings']++;
+            $rows[$key]['children'] += (int) $row->children_count;
+        }
+
+        $rows = array_map(function ($row) {
+            $row['trips'] = count($row['trips']);
+
+            return $row;
+        }, $rows);
+
+        return [[
+            ['worker', 'Trabajador', 'string'], ['entity', 'Su Entidad', 'string'], ['ownItinerary', 'Su itinerario', 'string'],
+            ['itinerary', 'Itinerario en que viajó', 'string'], ['outsider', 'Tipo', 'string'], ['trips', 'Viajes', 'integer'],
+            ['boardings', 'Subidas', 'integer'], ['children', 'Niños', 'integer'],
+        ], $rows];
     }
 
     /*

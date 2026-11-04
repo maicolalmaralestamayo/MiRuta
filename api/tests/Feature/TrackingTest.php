@@ -192,13 +192,14 @@ class TrackingTest extends TestCase
     public function testRegistroDeSubida()
     {
         $legId = $this->startLeg($this->driver, 'return')->responseJson()['data']['id'];
+        $otherChild = $this->createChild($this->createUser());
 
-        $this->board($this->member, $legId, 'self', ['childrenCount' => 1]);
-        $this->assertJsonApiError(422, 'CHILDREN_COUNT_EXCEEDED');
+        $this->board($this->member, $legId, 'self', ['childIds' => [$otherChild->id]]);
+        $this->assertJsonApiError(422, 'CHILD_NOT_ELIGIBLE');
 
-        $this->board($this->member, $legId, 'self', ['childrenCount' => 0]);
+        $this->board($this->member, $legId, 'self', ['childIds' => []]);
         $this->assertResponseStatus(201);
-        $this->seeJson(['method' => 'self', 'childrenCount' => 0]);
+        $this->seeJson(['method' => 'self', 'childrenCount' => 0, 'outsider' => null]);
 
         $other = $this->joinItinerary($this->createWorker(), $this->itinerary, 3);
         $this->board($this->member, $legId, 'manual', [], $other->id);
@@ -207,40 +208,28 @@ class TrackingTest extends TestCase
         $this->board($this->driver, $legId, 'manual', [], $other->id);
         $this->assertResponseStatus(201);
 
+        // Una sola subida por trayecto.
+        $this->board($this->driver, $legId, 'manual', [], $other->id);
+        $this->assertJsonApiError(409, 'ALREADY_BOARDED');
+
+        // De la Entidad, pero de otro itinerario: el chofer decide (tracking.allow_outsiders).
         $stranger = $this->createWorker();
         $this->board($this->driver, $legId, 'manual', [], $stranger->id);
-        $this->assertJsonApiError(422, 'NOT_A_PASSENGER');
+        $this->assertJsonApiError(409, 'OUTSIDER_CONFIRMATION_REQUIRED');
+        $this->board($this->driver, $legId, 'manual', ['allowOutsider' => true], $stranger->id);
+        $this->assertResponseStatus(201);
+        $this->seeJson(['outsider' => 'itinerary']);
 
         $this->jsonApiAs($this->driver, 'GET', '/api/v1/trips/'.$this->trip->id.'/passengers?filter[direction]=return');
-        $methods = array_column(array_column($this->responseJson()['data'], 'attributes'), 'boardingMethod');
+        $attributes = array_column($this->responseJson()['data'], 'attributes');
+        $expected = array_values(array_filter($attributes, function ($row) {
+            return $row['expected'];
+        }));
+        $methods = array_column($expected, 'boardingMethod');
         sort($methods);
         $this->assertSame(['manual', 'self'], $methods);
-    }
-
-    public function testSubidaConCodigoQr()
-    {
-        $legId = $this->startLeg($this->driver, 'return')->responseJson()['data']['id'];
-
-        $this->jsonApiAs($this->member, 'POST', '/api/v1/boarding-passes', ['data' => ['type' => 'boarding-passes', 'relationships' => [
-            'tripLeg' => ['data' => ['type' => 'trip-legs', 'id' => (string) $legId]],
-        ]]]);
-        $this->assertResponseStatus(201);
-        $token = $this->responseJson()['data']['attributes']['token'];
-        // El QR no lleva datos personales (ni el usuario ni el Pase).
-        $payload = base64_decode(strtr(explode('.', $token)[1], '-_', '+/'));
-        $this->assertStringNotContainsString((string) $this->member->user->username, $payload);
-        $this->assertStringNotContainsString('"pass"', $payload);
-
-        $this->board($this->driver, $legId, 'qr', ['boardingPassToken' => 'basura']);
-        $this->assertJsonApiError(422, 'BOARDING_PASS_INVALID');
-
-        $this->board($this->driver, $legId, 'qr', ['boardingPassToken' => $token]);
-        $this->assertResponseStatus(201);
-        $this->assertSame((string) $this->member->id, $this->responseJson()['data']['relationships']['worker']['data']['id']);
-
-        Carbon::setTestNow(Carbon::create(2026, 11, 3, 17, 5));
-        $this->board($this->driver, $legId, 'qr', ['boardingPassToken' => $token]);
-        $this->assertJsonApiError(422, 'BOARDING_PASS_INVALID');
+        $this->assertSame('itinerary', end($attributes)['outsider']);
+        $this->assertFalse(end($attributes)['expected']);
     }
 
     public function testPosicionesAcumuladasConOperacionesYFinManual()

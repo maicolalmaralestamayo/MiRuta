@@ -88,9 +88,10 @@ class CreateTrackingTables extends Migration
             $table->foreignId('worker_id')->comment('Quien sube')->constrained();
             $table->enum('method', ['automatic', 'self', 'qr', 'manual']);
             $table->foreignId('marked_by')->nullable()->constrained('users');
-            $table->unsignedTinyInteger('children_count');
+            $table->unsignedTinyInteger('children_count')->default(0)->comment('Cantidad de trip_boarding_children');
             $table->enum('outsider', ['itinerary', 'entity'])->nullable()
                 ->comment('Subió alguien de otro itinerario o de otra Entidad (lo permitió quien escaneó)');
+            $table->enum('qr_kind', ['dynamic', 'printed'])->nullable()->comment('QR escaneado: del teléfono o impreso');
             $table->dateTime('boarded_at');
             $table->timestamps();
             $table->softDeletes();

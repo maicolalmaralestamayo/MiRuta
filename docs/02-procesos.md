@@ -4,36 +4,38 @@
 
 ### Entidades
 
-- Una **Entidad** es una empresa que usa la app. Tiene **abreviatura** (obligatoria, única, en mayúsculas, de 2 a 15 letras y números; es lo que se muestra en toda la app), **número** (opcional, 4 dígitos, único si se pone), nombre, descripción y observación.
-- Solo el **Administrador** crea, edita y desactiva Entidades.
-- Cada Entidad tiene sus propios itinerarios, paradas, vehículos y trabajadores. **Cada usuario ve y actúa solo sobre su Entidad**; lo de otra responde como si no existiera. El Administrador ve todo y elige con qué Entidad trabaja.
-- Dos Entidades pueden usar el mismo lugar como parada, pero cada una la registra por separado.
-- Los nomencladores (jerarquías, tipos de vehículo, tipos de ausencia, motivos de conversación) son **comunes** a todas.
+- Una **Entidad** es una empresa que usa la app. Tiene **abreviatura** (obligatoria, única, en mayúsculas, de 2 a 15 letras y números; es lo que se muestra en toda la app), **número** (opcional), nombre, descripción, observación e **imagen** (opcional).
+- Cada Entidad tiene sus propios itinerarios, paradas y vehículos. Dos Entidades pueden usar el mismo lugar como parada, pero cada una la registra por separado.
+- **Una persona puede pertenecer a varias Entidades** (docs/11 §11.6): la cuenta, los nombres, el carné, los hijos y el QR son de la persona; en cada Entidad tiene su itinerario y parada y sus roles. Está activa a la vez en todas.
+- Los nomencladores (tipos de vehículo, tipos de ausencia, motivos de conversación) son **comunes**. **Ya no hay Pase ni jerarquía** (versión 3.0).
 
-### Registro en dos pasos
+### La persona y su carné
 
-1. **Registrarme por primera vez** (crear la cuenta): primer nombre, segundo nombre (**opcional**), primer apellido y segundo apellido, **nombre de usuario** y **contraseña** (con su repetición).
-   - La **primera cuenta** que se crea es la del **Administrador**. No es trabajador: no tiene Entidad, Pase, jerarquía ni viajes, y termina aquí.
-2. **Otros datos del registro** (unirse a la Entidad, obligatorio para los demás): **abreviatura** de la Entidad (se escribe; la app muestra el nombre para confirmar y nunca enseña la lista de Entidades), **Pase**, **sexo** (Masculino por defecto) y **jerarquía**.
-   - El Pase es único dentro de la Entidad (también entre trabajadores inactivos).
-   - Hasta completar este paso la app no deja hacer nada más (la API responde `ENTITY_REQUIRED`).
+- La persona se identifica por su **carné de identidad** (11 dígitos), único en toda la app. De él salen la **fecha de nacimiento** y el **sexo** (no se escriben). Se guarda cifrado, con una huella para buscarlo ([07-algoritmos.md §7.37](07-algoritmos.md#737-carné-de-identidad)).
+- Lo ven la propia persona, el Administrador y quien tenga `workers.view_identity_card` (por defecto, el Jefe de itinerario, de los miembros de su itinerario y de quienes solicitan entrar).
 
-**Foto de perfil** opcional. Si no hay foto, se muestra un ícono genérico de persona.
+### Registro
 
-**Segundo nombre opcional** en las cuentas y en los hijos, también en la API: si no se escribe se guarda `NULL` y el nombre completo se forma sin él.
+1. **Registro:** nombres y apellidos (segundo nombre opcional), carné, **usuario** y **contraseña** ya propuestos por el sistema y modificables. **Sin Entidad.** Si el carné ya existe: `IDENTITY_CARD_TAKEN` con el texto de docs/11 §11.5.
+   - Si aún no hay **Administrador**, quien se registra lo es (el servidor lo garantiza aunque dos lo intenten a la vez).
+2. **Otros datos del registro** (ya con la sesión iniciada): solicitar entrar en una Entidad (por su abreviatura), solicitar itinerario y parada (una vez aprobada la Entidad), añadir hijos, solicitar roles y ver **Mi QR**.
 
-**Activo e inactivo:** una cuenta (y su trabajador) está inactiva cuando tiene borrado lógico. Solo el Administrador las activa y desactiva.
+- El **Administrador** entra en las Entidades que quiera sin solicitud («Unirme a una Entidad»).
+- **Foto de perfil** opcional (sin foto, un ícono genérico).
+- **Activo e inactivo:** la cuenta inactiva tiene borrado lógico (`workers.delete`). Una pertenencia se puede **desactivar** (`workers.deactivate`) o darse de **baja** (la persona o `entities.assign_members`).
 
-### Trabajadores sin teléfono
+### Registro por el Administrador (también sin teléfono)
 
-1. El Jefe de Transporte, el Jefe de itinerario (en su itinerario) o el Administrador lo **registran**: nombres y apellidos (segundo nombre opcional), Pase, sexo, jerarquía y, si quieren, itinerario y parada. La cuenta queda **sin usuario ni contraseña**.
-2. Se genera un **código de activación** de un solo uso que caduca a los `activation_code_ttl_days` días. Se entrega **en mano** (papel o QR) y se puede regenerar.
-3. Cuando tenga teléfono, el trabajador pulsa **"Me registró un superior"**, escribe la abreviatura, su Pase y el código, y **elige él mismo su usuario y su contraseña**.
+- Lo hace quien tenga `workers.register` (por defecto, el Administrador) en la Entidad que elija: nombres, apellidos, carné y si **tiene teléfono**. El sistema propone usuario y contraseña; se muestran una vez para copiarlos y compartirlos. Al entrar por primera vez, debe cambiar la contraseña.
+- **Si el carné ya existe**, no se crea otra cuenta: se le añade esa Entidad, aprobada (con aviso si tiene teléfono).
+- **Sin teléfono:** usa un **QR impreso** (§2.16). Cuando entra por primera vez en la app con un teléfono, el impreso se anula.
+- Desaparecen «Me registró un superior» y los códigos de activación.
 
 ### Usuario
 
-- De 4 a 20 caracteres: letras sin tilde, números, punto (`.`) y guion bajo (`_`).
-- Empieza por letra; no termina en signo; sin dos signos seguidos; al menos 3 letras; ningún carácter repetido más de 3 veces seguidas.
+- De **2 a 50** caracteres: letras sin tilde, números, punto (`.`) y guion bajo (`_`).
+- Empieza por letra; no termina en signo; sin dos signos seguidos; al menos **2 letras**; ningún carácter repetido más de 3 veces seguidas.
+- **Usuario propuesto:** primer nombre → +.segundo nombre → +.primer apellido → +.segundo apellido → +.2, .3… (minúsculas, sin tildes), mientras esté ocupado o no sea válido. También se propone una contraseña.
 - No puede contener **palabras reservadas** (`admin`, `soporte`, `sistema`, `miruta`, `mitransporte`, `desarrollador`…). Se comprueban sin tildes y con los números camuflados convertidos en letras (`4dm1n`).
 - En la versión 2.1 se **eliminó por completo** el nomenclador de palabras prohibidas en los usuarios (pantalla, API, tabla y datos iniciales): quedan solo las reglas de formación y las palabras reservadas.
 - Se guarda en minúsculas y es **único en toda la app**.
@@ -56,21 +58,22 @@
 
 ### Olvidé algo
 
-Sustituye a la contraseña olvidada (antes se llamaba "No puedo entrar"). La app no envía correos, SMS ni WhatsApp por su cuenta.
+La app no envía correos, SMS ni WhatsApp por su cuenta.
 
-1. En el inicio de sesión, **"Olvidé algo"**: la persona marca qué olvidó (usuario, contraseña o los dos) y escribe la **abreviatura de su Entidad**, su **Pase** y un **teléfono**. La respuesta es siempre "Solicitud enviada", coincidan o no los datos.
-2. El Administrador recibe un aviso. Ve los datos escritos y, si coinciden, **con quién**. Lo **verifica por su cuenta** (por ejemplo, llamándolo o escribiéndole por WhatsApp desde la propia tarjeta) y la **aprueba** o la **rechaza**.
-3. Al aprobarla, **en ese mismo teléfono** (la solicitud va ligada a la instalación de la app): si olvidó el usuario, la app se lo muestra; si olvidó la contraseña, le deja elegir una nueva y entra. Las demás sesiones se cierran.
-4. La solicitud caduca a las `access_recovery_ttl_hours` horas; el teléfono se borra al cerrarla. Hay un límite de solicitudes por hora desde un mismo teléfono (`access_recovery_max_per_hour`) y el Administrador puede **bloquear** un teléfono.
+1. En el inicio de sesión, **«Olvidé algo»**: la persona marca qué olvidó (usuario, contraseña o los dos) y escribe su **carné** y un **teléfono** (sin Entidad ni Pase). La respuesta es siempre «Solicitud enviada».
+2. Solo el **Administrador** (`access_recoveries.manage`) la aprueba, tras verificar los datos y confirmarlo por una tercera vía (llamada o WhatsApp).
+3. Al aprobarla, el sistema propone una contraseña nueva. Se comunica **solo lo que se olvidó** (usuario, contraseña o ambos), por esa tercera vía o en el teléfono que hizo la solicitud. Al entrar con la contraseña nueva, debe cambiarla.
+4. La solicitud caduca a las `access_recovery_ttl_hours` horas; el teléfono se borra al cerrarla. Hay un límite por hora desde un mismo teléfono y el Administrador puede **bloquear** un teléfono.
 
 ### Privacidad
 
 | Dato | Quién lo ve |
 |---|---|
-| Nombres, foto, jerarquía (con su icono), cantidad de hijos | Todos los de su Entidad |
-| Usuario | El propio trabajador y el Administrador |
-| Pase | El propio trabajador, el Jefe de su itinerario (también al aprobar su entrada en el itinerario), los Jefes de Transporte de su Entidad y el Administrador |
-| Fecha de nacimiento de sus hijos | El padre o la madre, sus jefes al aprobar y el Administrador |
+| Nombres, foto, sexo y Entidades (tarjeta) | Quien puede ver a la persona |
+| Usuario | La propia persona y el Administrador |
+| Carné y fecha de nacimiento | La propia persona, el Administrador y `workers.view_identity_card` en su ámbito |
+| Carné de los hijos | Sus padres y el Administrador |
+| QR | No lleva datos personales: solo el identificador de la persona y firmas |
 
 ### Inicio de sesión
 
@@ -102,103 +105,70 @@ Sustituye al PIN propio de la app, que se **eliminó por completo** en la versi�
 - El Administrador la ve como **"Sin cuenta"** y responde dentro de la app; la respuesta llega a ese teléfono. Si después se crea una cuenta en ese teléfono, la conversación pasa a la cuenta.
 - Límite de mensajes por hora (`guest_messages_max_per_hour`); el Administrador puede cerrar conversaciones y bloquear instalaciones.
 
-## 2.2 Solicitudes
+## 2.2 Solicitudes, roles y asignaciones
 
-Cada solicitud tiene un **tipo** y un **estado**:
+Cada solicitud tiene un **tipo** y un **estado** (`pending`, `approved`, `rejected`, `cancelled`). No se borran: son el historial.
 
-- `pending`: pendiente.
-- `approved`: aprobada.
-- `rejected`: rechazada.
-- `cancelled`: cancelada.
-
-Las solicitudes **no se borran**: son el historial.
-
-| Tipo | Datos propios | Quién aprueba | Efecto al aprobarse |
+| Tipo | Datos | Quién aprueba (por defecto) | Efecto |
 |---|---|---|---|
-| `itinerary_membership` | Itinerario y parada (de su Entidad) | Jefe de **ese** itinerario o Jefe de Transporte de la Entidad | El trabajador pasa a ese itinerario y esa parada |
-| `itinerary_chief` | Itinerario y parada (no puede ser ya Jefe de otro itinerario) | Jefe de Transporte de la Entidad | Pasa a ser jefe de ese itinerario **y** se cambia a ese itinerario y esa parada. Las solicitudes de itinerario que tuviera pendientes se cancelan |
-| `driver` | — | Jefe de Transporte de la Entidad | Pasa a ser chofer |
-| `transport_chief` | — | Administrador | Pasa a ser Jefe de Transporte |
-| `child_addition` | Nombres y apellidos (segundo nombre opcional) y fecha de nacimiento del niño. **Varios hijos en una misma solicitud** | Jefe de su itinerario o Jefe de Transporte, **cada hijo por separado** | El niño queda declarado |
-| `child_removal` | Niño | Jefe de su itinerario o Jefe de Transporte | El niño deja de estar declarado |
-| `absence` | Tipo de ausencia, desde y hasta (o **indefinida**, sin fechas), observación | Jefe de su itinerario o Jefe de Transporte | Durante esas fechas (o mientras sea indefinida): no cuenta como pasajero esperado, se pausa el contador de inactividad y no recibe avisos de viaje (salvo que lo active) |
+| `entity_membership` | Abreviatura de la Entidad | `entities.approve_membership` (Administrador) | Pertenece a la Entidad, con el **rol por defecto** |
+| `itinerary_membership` | Itinerario y parada (siempre juntos) | `members.approve` sobre ese itinerario (Jefe de ese itinerario y Administrador) | Pasa a ese itinerario y parada en esa Entidad (pierde el anterior; no pierde jefaturas) |
+| `role` | Rol (+ itinerario si es por itinerario) | Los roles aprobadores con `roles.approve` en la Entidad (Chofer → Jefe de Transporte) y el Administrador | Tiene el rol en esa Entidad |
 
-La **jerarquía** ya no necesita solicitud: cada uno la cambia en su perfil (solo sirve para las estadísticas).
+- **Nadie aprueba sus propias solicitudes.** El solicitante puede cancelarlas mientras estén pendientes. **Al rechazar, el motivo es obligatorio.**
+- Se avisa a quienes pueden resolverla al llegar y al solicitante al resolverse.
+- **Desaparecen** las solicitudes de hijos, de ausencias y de bajas.
 
-**Reglas comunes:**
+### Roles configurables
 
-- El Administrador puede aprobar cualquier solicitud; un Jefe de Transporte, solo las de su Entidad.
-- **Nadie aprueba sus propias solicitudes.**
-- Quien envió una solicitud puede **cancelarla** mientras esté pendiente.
-- Al llegar una solicitud nueva, se avisa a quienes pueden aprobarla.
-- Al aprobarse o rechazarse, se avisa al solicitante.
-- **Al rechazar, el motivo es obligatorio** (`resolutionNote`); llega al solicitante en el aviso.
-- La app muestra el estado como "Aprobada <fecha> por <nombre>" o "Rechazada <fecha> por <nombre>", con el día de la semana.
-- **Mientras un cambio de itinerario está pendiente,** el trabajador sigue contando en su itinerario actual.
-- **Un jefe de itinerario que se cambia a otro itinerario** sigue siendo jefe del anterior. Las jefaturas no dependen de en qué itinerario viaja.
+- Un **rol** es un conjunto de **operaciones** (catálogo fijo, `GET /operations`) con su **ámbito**: propio, su itinerario, su Entidad o todas. El Administrador crea, edita y elimina roles, elige el **rol por defecto** y qué roles aprueban las solicitudes de cada uno (docs/11 §11.16).
+- Roles de partida (editables): **Trabajador** (por defecto), **Chofer**, **Jefe de itinerario** (por itinerario: uno por Entidad) y **Jefe de Transporte** (docs/11 §11.15).
+- El **Administrador** es un rol fijo con todas las operaciones en todas las Entidades; siempre hay al menos uno.
+- Eliminar un rol lo quita a quien lo tenga (aviso `role_removed`).
 
-### Varios hijos en una misma solicitud
+### Asignaciones directas
 
-- En **Solicitudes → Nueva → Declarar hijos** se pueden declarar varios hijos (hasta 10) de una vez.
-- El servidor crea **una solicitud `child_addition` por hijo**, todas con el mismo `group_id` (el id de la primera). Quien aprueba recibe un solo aviso y **aprueba o rechaza cada hijo por separado**.
-- Si un hijo no cumple (por ejemplo, ya no tiene derecho a viajar), no se crea ninguna y el error indica cuál.
-
-### Ausencia indefinida
-
-- En el formulario de ausencia temporal se puede marcar **"Ausencia indefinida"**: se envía sin fechas.
-- Una vez aprobada está vigente **todos los días** hasta que el propio trabajador le pone fechas de inicio y fin (sin nueva aprobación) o la quita.
-- Solo se pueden poner fechas a una ausencia indefinida aprobada (`ABSENCE_NOT_INDEFINITE` si no).
-
-### Asignaciones y retiradas directas
-
-Los superiores pueden asignar y quitar sin esperar una solicitud, a usuarios ya registrados de su Entidad:
-
-| Quién | Qué puede asignar o quitar |
-|---|---|
-| Administrador | Jefe de Transporte de cualquier Entidad, y todo lo demás |
-| Jefe de Transporte | Jefe de itinerario y chofer en su Entidad; itinerario y parada de sus trabajadores |
-| Jefe de itinerario | Itinerario y parada, solo en su itinerario |
-
-Cada asignación queda como una solicitud **creada por el superior y ya aprobada**; cada retirada, como la baja correspondiente. El trabajador recibe un aviso (`role_assigned` o `role_removed`) y puede darse de baja de un rol cuando quiera.
-
-### Bajas voluntarias
-
-Son inmediatas, sin aprobación (con confirmación en la app). Quedan registradas como solicitudes ya aprobadas, para que el historial esté completo. La baja del itinerario ya no está en Mi perfil: se hace desde **Solicitudes → Nueva → "Darme de baja del itinerario"**, junto a "Itinerario y parada".
-
-| Tipo | Se avisa a | Efecto |
+| Qué | Operación | Por defecto |
 |---|---|---|
-| `itinerary_leave` | Jefes de ese itinerario | Queda sin itinerario |
-| `itinerary_chief_leave` | Jefes de Transporte | Pierde la jefatura de ese itinerario |
-| `driver_leave` | Jefes de Transporte | Deja de ser chofer. Se le quita el vehículo, y sus viajes futuros se marcan **para reasignar** |
-| `transport_chief_leave` | Administrador | Deja de ser Jefe de Transporte |
+| Entidad | `entities.assign_members` | Administrador |
+| Itinerario y parada | `members.assign` | Administrador |
+| Itinerario y parada **escaneando el QR** | `members.assign_by_qr` | Administrador (§2.16) |
+| Roles | `roles.assign` + ser rol aprobador de ese rol | Administrador; Jefe de Transporte, solo Chofer |
+
+### Bajas
+
+Son acciones directas, con confirmación en la app: darse de baja de una Entidad (se borran su itinerario, su parada y sus roles allí; para volver hay que solicitarlo), del itinerario o de un rol. Si deja de poder conducir, sus viajes futuros quedan para reasignar.
+
+### Ausencias
+
+- **Sin aprobación:** las declara la propia persona (tipo, desde y hasta, o indefinida) y las edita o quita cuando quiera. También `absences.manage`.
+- Efectos: durante la ausencia **no cuenta como pasajero esperado** y se **pausa la baja automática por inactividad**.
 
 ### Baja automática por inactividad
 
-- Una tarea diaria del servidor da de baja de su itinerario (`itinerary_removal`, generada por el sistema) a quien **no ha subido a ningún viaje realizado de su itinerario** durante `inactivity_days` días (30 por defecto; ajuste de cada Entidad).
+- Una tarea diaria del servidor quita su itinerario a quien **no ha subido a ningún viaje realizado de su itinerario** durante `inactivity_days` días (30 por defecto; ajuste de cada Entidad).
 - Cuenta como actividad que el chofer o el Jefe de itinerario marquen que subió, o que el sistema lo detecte. **Conducir un viaje realizado también cuenta.**
 - Solo cuentan los días en que el itinerario **tuvo viajes realizados**.
-- Los días de **ausencia aprobada** no cuentan.
+- Los días de **ausencia** no cuentan.
 - Se avisa al trabajador `inactivity_warning_days` días antes (5 por defecto).
 - No afecta a sus roles.
 
 ## 2.3 Hijos
 
-- Un trabajador puede viajar con hijos menores. Los niños no cuentan para la saturación, pero sus números siempre se muestran (la app ya no muestra la aclaración "van cargados / no ocupan plaza").
-- Se declaran con una solicitud `child_addition` (uno o varios a la vez): primer nombre, segundo nombre (opcional), los dos apellidos y la **fecha de nacimiento** del niño.
-- **Derecho a viajar:** el niño viaja hasta el **31 de agosto siguiente** al día en que cumple `child_max_age` años (16 por defecto; ajuste de cada Entidad, lo configura su Jefe de Transporte).
-  - Ejemplo con 16: si cumple 16 el 10 de marzo de 2027, viaja hasta el 31 de agosto de 2027. Si los cumple el 15 de octubre de 2027, hasta el 31 de agosto de 2028.
-  - La app **no deja enviar** la solicitud si el niño ya no tiene derecho.
-- **Posible duplicado:** sin carné no se puede saber con certeza si dos padres declaran al mismo niño. Si en la misma Entidad ya hay uno con la misma fecha de nacimiento, primer nombre y primer apellido, se **avisa** a quien aprueba, sin bloquear. La app muestra además esta nota: *"Si son pareja y viajan en el mismo itinerario, solo uno de los dos debe declarar a los niños."*
-- La **cantidad de hijos con derecho** es pública. Sus nombres también; su fecha de nacimiento, no.
-- **Al subir,** se indica con cuántos niños sube (de 0 a los que tiene con derecho).
+- Los hijos son **de la persona** (no de una Entidad) y se identifican por su **carné**: nombres, apellidos y carné; la fecha de nacimiento y el sexo salen del carné. Foto opcional.
+- **Sin solicitudes:** los padres los añaden, corrigen, desactivan y quitan directamente. Si el niño ya está registrado (lo declaró el otro padre), se avisa de que ya está declarado y se le asigna igualmente.
+- **Derecho a viajar:** hasta el **31 de agosto siguiente** al cumpleaños en que alcanza `child_max_age` (16 por defecto; el de la Entidad si sus padres pertenecen a una sola, si no el de la app). Sin derecho no se puede añadir; cuando lo pierde, deja de mostrarse.
+- **En la planificación no se espera a ningún niño:** los pasajeros esperados son solo trabajadores y la ocupación prevista no suma niños.
+- **Al subir** se marcan **qué hijos suben** con el trabajador. Cada niño cuenta **una sola vez por trayecto**, aunque lo tengan declarado los dos padres.
+- **Estadísticas:** hijos con derecho declarados y niños que viajan realmente (§2.11).
 
 ## 2.4 Vehículos y choferes
 
-- Solo los Jefes de Transporte (y el Administrador) crean y gestionan vehículos.
+- Gestionan los vehículos quienes tienen `vehicles.manage` (por defecto, el Jefe de Transporte de la Entidad y el Administrador).
 - Datos del vehículo: **tipo** (nomenclador), **matrícula** (única en la Entidad), **capacidad sentados** y **capacidad de pie**.
 - **Matrícula cubana:** una letra de las permitidas (ajuste de la app `plate_letters`, `B,P,T` por defecto; lo edita el Administrador) seguida de 6 dígitos. Se escribe y se guarda junta y en mayúsculas (`B123456`; la API quita espacios y guiones) y la app la muestra con los dígitos separados (`B 123 456`).
 - **Capacidad total = capacidad sentados + capacidad de pie.** Se calcula y se muestra de solo lectura.
-- El Jefe de Transporte asigna a cada vehículo su **chofer habitual**, que debe ser un trabajador con rol de chofer. Al crear un viaje se propone ese chofer.
+- Quien tiene `vehicles.assign_driver` asigna a cada vehículo su **chofer habitual**, una pertenencia con `tracking.drive` (rol Chofer). Al crear un viaje se propone ese chofer.
 - No se guarda historial de asignaciones: lo que quedó en cada **viaje** ya registra qué chofer condujo qué vehículo.
 
 ## 2.5 Itinerarios y paradas
@@ -263,7 +233,7 @@ Todo lo demás está permitido. Por ejemplo, un viaje confirmado se puede descon
 - **Trabajadores esperados** = miembros del itinerario con inscripción vigente
   − los que tienen ausencia aprobada en la fecha del viaje
   − el chofer del viaje, si es miembro de ese itinerario.
-- **Solo cuentan los trabajadores.** Los niños no cuentan, pero sus números se muestran siempre: "35 trabajadores (+10 niños) · capacidad 40".
+- **Solo cuentan los trabajadores.** **No se espera a ningún niño** (versión 3.0): "35 trabajadores · capacidad 40". Los niños que viajan se ven al subir.
 - Tres niveles:
 
   | Estado | Cuándo | Color |
@@ -354,7 +324,7 @@ Reciben un aviso:
 - los superiores, cuando alguien se da de baja (ver 2.2);
 - el usuario, cada día de los últimos `password_expiry_notice_days` antes de que caduque su contraseña;
 - los pasajeros esperados, el chofer y los Jefes del itinerario, cuando un viaje **comienza** (a tiempo o con atraso; `trip_start_notice_enabled`) y cuando se **atrasa** (una sola vez por viaje de ida o de regreso; `trip_delay_notice_enabled`). Se respeta `notify_during_absence`;
-- los Jefes del itinerario y los Jefes de Transporte de la Entidad, cuando hay una **incidencia del recorrido** (§2.8). A los pasajeros no se les avisa.
+- quienes tienen `trips.edit` sobre el itinerario, cuando hay una **incidencia del recorrido** (§2.8). A los pasajeros no se les avisa.
 
 Estos avisos se guardan en la tabla `notices` del servidor y la app los recoge al sincronizar. **El texto lo da la API** (`message`), con lo concreto: qué solicitud fue, quién la resolvió y, si se rechazó, el motivo. Además, `payload` lleva los datos del aviso (sentido del viaje, minutos de atraso, tipo de incidencia, parada). Ejemplos:
 
@@ -399,7 +369,7 @@ Estos avisos se guardan en la tabla `notices` del servidor y la app los recoge a
 
 - La parada de salida no cuenta para estas incidencias; la última se da por detenida al llegar (termina el trayecto).
 - El desvío solo se vigila si el itinerario tiene **recorrido de referencia** en ese sentido (§2.5).
-- Cada incidencia queda registrada en el viaje (`trip_leg_incidents`) para las estadísticas, y se avisa a los **Jefes del itinerario y a los Jefes de Transporte** de la Entidad. **A los pasajeros no se les avisa.**
+- Cada incidencia queda registrada en el viaje (`trip_leg_incidents`) para las estadísticas, y se avisa a quienes tienen `trips.edit` sobre el itinerario. **A los pasajeros no se les avisa.**
 - La app las muestra en la cabecera del recorrido en tiempo real y en el detalle del viaje.
 - Ver [07-algoritmos.md §7.18](07-algoritmos.md#718-paso-por-paradas-paradas-no-realizadas-y-fin-del-trayecto) y [§7.33](07-algoritmos.md#733-desvío-del-recorrido-de-referencia).
 
@@ -431,21 +401,24 @@ Disponible para el chofer, los Jefes de itinerario, los Jefes de Transporte y el
 
 ### Formas de registrar la subida
 
-Se guardan todas en `trip_boardings`:
+Una sola subida por persona y trayecto (`trip_boardings`):
 
 | Forma | Cómo funciona |
 |---|---|
-| `automatic` | El teléfono del trabajador se mueve junto con el vehículo. Solo funciona si el trabajador comparte su ubicación (ver [07-algoritmos.md §7.23](07-algoritmos.md#723-subida-automática)) |
-| `self` | El trabajador pulsa **"Ya subí"** |
-| `qr` | El trabajador muestra su código QR y el chofer o un Jefe de itinerario lo escanea |
-| `manual` | El chofer o un Jefe de itinerario marca a la persona en la lista |
+| `automatic` | El teléfono del trabajador se mueve junto con el vehículo (si comparte su ubicación; [07-algoritmos.md §7.23](07-algoritmos.md#723-subida-automática)). No marca hijos |
+| `self` | El trabajador pulsa **«Ya subí»** (solo miembros del itinerario) y marca qué hijos suben |
+| `qr` | El chofer o quien tenga `tracking.scan_boarding` escanea el **QR de la persona** (§2.16) |
+| `manual` | El chofer o quien escanea marca a la persona en la lista |
 
-- **El QR no lleva datos personales** (ni usuario ni Pase): es un token temporal firmado por el servidor, válido solo para ese trayecto.
-- **Niños:** cada registro indica con cuántos niños sube. Si hay varios registros, vale el último. En la subida automática se asumen todos los niños con derecho, y se puede corregir después.
+- **Hijos:** al subir se marca qué hijos suben (solo los activos con derecho). Cada niño, una vez por trayecto.
+- **Alguien de otro itinerario o de otra Entidad:** se avisa a quien escanea, que decide si lo deja subir (necesita `tracking.allow_outsiders`). Si lo deja, se registra como `outsider` y **cuenta como pasajero**.
+- **Una sola subida por trayecto:** un segundo escaneo de la misma persona se rechaza; con un QR impreso, se avisa de que puede ser una copia.
+- **Corrección de pasajeros** (`tracking.fix_passengers`): quitar subidas, cambiar los hijos y añadir subidas después del trayecto.
+- **Sin conexión:** las subidas se guardan en el teléfono con la hora del escaneo y se envían al recuperarla; el servidor revalida el QR y descarta los repetidos.
 
 ### Trabajadores del viaje (lista de pasajeros)
 
-No hay orden de subida. La lista va **por parada** (en el orden del itinerario) y, dentro de cada parada, **alfabéticamente** por apellidos y nombres. Muestra cuántos niños con derecho lleva cada uno.
+No hay orden de subida. La lista va **por parada** (en el orden del itinerario) y, dentro de cada parada, **alfabéticamente** por apellidos y nombres, con su subida y los hijos que subieron. Al final, quienes subieron sin ser esperados (de otro itinerario o Entidad).
 
 ### Lista de la próxima parada
 
@@ -458,8 +431,7 @@ Al salir de una parada, el chofer y los Jefes de itinerario ven la lista de la s
 | Chat | Participantes | Duración |
 |---|---|---|
 | **Del viaje** | Miembros del itinerario, chofer, Jefes del itinerario, Jefes de Transporte y Administrador | Visible mientras el viaje está `confirmed`. Se **borra** al pasar a `cancelled` o `completed` (o `trip_chat_retention_days` días después del regreso). Si se desconfirma, se oculta pero no se borra |
-| **Con los Jefes de mi itinerario** | El trabajador y todos los Jefes de su itinerario | Se borra a los `conversation_retention_days` días del último mensaje (30 por defecto, lo configura el Administrador) |
-| **Con los Jefes de Transporte** | El trabajador y los Jefes de Transporte **de su Entidad** | Igual |
+| **Dirigida a un rol** (p. ej. Jefe de itinerario, Jefe de Transporte) | La persona y quienes tienen ese rol en su Entidad (y en su itinerario, si es por itinerario) con `chat.role_conversations` | Se borra a los `conversation_retention_days` días del último mensaje |
 | **Con el desarrollador** | La cuenta (aunque aún no se haya unido a una Entidad) y el Administrador | Igual |
 | **Con el desarrollador, sin cuenta** | Quien escribe desde el inicio de sesión, la creación de la cuenta o la unión a la Entidad, y el Administrador (ver §2.1) | `guest_conversation_retention_days` días desde el último mensaje |
 
@@ -469,35 +441,22 @@ Al salir de una parada, el chofer y los Jefes de itinerario ven la lista de la s
 - Las conversaciones se pueden **cerrar** (y reabrir): cerradas, no admiten mensajes.
 - Todas las caducidades de los chats son ajustes **de la app** (los fija el Administrador).
 - Los mensajes de chat se borran **físicamente**. Es la única excepción a la regla de borrado lógico.
+- Cada uno puede **borrar sus mensajes**; los de otros, quien tenga `chat.delete_messages` (en el itinerario del viaje o en la Entidad de la conversación).
 
 ## 2.11 Estadísticas
 
 - **Formato:** gráficos y tablas. Solo se ven en la app: no se exportan.
-- **Periodo:** en la app, "Últimos" (X días, semanas, meses o años) o "Rango de fechas" (un día es un rango con inicio y fin iguales). La API sigue admitiendo fechas sueltas.
-- **Visibilidad:** cada rol ve las que le corresponden:
-  - Administrador: todas, de todas las Entidades (o de una);
-  - Jefes de Transporte: todas, de su Entidad;
-  - Jefes de itinerario: las de sus itinerarios;
-  - chofer: las suyas;
-  - trabajador: las propias.
+- **Periodo:** «Últimos» (X días, semanas, meses o años) o «Rango de fechas».
+- **Visibilidad:** `statistics.view` con su ámbito (su itinerario, su Entidad o todas; por defecto, Jefe de itinerario, Jefe de Transporte y Administrador). Sin él, el chofer ve las de sus viajes y cada trabajador las propias.
 
 | Grupo | Estadística |
 |---|---|
-| Viajes | Viajes por estado |
-| | Puntualidad de salida y llegada (planificado frente a real) por itinerario, vehículo y chofer |
-| | Duración real frente a planificada |
-| | Viajes por chofer y por vehículo |
-| Ocupación | Viajes saturados y sobresaturados (con trabajadores, niños, asientos, de pie y los que no caben) |
-| | Ocupación media por itinerario y vehículo |
-| | Asistencia (subidos frente a esperados) por itinerario y parada |
-| | Niños transportados |
-| Trabajadores | Distribución por itinerario, parada, jerarquía y sexo (la jerarquía solo sirve para esto) |
-| | Historial de viajes de cada trabajador |
-| | Solicitudes por tipo y estado, y tiempo medio de aprobación |
-| Paradas y recorrido | Subidas y bajadas por parada |
-| | Hora real de paso por cada parada |
-| | Distancia recorrida por vehículo |
-| | Incidencias del recorrido por itinerario: paradas donde no se detuvo, saltadas y desvíos |
+| Viajes | Viajes por estado; puntualidad; duración; viajes por chofer y por vehículo |
+| Ocupación | Viajes saturados y sobresaturados (solo trabajadores); ocupación media; asistencia por itinerario y parada |
+| Niños | **Niños que viajan realmente** (marcados al subir), niños distintos e hijos con derecho declarados |
+| Trabajadores | Distribución por itinerario, parada y sexo (sin jerarquía); historial de viajes; solicitudes por tipo y estado |
+| | **Trabajadores que viajan fuera de su itinerario o de su Entidad** (`outsider-travellers`) |
+| Paradas y recorrido | Subidas y bajadas por parada; hora real de paso; distancia; incidencias del recorrido |
 
 ## 2.12 Actualizaciones de la app
 
@@ -529,6 +488,7 @@ ejecutó cada una, y las lanza a mano, en *Gestión → Mantenimiento del servid
 | `access-recoveries:expire` | Cada hora | Cierra las solicitudes "Olvidé algo" caducadas y borra su teléfono |
 | `passwords:warn-expiry` | Diaria | Avisa cada día, durante los últimos `password_expiry_notice_days` días de cada usuario, a quien tiene la contraseña a punto de caducar |
 | `trips:notify-delays` | Cada minuto | Avisa de los viajes de ida o de regreso atrasados (una vez por cada uno) |
+| `qr:purge-nonces` | Cada hora | Borra los códigos QR ya usados que caducaron (7 días después de su hora) |
 
 ## 2.14 Mapa propio
 
@@ -552,3 +512,11 @@ Para hospedajes sin SSH (solo FTP), lo que antes eran comandos se hace desde la 
 - Si el servidor responde pero con error (p. ej. aún sin base de datos), la app acepta igualmente la dirección,
   para poder hacer el mantenimiento.
 
+## 2.16 Código QR de la persona
+
+**Un solo QR por persona para toda la app** (docs/11 §11.8 y §11.9). Identifica a la persona, no una Entidad, y **no lleva datos personales**. Formato y verificación: [07-algoritmos.md §7.36](07-algoritmos.md#736-código-qr-de-la-persona).
+
+- **Con teléfono (QR dinámico):** al iniciar sesión, el teléfono crea una clave propia en el almacén seguro de Android y el servidor la certifica (30 días). El teléfono genera el QR **sin conexión** firmando la persona, la hora y un número aleatorio, y lo **renueva cada 15 s**. La pantalla no admite capturas. Cada código vale **una sola vez** y ±2 minutos.
+- **Sin teléfono (QR impreso):** fijo, no caduca; lo ven, reimprimen y anulan el Administrador y el Jefe de su itinerario (`workers.printed_qr`). Se imprime junto a nombres, apellidos y sexo. Anularlo invalida las copias. Una sola subida por trayecto: si el mismo QR se usa dos veces en un viaje, se avisa. Al entrar por primera vez con teléfono, se anula solo.
+- **Usos:** subir al transporte (§2.9) y **alta directa en un itinerario** (`members.assign_by_qr`, por defecto solo el Administrador): solo si la persona pertenece a esa Entidad; quien escanea elige la parada; pierde su itinerario anterior en esa Entidad pero no sus jefaturas.
+- **Sin conexión en ambos teléfonos:** quien escanea guarda la clave del servidor y la lista de la Entidad (trabajadores con su versión del impreso e hijos con derecho), comprueba las firmas sin conexión, muestra la tarjeta de la lista y guarda las subidas y altas para enviarlas al recuperar la conexión.

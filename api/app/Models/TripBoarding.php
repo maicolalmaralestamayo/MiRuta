@@ -6,8 +6,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
- * Registro de subida. Puede haber varios por trabajador y trayecto; vale el
- * más reciente para la cantidad de niños.
+ * Registro de subida: uno por persona y trayecto (docs/11 §11.8 y §11.9).
+ * Con sus hijos (trip_boarding_children) y, si subió alguien de otro
+ * itinerario u otra Entidad, `outsider`.
  */
 class TripBoarding extends Model
 {
@@ -21,7 +22,7 @@ class TripBoarding extends Model
     const OUTSIDER_ITINERARY = 'itinerary';
     const OUTSIDER_ENTITY = 'entity';
 
-    protected $fillable = ['trip_leg_id', 'worker_id', 'method', 'marked_by', 'children_count', 'outsider', 'boarded_at'];
+    protected $fillable = ['trip_leg_id', 'worker_id', 'method', 'marked_by', 'children_count', 'outsider', 'qr_kind', 'boarded_at'];
 
     protected $casts = [
         'children_count' => 'integer',
@@ -36,6 +37,21 @@ class TripBoarding extends Model
     public function worker()
     {
         return $this->belongsTo(Worker::class)->withTrashed();
+    }
+
+    public function children()
+    {
+        return $this->hasMany(TripBoardingChild::class);
+    }
+
+    /**
+     * @return int[]
+     */
+    public function childIds(): array
+    {
+        return $this->children()->orderBy('child_id')->pluck('child_id')->map(function ($id) {
+            return (int) $id;
+        })->all();
     }
 
     public function marker()

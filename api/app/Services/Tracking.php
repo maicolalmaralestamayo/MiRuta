@@ -424,7 +424,7 @@ class Tracking
             return;
         }
 
-        if (TripBoarding::where('trip_leg_id', $leg->id)->where('worker_id', $worker->id)->exists()) {
+        if ($this->boardings->existingFor($leg, (int) $worker->user_id)) {
             return;
         }
 
@@ -460,7 +460,8 @@ class Tracking
             return;
         }
 
-        $this->boardings->board($leg, $worker, TripBoarding::METHOD_AUTOMATIC, null, null);
+        // La automática no marca hijos: los marca quien escanea o la persona ("Ya subí").
+        $this->boardings->register($leg, $worker->user, TripBoarding::METHOD_AUTOMATIC);
     }
 
     private function median(array $positions): array

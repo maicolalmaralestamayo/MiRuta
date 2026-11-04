@@ -51,6 +51,9 @@ class TokenController extends Controller
             self::linkInstallation($installation, $user);
         }
 
+        // Entró en la app con su teléfono: su QR impreso queda anulado (docs/11 §11.9).
+        app(\App\Services\QrCodes::class)->switchToPhone($user);
+
         $deviceName = isset($attributes['deviceName']) ? $attributes['deviceName'] : null;
 
         return self::respond($this->tokens->issue($user, $deviceName));

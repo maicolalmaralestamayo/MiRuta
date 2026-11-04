@@ -16,7 +16,12 @@ class TripBoardingSerializer extends Serializer
     {
         return [
             'method' => $boarding->method,
-            'childrenCount' => $boarding->children_count,
+            // Hijos que subieron con la persona (cada niño, una vez por trayecto).
+            'childIds' => array_map('strval', $boarding->childIds()),
+            'childrenCount' => (int) $boarding->children_count,
+            // null, itinerary (de otro itinerario) o entity (de otra Entidad).
+            'outsider' => $boarding->outsider,
+            'qrKind' => $boarding->qr_kind,
             'boardedAt' => $this->date($boarding->boarded_at),
         ];
     }

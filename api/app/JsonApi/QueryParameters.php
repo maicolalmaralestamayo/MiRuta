@@ -29,7 +29,7 @@ class QueryParameters
     /**
      * @param array $sortable    [campo de la API => columna]
      * @param array $filterable  nombres de filtro admitidos
-     * @param array $includable  rutas de relaciones admitidas (p. ej. "rank")
+     * @param array $includable  rutas de relaciones admitidas (p. ej. "itinerary")
      * @param string|null $defaultSort  valor de sort cuando no se envía
      */
     public static function fromRequest(Request $request, array $sortable = [], array $filterable = [], array $includable = [], ?string $defaultSort = null): self

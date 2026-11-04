@@ -1,6 +1,6 @@
-# 4. API
+# 4. API (versión 3.0)
 
-La especificación completa, para importar en Swagger UI, Swagger Editor, Postman, Insomnia u otra herramienta compatible con OpenAPI, está en **[`openapi.yaml`](openapi.yaml)** (OpenAPI 3.0.3).
+La especificación completa, para importar en Swagger UI, Swagger Editor, Postman, Insomnia u otra herramienta compatible con OpenAPI, está en **[`openapi.yaml`](openapi.yaml)** (OpenAPI 3.0.3). Se genera con `python3 tools/openapi/generate.py docs/openapi.yaml`: se edita el script, no el YAML.
 
 ## 4.1 Generalidades
 
@@ -8,332 +8,243 @@ La especificación completa, para importar en Swagger UI, Swagger Editor, Postma
 |---|---|
 | URL base | `/api/v1` |
 | Formato | [JSON:API 1.1](https://jsonapi.org/format/) |
-| Tipo de contenido | `application/vnd.api+json` en peticiones y respuestas |
+| Tipo de contenido | `application/vnd.api+json` en peticiones y respuestas (también en un `POST` sin cuerpo, como anular el QR impreso) |
 | Operaciones en lote | Extensión [Atomic Operations](https://jsonapi.org/ext/atomic/) en `POST /operations`, con `Content-Type: application/vnd.api+json; ext="https://jsonapi.org/ext/atomic"` |
-| Tipos de recurso | Plural y `kebab-case`: `workers`, `itinerary-stops`, `trip-legs`… |
+| Tipos de recurso | Plural y `kebab-case`: `workers`, `worker-roles`, `trip-legs`… |
 | Atributos | `camelCase` (`firstName`, `departsAt`). El modelo los traduce a las columnas `snake_case` |
 | Fechas | ISO 8601 con zona horaria (`2026-10-02T17:00:00-04:00`); fechas sin hora como `YYYY-MM-DD` |
-| Paginación | `page[number]` y `page[size]` (25 por defecto, 100 como máximo), con `links.first`, `prev`, `next` y `last`, y `meta.total` |
-| Orden | `sort=campo,-otroCampo` |
-| Filtros | `filter[campo]=valor` |
-| Relaciones incluidas | `include=vehicle,driver.worker` |
-| Excepción al formato | La subida de imágenes (foto de perfil e iconos de jerarquía) usa `multipart/form-data`, porque JSON:API no está pensado para archivos. La respuesta sí es JSON:API |
+| Paginación | `page[number]` y `page[size]` (25 por defecto, 100 como máximo), con `links` y `meta.total` |
+| Orden, filtros, inclusión | `sort=campo,-otro`, `filter[campo]=valor`, `include=worker.user` |
+| Excepción al formato | La subida de imágenes (foto de la persona y de los hijos; imagen de Entidad, itinerario y parada) y de APK usa `multipart/form-data`. La respuesta sí es JSON:API. `POST /offline-scans` recibe una **lista** en `data` |
+| Mensajes | En español, con trato de usted |
 
 ## 4.2 Arquitectura del backend (modelo-controlador)
 
 ```
 app/
-  Models/           Modelos Eloquent (Worker, Trip, …): datos, relaciones, reglas propias de cada entidad
+  Models/           Modelos Eloquent (User = la persona, Worker = su pertenencia a una Entidad, Trip, …)
   Http/
-    Controllers/    Un controlador por recurso: valida, comprueba permisos y llama al modelo o al servicio
-    Middleware/     RequireJsonApi (Content-Type y Accept), JwtAuthenticate (sprint 2)
+    Controllers/    Un controlador por recurso: valida, comprueba permisos (App\Services\Permissions) y llama al servicio
+    Middleware/     RequireJsonApi, Authenticate (JWT), AuthenticateInstallation, AuthenticateMaintenance
   JsonApi/          Documentos (data, included, links, meta), parámetros page/sort/filter/include, errores
   Serializers/      Capa de "vista": convierte modelos en recursos JSON:API
-  Policies/         Permisos por recurso y rol (el Administrador siempre tiene permiso)
-  Services/         Lógica que abarca varios modelos: registro, aprobación de solicitudes, solapamiento,
-                    combinación de sensores, paradas no realizadas y desvíos (Tracking), atrasos (TripTimeliness),
-                    ocupación, estadísticas
-  Support/          Reglas comunes (Username, Tenancy para la compartimentación por Entidad, JWT, Geo para distancias,
-                    NoticeText para el texto de los avisos, ApkInfo para leer la versión del APK, SpanishDate)
-  Rules/            Reglas de validación propias
+  Services/         Permissions (roles y ámbitos), Memberships, Roles, Applications, Accounts, Children,
+                    Trips, Tracking, Boardings (subida), QrCodes y QrScans (QR), Statistics, Settings…
+  Support/          Operations (catálogo fijo de operaciones), IdentityCard (carné), Username, Jwt, Geo,
+                    NoticeText, ApkInfo, SpanishDate
   Console/Commands/ Tareas programadas (ver 02-procesos.md §2.13)
-config/             mitransporte.php, jsonapi.php (modelo → serializador)
-database/
-  migrations/  seeds/  factories/
+config/             mitransporte.php (versión 3.0.0), jsonapi.php (modelo → serializador)
+database/           migrations/ (instalación limpia) seeders/
 ```
-- **Librerías previstas** (compatibles con Lumen 7 y PHP 7.2.5):
-  - `firebase/php-jwt` para firmar y verificar JWT;
-  - serialización JSON:API propia y ligera.
-- **JWT:** se firma con HS256. Claims del token de acceso:
-  - `iss`, `aud`;
-  - `sub` (id de la cuenta, `users`);
-  - `iat` y `exp` (30 min);
-  - `jti`.
 
-  El token de renovación lleva su propio `jti`. Se guarda solo su huella SHA-256 en `refresh_tokens`, y caduca a los 90 días.
-- **HTTPS recomendado.** La app deja elegir `https` (por defecto) o `http` en la pantalla Servidor y acepta certificados del sistema y del usuario.
+- **JWT** (HS256): token de acceso (`sub` = id de la persona, `exp`, `jti`, `sid`) y de renovación con rotación (se guarda su huella SHA-256 en `refresh_tokens`).
+- **QR:** ECDSA P-256 con OpenSSL (ver [07-algoritmos.md §7.36](07-algoritmos.md#736-código-qr-de-la-persona)).
+- **HTTPS recomendado.**
 
-## 4.3 Autenticación, cuentas y acceso sin cuenta
+## 4.3 Permisos: roles configurables
 
-| Método | Ruta | Descripción | Acceso |
-|---|---|---|---|
-| `POST` | `/users` | Crear la cuenta (paso 1 del registro; `middleName` opcional). La primera es la del Administrador | Público |
-| `POST` | `/tokens` | Inicio de sesión con usuario y contraseña | Público |
-| `POST` | `/tokens/refresh` | Renovación con rotación | Con token de renovación |
-| `DELETE` | `/tokens/current` | Cerrar sesión en este dispositivo | Autenticado |
-| `DELETE` | `/tokens` | Cerrar sesión en todos los dispositivos | Autenticado |
-| `GET` | `/password-policy` | Requisitos de la contraseña y del usuario | Público |
-| `POST` | `/me/worker` | Unirse a la Entidad (paso 2 del registro): abreviatura, Pase, sexo y jerarquía | Autenticado |
-| `POST` | `/activations` | "Me registró un superior": Entidad, Pase, código, usuario y contraseña; devuelve los tokens | Público |
-| `POST` | `/installations` | Registrar la instalación de la app; devuelve el valor de la cabecera `X-Installation` | Público |
-| `GET` | `/entities/lookup?abbreviation=` | Buscar una Entidad por su abreviatura exacta (abreviatura y nombre) | Con sesión o instalación |
-| `POST`, `GET` | `/guest/access-recoveries`, `/guest/access-recoveries/{id}` | "Olvidé algo": pedir ayuda y consultar el estado (con el usuario, si se aprobó) | Instalación |
-| `POST` | `/guest/access-recoveries/{id}/password` | Contraseña nueva tras la aprobación; devuelve los tokens | Instalación |
-| `GET`, `PATCH` | `/access-recoveries`, `/access-recoveries/{id}` | Ver las solicitudes y aprobarlas o rechazarlas | Administrador |
-| `GET`, `POST` | `/guest/conversations`, `/guest/conversations/{id}/messages` | Hablar con el desarrollador sin cuenta | Instalación |
-| `GET`, `PATCH` | `/installations/{id}` | Ver una instalación y bloquearla o desbloquearla | Administrador |
-| `GET` | `/map` | Configuración del mapa propio (ver 4.4) | Autenticado |
+- Cada persona tiene, **en cada Entidad a la que pertenece**, unos roles (`worker-roles`). Cada rol es un conjunto de **operaciones** del catálogo fijo (`GET /operations`), cada una con un **ámbito**: `own` (lo suyo), `itinerary` (el itinerario del rol si es por itinerario —Jefe de itinerario— o, si no, el itinerario del que es miembro), `entity` (la Entidad donde tiene el rol) o `all`.
+- El **Administrador** (`users.isAdmin`) tiene todas las operaciones con `all`. Se muestra como rol virtual `id: "admin"` en `GET /roles`.
+- `GET /me` devuelve `meta.permissions: [{operation, scope, entityId, itineraryId}]`: la app muestra solo lo permitido.
+- Lo **propio** (perfil, hijos, ausencias, solicitudes, ajustes, QR) lo puede siempre cada persona.
+- Sin permiso: `403 FORBIDDEN`. Lo que no puede ver: `404 NOT_FOUND`.
+- Roles de partida (editables) y su reparto: [11-acuerdos-registro-qr.md §11.15](11-acuerdos-registro-qr.md).
 
-- **Con sesión:** `Authorization: Bearer <token de acceso>`.
-- **Sin cuenta:** `X-Installation: <id>.<secreto>`. Una instalación bloqueada solo puede leer.
-- **Compartimentación:** cada usuario ve y actúa solo sobre su Entidad; lo de otra responde `404`, como si no existiera. El Administrador ve todo; en las listas puede filtrar con `filter[entity]` y, al crear itinerarios, paradas, vehículos o trabajadores, indica la relación `entity`.
-- **Hasta unirse a una Entidad** (salvo el Administrador), solo se permiten el perfil, los avisos y las conversaciones: el resto responde `403 ENTITY_REQUIRED`.
-- **Contraseña caducada o acceso recuperado:** solo se permiten el perfil propio y cerrar la sesión (`403 PASSWORD_CHANGE_REQUIRED`).
+## 4.4 Rutas
 
-## 4.4 Recursos
+### Públicas y sin cuenta
 
-| Recurso | Rutas | Notas |
+| Método | Ruta | Descripción |
 |---|---|---|
-| **Cuenta propia** | `GET/PATCH /me`, `POST/DELETE /me/photo`, `GET/PATCH/DELETE /me/settings/{id}` | `GET /me` devuelve un recurso `users`; con `include=worker,worker.entity,worker.rank` trae su trabajador. `PATCH /me` cambia usuario, nombres, contraseña y jerarquía (relación `rank`) |
-| `users` | `GET`, `GET /{id}`, `PATCH /{id}` | Solo el Administrador: cuentas (también las que no se unieron a una Entidad); activar y desactivar |
-| `entities` | CRUD | Solo el Administrador. Los demás ven la suya |
-| `workers` | `GET`, `GET /{id}`, `POST`, `PATCH /{id}`, `POST /{id}/activation-codes` | `POST`: un superior registra a un trabajador sin teléfono (devuelve `meta.activationCode`). `PATCH`: activar o desactivar (Administrador). `meta`: `childrenCount`, `roles` |
-| `ranks` | CRUD + `POST /ranks/{id}/icon` | Comunes. Gestión: Administrador. `sortOrder` = orden de presentación |
-| `vehicle-types`, `absence-types`, `conversation-topics` | CRUD | Comunes. Gestión: Administrador. `/forbidden-words` se **eliminó** en la versión 2.1 |
-| `itineraries` | CRUD | De una Entidad. `meta`: `departurePoint`, `returnPoint`, `memberCount`. Relaciones `referenceOutboundLeg` y `referenceReturnLeg` (`trip-legs`, o `null`): recorrido de referencia, un trayecto **terminado** de un viaje de ese itinerario y del mismo sentido (si no, `422 INVALID_REFERENCE_LEG`). El Jefe de ese itinerario puede hacer `PATCH` solo de esas dos relaciones; el resto, el Jefe de Transporte |
-| `stops` | CRUD | De una Entidad |
-| `itinerary-stops` | CRUD | `position` dentro del itinerario. La parada tiene que ser de la misma Entidad |
-| `itinerary-chiefs`, `drivers`, `transport-chiefs` | `GET`, `DELETE` | `DELETE` lo hace el propio trabajador (baja) o un superior (retirada) |
-| `vehicles` | CRUD | De una Entidad. `meta`: `totalCapacity`. `plate`: una letra de `plate_letters` y 6 dígitos; se quitan espacios y guiones y se guarda en mayúsculas (`B123456`) |
-| `trips` | CRUD | `filter[updatedSince]` para sincronizar. `meta`: `expectedPassengers`, `expectedChildren`, `seats`, `totalCapacity`, `occupancyLevel` (`normal`, `saturated`, `overloaded`), `saturated`, `overloaded`, `departurePoint`, `returnPoint`, `needsReassignment`. Atributos de solo lectura: `outboundDelayed`, `returnDelayed` (no ha comenzado y pasó su hora + tolerancia) y `outboundDelayMinutes`, `returnDelayMinutes` (atraso al comenzar o hasta ahora; `null` si no hay) |
-| `trip-completions` | `GET`, `POST` | Marcar como realizado |
-| `trip-legs` | `GET`, `POST` (iniciar), `PATCH` (finalizar) | `meta`: `currentPosition`, `activeSensors`, `stopPasses[]` (`stopId`, `passedAt`, `status`), `deviating` y `incidents[]` (`type`: `not_stopped`, `skipped` o `deviation`; `stopId`, `latitude`, `longitude`, `distanceM`, `startedAt`, `endedAt`). Al iniciar se envía el aviso de comienzo |
-| `trip-positions` | `GET`, `POST` | Para enviar posiciones acumuladas sin conexión, usar `/operations` |
-| `trip-stop-passes` | `GET` | Los genera el servidor. `passedAt`, `leftAt` y `status` (`arrived`, `stopped`, `not_stopped`, `skipped`) |
-| `trip-boardings` | `GET`, `POST` | `method`: `automatic`, `self`, `qr` o `manual` |
-| `boarding-passes` | `POST` | Devuelve el token temporal para el QR |
-| `trip-passengers` | `GET /trips/{id}/passengers` | Pasajeros por parada (en el orden del itinerario) y alfabéticamente, con su estado de subida |
-| `trip-messages` | `GET`, `POST` | Chat del viaje |
-| `children` | `GET`, `GET /{id}` | Se crean y se quitan mediante solicitudes. `birthDate` y `meta.eligibleUntil` solo para el padre o la madre, sus jefes y el Administrador |
-| `applications` | `GET`, `POST`, `GET /{id}`, `PATCH /{id}` | `PATCH` con `status`: `approved`, `rejected` (con `resolutionNote` **obligatorio**) o `cancelled`. Con la relación `worker` de otro trabajador, un superior **asigna** (queda aprobada) o **retira** (tipos `*_leave`). `child_addition` admite `children[]` (varios hijos; ver ejemplo). `absence` admite `indefinite: true` sin fechas; el trabajador pone después las fechas con un `PATCH` sin `status` (`startsOn`, `endsOn`). Atributos `groupId` e `indefinite` |
-| `conversations`, `conversation-messages` | `GET`, `POST`, `PATCH /conversations/{id}` (cerrar o reabrir) | Las abiertas sin cuenta aparecen con `guest = true` |
-| `notices` | `GET`, `PATCH` (marcar como leído) | `message`: texto del aviso (qué, quién y, si se rechazó, el motivo). `payload`: datos del aviso (`direction`, `delayMinutes`, `scheduledAt`, `type`, `stop`). Tipos nuevos: `trip_started`, `trip_delayed`, `trip_incident` |
-| `setting-definitions`, `settings` | `GET`, `PATCH /settings/{id}` | `level`: `app` (solo el Administrador) o `entity`. `description`: explicación de una línea. `minSetting` y `maxSetting`: clave del ajuste de la app que fija el mínimo o el máximo (p. ej. `remember_password_days` → `remember_password_max_days`). `settings` son los valores de la app |
-| `entity-settings` | `GET`, `PATCH /{id}`, `DELETE /{id}` | Valores de nivel Entidad: los cambia su Jefe de Transporte (el Administrador con `filter[entity]`) |
-| `statistics` | `GET /statistics/{name}` | Ver 4.6 |
-| `app-versions` | `GET /app-versions/latest` (público), `GET`, `POST` (multipart), `DELETE /{id}` | Un APK por tipo de procesador (`apkArm64`, `apkArm32`, `apkUniversal`). `versionName` y `versionCode` **ya no hacen falta**: se leen del propio APK (solo se envían si no se pueden leer); todos los APK deben ser de la misma versión. `latest` con `filter[abis]` indica en `meta.file` el APK del teléfono. La app envía su versión en la cabecera `X-App-Version-Code` |
-| **Lote** | `POST /operations` | Atomic Operations: crear viajes por rango, confirmar o desconfirmar en masa, enviar posiciones acumuladas |
+| `POST` | `/users` | Registrarse: nombres, apellidos, `identityCard`, `username`, `password`. Sin Entidad. El primero es el Administrador. `409 IDENTITY_CARD_TAKEN` |
+| `GET` | `/registration-status` | `{adminExists}` |
+| `GET` | `/username-suggestion?firstName=&middleName=&firstSurname=&secondSurname=` | Usuario propuesto |
+| `GET` | `/password-suggestion` | Contraseña propuesta |
+| `GET` | `/password-policy` | Requisitos (usuario de 2 a 50 caracteres) |
+| `POST` | `/tokens`, `/tokens/refresh` | Iniciar sesión (si `hasPhone` era falso, pasa a verdadero y el QR impreso se anula) y renovar |
+| `GET` | `/qr-public-key` | Clave pública del servidor para los QR |
+| `POST` | `/installations` | Registrar la instalación (cabecera `X-Installation`) |
+| `POST`, `GET` | `/guest/access-recoveries`, `/guest/access-recoveries/{id}` | «Olvidé algo»: carné + teléfono; al aprobarse, devuelve solo lo pedido (usuario y/o contraseña propuesta) una vez |
+| `GET`, `POST` | `/guest/conversations`, `/guest/conversations/{id}/messages` | Hablar con el desarrollador sin cuenta |
+| `GET` | `/entities/lookup?abbreviation=` | Con sesión o instalación |
+| `GET` | `/app-versions/latest` | Última versión |
 
-### Solicitudes: ejemplo
+### Persona propia
 
-```http
-POST /api/v1/applications
-Content-Type: application/vnd.api+json
+| Método | Ruta | Descripción |
+|---|---|---|
+| `GET`, `PATCH` | `/me` | Su persona, con `meta.permissions` y `meta.memberships` (Entidades con itinerario, parada y roles) |
+| `POST`, `DELETE` | `/me/photo` | Foto (multipart `photo`) |
+| `POST` | `/me/entities` | Unirse a una Entidad sin solicitud (**solo el Administrador**) |
+| `DELETE` | `/me/entities/{entityId}` | Darse de baja de una Entidad |
+| `GET`, `PATCH`, `DELETE` | `/me/settings[/{key}]` | Sus ajustes |
+| `POST` | `/me/qr-devices` | Certificado de la clave de su teléfono (QR dinámico) |
+| `DELETE` | `/tokens/current`, `/tokens` | Cerrar sesión aquí o en todos los dispositivos |
 
-{
-  "data": {
-    "type": "applications",
-    "attributes": { "type": "itinerary_membership" },
-    "relationships": {
-      "itinerary": { "data": { "type": "itineraries", "id": "3" } },
-      "stop":      { "data": { "type": "stops", "id": "17" } }
-    }
-  }
-}
-```
+### Recursos
 
-Los datos propios de cada tipo de solicitud (ver [03-datos.md §3.5](03-datos.md#35-valores-de-los-campos-enum)) se envían como atributos o relaciones del mismo recurso `applications`. La API los guarda en la tabla de subtipo que corresponda.
+| Recurso | Rutas | Permisos y notas |
+|---|---|---|
+| `users` | `GET`, `GET /{id}`, `PATCH /{id}` | Lista: la propia y las de su ámbito de `workers.view`. `PATCH active` = eliminar o reactivar la cuenta (`workers.delete`; `409 LAST_ADMIN`). `identityCard` y `birthDate` solo para ella misma, el Administrador y `workers.view_identity_card` |
+| `users/{userId}/settings` | `GET`, `PATCH /{key}`, `DELETE /{key}` | Ajustes de un trabajador: `settings.worker` sobre alguna de sus pertenencias |
+| `workers` | CRUD | Pertenencia persona–Entidad. `POST`: registro por el Administrador (`workers.register`; con `hasPhone`; devuelve `meta.username` y `meta.password` si creó la cuenta) o añadir a una persona ya registrada (`entities.assign_members`). `PATCH`: `active` (`workers.deactivate`), itinerario + parada (`members.assign`), nombres/carné/`hasPhone` (`workers.edit`). `DELETE`: baja de la Entidad |
+| `workers/{id}/itinerary` | `DELETE` | Baja del itinerario (la propia persona o `members.assign`) |
+| `workers/{id}/printed-qr` | `GET`, `POST /revoke` | QR impreso (`workers.printed_qr`). Ver §4.5 |
+| `entities` | CRUD + `POST/DELETE /{id}/image` | `entities.view` / `entities.manage` |
+| `roles` | CRUD | Ver: cualquiera; detalles: `roles.view`; gestionar: `roles.manage` (`isDefault`: `roles.set_default`) |
+| `operations` | `GET` | Catálogo fijo (`roles.view`) |
+| `worker-roles` | `GET`, `POST`, `DELETE` | Asignar o quitar: `roles.assign` y tener allí un rol aprobador de ese rol. Darse de baja: la propia persona |
+| `applications` | `GET`, `POST`, `GET /{id}`, `PATCH /{id}` | `entity_membership`, `itinerary_membership`, `role`. Aprueban `entities.approve_membership`, `members.approve` o los roles aprobadores con `roles.approve`. Rechazar exige `resolutionNote` |
+| `absences` | CRUD | Sin aprobación. La propia persona; de otros, `absences.view` / `absences.manage` |
+| `children` | CRUD + `POST/DELETE /{id}/photo` | Por carné; si ya existe se vincula (`meta.alreadyDeclared`). Derecho: hasta el 31/08 siguiente al cumpleaños en que alcanza `child_max_age` |
+| `vehicle-types`, `absence-types`, `conversation-topics` | CRUD | `nomenclators.manage`, `absence_types.manage`. Los motivos van dirigidos a un rol (`recipient: role`, relación `role`) o al desarrollador |
+| `itineraries`, `stops`, `itinerary-stops` | CRUD + imagen | `itineraries.manage`, `stops.manage`, `itineraries.order_stops`, `itineraries.reference_route` |
+| `vehicles` | CRUD | `vehicles.view`, `vehicles.manage`, `vehicles.assign_driver`. `driver` es una pertenencia (`workers`) con `tracking.drive` |
+| `trips` | CRUD | `trips.view` (own = su itinerario), `trips.plan`, `trips.edit`, `trips.confirm_cancel`, `trips.complete`, `trips.delete`. `meta.expectedPassengers`: **solo trabajadores** (ningún niño) |
+| `trips/{id}/passengers` | `GET` | Esperados por parada y alfabéticamente, con su subida (`boardedChildIds`); al final, quienes subieron sin ser esperados (`expected: false`, `outsider`) |
+| `trip-completions` | `GET`, `POST` | Chofer del viaje o `trips.complete` |
+| `trip-legs` | `GET`, `POST`, `PATCH` | Iniciar/finalizar: chofer del viaje, `tracking.drive` o `trips.complete` |
+| `trip-positions`, `trip-stop-passes` | `GET`, `POST` / `GET` | Sensores: chofer del viaje y miembros del itinerario |
+| `trip-boardings` | CRUD | Ver §4.6 |
+| `qr-scans` | `POST` | Comprobar un QR (no lo gasta). Ver §4.5 |
+| `itinerary-assignments` | `POST` | Alta directa en un itinerario con el QR (`members.assign_by_qr`) |
+| `offline-scans` | `POST` | Sincronizar lo escaneado sin conexión (lista) |
+| `entities/{id}/scan-roster` | `GET` | Lista para escanear sin conexión |
+| `trip-messages` | `GET /trips/{id}/messages`, `POST`, `DELETE /{id}` | Chat del viaje. Borrar: el propio, o de otros con `chat.delete_messages` |
+| `conversations`, `conversation-messages` | `GET`, `POST`, `PATCH /conversations/{id}`, `DELETE /conversation-messages/{id}` | Dirigidas a un rol: las ven quienes lo tienen con `chat.role_conversations`. Borrar mensajes de otros: `chat.delete_messages` |
+| `notices` | `GET`, `PATCH` | Tipos nuevos: `entity_added`, `entity_removed`, `itinerary_assigned`, `itinerary_removed` |
+| `setting-definitions`, `settings`, `entity-settings`, `itinerary-settings`, `itinerary-stop-settings` | | `settings.app`, `settings.entity`, `settings.itinerary`. Gana el más concreto: persona → parada del itinerario → itinerario → Entidad → app |
+| `statistics` | `GET /statistics/{name}` | Ver §4.7 |
+| `access-recoveries`, `installations` | | `access_recoveries.manage` |
+| `app-versions` | | `app_versions.manage` |
+| `server-status`, `maintenance-runs` | | `maintenance.run` o clave de mantenimiento |
+| **Lote** | `POST /operations` | Viajes por rango, confirmar en masa, posiciones acumuladas |
 
-### Varios hijos en una misma solicitud: ejemplo
+**Eliminado en 3.0:** `/ranks`, `/activations`, `/me/worker`, `/drivers`, `/transport-chiefs`, `/itinerary-chiefs`, `/workers/{id}/activation-codes`, `/guest/access-recoveries/{id}/password`, `/boarding-passes` (el QR por trayecto lo sustituye el QR único de la persona), el atributo de entrada `childrenCount` de las subidas (ahora `childIds`) y el ajuste `boarding_pass_ttl_seconds`.
 
-```http
-POST /api/v1/applications
-Content-Type: application/vnd.api+json
+## 4.5 QR de la persona
 
-{
-  "data": {
-    "type": "applications",
-    "attributes": {
-      "type": "child_addition",
-      "children": [
-        { "firstName": "Juan", "middleName": null, "firstSurname": "Pérez", "secondSurname": "López", "birthDate": "2016-07-16" },
-        { "firstName": "Ana", "middleName": "María", "firstSurname": "Pérez", "secondSurname": "López", "birthDate": "2019-03-02" }
-      ]
-    }
-  }
-}
-```
+El formato exacto, los bytes que se firman y la verificación sin conexión están en [07-algoritmos.md §7.36](07-algoritmos.md#736-código-qr-de-la-persona). Resumen:
 
-Se crea una solicitud por hijo con el mismo `groupId` (la respuesta es la primera). Cada una se aprueba o se rechaza por separado. Si un hijo no es válido, el error apunta a `/data/attributes/children/{n}/…` y no se crea ninguna.
+| Paso | Ruta | Detalle |
+|---|---|---|
+| Clave del servidor | `GET /qr-public-key` | `{publicKey}`: ECDSA P-256, SPKI DER en base64. La app la guarda |
+| Certificado del teléfono | `POST /me/qr-devices` `{publicKey}` | `{certificate, expiresAt}` (30 días). Si la persona no tenía teléfono, su impreso se anula |
+| QR dinámico | (en el teléfono) | `MR1.<certificado>.<payload>.<firma>`, se renueva cada 15 s |
+| QR impreso | `GET /workers/{id}/printed-qr` | `MRP1.<json>.<firma>` + nombres, apellidos y sexo. Solo sin teléfono (`409 PRINTED_QR_NOT_AVAILABLE`) |
+| Anular el impreso | `POST /workers/{id}/printed-qr/revoke` | Sube la versión y devuelve el nuevo |
+| Comprobar | `POST /qr-scans` `{qr, purpose, scannedAt?}` + `tripLeg?` | Tarjeta de la persona, sus pertenencias, `outsider`, `canAllowOutsider`, `alreadyBoarded`, `warning` e hijos con derecho. **No gasta el código** |
+| Subir | `POST /trip-boardings` `{method: qr, qr, childIds, allowOutsider?, scannedAt?}` | Gasta el código (un solo uso) |
+| Alta en un itinerario | `POST /itinerary-assignments` `{qr, scannedAt?}` + `itinerary`, `stop` | Gasta el código. La persona debe pertenecer a la Entidad (`422 NOT_A_MEMBER`); cambia su itinerario y parada; no pierde jefaturas |
+| Sin conexión | `GET /entities/{id}/scan-roster` | Trabajadores (`userId`, nombre, foto, itinerario, parada, `printedQrVersion`) e hijos con derecho (`childId`, nombre, `parentUserIds`) |
+| Sincronizar | `POST /offline-scans` (lista) | Cada escaneo con su `scannedAt`; respuesta por elemento: `accepted`, `repeated`, `discarded`, `rejected` |
 
-### Ausencia indefinida: ejemplo
+Errores del QR (`422`): `QR_INVALID`, `QR_SIGNATURE_INVALID`, `QR_CERTIFICATE_INVALID` (no lo firmó el servidor o es de otra persona), `QR_CERTIFICATE_EXPIRED`, `QR_EXPIRED` (más de ±120 s entre la hora del QR y la del escaneo), `QR_REVOKED` (impreso anulado), `QR_USER_INACTIVE`, `QR_SCAN_TIME_INVALID` (hora del escaneo en el futuro), `QR_SCAN_TOO_OLD` (más de 7 días); `409 QR_ALREADY_USED` (código dinámico ya gastado).
 
-```http
-POST /api/v1/applications
-{ "data": { "type": "applications",
-    "attributes": { "type": "absence", "indefinite": true },
-    "relationships": { "absenceType": { "data": { "type": "absence-types", "id": "1" } } } } }
-
-PATCH /api/v1/applications/42          (después de aprobada, por el propio trabajador)
-{ "data": { "type": "applications", "id": "42",
-    "attributes": { "startsOn": "2026-11-02", "endsOn": "2026-11-15" } } }
-```
-
-Solo se pueden poner fechas a una ausencia indefinida aprobada (`409 ABSENCE_NOT_INDEFINITE`).
-
-### Mapa propio
-
-`GET /map` devuelve un recurso `map-configs` con `tilesUrl` (plantilla `{z}/{x}/{y}` del ajuste `map_tiles_url`, relativa a la dirección del servidor), `minZoom` (7), `maxZoom` (17), `downloadMinZoom` (12), `downloadMaxZoom` (17), `bounds` (límites de Cuba: `south`, `west`, `north`, `east`) y `area` (zona de las paradas de la Entidad con unos 2 km de margen, o `null`). El Administrador puede indicar `filter[entity]`. Las imágenes las sirve el mismo servidor en `/tiles/…` (ver `tools/maps/README.md`).
-
-### Viajes por rango: ejemplo
+### Subida con QR: ejemplo
 
 ```http
-POST /api/v1/operations
-Content-Type: application/vnd.api+json; ext="https://jsonapi.org/ext/atomic"
+POST /api/v1/qr-scans
+{ "data": { "type": "qr-scans",
+    "attributes": { "qr": "MR1.eyJ1Ijo…", "purpose": "boarding" },
+    "relationships": { "tripLeg": { "data": { "type": "trip-legs", "id": "81" } } } } }
 
-{
-  "atomic:operations": [
-    { "op": "add", "data": { "type": "trips", "attributes": {
-        "departsAt": "2026-10-02T17:00:00-04:00", "returnsAt": "2026-10-03T06:30:00-04:00", "status": "confirmed" },
-        "relationships": { "itinerary": {"data": {"type": "itineraries", "id": "3"}},
-                           "vehicle":   {"data": {"type": "vehicles", "id": "5"}},
-                           "driver":    {"data": {"type": "drivers", "id": "2"}} } } },
-    { "op": "add", "data": { "type": "trips", "attributes": {
-        "departsAt": "2026-10-03T17:00:00-04:00", "returnsAt": "2026-10-04T06:30:00-04:00", "status": "confirmed" },
-        "relationships": { "...": "igual que la anterior" } } }
-  ]
-}
+→ 200 { "data": { "type": "qr-scans", "attributes": { "kind": "dynamic", "userId": "12", "fullName": "Maicol Almarales Tamayo",
+        "outsider": "itinerary", "canAllowOutsider": true, "alreadyBoarded": false,
+        "warning": "Esta persona no pertenece al itinerario de este viaje.",
+        "children": [ { "id": "4", "fullName": "Ana Almarales", "alreadyBoarded": false } ] } } }
+
+POST /api/v1/trip-boardings
+{ "data": { "type": "trip-boardings",
+    "attributes": { "method": "qr", "qr": "MR1.eyJ1Ijo…", "childIds": ["4"], "allowOutsider": true },
+    "relationships": { "tripLeg": { "data": { "type": "trip-legs", "id": "81" } } } } }
+
+→ 201 { "data": { "type": "trip-boardings", "attributes": { "method": "qr", "qrKind": "dynamic",
+        "childIds": ["4"], "childrenCount": 1, "outsider": "itinerary" } } }
 ```
 
-La app genera las copias del rango y las envía juntas. Si alguna falla (por ejemplo, por solapamiento), no se crea ninguna.
+### Sincronización: ejemplo
 
-## 4.5 Permisos
+```http
+POST /api/v1/offline-scans
+{ "data": [
+  { "type": "offline-scans", "lid": "b-17", "attributes": { "purpose": "boarding", "qr": "MR1.…",
+      "scannedAt": "2026-11-03T17:10:04-05:00", "childIds": [] },
+    "relationships": { "tripLeg": { "data": { "type": "trip-legs", "id": "81" } } } },
+  { "type": "offline-scans", "lid": "a-3", "attributes": { "purpose": "itinerary_assignment", "qr": "MRP1.…",
+      "scannedAt": "2026-11-03T17:12:00-05:00" },
+    "relationships": { "itinerary": { "data": { "type": "itineraries", "id": "3" } }, "stop": { "data": { "type": "stops", "id": "17" } } } } ] }
 
-Leyenda: **A** Administrador (todas las Entidades) · **JT** Jefe de Transporte (su Entidad) · **JI** Jefe de itinerario (solo su itinerario) · **C** Chofer (solo sus viajes) · **T** cualquier trabajador · **Propio** solo lo suyo
+→ 200 { "data": [
+  { "type": "offline-scans", "id": "b-17", "attributes": { "status": "accepted", "code": null, "detail": null },
+    "relationships": { "tripBoarding": { "data": { "type": "trip-boardings", "id": "501" } } } },
+  { "type": "offline-scans", "id": "a-3", "attributes": { "status": "rejected", "code": "QR_REVOKED", "detail": "Este QR impreso fue anulado…" } } ],
+  "meta": { "accepted": 1, "total": 2 } }
+```
 
-| Acción | A | JT | JI | C | T |
-|---|:-:|:-:|:-:|:-:|:-:|
-| Ver nombres, foto, jerarquía y cantidad de hijos (de su Entidad) | ✔ | ✔ | ✔ | ✔ | ✔ |
-| Ver el usuario | ✔ | | | | Propio |
-| Ver el Pase | ✔ | ✔ | Los de su itinerario | | Propio |
-| Ver fechas de nacimiento de los hijos | ✔ | ✔ | Los de su itinerario | | Propio |
-| Gestionar Entidades, nomencladores y ajustes de la app | ✔ | | | | |
-| Gestionar vehículos, itinerarios, paradas y ajustes de la Entidad | ✔ | ✔ | | | |
-| Marcar el recorrido de referencia del itinerario | ✔ | ✔ | Su itinerario | | |
-| Registrar trabajadores sin teléfono y generar su código | ✔ | ✔ | En su itinerario | | |
-| Planificar viajes (crear, copiar a un rango, confirmar, cancelar) | ✔ | ✔ | Solo su itinerario | | |
-| Ver viajes | ✔ | ✔ | ✔ | ✔ | De su itinerario |
-| Aprobar, asignar o retirar `transport_chief` | ✔ | | | | |
-| Aprobar, asignar o retirar `itinerary_chief` y `driver` | ✔ | ✔ | | | |
-| Aprobar `itinerary_membership`, `child_*` y `absence`; asignar o quitar itinerario y parada | ✔ | ✔ | ✔ | | |
-| Cambiar la jerarquía | | | | | Propio |
-| Aprobar o rechazar "Olvidé algo"; bloquear instalaciones | ✔ | | | | |
-| Marcar viaje como realizado | ✔ | ✔ | ✔ | ✔ | |
-| Iniciar o finalizar trayecto, registrar subidas de otros, escanear QR | ✔ | ✔ | ✔ | ✔ | |
-| Enviar posición como sensor (solo el chofer del viaje o miembros de ese itinerario, sea cual sea su rol) | | | | ✔ | Si es de ese itinerario |
-| Voz durante el recorrido | ✔ | ✔ | ✔ | ✔ | |
-| Poner fechas a su ausencia indefinida | | | | | Propio |
-| Recibir avisos de incidencias del recorrido | ✔ | ✔ | Su itinerario | | |
-| Estadísticas | Todas | Su Entidad | Su itinerario | Las suyas | Las propias |
+## 4.6 Subida (`trip-boardings`)
 
-**Nadie aprueba sus propias solicitudes.**
+- **Una sola subida por persona y trayecto.** Un segundo escaneo (`qr` o `manual`) de quien ya subió: `409 ALREADY_BOARDED` (con QR impreso, el detalle avisa de que puede ser una copia). Una subida automática o «Ya subí» previa se convierte en escaneada.
+- `method`: `self` («Ya subí», solo miembros del itinerario), `qr`, `manual` (`relationships.worker`) o `automatic` (la genera el servidor, sin hijos).
+- **Hijos:** `childIds` = hijos activos con derecho de esa persona (`422 CHILD_NOT_ELIGIBLE`). Cada niño cuenta **una vez por trayecto** (`409 CHILD_ALREADY_BOARDED`, aunque lo tengan declarado los dos padres).
+- **De fuera:** si la persona no es del itinerario (`outsider: itinerary`) o de la Entidad del viaje (`outsider: entity`), quien escanea necesita `tracking.allow_outsiders` (`403 OUTSIDER_NOT_ALLOWED`) y confirmarlo con `allowOutsider: true` (si no, `409 OUTSIDER_CONFIRMATION_REQUIRED` con `meta.outsider`). Cuenta como pasajero. Sin ninguna Entidad: `422 NOT_A_WORKER`.
+- **Corrección** (`tracking.fix_passengers`): `PATCH /trip-boardings/{id}` con `childIds` (mientras el trayecto está en curso, también quien escanea y la propia persona), `DELETE /trip-boardings/{id}` y registrar subidas con el trayecto ya terminado.
+- **Sin conexión:** `scannedAt` = hora local del escaneo. Se acepta si cae dentro del trayecto (±2 min) aunque ya haya terminado. Reintento con el mismo código: `200` con `meta.repeated`.
 
-## 4.6 Estadísticas
+## 4.7 Estadísticas
 
-`GET /statistics/{name}` devuelve un recurso `statistics` con `attributes.columns` (definición de columnas) y `attributes.rows` (filas). La app dibuja los gráficos y las tablas a partir de esos datos (no se exportan).
+`GET /statistics/{name}` devuelve un recurso `statistics` con `attributes.columns` y `attributes.rows`.
 
-**Filtros de periodo** (uno de los tres):
+**Periodo** (uno de los tres): `filter[from]` + `filter[to]`, `filter[dates]` o `filter[last]=7d` (`d`, `w`, `m`, `y`). Por defecto, los últimos 30 días.
 
-| Forma | Ejemplo |
-|---|---|
-| Rango | `filter[from]=2026-10-01&filter[to]=2026-10-31` |
-| Fechas explícitas | `filter[dates]=2026-10-02,2026-10-09,2026-10-16` (la app ya no lo usa: un día es un rango con inicio y fin iguales) |
-| Relativo | `filter[last]=7d` (también `w`, `m`, `y`: días, semanas, meses, años) |
+**Otros filtros:** `filter[entity]`, `filter[itinerary]`, `filter[vehicle]`, `filter[driver]`, `filter[stop]`, `filter[worker]`, `filter[trip]`, `filter[level]`, `filter[by]`.
 
-**Otros filtros:** `filter[entity]` (solo el Administrador), `filter[itinerary]`, `filter[vehicle]`, `filter[driver]`, `filter[stop]`, `filter[level]` (en `overloaded-trips`: `saturated` u `overloaded`). La API los restringe según el rol y la Entidad.
-
-**Nombres disponibles:**
+**Quién:** `statistics.view` en su ámbito (itinerario, Entidad o todas). Sin él, quien conduce ve las de sus viajes y cualquiera las suyas (`worker-trips`, `live-trip`).
 
 | `name` | Contenido |
 |---|---|
-| `trips-by-status` | Viajes por estado |
-| `punctuality` | Diferencia entre lo planificado y lo real, en salida y llegada |
-| `duration` | Duración real frente a planificada |
-| `trips-by-driver`, `trips-by-vehicle` | Carga de trabajo |
-| `overloaded-trips` | Viajes saturados y sobresaturados |
-| `occupancy` | Ocupación media frente a capacidad |
-| `attendance` | Subidos frente a esperados, por itinerario y por parada |
-| `children-transported` | Niños transportados |
-| `workers-distribution` | Trabajadores por itinerario, parada, jerarquía y sexo |
-| `worker-trips` | Historial de viajes de un trabajador |
-| `applications-summary` | Solicitudes por tipo y estado, y tiempo medio de resolución |
-| `stop-activity` | Subidas y bajadas por parada |
-| `stop-pass-times` | Hora real de paso por cada parada (sin las saltadas) |
-| `distance` | Distancia recorrida por vehículo |
-| `live-trip` | Estadísticas del viaje en marcha (`filter[trip]`), con paradas donde no se detuvo (`stopsNotStopped`) y saltadas (`stopsSkipped`) |
-| `trip-incidents` | Incidencias del recorrido por itinerario: no se detuvo en la parada, se saltó la parada, se desvió del recorrido |
+| `trips-by-status`, `punctuality`, `duration`, `trips-by-driver`, `trips-by-vehicle` | Viajes |
+| `overloaded-trips`, `occupancy` | Ocupación (solo trabajadores) |
+| `attendance` | Subidos frente a esperados, por itinerario y parada |
+| `children-transported` | **Niños que viajan realmente** (los marcados al subir; cada uno una vez por viaje): `children`, `distinctChildren` y `eligibleChildren` (hijos con derecho declarados por los miembros del itinerario) |
+| `outsider-travellers` | **Nueva.** Trabajadores que viajan fuera de su itinerario o de su Entidad: trabajador, su Entidad, su itinerario, itinerario en que viajó, tipo, viajes, subidas y niños |
+| `workers-distribution` | Trabajadores por `itinerary`, `stop` o `sex` (ya no hay jerarquía) |
+| `worker-trips`, `applications-summary`, `stop-activity`, `stop-pass-times`, `distance`, `live-trip`, `trip-incidents` | Como en 2.x |
 
-## 4.7 Errores
+## 4.8 Errores
 
-Siempre con el formato `errors[]` de JSON:API: `status`, `code`, `title`, `detail` y `source.pointer` o `source.parameter`.
+Siempre con el formato `errors[]` de JSON:API: `status`, `code`, `title`, `detail`, `source.pointer` o `source.parameter` y, a veces, `meta`.
 
 | `code` | HTTP | Cuándo |
 |---|---|---|
-| `BAD_REQUEST` | 400 | Documento o parámetro de consulta mal formado (`source.parameter` indica cuál) |
-| `UNAUTHENTICATED` | 401 | Falta la cabecera `Authorization: Bearer` |
-| `INVALID_CREDENTIALS` | 401 | Usuario o contraseña incorrectos |
-| `INSTALLATION_REQUIRED` | 401 | Falta la cabecera `X-Installation` o no es válida |
-| `TOKEN_INVALID` | 401 | Token mal formado, con firma no válida o de otro tipo |
-| `TOKEN_EXPIRED` | 401 | Token caducado |
-| `TOKEN_REVOKED` | 401 | Token de renovación revocado o reutilizado, o cuenta desactivada |
-| `FORBIDDEN` | 403 | El rol no permite la acción |
-| `ENTITY_REQUIRED` | 403 | La cuenta aún no se unió a una Entidad |
-| `INSTALLATION_BLOCKED` | 403 | El Administrador bloqueó ese teléfono |
-| `SELF_APPROVAL` | 403 | Intento de resolver una solicitud propia |
-| `NOT_FOUND` | 404 | No existe o el usuario no puede verlo |
-| `METHOD_NOT_ALLOWED` | 405 | Método HTTP no admitido en esa ruta |
-| `NOT_ACCEPTABLE` | 406 | La cabecera `Accept` solo admite JSON:API con parámetros no permitidos |
-| `TYPE_MISMATCH` | 409 | `data.type` no corresponde al recurso |
-| `ID_MISMATCH` | 409 | `data.id` no coincide con el de la URL |
-| `DUPLICATE` | 409 | Ya existe un registro con esos datos (clave única) |
-| `USERNAME_TAKEN` | 409 | El usuario ya existe (también si es de una cuenta inactiva) o se dejó de usar hace menos de `username_reuse_block_days` días |
-| `PASS_TAKEN` | 409 | Ya hay un trabajador con ese Pase en la Entidad |
-| `ALREADY_IN_ENTITY` | 409 | La cuenta ya pertenece a una Entidad |
-| `ADMIN_HAS_NO_ENTITY` | 409 | El Administrador no se une a ninguna Entidad |
-| `ALREADY_ACTIVATED` | 409 | Pedir un código de activación para una cuenta ya activada |
-| `RECOVERY_NOT_PENDING` | 409 | Aprobar o rechazar una solicitud "Olvidé algo" que ya no está pendiente |
-| `RECOVERY_NOT_MATCHED` | 409 | Aprobar una solicitud cuyos datos no coinciden con ningún trabajador |
-| `RECOVERY_NOT_APPROVED` | 409 | Elegir contraseña con una solicitud no aprobada |
-| `CONVERSATION_CLOSED` | 409 | Escribir en una conversación cerrada |
-| `APPLICATION_NOT_PENDING` | 409 | Resolver o cancelar una solicitud que ya no está pendiente |
-| `APPLICATION_ALREADY_PENDING` | 409 | Ya hay una solicitud pendiente de ese tipo |
-| `ABSENCE_NOT_INDEFINITE` | 409 | Poner fechas a una ausencia que no es indefinida o no está aprobada |
-| `ALREADY_MEMBER` | 409 | Ya viaja en ese itinerario y esa parada |
-| `ALREADY_HAS_ROLE` | 409 | Ya tiene el rol que pide |
-| `ALREADY_CHIEF_OF_OTHER` | 409 | Pide ser Jefe de un itinerario siendo ya Jefe de otro |
-| `STOP_ALREADY_IN_ITINERARY` | 409 | La parada ya está en el itinerario |
-| `STOP_HAS_MEMBERS` | 409 | Quitar del itinerario una parada en la que hay miembros |
-| `STOP_IN_USE` | 409 | Borrar una parada que está en algún itinerario |
-| `ITINERARY_HAS_MEMBERS` | 409 | Borrar un itinerario con miembros |
-| `TRIP_OVERLAP` | 409 | Solapamiento de vehículo o chofer al confirmar. `meta.conflictingTripId` y `meta.reason` (`vehicle` o `driver`) |
-| `TRIP_TRANSITION_NOT_ALLOWED` | 409 | Cancelar un viaje realizado, o marcar como realizado uno cancelado |
-| `TRIP_NOT_CONFIRMED` | 409 | Iniciar el recorrido de un viaje no confirmado |
-| `LEG_ALREADY_STARTED` | 409 | Ese trayecto ya se inició |
-| `LEG_NOT_ACTIVE` | 409 | El trayecto no está en curso |
-| `CHAT_NOT_AVAILABLE` | 409 | El chat de un viaje no confirmado |
-| `UNSUPPORTED_MEDIA_TYPE` | 415 | Falta el tipo de contenido JSON:API (o la extensión atómica en `/operations`) |
-| `VALIDATION_ERROR` | 422 | Error de validación de un campo (`source.pointer` indica cuál) |
-| `USERNAME_INVALID` | 422 | El usuario no cumple las reglas (longitud, caracteres o palabras reservadas) |
-| `PASSWORD_POLICY` | 422 | La contraseña no cumple la política: longitud, tipos de carácter o historial (detalle con todos los motivos) |
-| `INVALID_REFERENCE_LEG` | 422 | El recorrido de referencia no es un trayecto terminado de ese itinerario y de ese sentido |
-| `ENTITY_NOT_FOUND` | 422 / 404 | No hay ninguna Entidad con esa abreviatura |
-| `ENTITY_MISMATCH` | 422 | Lo relacionado (itinerario, parada, vehículo, chofer…) es de otra Entidad |
-| `ACTIVATION_INVALID` | 422 | Entidad, Pase o código de activación incorrectos, o código caducado |
-| `CURRENT_PASSWORD_INVALID` | 422 | Falta la contraseña actual o no es correcta |
-| `STOP_NOT_IN_ITINERARY` | 422 | La parada no pertenece al itinerario |
-| `CHILD_NOT_ELIGIBLE` | 422 | El niño ya no tiene derecho a viajar |
-| `TRIP_DATES_INVALID` | 422 | El regreso no es posterior a la salida |
-| `NOT_A_PASSENGER` | 422 | El trabajador no es pasajero esperado del viaje |
-| `BOARDING_PASS_INVALID` | 422 | QR caducado, manipulado o de otro trayecto |
-| `CHILDREN_COUNT_EXCEEDED` | 422 | Suben más niños de los que tiene con derecho |
-| `NO_ITINERARY` | 422 | Escribir a los Jefes de itinerario sin ser miembro de ninguno |
-| `NOT_A_SENSOR` | 422 | Enviar posición sin ser trabajador |
-| `PASSWORD_CHANGE_REQUIRED` | 403 | La contraseña caducó o se recuperó el acceso, y aún no se eligió una nueva |
-| `TOO_MANY_REQUESTS` | 429 | Demasiadas solicitudes "Olvidé algo" o mensajes sin cuenta desde ese teléfono en la última hora |
-| `APK_INVALID` | 422 | El archivo publicado no es un APK |
-| `APK_REQUIRED` | 422 | No se subió ningún APK |
-| `APK_VERSION_MISMATCH` | 422 | Los APK subidos no son de la misma versión (o no coinciden con la escrita a mano) |
-| `VERSION_CODE_TOO_LOW` | 422 | El versionCode no es mayor que el de la última versión publicada |
-| `SETTING_OUT_OF_RANGE` | 422 | Valor fuera de los límites del ajuste |
-| `OPERATION_NOT_SUPPORTED` | 400 | Operación atómica no admitida |
-| `SERVER_ERROR` | 500 | Error interno (el detalle solo aparece con `APP_DEBUG=true`) |
+| `BAD_REQUEST`, `OPERATION_NOT_SUPPORTED` | 400 | Documento o parámetro mal formado; operación atómica no admitida |
+| `UNAUTHENTICATED`, `INVALID_CREDENTIALS`, `INSTALLATION_REQUIRED`, `TOKEN_INVALID`, `TOKEN_EXPIRED`, `TOKEN_REVOKED` | 401 | Autenticación |
+| `FORBIDDEN` | 403 | Sin la operación en ese ámbito |
+| `PASSWORD_CHANGE_REQUIRED` | 403 | Contraseña puesta por otro o caducada |
+| `SELF_APPROVAL`, `ROLE_NOT_EDITABLE`, `INSTALLATION_BLOCKED`, `MAINTENANCE_KEY_INVALID` | 403 | |
+| `OUTSIDER_NOT_ALLOWED` | 403 | Dejar subir a alguien de fuera sin `tracking.allow_outsiders` |
+| `NOT_FOUND`, `ENTITY_NOT_FOUND` | 404 | No existe o no puede verlo |
+| `METHOD_NOT_ALLOWED`, `NOT_ACCEPTABLE`, `UNSUPPORTED_MEDIA_TYPE` | 405, 406, 415 | |
+| `TYPE_MISMATCH`, `ID_MISMATCH`, `DUPLICATE` | 409 | |
+| `IDENTITY_CARD_TAKEN` | 409 | Carné ya registrado (texto de docs/11 §11.5) |
+| `USERNAME_TAKEN`, `ACCOUNT_INACTIVE`, `LAST_ADMIN` | 409 | |
+| `ALREADY_MEMBER`, `NOT_A_MEMBER`, `NO_ITINERARY`, `ALREADY_HAS_ROLE`, `ROLE_IN_USE`, `APPLICATION_ALREADY_PENDING`, `APPLICATION_NOT_PENDING` | 409 | Pertenencias, roles y solicitudes |
+| `CHILD_ALREADY_DECLARED` | 409 | Ya lo tiene declarado |
+| `RECOVERY_NOT_PENDING`, `RECOVERY_NOT_MATCHED`, `CONVERSATION_CLOSED`, `CHAT_NOT_AVAILABLE` | 409 | |
+| `STOP_ALREADY_IN_ITINERARY`, `STOP_HAS_MEMBERS`, `STOP_IN_USE`, `ITINERARY_HAS_MEMBERS`, `ITINERARY_HAS_ROLES` | 409 | |
+| `TRIP_OVERLAP`, `TRIP_TRANSITION_NOT_ALLOWED`, `TRIP_NOT_CONFIRMED`, `TRIP_STARTED`, `LEG_ALREADY_STARTED`, `LEG_NOT_ACTIVE` | 409 | Viajes y recorrido |
+| `ALREADY_BOARDED` | 409 | Ya subió en este trayecto (con QR impreso: posible copia) |
+| `CHILD_ALREADY_BOARDED` | 409 | El niño ya subió en este trayecto con otra persona |
+| `OUTSIDER_CONFIRMATION_REQUIRED` | 409 | Es de otro itinerario o Entidad: falta `allowOutsider` (`meta.outsider`) |
+| `QR_ALREADY_USED` | 409 | Código dinámico ya gastado |
+| `PRINTED_QR_NOT_AVAILABLE` | 409 | La persona usa la app en su teléfono |
+| `ALREADY_INSTALLED` | 409 | Mantenimiento |
+| `VALIDATION_ERROR` | 422 | Campo no válido (`source.pointer`) |
+| `IDENTITY_CARD_INVALID`, `USERNAME_INVALID`, `PASSWORD_POLICY`, `CURRENT_PASSWORD_INVALID` | 422 | Cuenta |
+| `ENTITY_MISMATCH`, `ENTITY_REQUIRED`, `STOP_NOT_IN_ITINERARY`, `ROLE_NOT_REQUESTABLE`, `OPERATION_UNKNOWN`, `SCOPE_NOT_ALLOWED` | 422 | |
+| `CHILD_NOT_ELIGIBLE` | 422 | Sin derecho a viajar (al añadir) o no es hijo con derecho de quien sube |
+| `TRIP_DATES_INVALID`, `INVALID_REFERENCE_LEG`, `NOT_A_DRIVER`, `NOT_A_PASSENGER`, `NOT_A_SENSOR`, `NOT_A_WORKER` | 422 | Viajes y recorrido |
+| `QR_INVALID`, `QR_SIGNATURE_INVALID`, `QR_CERTIFICATE_INVALID`, `QR_CERTIFICATE_EXPIRED`, `QR_EXPIRED`, `QR_REVOKED`, `QR_USER_INACTIVE`, `QR_SCAN_TIME_INVALID`, `QR_SCAN_TOO_OLD`, `QR_DEVICE_KEY_INVALID` | 422 | QR (§4.5) |
+| `SETTING_OUT_OF_RANGE`, `APK_INVALID`, `APK_REQUIRED`, `APK_VERSION_MISMATCH`, `VERSION_CODE_TOO_LOW` | 422 | |
+| `TOO_MANY_REQUESTS` | 429 | Demasiadas solicitudes o mensajes sin cuenta |
+| `SERVER_ERROR` | 500 | Error interno |

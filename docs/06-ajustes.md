@@ -25,7 +25,6 @@ Cada ajuste tiene un **nombre** y una **explicación de una línea** (`descripti
 | `read_notice_retention_days` | Días de conservación de los avisos leídos | Pasado ese plazo los avisos leídos se borran. | entero | `90` | 1–3650 |
 | `activation_code_ttl_days` | Validez del código de activación (días) | Plazo para activar una cuenta registrada por un superior. | entero | `7` | 1–90 |
 | `access_recovery_ttl_hours` | Validez de una solicitud "Olvidé algo" (horas) | Pasado ese plazo sin aprobarse, la solicitud caduca. | entero | `72` | 1–720 |
-| `boarding_pass_ttl_seconds` | Validez del código QR de subida (s) | El código se renueva solo mientras se muestra. | entero | `120` | 30–3600 |
 | `access_token_ttl_minutes` | Validez del token de acceso (min) | La app lo renueva sola sin pedir la contraseña. | entero | `30` | 5–240 |
 | `refresh_token_ttl_days` | Validez del token de renovación (días) | Tiempo máximo de una sesión sin volver a entrar. | entero | `90` | 1–365 |
 | `username_reuse_block_days` | Días de reserva de un nombre de usuario abandonado | Nadie más puede usarlo durante ese tiempo. | entero | `30` | 0–365 |

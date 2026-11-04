@@ -13,7 +13,7 @@ class Controller extends BaseController
      * sus atributos y relaciones.
      *
      * Las reglas se escriben con las claves de JSON:API, por ejemplo
-     * "attributes.firstName" o "relationships.rank.data.id", y los errores
+     * "attributes.firstName" o "relationships.itinerary.data.id", y los errores
      * se devuelven con source.pointer = /data/attributes/firstName.
      *
      * @return array El objeto "data" validado.

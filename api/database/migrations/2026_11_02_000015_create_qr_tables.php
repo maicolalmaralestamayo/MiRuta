@@ -27,7 +27,9 @@ class CreateQrTables extends Migration
             $table->id();
             $table->foreignId('user_id')->constrained();
             $table->char('nonce', 16)->comment('8 bytes en hexadecimal');
-            $table->dateTime('expires_at');
+            $table->string('purpose', 30)->nullable()->comment('boarding o itinerary_assignment');
+            $table->unsignedBigInteger('reference_id')->nullable()->comment('Subida (trip_boardings) o pertenencia (workers) que lo usó');
+            $table->dateTime('expires_at')->comment('Hora del QR + 120 s + plazo de sincronización sin conexión');
             $table->timestamps();
             $table->softDeletes();
             $table->unique(['user_id', 'nonce']);

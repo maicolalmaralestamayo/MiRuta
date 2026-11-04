@@ -106,6 +106,32 @@ class ConversationController extends Controller
     }
 
     /**
+     * Borrar un mensaje: el propio, o el de otro con chat.delete_messages
+     * sobre la Entidad (o el itinerario) de la conversación.
+     */
+    public function destroyMessage(Request $request, $id)
+    {
+        $user = $request->user();
+        $message = ConversationMessage::whereIn('conversation_id', $this->chats->visibleConversations($user)->select('conversations.id'))->find($id);
+
+        if (! $message) {
+            throw new JsonApiException(404, 'NOT_FOUND', 'No encontrado', 'El mensaje no existe o no puede verlo.');
+        }
+
+        if ((int) $message->user_id !== (int) $user->id) {
+            $conversation = Conversation::find($message->conversation_id);
+            app(\App\Services\Permissions::class)->authorize($user, 'chat.delete_messages',
+                $conversation->entity_id ? (int) $conversation->entity_id : null,
+                $conversation->itinerary_id ? (int) $conversation->itinerary_id : null,
+                'Solo puede borrar sus propios mensajes.');
+        }
+
+        $message->delete();
+
+        return response('', 204);
+    }
+
+    /**
      * Cerrar o reabrir (attributes.closed). Quien la abrió o quien la recibe.
      */
     public function update(Request $request, $id)

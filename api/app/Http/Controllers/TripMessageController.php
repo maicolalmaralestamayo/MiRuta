@@ -43,4 +43,27 @@ class TripMessageController extends Controller
 
         return JsonApiResponse::make((new Document($request))->resource($message->fresh()), 201);
     }
+
+    /**
+     * Borrar un mensaje: el propio, o el de otro con chat.delete_messages
+     * sobre el itinerario del viaje.
+     */
+    public function destroy(Request $request, Chats $chats, \App\Services\Trips $trips, $id)
+    {
+        $user = $request->user();
+        $message = TripMessage::whereIn('trip_id', $trips->visibleTo($user)->select('id'))->find($id);
+
+        if (! $message) {
+            throw new \App\JsonApi\JsonApiException(404, 'NOT_FOUND', 'No encontrado', 'El mensaje no existe o no puede verlo.');
+        }
+
+        if ((int) $message->user_id !== (int) $user->id) {
+            $itineraryId = (int) \App\Models\Trip::whereKey($message->trip_id)->value('itinerary_id');
+            app(\App\Services\Permissions::class)->authorize($user, 'chat.delete_messages', null, $itineraryId, 'Solo puede borrar sus propios mensajes.');
+        }
+
+        $message->delete();
+
+        return response('', 204);
+    }
 }

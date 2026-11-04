@@ -12,7 +12,7 @@ class QrNonce extends Model
 {
     use SoftDeletes;
 
-    protected $fillable = ['user_id', 'nonce', 'expires_at'];
+    protected $fillable = ['user_id', 'nonce', 'purpose', 'reference_id', 'expires_at'];
 
     protected $casts = ['expires_at' => 'datetime'];
 }

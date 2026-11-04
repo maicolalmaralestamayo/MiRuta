@@ -19,6 +19,7 @@ class StatisticsTest extends TestCase
     private $driver;
     private $member;
     private $trip;
+    private $outbound;
 
     protected function setUp(): void
     {
@@ -43,7 +44,12 @@ class StatisticsTest extends TestCase
             'ended_at' => Carbon::create(2026, 11, 5, 17, 40), 'started_by' => $this->driver->id]);
         $return = TripLeg::create(['trip_id' => $this->trip->id, 'direction' => 'return', 'started_at' => Carbon::create(2026, 11, 6, 6),
             'ended_at' => Carbon::create(2026, 11, 6, 6, 50), 'started_by' => $this->driver->id]);
-        TripBoarding::create(['trip_leg_id' => $return->id, 'worker_id' => $this->member->id, 'method' => 'qr', 'children_count' => 1, 'boarded_at' => Carbon::create(2026, 11, 6, 6, 5)]);
+        $boarding = TripBoarding::create(['trip_leg_id' => $return->id, 'worker_id' => $this->member->id, 'method' => 'qr', 'children_count' => 1, 'boarded_at' => Carbon::create(2026, 11, 6, 6, 5)]);
+        // Un hijo con derecho que sube y otro que no viaja.
+        $child = $this->createChild($this->member);
+        $this->createChild($this->member, '2019-02-02');
+        \App\Models\TripBoardingChild::create(['trip_boarding_id' => $boarding->id, 'trip_leg_id' => $return->id, 'child_id' => $child->id]);
+        $this->outbound = $outbound;
         foreach ([23.10, 23.11, 23.12] as $index => $latitude) {
             TripPosition::create(['trip_leg_id' => $outbound->id, 'worker_id' => $this->driver->id, 'latitude' => $latitude, 'longitude' => -82.3, 'recorded_at' => Carbon::create(2026, 11, 5, 17, 10 + $index * 10)]);
         }
@@ -107,10 +113,36 @@ class StatisticsTest extends TestCase
 
         $rows = $this->statistic($this->chief, 'children-transported')['data']['attributes']['rows'];
         $this->assertSame(1, $rows[0]['children']);
+        $this->assertSame(1, $rows[0]['distinctChildren']);
+        $this->assertSame(2, $rows[0]['eligibleChildren']);
 
         $rows = $this->statistic($this->chief, 'occupancy')['data']['attributes']['rows'];
         $this->assertEquals(200.0, $rows[0]['expectedOccupancy']);
         $this->assertEquals(100.0, $rows[0]['realOccupancy']);
+    }
+
+    public function testTrabajadoresQueViajanFueraDeSuItinerario()
+    {
+        $otherItinerary = $this->createItinerary('Ruta Oeste');
+        $visitor = $this->joinItinerary($this->createWorker(), $otherItinerary);
+        $foreign = $this->createWorker([], $this->createEntity('OTRA'));
+        TripBoarding::create(['trip_leg_id' => $this->outbound->id, 'worker_id' => $visitor->id, 'method' => 'qr', 'outsider' => 'itinerary', 'boarded_at' => Carbon::create(2026, 11, 5, 17, 15)]);
+        TripBoarding::create(['trip_leg_id' => $this->outbound->id, 'worker_id' => $foreign->id, 'method' => 'manual', 'outsider' => 'entity', 'boarded_at' => Carbon::create(2026, 11, 5, 17, 16)]);
+
+        $json = $this->statistic($this->chief, 'outsider-travellers');
+        $this->assertResponseOk();
+        $rows = $json['data']['attributes']['rows'];
+        $this->assertCount(2, $rows);
+        $byType = array_column($rows, null, 'outsider');
+        $this->assertSame('Ruta Oeste', $byType['De otro itinerario']['ownItinerary']);
+        $this->assertSame('Ruta Este', $byType['De otro itinerario']['itinerary']);
+        $this->assertSame('OTRA', $byType['De otra Entidad']['entity']);
+        $this->assertSame(1, $byType['De otra Entidad']['trips']);
+
+        // El chofer la ve de sus viajes; un trabajador, no.
+        $this->assertCount(2, $this->statistic($this->driver, 'outsider-travellers')['data']['attributes']['rows']);
+        $this->statistic($this->member, 'outsider-travellers');
+        $this->assertJsonApiError(403, 'FORBIDDEN');
     }
 
     public function testDistribucionDeTrabajadores()

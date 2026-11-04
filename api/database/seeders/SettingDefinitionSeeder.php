@@ -27,7 +27,7 @@ class SettingDefinitionSeeder extends Seeder
     {
         // Ajustes que ya no existen (versiones anteriores).
         SettingDefinition::whereIn('key', ['password_forbid_personal_data', 'password_forbid_common', 'password_expiry_warning_days',
-            'activation_code_ttl_days', 'rank_icon_max_kb'])->delete();
+            'activation_code_ttl_days', 'rank_icon_max_kb', 'boarding_pass_ttl_seconds'])->delete();
 
         foreach ($this->appSettings() as $setting) {
             $this->save($setting + ['level' => self::APP, 'user_overridable' => false]);
@@ -56,8 +56,6 @@ class SettingDefinitionSeeder extends Seeder
                 'Pasado ese plazo los avisos leídos se borran.'),
             $this->integer('access_recovery_ttl_hours', 'Validez de una solicitud "Olvidé algo" (horas)', 72, 1, 720,
                 'Pasado ese plazo sin aprobarse, la solicitud caduca.'),
-            $this->integer('boarding_pass_ttl_seconds', 'Validez del código QR de subida (s)', 120, 30, 3600,
-                'El código se renueva solo mientras se muestra.'),
             $this->integer('access_token_ttl_minutes', 'Validez del token de acceso (min)', 30, 5, 240,
                 'La app lo renueva sola sin pedir la contraseña.'),
             $this->integer('refresh_token_ttl_days', 'Validez del token de renovación (días)', 90, 1, 365,

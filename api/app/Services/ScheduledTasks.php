@@ -29,6 +29,7 @@ class ScheduledTasks
         'chats:purge-expired' => '02:10',
         'workers:inactivity' => '02:20',
         'access-recoveries:expire' => 'hour',
+        'qr:purge-nonces' => 'hour',
         'passwords:warn-expiry' => '07:00',
     ];
 

@@ -22,6 +22,7 @@ class Kernel extends ConsoleKernel
         Commands\ExpireAccessRecoveries::class,
         Commands\WarnPasswordExpiry::class,
         Commands\NotifyTripDelays::class,
+        Commands\PurgeQrNonces::class,
     ];
 
     /**
