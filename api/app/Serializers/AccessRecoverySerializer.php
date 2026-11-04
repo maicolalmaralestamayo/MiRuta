@@ -6,8 +6,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 
 /**
- * Solicitud "No puedo entrar". El Administrador ve todos los datos; la
- * instalación que la pidió ve el estado y, si se aprobó, el usuario.
+ * Solicitud «Olvidé algo». Quien la gestiona ve todos los datos; la
+ * instalación que la pidió ve el estado y, si se aprobó, lo que pidió
+ * (usuario y contraseña propuesta).
  */
 class AccessRecoverySerializer extends Serializer
 {
@@ -27,28 +28,34 @@ class AccessRecoverySerializer extends Serializer
         ];
 
         $viewer = $request->user();
+        $approved = $recovery->status === 'approved';
+        // Solo lo que se pidió, mientras está aprobada (docs/11 §11.7).
+        $granted = [];
 
-        if ($viewer && $viewer->isAdmin()) {
+        if ($approved && $recovery->forgot_username && $recovery->user) {
+            $granted['username'] = $recovery->user->username;
+        }
+
+        if ($approved && $recovery->forgot_password && ($password = $recovery->proposedPassword())) {
+            $granted['password'] = $password;
+        }
+
+        if ($viewer && app(\App\Services\Permissions::class)->can($viewer, 'access_recoveries.manage')) {
             return $attributes + [
-                'entityAbbreviation' => $recovery->entity_abbreviation,
-                'pass' => $recovery->pass,
+                'identityCard' => $recovery->identityCard(),
                 'phone' => $recovery->phone(),
-                'matched' => $recovery->worker_id !== null,
+                'matched' => $recovery->user_id !== null,
                 'resolvedAt' => $this->date($recovery->resolved_at),
-            ];
+            ] + $granted;
         }
 
-        if ($recovery->status === 'approved' && $recovery->forgot_username && $recovery->worker && $recovery->worker->user) {
-            $attributes['username'] = $recovery->worker->user->username;
-        }
-
-        return $attributes;
+        return $attributes + $granted;
     }
 
     public function toOneRelationships(): array
     {
         return [
-            'worker' => ['workers', 'worker_id', 'worker'],
+            'user' => ['users', 'user_id', 'user'],
             'installation' => ['installations', 'installation_id', 'installation'],
             'resolvedBy' => ['users', 'resolved_by', 'resolver'],
         ];

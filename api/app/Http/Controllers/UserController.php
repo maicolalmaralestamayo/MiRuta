@@ -64,6 +64,11 @@ class UserController extends Controller
             TokenController::linkInstallation($installation, $user);
         }
 
+        // La respuesta es para quien se acaba de registrar: ve sus propios datos.
+        $request->setUserResolver(function () use ($user) {
+            return $user;
+        });
+
         return JsonApiResponse::make((new Document($request))->resource($user->fresh()), 201, [
             'Location' => url('api/v1/users/'.$user->id),
         ]);

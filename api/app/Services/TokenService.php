@@ -168,6 +168,6 @@ class TokenService
 
     private function revoked(): JsonApiException
     {
-        return new JsonApiException(401, 'TOKEN_REVOKED', 'Token revocado', 'La sesión se cerró. Inicia sesión de nuevo.');
+        return new JsonApiException(401, 'TOKEN_REVOKED', 'Token revocado', 'La sesión se cerró. Inicie sesión de nuevo.');
     }
 }

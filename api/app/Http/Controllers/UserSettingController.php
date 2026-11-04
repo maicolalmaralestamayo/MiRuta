@@ -60,7 +60,7 @@ class UserSettingController extends Controller
     }
 
     /**
-     * Vuelve al valor de su Entidad (o al de la app).
+     * Vuelve al heredado (parada, itinerario, Entidad o app).
      */
     public function destroy(Request $request, string $id)
     {
@@ -88,8 +88,8 @@ class UserSettingController extends Controller
             'id' => $definition->key,
             'attributes' => [
                 'value' => $this->settings->effectiveRaw($definition, $user),
-                // Lo que vale si quita el suyo: el de su Entidad o el de la app.
-                'inheritedValue' => $this->settings->inheritedRaw($definition, $user->entityId()),
+                // Lo que vale si quita el suyo: el de su Entidad (si pertenece a una sola) o el de la app.
+                'inheritedValue' => $this->settings->inheritedRaw($definition, $user->singleEntityId()),
                 'isCustom' => $isCustom,
             ],
             'relationships' => [

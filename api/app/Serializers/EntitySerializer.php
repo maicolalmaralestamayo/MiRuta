@@ -16,6 +16,10 @@ class EntitySerializer extends NomenclatorSerializer
     {
         return ['abbreviation' => $entity->abbreviation, 'number' => $entity->number]
             + parent::attributes($entity, $request)
-            + ['active' => ! $entity->trashed()];
+            + [
+                'imageUrl' => $entity->image_path ? url($entity->image_path) : null,
+                'active' => ! $entity->trashed(),
+                'workerCount' => \App\Models\Worker::where('entity_id', $entity->id)->count(),
+            ];
     }
 }

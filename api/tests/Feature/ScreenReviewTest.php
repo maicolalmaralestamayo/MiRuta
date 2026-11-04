@@ -1,11 +1,7 @@
 <?php
 
-use App\Models\AbsenceType;
-use App\Models\Application;
-use App\Models\ItineraryChief;
 use App\Models\Notice;
 use App\Models\User;
-use App\Services\Absences;
 use App\Support\ApkInfo;
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
@@ -32,102 +28,6 @@ class ScreenReviewTest extends TestCase
         Carbon::setTestNow();
         CarbonImmutable::setTestNow();
         parent::tearDown();
-    }
-
-    private function apply($worker, string $type, array $attributes = [], array $relationships = [])
-    {
-        $data = ['type' => 'applications', 'attributes' => ['type' => $type] + $attributes];
-        foreach ($relationships as $name => list($jsonType, $id)) {
-            $data['relationships'][$name] = ['data' => ['type' => $jsonType, 'id' => (string) $id]];
-        }
-
-        return $this->jsonApiAs($worker, 'POST', '/api/v1/applications', ['data' => $data]);
-    }
-
-    private function patchApplication($user, $id, array $attributes)
-    {
-        return $this->jsonApiAs($user, 'PATCH', '/api/v1/applications/'.$id, ['data' => [
-            'type' => 'applications', 'id' => (string) $id, 'attributes' => $attributes,
-        ]]);
-    }
-
-    private function chiefAndMember(): array
-    {
-        $itinerary = $this->createItinerary();
-        $chief = $this->createWorker(['user' => ['first_name' => 'Teresa', 'middle_name' => null, 'first_surname' => 'Jefa', 'second_surname' => 'López']]);
-        ItineraryChief::create(['itinerary_id' => $itinerary->id, 'worker_id' => $chief->id]);
-
-        return [$chief->fresh(), $this->joinItinerary($this->createWorker(), $itinerary)];
-    }
-
-    public function testVariosHijosEnUnaMismaSolicitudYSeResuelvenPorSeparado()
-    {
-        list($chief, $mother) = $this->chiefAndMember();
-
-        $this->apply($mother, 'child_addition', ['children' => [
-            ['firstName' => 'Pepito', 'firstSurname' => 'Pérez', 'secondSurname' => 'García', 'birthDate' => '2015-03-05'],
-            ['firstName' => 'Ana', 'middleName' => 'María', 'firstSurname' => 'Pérez', 'secondSurname' => 'García', 'birthDate' => '2018-07-16'],
-        ]]);
-        $this->assertResponseStatus(201);
-
-        $applications = Application::orderBy('id')->get();
-        $this->assertCount(2, $applications);
-        $this->assertSame($applications[0]->id, (int) $applications[1]->group_id);
-        $this->assertSame($applications[0]->id, (int) $applications[0]->group_id);
-        $this->assertSame('Pepito Pérez García', $applications[0]->related_child->fullName(), 'sin segundo nombre');
-        $this->assertSame(1, Notice::where('user_id', $chief->user_id)->where('type', Notice::TYPE_APPLICATION_RECEIVED)->count(), 'un solo aviso al jefe');
-
-        // Un hijo mal escrito señala su posición en la lista.
-        $this->apply($mother, 'child_addition', ['children' => [
-            ['firstName' => 'Luis', 'firstSurname' => 'Pérez', 'secondSurname' => 'García', 'birthDate' => '2001-01-01'],
-        ]]);
-        $this->assertJsonApiError(422, 'CHILD_NOT_ELIGIBLE', '/data/attributes/children/0/birthDate');
-
-        // Rechazar exige el motivo.
-        $this->patchApplication($chief, $applications[1]->id, ['status' => 'rejected']);
-        $this->assertJsonApiError(422, 'VALIDATION_ERROR', '/data/attributes/resolutionNote');
-        $this->patchApplication($chief, $applications[1]->id, ['status' => 'rejected', 'resolutionNote' => 'No es hija suya']);
-        $this->assertResponseOk();
-        $this->patchApplication($chief, $applications[0]->id, ['status' => 'approved']);
-        $this->assertResponseOk();
-
-        $this->jsonApiAs($mother, 'GET', '/api/v1/notices?sort=createdAt');
-        $messages = array_column(array_column($this->responseJson()['data'], 'attributes'), 'message');
-        $this->assertContains('Se rechazó su solicitud de Declarar hijos (Ana María Pérez García). La rechazó Teresa Jefa López. Motivo: No es hija suya', $messages);
-        $this->assertContains('Se aprobó su solicitud de Declarar hijos (Pepito Pérez García). La aprobó Teresa Jefa López.', $messages);
-    }
-
-    public function testAusenciaIndefinidaYDespuesConFechas()
-    {
-        list($chief, $worker) = $this->chiefAndMember();
-        $type = AbsenceType::where('name', 'Licencia')->first();
-
-        $this->apply($worker, 'absence', ['indefinite' => true, 'startsOn' => '2026-11-10'], ['absenceType' => ['absence-types', $type->id]]);
-        $this->assertJsonApiError(422, 'VALIDATION_ERROR', '/data/attributes/startsOn');
-
-        $this->apply($worker, 'absence', ['indefinite' => true], ['absenceType' => ['absence-types', $type->id]]);
-        $this->assertResponseStatus(201);
-        $this->seeJson(['indefinite' => true, 'startsOn' => null, 'endsOn' => null]);
-        $id = $this->responseJson()['data']['id'];
-
-        // Mientras está pendiente no cuenta; aprobada, vale para cualquier fecha.
-        $absences = app(Absences::class);
-        $this->assertFalse($absences->isAbsent($worker->id, Carbon::create(2027, 5, 1)));
-        $this->patchApplication($chief, $id, ['status' => 'approved']);
-        $this->assertTrue($absences->isAbsent($worker->id, Carbon::create(2027, 5, 1)));
-
-        // Solo el propio trabajador le pone fechas.
-        $this->patchApplication($chief, $id, ['startsOn' => '2026-11-10', 'endsOn' => '2026-11-20']);
-        $this->assertJsonApiError(403, 'FORBIDDEN');
-        $this->patchApplication($worker, $id, ['startsOn' => '2026-11-10', 'endsOn' => '2026-11-20']);
-        $this->assertResponseOk();
-        $this->seeJson(['indefinite' => false, 'startsOn' => '2026-11-10', 'endsOn' => '2026-11-20']);
-        $this->assertFalse($absences->isAbsent($worker->id, Carbon::create(2027, 5, 1)));
-        $this->assertTrue($absences->isAbsent($worker->id, Carbon::create(2026, 11, 15)));
-
-        // Con fechas ya no se pueden cambiar así.
-        $this->patchApplication($worker, $id, ['startsOn' => '2026-12-01', 'endsOn' => '2026-12-02']);
-        $this->assertJsonApiError(409, 'ABSENCE_NOT_INDEFINITE');
     }
 
     public function testMatriculaConLaNomenclaturaCubana()

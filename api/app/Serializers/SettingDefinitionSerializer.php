@@ -34,6 +34,8 @@ class SettingDefinitionSerializer extends Serializer
             'maxSetting' => $definition->maxSettingDefinition ? $definition->maxSettingDefinition->key : null,
             'level' => $definition->level,
             'userOverridable' => $definition->user_overridable,
+            'itineraryLevel' => (bool) $definition->itinerary_level,
+            'stopLevel' => (bool) $definition->stop_level,
             'options' => $definition->options->map(function ($option) {
                 return ['value' => $option->value, 'name' => $option->name];
             })->values()->all(),

@@ -14,6 +14,13 @@ class ConversationTopicSerializer extends NomenclatorSerializer
 
     public function attributes(Model $topic, Request $request): array
     {
-        return parent::attributes($topic, $request) + ['recipient' => $topic->recipient];
+        $role = $topic->role;
+
+        return parent::attributes($topic, $request) + ['recipient' => $topic->recipient, 'roleName' => $role ? $role->name : null];
+    }
+
+    public function toOneRelationships(): array
+    {
+        return ['role' => ['roles', 'role_id', 'role']];
     }
 }

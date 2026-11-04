@@ -77,10 +77,10 @@ class TripPositionController extends TrackingController
         $leg = $this->findLeg($request, $data['relationships']['tripLeg']['data']['id']);
         $attributes = $data['attributes'];
 
-        $sensor = $request->user()->workerModel();
+        $sensor = $request->user()->workerIn(app(\App\Services\Trips::class)->entityOf($leg->trip));
 
         if (! $sensor) {
-            throw new \App\JsonApi\JsonApiException(422, 'NOT_A_SENSOR', 'Sin trabajador', 'Solo un trabajador puede compartir su ubicación como sensor.');
+            throw new \App\JsonApi\JsonApiException(422, 'NOT_A_SENSOR', 'Sin pertenencia', 'Solo un trabajador de la Entidad del viaje puede compartir su ubicación como sensor.');
         }
 
         return $this->tracking->addPosition(

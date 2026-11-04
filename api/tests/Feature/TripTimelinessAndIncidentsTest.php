@@ -59,7 +59,7 @@ class TripTimelinessAndIncidentsTest extends TestCase
     private function createTripAt(Carbon $departsAt): Trip
     {
         return Trip::create([
-            'itinerary_id' => $this->itinerary->id, 'vehicle_id' => $this->createVehicle()->id, 'driver_id' => $this->driver->driverId(),
+            'itinerary_id' => $this->itinerary->id, 'vehicle_id' => $this->createVehicle()->id, 'driver_id' => $this->driver->id,
             'departs_at' => $departsAt, 'returns_at' => $departsAt->copy()->addHours(10),
             'status' => Trip::STATUS_CONFIRMED, 'created_by' => $this->transportChief->user_id,
         ]);

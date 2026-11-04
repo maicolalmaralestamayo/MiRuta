@@ -11,18 +11,18 @@
 $router->group(['prefix' => 'api/v1', 'middleware' => 'jsonapi'], function () use ($router) {
     // Públicas
     $router->post('users', 'UserController@store');
+    $router->get('registration-status', 'UserController@registrationStatus');
+    $router->get('username-suggestion', 'UserController@usernameSuggestion');
+    $router->get('password-suggestion', 'UserController@passwordSuggestion');
     $router->post('tokens', 'TokenController@store');
     $router->post('tokens/refresh', 'TokenController@refresh');
-    $router->post('activations', 'ActivationController@store');
     $router->post('installations', 'InstallationController@store');
     $router->get('password-policy', 'PasswordPolicyController@show');
-    $router->get('ranks', 'RankController@index');
-    $router->get('ranks/{id}', 'RankController@show');
     $router->get('conversation-topics', 'ConversationTopicController@index');
     $router->get('conversation-topics/{id}', 'ConversationTopicController@show');
     $router->get('app-versions/latest', 'AppVersionController@latest');
 
-    // Mantenimiento del servidor (Administrador o clave de mantenimiento)
+    // Mantenimiento del servidor (maintenance.run o clave de mantenimiento)
     $router->group(['middleware' => 'maintenance'], function () use ($router) {
         $router->get('server-status', 'MaintenanceController@status');
         $router->post('maintenance-runs', 'MaintenanceController@run');
@@ -32,7 +32,6 @@ $router->group(['prefix' => 'api/v1', 'middleware' => 'jsonapi'], function () us
     $router->group(['prefix' => 'guest', 'middleware' => 'installation'], function () use ($router) {
         $router->post('access-recoveries', 'AccessRecoveryController@store');
         $router->get('access-recoveries/{id}', 'AccessRecoveryController@showForInstallation');
-        $router->post('access-recoveries/{id}/password', 'AccessRecoveryController@setPassword');
         $router->get('conversations', 'GuestConversationController@index');
         $router->post('conversations', 'GuestConversationController@store');
         $router->get('conversations/{id}/messages', 'GuestConversationController@messages');
@@ -42,14 +41,15 @@ $router->group(['prefix' => 'api/v1', 'middleware' => 'jsonapi'], function () us
     // Con sesión o con instalación
     $router->get('entities/lookup', ['middleware' => 'auth.any', 'uses' => 'EntityController@lookup']);
 
-    // Con sesión, aunque la cuenta aún no pertenezca a una Entidad
+    // Con sesión (no hace falta pertenecer a una Entidad: cada uno ve y hace lo que le permiten sus roles)
     $router->group(['middleware' => 'auth'], function () use ($router) {
         $router->delete('tokens/current', 'TokenController@destroyCurrent');
         $router->delete('tokens', 'TokenController@destroyAll');
 
         $router->get('me', 'MeController@show');
         $router->patch('me', 'MeController@update');
-        $router->post('me/worker', 'MeController@joinEntity');
+        $router->post('me/entities', 'MeController@joinEntity');
+        $router->delete('me/entities/{entityId}', 'MeController@leaveEntity');
         $router->delete('me/photo', 'MeController@deletePhoto');
         $router->get('me/settings', 'UserSettingController@index');
         $router->patch('me/settings/{id}', 'UserSettingController@update');
@@ -64,10 +64,7 @@ $router->group(['prefix' => 'api/v1', 'middleware' => 'jsonapi'], function () us
         $router->patch('conversations/{id}', 'ConversationController@update');
         $router->get('conversations/{id}/messages', 'ConversationController@messages');
         $router->post('conversation-messages', 'ConversationController@storeMessage');
-    });
 
-    // Con sesión del Administrador o de un trabajador de una Entidad
-    $router->group(['middleware' => 'auth:member'], function () use ($router) {
         $router->get('map', 'MapController@show');
         $router->get('setting-definitions', 'SettingDefinitionController@index');
         $router->get('setting-definitions/{id}', 'SettingDefinitionController@show');
@@ -77,6 +74,12 @@ $router->group(['prefix' => 'api/v1', 'middleware' => 'jsonapi'], function () us
         $router->get('entity-settings', 'EntitySettingController@index');
         $router->patch('entity-settings/{id}', 'EntitySettingController@update');
         $router->delete('entity-settings/{id}', 'EntitySettingController@destroy');
+        $router->get('itinerary-settings', 'ItinerarySettingController@index');
+        $router->patch('itinerary-settings/{id}', 'ItinerarySettingController@update');
+        $router->delete('itinerary-settings/{id}', 'ItinerarySettingController@destroy');
+        $router->get('itinerary-stop-settings', 'ItinerarySettingController@stopIndex');
+        $router->patch('itinerary-stop-settings/{id}', 'ItinerarySettingController@stopUpdate');
+        $router->delete('itinerary-stop-settings/{id}', 'ItinerarySettingController@stopDestroy');
 
         $resource = function (string $uri, string $controller, array $only = ['index', 'show', 'store', 'update', 'destroy']) use ($router) {
             $routes = [
@@ -94,7 +97,6 @@ $router->group(['prefix' => 'api/v1', 'middleware' => 'jsonapi'], function () us
         };
 
         $resource('entities', 'EntityController');
-        $resource('ranks', 'RankController', ['store', 'update', 'destroy']);
         $resource('vehicle-types', 'VehicleTypeController');
         $resource('absence-types', 'AbsenceTypeController');
         $resource('conversation-topics', 'ConversationTopicController', ['store', 'update', 'destroy']);
@@ -103,14 +105,17 @@ $router->group(['prefix' => 'api/v1', 'middleware' => 'jsonapi'], function () us
         $resource('itinerary-stops', 'ItineraryStopController');
         $resource('vehicles', 'VehicleController');
         $resource('users', 'AccountController', ['index', 'show', 'update']);
-        $resource('workers', 'WorkerController', ['index', 'show', 'store', 'update']);
-        $router->post('workers/{id}/activation-codes', 'WorkerController@activationCode');
-        $resource('itinerary-chiefs', 'ItineraryChiefController', ['index', 'show', 'destroy']);
-        $resource('drivers', 'DriverController', ['index', 'show', 'destroy']);
-        $resource('transport-chiefs', 'TransportChiefController', ['index', 'show', 'destroy']);
+        $resource('workers', 'WorkerController');
+        $router->delete('workers/{id}/itinerary', 'WorkerController@removeItinerary');
+        $resource('roles', 'RoleController');
+        $router->get('operations', 'OperationCatalogController@index');
+        $resource('worker-roles', 'WorkerRoleController', ['index', 'show', 'store', 'destroy']);
         $resource('applications', 'ApplicationController', ['index', 'show', 'store', 'update']);
-        $resource('children', 'ChildController', ['index', 'show']);
-        $resource('trips', 'TripController', ['index', 'show', 'store', 'update']);
+        $resource('absences', 'AbsenceController');
+        $resource('children', 'ChildController');
+        $router->delete('children/{id}/photo', 'ChildController@deletePhoto');
+        $router->delete('{resource:entities|itineraries|stops}/{id}/image', 'ImageController@destroy');
+        $resource('trips', 'TripController');
         $router->get('trips/{id}/passengers', 'TripPassengerController@index');
         $resource('trip-completions', 'TripCompletionController', ['index', 'store']);
         $router->post('operations', 'OperationController@store');
@@ -140,10 +145,8 @@ $router->group(['prefix' => 'api/v1', 'middleware' => 'jsonapi'], function () us
 
 $router->group(['prefix' => 'api/v1', 'middleware' => ['jsonapi:multipart', 'auth']], function () use ($router) {
     $router->post('me/photo', 'MeController@uploadPhoto');
-});
-
-$router->group(['prefix' => 'api/v1', 'middleware' => ['jsonapi:multipart', 'auth:member']], function () use ($router) {
-    $router->post('ranks/{id}/icon', 'RankController@uploadIcon');
+    $router->post('children/{id}/photo', 'ChildController@uploadPhoto');
+    $router->post('{resource:entities|itineraries|stops}/{id}/image', 'ImageController@upload');
     $router->post('app-versions', 'AppVersionController@store');
 });
 

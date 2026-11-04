@@ -13,15 +13,17 @@ use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\Request;
 
 /**
- * "No puedo entrar" (docs/08-version-2.md §8.6).
+ * «Olvidé algo» (docs/11 §11.7): carné y teléfono.
  *
- * - La instalación (sin sesión) la crea, la consulta y, si se aprobó y
- *   olvidó la contraseña, elige una nueva.
- * - El Administrador las lista y las aprueba o rechaza.
+ * - La instalación (sin sesión) la crea y la consulta: una vez aprobada ve
+ *   solo lo que pidió (usuario, contraseña propuesta o ambos) y la
+ *   solicitud se da por terminada. Al entrar, debe cambiar la contraseña.
+ * - Quien tiene access_recoveries.manage (el Administrador) las lista y las
+ *   aprueba o rechaza; al aprobar ve también lo que hay que comunicar.
  */
 class AccessRecoveryController extends Controller
 {
-    const INCLUDABLE = ['worker', 'worker.user', 'worker.entity', 'worker.itinerary', 'installation'];
+    const INCLUDABLE = ['user', 'installation'];
 
     /** @var AccessRecoveries */
     private $recoveries;
@@ -36,8 +38,7 @@ class AccessRecoveryController extends Controller
         $data = $this->validateResource($request, 'access-recoveries', [
             'attributes.forgotUsername' => ['required', 'boolean'],
             'attributes.forgotPassword' => ['required', 'boolean'],
-            'attributes.entityAbbreviation' => ['required', 'string', 'max:15'],
-            'attributes.pass' => ['required', 'integer', 'min:1', 'max:4294967295'],
+            'attributes.identityCard' => ['required', 'string', 'max:20'],
             'attributes.phone' => ['required', 'string', 'regex:/^\+?[0-9 ()\-]{7,20}$/'],
         ]);
         $attributes = $data['attributes'];
@@ -46,8 +47,7 @@ class AccessRecoveryController extends Controller
             $request->attributes->get('installation'),
             (bool) $attributes['forgotUsername'],
             (bool) $attributes['forgotPassword'],
-            $attributes['entityAbbreviation'],
-            (int) $attributes['pass'],
+            $attributes['identityCard'],
             trim($attributes['phone'])
         );
 
@@ -61,26 +61,9 @@ class AccessRecoveryController extends Controller
     {
         $recovery = $this->recoveries->readByInstallation($this->ownOrFail($request, $id));
         $document = (new Document($request))->resource($recovery);
-        $this->recoveries->completeIfOnlyUsername($recovery);
+        $this->recoveries->completeAfterReading($recovery);
 
         return JsonApiResponse::make($document);
-    }
-
-    /**
-     * Contraseña nueva tras la aprobación. Devuelve tokens para entrar.
-     */
-    public function setPassword(Request $request, TokenService $tokens, $id)
-    {
-        $recovery = $this->ownOrFail($request, $id);
-        $data = $this->validateResource($request, 'access-recoveries', [
-            'attributes.password' => ['required', 'string'],
-            'attributes.deviceName' => ['nullable', 'string', 'max:100'],
-        ]);
-
-        $user = $this->recoveries->setPassword($recovery, $data['attributes']['password']);
-        TokenController::linkInstallation($recovery->installation, $user);
-
-        return TokenController::respond($tokens->issue($user, isset($data['attributes']['deviceName']) ? $data['attributes']['deviceName'] : null));
     }
 
     /**
@@ -138,8 +121,6 @@ class AccessRecoveryController extends Controller
 
     private function ensureAdmin(Request $request): void
     {
-        if (! $request->user()->isAdmin()) {
-            throw new AuthorizationException();
-        }
+        app(\App\Services\Permissions::class)->authorize($request->user(), 'access_recoveries.manage');
     }
 }

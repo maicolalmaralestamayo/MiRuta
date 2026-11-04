@@ -23,7 +23,7 @@ abstract class TrackingController extends Controller
         $leg = $this->visibleLegs($request)->find($id);
 
         if (! $leg) {
-            throw new JsonApiException(404, 'NOT_FOUND', 'No encontrado', 'El trayecto no existe o no puedes verlo.', ['pointer' => '/data/relationships/tripLeg']);
+            throw new JsonApiException(404, 'NOT_FOUND', 'No encontrado', 'El trayecto no existe o no puede verlo.', ['pointer' => '/data/relationships/tripLeg']);
         }
 
         return $leg;

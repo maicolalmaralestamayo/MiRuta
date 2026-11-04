@@ -65,7 +65,7 @@ class GuestConversationTest extends TestCase
 
     public function testSoloAlDesarrollador()
     {
-        $this->open([], ConversationTopic::where('recipient', 'transport_chiefs')->first());
+        $this->open([], ConversationTopic::where('recipient', 'role')->first());
 
         $this->assertJsonApiError(422, 'VALIDATION_ERROR', '/data/relationships/topic');
     }

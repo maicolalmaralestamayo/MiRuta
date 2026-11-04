@@ -52,7 +52,7 @@ class TripLegController extends TrackingController
         $trip = $trips->visibleTo($request->user())->find($data['relationships']['trip']['data']['id']);
 
         if (! $trip) {
-            throw new JsonApiException(404, 'NOT_FOUND', 'No encontrado', 'El viaje no existe o no puedes verlo.');
+            throw new JsonApiException(404, 'NOT_FOUND', 'No encontrado', 'El viaje no existe o no puede verlo.');
         }
 
         $leg = $tracking->start($trip, $data['attributes']['direction'], $request->user());

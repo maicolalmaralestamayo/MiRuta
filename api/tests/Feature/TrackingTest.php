@@ -31,7 +31,7 @@ class TrackingTest extends TestCase
         $this->driver = $this->createDriver();
         $vehicle = Vehicle::create(['entity_id' => $this->defaultEntity()->id, 'vehicle_type_id' => VehicleType::first()->id, 'plate' => 'B1', 'seats' => 10, 'standing_capacity' => 5]);
         $this->trip = Trip::create([
-            'itinerary_id' => $this->itinerary->id, 'vehicle_id' => $vehicle->id, 'driver_id' => $this->driver->driverId(),
+            'itinerary_id' => $this->itinerary->id, 'vehicle_id' => $vehicle->id, 'driver_id' => $this->driver->id,
             'departs_at' => Carbon::create(2026, 11, 3, 17), 'returns_at' => Carbon::create(2026, 11, 4, 6, 30),
             'status' => Trip::STATUS_CONFIRMED, 'created_by' => $this->createTransportChief()->id,
         ]);

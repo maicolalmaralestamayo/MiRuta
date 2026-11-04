@@ -14,7 +14,7 @@ class SettingDefinitionSeeder extends Seeder
     /** Solo el Administrador, para toda la app. */
     const APP = 'app';
 
-    /** El Administrador fija el valor de la app y cada Jefe de Transporte el de su Entidad. */
+    /** El valor de la app (settings.app) y el de cada Entidad (settings.entity). */
     const ENTITY = 'entity';
 
     const TEMPLATE_DEPARTURE = 'Viaje de ida: {fecha_salida} a las {hora_salida} desde {punto_salida}. {tipo} {matricula}, chofer {chofer}, capacidad {capacidad}. Viaje de regreso: {fecha_regreso} a las {hora_regreso} desde {punto_regreso}.';
@@ -26,7 +26,8 @@ class SettingDefinitionSeeder extends Seeder
     public function run()
     {
         // Ajustes que ya no existen (versiones anteriores).
-        SettingDefinition::whereIn('key', ['password_forbid_personal_data', 'password_forbid_common', 'password_expiry_warning_days'])->delete();
+        SettingDefinition::whereIn('key', ['password_forbid_personal_data', 'password_forbid_common', 'password_expiry_warning_days',
+            'activation_code_ttl_days', 'rank_icon_max_kb'])->delete();
 
         foreach ($this->appSettings() as $setting) {
             $this->save($setting + ['level' => self::APP, 'user_overridable' => false]);
@@ -53,8 +54,6 @@ class SettingDefinitionSeeder extends Seeder
                 'Desde el regreso; 0 = se borra en cuanto el viaje termina.'),
             $this->integer('read_notice_retention_days', 'Días de conservación de los avisos leídos', 90, 1, 3650,
                 'Pasado ese plazo los avisos leídos se borran.'),
-            $this->integer('activation_code_ttl_days', 'Validez del código de activación (días)', 7, 1, 90,
-                'Plazo para activar una cuenta registrada por un superior.'),
             $this->integer('access_recovery_ttl_hours', 'Validez de una solicitud "Olvidé algo" (horas)', 72, 1, 720,
                 'Pasado ese plazo sin aprobarse, la solicitud caduca.'),
             $this->integer('boarding_pass_ttl_seconds', 'Validez del código QR de subida (s)', 120, 30, 3600,
@@ -101,10 +100,8 @@ class SettingDefinitionSeeder extends Seeder
             $this->integer('auto_boarding_samples', 'Posiciones seguidas para la subida automática', 3, 2, 20,
                 'Cuántas veces seguidas tiene que estar cerca.'),
             // Tamaños
-            $this->integer('photo_max_kb', 'Tamaño máximo de la foto de perfil (KB)', 2048, 100, 10240,
-                'Las fotos más grandes se rechazan.'),
-            $this->integer('rank_icon_max_kb', 'Tamaño máximo del ícono de jerarquía (KB)', 512, 50, 2048,
-                'Los íconos más grandes se rechazan.'),
+            $this->integer('photo_max_kb', 'Tamaño máximo de una foto o imagen (KB)', 2048, 100, 10240,
+                'Fotos de perfil y de los hijos, e imágenes de Entidades, itinerarios y paradas.'),
             $this->integer('app_max_mb', 'Tamaño máximo del APK de una actualización (MB)', 150, 10, 500,
                 'Los APK más grandes se rechazan.'),
             $this->integer('message_max_length', 'Longitud máxima de un mensaje de chat', 1000, 50, 5000,
@@ -286,8 +283,22 @@ class SettingDefinitionSeeder extends Seeder
         ];
     }
 
+    /**
+     * Ajustes que se pueden cambiar por itinerario (docs/11 §11.17): los del
+     * viaje y el recorrido.
+     */
+    const ITINERARY_LEVEL = [
+        'trip_delay_tolerance_minutes', 'route_deviation_m', 'trip_chat_retention_days', 'trip_auto_complete_delay_minutes',
+        'stop_detection_radius_m', 'inactivity_days', 'inactivity_warning_days', 'stop_min_dwell_seconds', 'stop_pass_speed_kmh',
+    ];
+
+    /** Y por parada de un itinerario. */
+    const STOP_LEVEL = ['stop_min_dwell_seconds', 'stop_pass_speed_kmh'];
+
     private function save(array $setting): void
     {
+        $setting['itinerary_level'] = in_array($setting['key'], self::ITINERARY_LEVEL, true);
+        $setting['stop_level'] = in_array($setting['key'], self::STOP_LEVEL, true);
         $options = isset($setting['options']) ? $setting['options'] : [];
         $minKey = isset($setting['min_key']) ? $setting['min_key'] : null;
         $maxKey = isset($setting['max_key']) ? $setting['max_key'] : null;

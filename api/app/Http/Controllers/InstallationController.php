@@ -69,8 +69,6 @@ class InstallationController extends Controller
 
     private function authorizeAdmin(Request $request): void
     {
-        if (! $request->user()->isAdmin()) {
-            throw new \Illuminate\Auth\Access\AuthorizationException();
-        }
+        app(\App\Services\Permissions::class)->authorize($request->user(), 'access_recoveries.manage');
     }
 }

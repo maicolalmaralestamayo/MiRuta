@@ -1,6 +1,5 @@
 <?php
 
-use App\Models\ItineraryChief;
 use App\Models\Trip;
 use App\Models\TripBoarding;
 use App\Models\TripLeg;
@@ -36,7 +35,7 @@ class StatisticsTest extends TestCase
         $vehicle = Vehicle::create(['entity_id' => $this->defaultEntity()->id, 'vehicle_type_id' => VehicleType::first()->id, 'plate' => 'B1', 'seats' => 1, 'standing_capacity' => 0]);
 
         $this->trip = Trip::create([
-            'itinerary_id' => $this->itinerary->id, 'vehicle_id' => $vehicle->id, 'driver_id' => $this->driver->driverId(),
+            'itinerary_id' => $this->itinerary->id, 'vehicle_id' => $vehicle->id, 'driver_id' => $this->driver->id,
             'departs_at' => Carbon::create(2026, 11, 5, 17), 'returns_at' => Carbon::create(2026, 11, 6, 6),
             'status' => Trip::STATUS_COMPLETED, 'created_by' => $this->chief->id,
         ]);
@@ -135,8 +134,7 @@ class StatisticsTest extends TestCase
         $this->assertJsonApiError(403, 'FORBIDDEN');
 
         // Un Jefe de otro itinerario no ve los viajes de este
-        $otherChief = $this->createWorker();
-        ItineraryChief::create(['itinerary_id' => $this->createItinerary('Ruta Oeste')->id, 'worker_id' => $otherChief->id]);
+        $otherChief = $this->createItineraryChief($this->createItinerary('Ruta Oeste'));
         $rows = $this->statistic($otherChief, 'trips-by-status')['data']['attributes']['rows'];
         $this->assertContains(['status' => 'completed', 'trips' => 0], $rows);
 

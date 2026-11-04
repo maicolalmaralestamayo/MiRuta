@@ -12,6 +12,13 @@ class ItinerarySerializer extends NomenclatorSerializer
         return 'itineraries';
     }
 
+    public function attributes(Model $itinerary, Request $request): array
+    {
+        return parent::attributes($itinerary, $request) + [
+            'imageUrl' => $itinerary->image_path ? url($itinerary->image_path) : null,
+        ];
+    }
+
     public function meta(Model $itinerary, Request $request): array
     {
         $departure = $itinerary->departureStop();

@@ -224,11 +224,12 @@ class AuthTest extends TestCase
         $this->assertSame(600, $this->responseJson()['data']['attributes']['expiresIn']);
     }
 
-    public function testCuentaSinActivarNoPuedeEntrar()
+    public function testCuentaDesactivadaNoPuedeEntrar()
     {
-        $this->createWorker(['user' => ['username' => null, 'password' => null]]);
+        $this->createWorker(['user' => ['username' => 'inactiva']]);
+        \App\Models\User::where('username', 'inactiva')->first()->delete();
 
-        $this->login('usuario');
+        $this->login('inactiva');
 
         $this->assertJsonApiError(401, 'INVALID_CREDENTIALS');
     }

@@ -39,7 +39,7 @@ class Chats
         $trip = $this->trips->visibleTo($user)->find($tripId);
 
         if (! $trip) {
-            throw new JsonApiException(404, 'NOT_FOUND', 'No encontrado', 'El viaje no existe o no puedes verlo.');
+            throw new JsonApiException(404, 'NOT_FOUND', 'No encontrado', 'El viaje no existe o no puede verlo.');
         }
 
         if ($trip->status !== Trip::STATUS_CONFIRMED) {

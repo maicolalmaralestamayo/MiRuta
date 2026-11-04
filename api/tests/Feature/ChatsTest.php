@@ -32,7 +32,7 @@ class ChatsTest extends TestCase
         $vehicle = $this->createVehicle(null, 10, 0);
 
         return Trip::create([
-            'itinerary_id' => $itinerary->id, 'vehicle_id' => $vehicle->id, 'driver_id' => $this->createDriver()->driverId(),
+            'itinerary_id' => $itinerary->id, 'vehicle_id' => $vehicle->id, 'driver_id' => $this->createDriver()->id,
             'departs_at' => Carbon::now()->addDay(), 'returns_at' => Carbon::now()->addDays(2), 'status' => $status,
             'created_by' => $this->createTransportChief()->user_id,
         ]);
@@ -93,14 +93,14 @@ class ChatsTest extends TestCase
         $transportChief = $this->createTransportChief();
         $admin = $this->createAdmin();
         $member = $this->joinItinerary($this->createWorker(), $itinerary);
-        $complaint = ConversationTopic::where('recipient', 'itinerary_chiefs')->where('name', 'Reportar una queja')->first();
+        $complaint = ConversationTopic::where('role_id', $this->role('Jefe de itinerario')->id)->where('name', 'Reportar una queja')->first();
         $idea = ConversationTopic::where('recipient', 'developer')->where('name', 'Dar ideas')->first();
 
         $this->jsonApiAs($member, 'POST', '/api/v1/conversations', ['data' => ['type' => 'conversations', 'relationships' => [
             'topic' => ['data' => ['type' => 'conversation-topics', 'id' => (string) $complaint->id]],
         ]]]);
         $this->assertResponseStatus(201);
-        $this->seeJson(['recipient' => 'itinerary_chiefs']);
+        $this->seeJson(['recipient' => 'role']);
         $conversationId = $this->responseJson()['data']['id'];
         $this->assertSame((string) $itinerary->id, $this->responseJson()['data']['relationships']['itinerary']['data']['id']);
 
@@ -116,7 +116,7 @@ class ChatsTest extends TestCase
         $this->assertJsonApiError(404, 'NOT_FOUND');
 
         // Las de los Jefes de Transporte solo las ven los de esa Entidad.
-        $toTransport = ConversationTopic::where('recipient', 'transport_chiefs')->first();
+        $toTransport = ConversationTopic::where('role_id', $this->role('Jefe de Transporte')->id)->first();
         $this->jsonApiAs($member, 'POST', '/api/v1/conversations', ['data' => ['type' => 'conversations', 'relationships' => [
             'topic' => ['data' => ['type' => 'conversation-topics', 'id' => (string) $toTransport->id]],
         ]]]);

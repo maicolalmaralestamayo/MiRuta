@@ -83,7 +83,7 @@ class EntitiesTest extends TestCase
         $foreignDriver = $this->createDriver([], $other);
         $foreignWorker = $this->createWorker([], $other);
         $foreignTrip = Trip::create([
-            'itinerary_id' => $foreignItinerary->id, 'vehicle_id' => $foreignVehicle->id, 'driver_id' => $foreignDriver->driverId(),
+            'itinerary_id' => $foreignItinerary->id, 'vehicle_id' => $foreignVehicle->id, 'driver_id' => $foreignDriver->id,
             'departs_at' => '2026-12-01 17:00', 'returns_at' => '2026-12-02 06:00', 'status' => 'confirmed', 'created_by' => $foreignWorker->user_id,
         ]);
         $own = $this->createItinerary('Ruta propia');
@@ -93,7 +93,6 @@ class EntitiesTest extends TestCase
             '/api/v1/stops/'.$foreignItinerary->itineraryStops()->value('stop_id'),
             '/api/v1/vehicles/'.$foreignVehicle->id,
             '/api/v1/workers/'.$foreignWorker->id,
-            '/api/v1/drivers/'.$foreignDriver->driverId(),
             '/api/v1/trips/'.$foreignTrip->id,
         ] as $uri) {
             $this->jsonApiAs($chief, 'GET', $uri);
@@ -119,6 +118,10 @@ class EntitiesTest extends TestCase
 
     public function testLoQueSeCreaEsDeSuEntidadYNoSeMezclaConOtras()
     {
+        // Roles configurables: aquí el Jefe de Transporte también gestiona itinerarios y paradas.
+        foreach (['itineraries.manage', 'stops.manage'] as $operation) {
+            $this->role('Jefe de Transporte')->permissions()->create(['operation' => $operation, 'scope' => 'entity']);
+        }
         $other = $this->createEntity('OTRA');
         $chief = $this->createTransportChief();
         $foreignDriver = $this->createDriver([], $other);
@@ -134,7 +137,7 @@ class EntitiesTest extends TestCase
 
         $this->jsonApiAs($chief, 'POST', '/api/v1/vehicles', ['data' => ['type' => 'vehicles', 'attributes' => ['plate' => 'B000001', 'seats' => 10, 'standingCapacity' => 0], 'relationships' => [
             'vehicleType' => ['data' => ['type' => 'vehicle-types', 'id' => (string) $type->id]],
-            'driver' => ['data' => ['type' => 'drivers', 'id' => (string) $foreignDriver->driverId()]],
+            'driver' => ['data' => ['type' => 'workers', 'id' => (string) $foreignDriver->id]],
         ]]]);
         $this->assertJsonApiError(422, 'ENTITY_MISMATCH', '/data/relationships/driver');
 
@@ -146,7 +149,7 @@ class EntitiesTest extends TestCase
         ], 'relationships' => [
             'itinerary' => ['data' => ['type' => 'itineraries', 'id' => (string) $itinerary->id]],
             'vehicle' => ['data' => ['type' => 'vehicles', 'id' => (string) $foreignVehicle->id]],
-            'driver' => ['data' => ['type' => 'drivers', 'id' => (string) $this->createDriver()->driverId()]],
+            'driver' => ['data' => ['type' => 'workers', 'id' => (string) $this->createDriver()->id]],
         ]]]);
         $this->assertJsonApiError(422, 'ENTITY_MISMATCH', '/data/relationships/vehicle');
 
@@ -174,6 +177,8 @@ class EntitiesTest extends TestCase
 
     public function testAjustesEnTresNiveles()
     {
+        // De partida los ajustes de la Entidad solo los cambia el Administrador; aquí se da settings.entity al Jefe de Transporte.
+        $this->role('Jefe de Transporte')->permissions()->create(['operation' => 'settings.entity', 'scope' => 'entity']);
         $admin = $this->createAdmin();
         $chief = $this->createTransportChief();
         $worker = $this->createWorker();

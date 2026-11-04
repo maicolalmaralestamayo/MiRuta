@@ -2,7 +2,7 @@
 
 return [
 
-    'version' => '2.2.0',
+    'version' => '3.0.0',
 
     /*
     |--------------------------------------------------------------------------
@@ -43,7 +43,7 @@ return [
     | Archivos subidos
     |--------------------------------------------------------------------------
     |
-    | Fotos de perfil e iconos de jerarquía. Se guardan dentro de public/ para
+    | Fotos (personas e hijos) e imágenes (Entidades, itinerarios y paradas). Se guardan dentro de public/ para
     | que el servidor web los sirva directamente.
     |
     */

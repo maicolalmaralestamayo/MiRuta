@@ -2,9 +2,11 @@
 
 use App\JsonApi\MediaType;
 use App\Models\Entity;
-use App\Models\Rank;
+use App\Models\Role;
 use App\Models\User;
 use App\Models\Worker;
+use App\Models\WorkerRole;
+use App\Support\IdentityCard;
 use App\Services\TokenService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Hash;
@@ -94,10 +96,24 @@ abstract class TestCase extends BaseTestCase
     }
 
     /**
-     * Cuenta activada. Contraseña: self::PASSWORD.
+     * Carné válido y distinto en cada llamada (nacimiento a partir de 1980).
+     */
+    protected function newIdentityCard(?string $sex = null, ?string $birthDate = null): string
+    {
+        self::$sequence++;
+        $birthDate = $birthDate ?: Carbon::create(1980, 1, 1)->addDays(self::$sequence)->toDateString();
+
+        return IdentityCard::make($birthDate, $sex ?: (self::$sequence % 2 ? 'F' : 'M'), self::$sequence);
+    }
+
+    /**
+     * Persona con cuenta. Contraseña: self::PASSWORD. Se puede indicar
+     * 'identity_card' (carné en claro).
      */
     protected function createUser(array $attributes = []): User
     {
+        $card = isset($attributes['identity_card']) ? $attributes['identity_card'] : $this->newIdentityCard();
+        unset($attributes['identity_card']);
         self::$sequence++;
         $user = new User();
         $user->forceFill(array_merge([
@@ -109,34 +125,50 @@ abstract class TestCase extends BaseTestCase
             'first_surname' => 'Apellido'.self::$sequence,
             'second_surname' => 'Otro',
             'is_admin' => false,
-        ], $attributes))->save();
+            'has_phone' => true,
+        ], IdentityCard::columns($card), $attributes))->save();
 
         return $user->fresh();
     }
 
     /**
-     * Trabajador (con su cuenta) en la Entidad de pruebas o la indicada.
-     * Los atributos de la cuenta van en $attributes['user'].
+     * Roles de partida (los crea el seeder si no existen).
+     */
+    protected function role(string $name): Role
+    {
+        if (! Role::exists()) {
+            (new \Database\Seeders\RoleSeeder())->run();
+        }
+
+        return Role::where('name', $name)->firstOrFail();
+    }
+
+    protected function assignRole(Worker $worker, string $roleName, ?int $itineraryId = null): WorkerRole
+    {
+        $workerRole = WorkerRole::create(['worker_id' => $worker->id, 'role_id' => $this->role($roleName)->id, 'itinerary_id' => $itineraryId]);
+        app(\App\Services\Permissions::class)->flush();
+
+        return $workerRole;
+    }
+
+    /**
+     * Pertenencia (con su persona) en la Entidad de pruebas o la indicada, con
+     * el rol Trabajador. Los atributos de la persona van en $attributes['user'];
+     * con $attributes['user_id'], se usa esa persona.
      */
     protected function createWorker(array $attributes = [], ?Entity $entity = null): Worker
     {
         $userAttributes = isset($attributes['user']) ? $attributes['user'] : [];
         unset($attributes['user']);
-        $user = $this->createUser($userAttributes);
+        $userId = isset($attributes['user_id']) ? $attributes['user_id'] : $this->createUser($userAttributes)->id;
         $entity = $entity ?: $this->defaultEntity();
-
-        if (! isset($attributes['rank_id'])) {
-            $rank = Rank::orderBy('sort_order')->first() ?: Rank::create(['name' => 'Trabajador civil', 'sort_order' => 17]);
-            $attributes['rank_id'] = $rank->id;
-        }
 
         $worker = new Worker();
         $worker->forceFill(array_merge([
-            'user_id' => $user->id,
+            'user_id' => $userId,
             'entity_id' => $entity->id,
-            'pass' => 1000 + self::$sequence,
-            'sex' => self::$sequence % 2 ? 'F' : 'M',
         ], $attributes))->save();
+        $this->assignRole($worker, 'Trabajador');
 
         return $worker->fresh();
     }
@@ -144,7 +176,7 @@ abstract class TestCase extends BaseTestCase
     protected function createTransportChief(array $attributes = [], ?Entity $entity = null): Worker
     {
         $worker = $this->createWorker($attributes, $entity);
-        \App\Models\TransportChief::create(['worker_id' => $worker->id]);
+        $this->assignRole($worker, 'Jefe de Transporte');
 
         return $worker->fresh();
     }
@@ -152,7 +184,7 @@ abstract class TestCase extends BaseTestCase
     protected function createDriver(array $attributes = [], ?Entity $entity = null): Worker
     {
         $worker = $this->createWorker($attributes, $entity);
-        \App\Models\Driver::create(['worker_id' => $worker->id]);
+        $this->assignRole($worker, 'Chofer');
 
         return $worker->fresh();
     }
@@ -160,9 +192,23 @@ abstract class TestCase extends BaseTestCase
     protected function createItineraryChief(\App\Models\Itinerary $itinerary, array $attributes = []): Worker
     {
         $worker = $this->joinItinerary($this->createWorker($attributes, Entity::find($itinerary->entity_id)), $itinerary);
-        \App\Models\ItineraryChief::create(['worker_id' => $worker->id, 'itinerary_id' => $itinerary->id]);
+        $this->assignRole($worker, 'Jefe de itinerario', $itinerary->id);
 
         return $worker->fresh();
+    }
+
+    /**
+     * Hijo declarado por la persona (o la persona de la pertenencia).
+     */
+    protected function createChild($parent, string $birthDate = '2018-05-05', array $attributes = []): \App\Models\Child
+    {
+        $child = new \App\Models\Child();
+        $child->forceFill(array_merge([
+            'first_name' => 'Niño'.(self::$sequence + 1), 'first_surname' => 'Apellido', 'second_surname' => 'Otro', 'active' => true,
+        ], IdentityCard::columns($this->newIdentityCard(null, $birthDate)), $attributes))->save();
+        \App\Models\ChildParent::create(['child_id' => $child->id, 'user_id' => $this->userOf($parent)->id]);
+
+        return $child->fresh();
     }
 
     protected function createAdmin(): User
@@ -197,7 +243,7 @@ abstract class TestCase extends BaseTestCase
         return $itinerary->fresh();
     }
 
-    protected function createVehicle(?\App\Models\Driver $driver = null, int $seats = 10, int $standing = 5, ?Entity $entity = null): \App\Models\Vehicle
+    protected function createVehicle(?Worker $driver = null, int $seats = 10, int $standing = 5, ?Entity $entity = null): \App\Models\Vehicle
     {
         $type = \App\Models\VehicleType::first() ?: \App\Models\VehicleType::create(['name' => 'Ómnibus']);
         self::$sequence++;
@@ -220,6 +266,7 @@ abstract class TestCase extends BaseTestCase
         $worker->itinerary_id = $itinerary->id;
         $worker->stop_id = $itinerary->itineraryStops()->where('position', $position)->value('stop_id');
         $worker->save();
+        app(\App\Services\Permissions::class)->flush();
 
         return $worker;
     }

@@ -22,6 +22,7 @@ class StopSerializer extends Serializer
             'latitude' => $stop->latitude,
             'longitude' => $stop->longitude,
             'address' => $stop->address(),
+            'imageUrl' => $stop->image_path ? url($stop->image_path) : null,
         ];
     }
 

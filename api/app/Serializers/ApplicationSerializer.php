@@ -14,42 +14,38 @@ class ApplicationSerializer extends Serializer
 
     public function attributes(Model $application, Request $request): array
     {
-        $attributes = [
+        $user = $application->user;
+        $entity = $application->entity;
+        $role = $application->role;
+
+        return [
             'type' => $application->type,
             'status' => $application->status,
-            'groupId' => $application->group_id ? (string) $application->group_id : null,
             'resolutionNote' => $application->resolution_note,
             'resolvedAt' => $this->date($application->resolved_at),
-            'assigned' => $application->created_by !== null && $application->worker && (int) $application->created_by !== (int) $application->worker->user_id,
             'createdAt' => $this->date($application->created_at),
+            // Para las tarjetas, sin tener que incluir los recursos.
+            'applicantName' => $user ? $user->fullName() : null,
+            'entityAbbreviation' => $entity ? $entity->abbreviation : null,
+            'itineraryName' => $application->itinerary ? $application->itinerary->name : null,
+            'stopLandmark' => $application->stop ? $application->stop->landmark : null,
+            'roleName' => $role ? $role->name : null,
+            'canResolve' => $request->user() && $application->isPending()
+                ? app(\App\Services\Applications::class)->canResolve($request->user(), $application)
+                : false,
         ];
-
-        if ($child = $application->related_child) {
-            $attributes['childFullName'] = $child->fullName();
-            $attributes['possibleDuplicate'] = $application->type === 'child_addition' && $application->isPending()
-                && app(\App\Services\Children::class)->hasPossibleDuplicate($child);
-        }
-
-        if ($absence = $application->absenceApplication) {
-            $attributes['indefinite'] = $absence->starts_on === null;
-            $attributes['startsOn'] = $absence->starts_on ? $absence->starts_on->toDateString() : null;
-            $attributes['endsOn'] = $absence->ends_on ? $absence->ends_on->toDateString() : null;
-            $attributes['observation'] = $absence->observation;
-        }
-
-        return $attributes;
     }
 
     public function toOneRelationships(): array
     {
         return [
-            'worker' => ['workers', 'worker_id', 'worker'],
+            'user' => ['users', 'user_id', 'user'],
+            'entity' => ['entities', 'entity_id', 'entity'],
+            'itinerary' => ['itineraries', 'itinerary_id', 'itinerary'],
+            'stop' => ['stops', 'stop_id', 'stop'],
+            'role' => ['roles', 'role_id', 'role'],
             'createdBy' => ['users', 'created_by', 'creator'],
             'resolvedBy' => ['users', 'resolved_by', 'resolver'],
-            'itinerary' => ['itineraries', 'itinerary_id', 'requested_itinerary'],
-            'stop' => ['stops', 'stop_id', 'requested_stop'],
-            'child' => ['children', 'child_id', 'related_child'],
-            'absenceType' => ['absence-types', 'absence_type_id', 'related_absence_type'],
         ];
     }
 }

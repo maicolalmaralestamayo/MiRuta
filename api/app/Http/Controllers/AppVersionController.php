@@ -195,8 +195,8 @@ class AppVersionController extends Controller
 
     private function ensureAdmin(Request $request): void
     {
-        if (! $request->user()->isAdmin()) {
-            throw new JsonApiException(403, 'FORBIDDEN', 'Sin permiso', 'Solo el Administrador publica versiones de la app.');
+        if (! app(\App\Services\Permissions::class)->can($request->user(), 'app_versions.manage')) {
+            throw new JsonApiException(403, 'FORBIDDEN', 'Sin permiso', 'No tiene permiso para publicar ni retirar versiones de la app.');
         }
     }
 }

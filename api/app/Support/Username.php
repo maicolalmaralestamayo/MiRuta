@@ -143,7 +143,14 @@ final class Username
     {
         $parts = array_values(array_filter(array_map(function ($part) {
             return self::slug((string) $part);
-        }, [$firstName, $middleName, $firstSurname, $secondSurname]), 'strlen'));
+        }, [$firstName, $middleName, $firstSurname, $secondSurname]), function ($part) {
+            // Las partes con palabras reservadas no se usan.
+            return $part !== '' && ! self::containsReservedWord($part);
+        }));
+
+        if ($parts && ! preg_match('/^[a-z]/', $parts[0])) {
+            $parts[0] = 'u'.$parts[0];
+        }
 
         if (! $parts) {
             $parts = ['usuario'];
@@ -172,7 +179,7 @@ final class Username
             $candidate = 'usuario'.($candidate === '' ? '' : '.'.$candidate);
         }
 
-        for ($number = 2; $number < 100000; $number++) {
+        for ($number = 2; $number < 10000; $number++) {
             $suffix = '.'.$number;
             $numbered = substr($candidate, 0, self::MAX_LENGTH - strlen($suffix)).$suffix;
             $numbered = preg_replace('/[._]+(\.\d+)$/', '$1', $numbered);

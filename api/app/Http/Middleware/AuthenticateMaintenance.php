@@ -32,8 +32,8 @@ class AuthenticateMaintenance
         }
 
         return app(Authenticate::class)->handle($request, function (Request $request) use ($next) {
-            if (! $request->user()->isAdmin()) {
-                throw new JsonApiException(403, 'FORBIDDEN', 'Sin permiso', 'Solo el Administrador puede hacer el mantenimiento del servidor.');
+            if (! app(\App\Services\Permissions::class)->can($request->user(), 'maintenance.run')) {
+                throw new JsonApiException(403, 'FORBIDDEN', 'Sin permiso', 'No tiene permiso para hacer el mantenimiento del servidor.');
             }
 
             return $next($request);

@@ -98,7 +98,7 @@ class MaintenanceTest extends TestCase
         $this->seeStatusCode(201);
         $this->seeJson(['ok' => true]);
         $this->assertTrue(Schema::hasTable('users'));
-        $this->assertTrue(DB::table('ranks')->exists());
+        $this->assertTrue(DB::table('roles')->exists());
         $this->assertTrue(DB::table('setting_definitions')->exists());
     }
 

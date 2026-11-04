@@ -7,6 +7,9 @@ use App\JsonApi\JsonApiException;
 use App\JsonApi\JsonApiResponse;
 use App\JsonApi\QueryParameters;
 use App\Models\Trip;
+use App\Models\Worker;
+use App\Services\Memberships;
+use App\Services\Permissions;
 use App\Services\Trips;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
@@ -21,7 +24,7 @@ class TripController extends Controller
 
     const FILTERABLE = ['itinerary', 'vehicle', 'driver', 'status', 'from', 'to', 'updatedSince', 'overloaded'];
 
-    const INCLUDABLE = ['itinerary', 'vehicle', 'vehicle.vehicleType', 'driver', 'driver.worker', 'createdBy'];
+    const INCLUDABLE = ['itinerary', 'vehicle', 'vehicle.vehicleType', 'driver', 'driver.user', 'createdBy'];
 
     /** @var Trips */
     private $trips;
@@ -75,7 +78,7 @@ class TripController extends Controller
     public function update(Request $request, $id)
     {
         $this->authorizeManagement($request);
-        $trip = Trip::findOrFail($id);
+        $trip = $this->findVisible($request, $id);
         $data = $this->validateResource($request, 'trips', $this->rules(false));
 
         if (isset($data['id']) && (string) $data['id'] !== (string) $trip->id) {
@@ -86,14 +89,36 @@ class TripController extends Controller
     }
 
     /**
-     * Crea un viaje (también desde /operations).
+     * Eliminar un viaje (trips.delete en su Entidad).
+     */
+    public function destroy(Request $request, $id)
+    {
+        $trip = $this->findVisible($request, $id);
+        $this->permissions()->authorize($request->user(), 'trips.delete', $this->trips->entityOf($trip), null, 'No puede eliminar viajes de esta Entidad.');
+
+        if (\App\Models\TripLeg::where('trip_id', $trip->id)->exists()) {
+            throw JsonApiException::conflict('TRIP_STARTED', 'El viaje ya comenzó: no se puede eliminar. Puede cancelarlo.');
+        }
+
+        $trip->delete();
+
+        return response('', 204);
+    }
+
+    /**
+     * Crea un viaje (también desde /operations): trips.plan sobre el itinerario.
      */
     public function create(array $data, Request $request): Trip
     {
         return DB::transaction(function () use ($data, $request) {
             $trip = new Trip(['status' => Trip::STATUS_UNCONFIRMED, 'created_by' => $request->user()->id]);
             $this->fill($trip, $data);
-            $this->authorizeItinerary($request, (int) $trip->itinerary_id);
+            $this->authorizeOperation($request, 'trips.plan', $trip, 'Solo puede planificar viajes de los itinerarios de su ámbito.');
+
+            if ($trip->status !== Trip::STATUS_UNCONFIRMED) {
+                $this->authorizeOperation($request, $trip->status === Trip::STATUS_COMPLETED ? 'trips.complete' : 'trips.confirm_cancel', $trip);
+            }
+
             $this->ensureSameEntity($trip);
             $this->trips->validate($trip);
             $trip->save();
@@ -103,16 +128,27 @@ class TripController extends Controller
     }
 
     /**
-     * Modifica un viaje (también desde /operations).
+     * Modifica un viaje (también desde /operations): vehículo, chofer y horas
+     * con trips.edit; confirmar, desconfirmar y cancelar con
+     * trips.confirm_cancel; marcarlo como realizado con trips.complete.
      */
     public function modify(Trip $trip, array $data, Request $request): Trip
     {
         return DB::transaction(function () use ($trip, $data, $request) {
             $trip = Trip::lockForUpdate()->findOrFail($trip->id);
-            $this->authorizeItinerary($request, (int) $trip->itinerary_id);
             $previousStatus = $trip->status;
+            $original = clone $trip;
             $this->fill($trip, $data);
-            $this->authorizeItinerary($request, (int) $trip->itinerary_id);
+
+            if ($trip->isDirty(['itinerary_id', 'vehicle_id', 'driver_id', 'departs_at', 'returns_at'])) {
+                $this->authorizeOperation($request, 'trips.edit', $original);
+                $this->authorizeOperation($request, 'trips.edit', $trip);
+            }
+
+            if ($trip->status !== $previousStatus) {
+                $this->authorizeOperation($request, $trip->status === Trip::STATUS_COMPLETED ? 'trips.complete' : 'trips.confirm_cancel', $trip);
+            }
+
             $this->ensureSameEntity($trip);
             $this->trips->applyStatusChange($trip, $previousStatus, $request->user());
 
@@ -144,36 +180,52 @@ class TripController extends Controller
         ],
             $relationship('itinerary', 'itineraries', 'itineraries'),
             $relationship('vehicle', 'vehicles', 'vehicles'),
-            $relationship('driver', 'drivers', 'drivers')
+            $relationship('driver', 'workers', 'workers')
         );
     }
 
     /**
-     * Planifican el Administrador, los Jefes de Transporte y los Jefes de
-     * itinerario (estos, solo en su itinerario: ver authorizeItinerary).
+     * Tiene alguna operación de gestión de viajes en algún sitio (el detalle
+     * se comprueba con el itinerario de cada viaje).
      */
     public function authorizeManagement(Request $request): void
     {
-        if (! $request->user()->plansTrips()) {
-            throw new JsonApiException(403, 'FORBIDDEN', 'Sin permiso', 'Solo los Jefes de Transporte y los Jefes de itinerario planifican los viajes.');
+        $permissions = $this->permissions();
+
+        foreach (['trips.plan', 'trips.edit', 'trips.confirm_cancel', 'trips.complete'] as $operation) {
+            if ($permissions->canAnywhere($request->user(), $operation)) {
+                return;
+            }
+        }
+
+        throw new JsonApiException(403, 'FORBIDDEN', 'Sin permiso', 'No tiene permiso para planificar ni modificar viajes.');
+    }
+
+    private function authorizeOperation(Request $request, string $operation, Trip $trip, ?string $detail = null): void
+    {
+        if (! $this->permissions()->can($request->user(), $operation, null, (int) $trip->itinerary_id)) {
+            throw new JsonApiException(403, 'FORBIDDEN', 'Sin permiso', $detail ?: 'No tiene permiso para hacer esto con los viajes de ese itinerario.', ['pointer' => '/data/relationships/itinerary']);
         }
     }
 
-    private function authorizeItinerary(Request $request, int $itineraryId): void
+    private function permissions(): Permissions
     {
-        if (! $request->user()->canPlan($itineraryId)) {
-            throw new JsonApiException(403, 'FORBIDDEN', 'Sin permiso', 'Solo puedes planificar viajes de tu itinerario.', ['pointer' => '/data/relationships/itinerary']);
-        }
+        return app(Permissions::class);
     }
 
     /**
-     * El vehículo y el chofer tienen que ser de la Entidad del itinerario.
+     * El vehículo y el chofer tienen que ser de la Entidad del itinerario, y el
+     * chofer, una pertenencia que puede conducir (tracking.drive).
      */
     private function ensureSameEntity(Trip $trip): void
     {
         $entityId = \App\Support\Tenancy::entityOf('itineraries', $trip->itinerary_id);
         \App\Support\Tenancy::ensureSame($entityId, 'vehicles', $trip->vehicle_id, '/data/relationships/vehicle');
-        \App\Support\Tenancy::ensureSame($entityId, 'drivers', $trip->driver_id, '/data/relationships/driver');
+        \App\Support\Tenancy::ensureSame($entityId, 'workers', $trip->driver_id, '/data/relationships/driver');
+
+        if ($trip->isDirty('driver_id') && ! app(Memberships::class)->canDrive(Worker::find($trip->driver_id))) {
+            throw new JsonApiException(422, 'NOT_A_DRIVER', 'No es chofer', 'Esa persona no tiene permiso para conducir en esta Entidad.', ['pointer' => '/data/relationships/driver']);
+        }
     }
 
     private function fill(Trip $trip, array $data): void
@@ -237,7 +289,7 @@ class TripController extends Controller
         $trip = $this->trips->visibleTo($request->user())->find($id);
 
         if (! $trip) {
-            throw new JsonApiException(404, 'NOT_FOUND', 'No encontrado', 'El viaje no existe o no puedes verlo.');
+            throw new JsonApiException(404, 'NOT_FOUND', 'No encontrado', 'El viaje no existe o no puede verlo.');
         }
 
         return $trip;

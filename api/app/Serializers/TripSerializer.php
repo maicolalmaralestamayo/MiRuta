@@ -35,7 +35,7 @@ class TripSerializer extends Serializer
         return [
             'itinerary' => ['itineraries', 'itinerary_id', 'itinerary'],
             'vehicle' => ['vehicles', 'vehicle_id', 'vehicle'],
-            'driver' => ['drivers', 'driver_id', 'driver'],
+            'driver' => ['workers', 'driver_id', 'driver'],
             'createdBy' => ['users', 'created_by', 'creator'],
         ];
     }
@@ -47,7 +47,8 @@ class TripSerializer extends Serializer
         $return = $itinerary ? $itinerary->returnStop() : null;
 
         return app(Trips::class)->occupancy($trip) + [
-            'needsReassignment' => $trip->isPending() && (! $trip->driver || $trip->driver->trashed()),
+            // El chofer se dio de baja o ya no puede conducir.
+            'needsReassignment' => $trip->isPending() && ! app(\App\Services\Memberships::class)->canDrive($trip->driver),
             'departurePoint' => $departure ? ['type' => 'stops', 'id' => (string) $departure->id] : null,
             'returnPoint' => $return ? ['type' => 'stops', 'id' => (string) $return->id] : null,
         ];

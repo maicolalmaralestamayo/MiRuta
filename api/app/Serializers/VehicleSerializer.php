@@ -26,7 +26,7 @@ class VehicleSerializer extends Serializer
         return [
             'entity' => ['entities', 'entity_id', 'entity'],
             'vehicleType' => ['vehicle-types', 'vehicle_type_id', 'vehicleType'],
-            'driver' => ['drivers', 'driver_id', 'driver'],
+            'driver' => ['workers', 'driver_id', 'driver'],
         ];
     }
 

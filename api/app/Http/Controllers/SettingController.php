@@ -13,8 +13,9 @@ use Illuminate\Http\Request;
 
 /**
  * Valores de los ajustes para toda la app. El id es la clave del ajuste.
- * Solo el Administrador los cambia; los Jefes de Transporte cambian los de
- * nivel Entidad para su Entidad (EntitySettingController).
+ * Los cambia quien tiene settings.app; los de nivel Entidad, por Entidad,
+ * quien tiene settings.entity (EntitySettingController); por itinerario y
+ * parada, settings.itinerary (ItinerarySettingController).
  */
 class SettingController extends Controller
 {
@@ -47,9 +48,7 @@ class SettingController extends Controller
         $definition = $this->settings->definition($id);
         $user = $request->user();
 
-        if (! $user->isAdmin()) {
-            throw new JsonApiException(403, 'FORBIDDEN', 'Sin permiso', 'No puedes cambiar este ajuste.');
-        }
+        app(\App\Services\Permissions::class)->authorize($user, 'settings.app', null, null, 'No puede cambiar este ajuste.');
 
         $data = $this->validateResource($request, 'settings', ['attributes.value' => ['present']]);
         $value = $this->settings->normalize($definition, $data['attributes']['value']);
@@ -70,7 +69,7 @@ class SettingController extends Controller
             'id' => $definition->key,
             'attributes' => [
                 'value' => $this->settings->effectiveRaw($definition),
-                'editable' => $user->isAdmin(),
+                'editable' => app(\App\Services\Permissions::class)->can($user, 'settings.app'),
             ],
             'relationships' => [
                 'definition' => ['data' => ['type' => 'setting-definitions', 'id' => $definition->key]],

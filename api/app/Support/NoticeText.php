@@ -12,23 +12,15 @@ use Carbon\Carbon;
 
 /**
  * Texto de cada aviso, con lo concreto: qué solicitud fue, quién la resolvió
- * y, si se rechazó, el motivo (docs/09 §16).
+ * y, si se rechazó, el motivo (docs/09 §16). Los avisos sin solicitud
+ * (roles, Entidades, itinerario) llevan sus datos en el payload.
  */
 class NoticeText
 {
     const APPLICATION_TYPES = [
-        Application::TYPE_ITINERARY_MEMBERSHIP => 'Itinerario y parada',
-        Application::TYPE_ITINERARY_CHIEF => 'Rol de Jefe de itinerario',
-        Application::TYPE_DRIVER => 'Rol de Chofer',
-        Application::TYPE_TRANSPORT_CHIEF => 'Rol de Jefe de Transporte',
-        Application::TYPE_CHILD_ADDITION => 'Declarar hijos',
-        Application::TYPE_CHILD_REMOVAL => 'Quitar hijo',
-        Application::TYPE_ABSENCE => 'Ausencia temporal',
-        Application::TYPE_ITINERARY_LEAVE => 'Baja del itinerario',
-        Application::TYPE_ITINERARY_CHIEF_LEAVE => 'Baja del rol de Jefe de itinerario',
-        Application::TYPE_DRIVER_LEAVE => 'Baja del rol de Chofer',
-        Application::TYPE_TRANSPORT_CHIEF_LEAVE => 'Baja del rol de Jefe de Transporte',
-        Application::TYPE_ITINERARY_REMOVAL => 'Baja por inactividad',
+        Application::TYPE_ENTITY_MEMBERSHIP => 'entrar en una Entidad',
+        Application::TYPE_ITINERARY_MEMBERSHIP => 'itinerario y parada',
+        Application::TYPE_ROLE => 'rol',
     ];
 
     const DIRECTIONS = [TripLeg::DIRECTION_OUTBOUND => 'viaje de ida', TripLeg::DIRECTION_RETURN => 'viaje de regreso'];
@@ -37,10 +29,11 @@ class NoticeText
     {
         $application = $notice->application;
         $payload = is_array($notice->payload) ? $notice->payload : [];
+        $by = isset($payload['by']) && $payload['by'] ? $payload['by'] : 'Un superior';
 
         switch ($notice->type) {
             case Notice::TYPE_APPLICATION_RECEIVED:
-                return self::workerName($application).' envió una solicitud de '.self::describe($application).'.';
+                return self::applicantName($application).' envió una solicitud de '.self::describe($application).'.';
 
             case Notice::TYPE_APPLICATION_RESOLVED:
                 if (! $application) {
@@ -55,19 +48,33 @@ class NoticeText
                 return 'Se aprobó su solicitud de '.self::describe($application).'. La aprobó '.self::resolverName($application).'.';
 
             case Notice::TYPE_ROLE_ASSIGNED:
-                return self::creatorName($application).' le asignó '.self::describe($application).'.';
+                return $by.' le asignó el rol '.self::role($payload).'.';
 
             case Notice::TYPE_ROLE_REMOVED:
-                return self::creatorName($application).' le dio de '.lcfirst(self::describe($application)).'.';
+                return $by.' le quitó el rol '.self::role($payload).'.';
 
             case Notice::TYPE_RESIGNATION:
-                return self::workerName($application).' se dio de '.lcfirst(self::describe($application)).'.';
+                return (isset($payload['person']) ? $payload['person'] : 'Un trabajador').' se dio de baja del rol '.self::role($payload).'.';
+
+            case Notice::TYPE_ENTITY_ADDED:
+                return $by.' le añadió a la Entidad '.self::value($payload, 'entity').'.';
+
+            case Notice::TYPE_ENTITY_REMOVED:
+                return $by.' le dio de baja de la Entidad '.self::value($payload, 'entity').'.';
+
+            case Notice::TYPE_ITINERARY_ASSIGNED:
+                return $by.' le asignó el itinerario '.self::value($payload, 'itinerary')
+                    .(isset($payload['stop']) && $payload['stop'] ? ' con la parada '.$payload['stop'] : '').'.';
+
+            case Notice::TYPE_ITINERARY_REMOVED:
+                return $by.' le dio de baja del itinerario '.self::value($payload, 'itinerary').'.';
 
             case Notice::TYPE_INACTIVITY_WARNING:
-                return 'Lleva días sin viajar. Si no viaja pronto, saldrá de su itinerario por inactividad.';
+                return 'Lleva días sin viajar. Si no viaja pronto, saldrá de su itinerario'
+                    .(isset($payload['itinerary']) && $payload['itinerary'] ? ' '.$payload['itinerary'] : '').' por inactividad.';
 
             case Notice::TYPE_INACTIVITY_REMOVAL:
-                return self::workerName($application).' salió del itinerario '.self::itineraryName($application).' por inactividad.';
+                return (isset($payload['person']) ? $payload['person'] : 'Un trabajador').' salió del itinerario '.self::value($payload, 'itinerary').' por inactividad.';
 
             case Notice::TYPE_TRIP_NEEDS_REASSIGNMENT:
                 return 'El viaje de '.self::tripName($notice->trip).' necesita otro chofer.';
@@ -109,7 +116,7 @@ class NoticeText
     }
 
     /**
-     * "Itinerario y parada (Ruta Este · Parque)", "Declarar hijos (Pepito Pérez García)"…
+     * "itinerario y parada (UMIM · Ruta Este · Parque)", "rol (UMIM · Chofer)"…
      */
     public static function describe(?Application $application): string
     {
@@ -120,32 +127,25 @@ class NoticeText
         $name = isset(self::APPLICATION_TYPES[$application->type]) ? self::APPLICATION_TYPES[$application->type] : $application->type;
         $detail = [];
 
-        if ($itinerary = $application->requested_itinerary) {
+        if ($entity = $application->entity) {
+            $detail[] = $entity->abbreviation;
+        }
+        if ($role = $application->role) {
+            $detail[] = $role->name;
+        }
+        if ($itinerary = $application->itinerary) {
             $detail[] = $itinerary->name;
         }
-        if ($stop = $application->requested_stop) {
+        if ($stop = $application->stop) {
             $detail[] = $stop->landmark;
-        }
-        if ($child = $application->related_child) {
-            $detail[] = $child->fullName();
-        }
-        if ($absence = $application->absenceApplication) {
-            if ($type = $absence->absenceType) {
-                $detail[] = $type->name;
-            }
-            $detail[] = $absence->starts_on
-                ? SpanishDate::date($absence->starts_on).' al '.SpanishDate::date($absence->ends_on)
-                : 'indefinida';
         }
 
         return $detail ? $name.' ('.implode(' · ', $detail).')' : $name;
     }
 
-    private static function workerName(?Application $application): string
+    private static function applicantName(?Application $application): string
     {
-        $user = $application && $application->worker ? $application->worker->user : null;
-
-        return $user ? $user->fullName() : 'Un trabajador';
+        return $application && $application->user ? $application->user->fullName() : 'Un trabajador';
     }
 
     private static function resolverName(Application $application): string
@@ -153,14 +153,22 @@ class NoticeText
         return $application->resolver ? $application->resolver->fullName() : 'el sistema';
     }
 
-    private static function creatorName(?Application $application): string
+    private static function role(array $payload): string
     {
-        return $application && $application->creator ? $application->creator->fullName() : 'Un superior';
+        $text = self::value($payload, 'role');
+
+        if (isset($payload['itinerary']) && $payload['itinerary']) {
+            $text .= ' ('.$payload['itinerary'].')';
+        } elseif (isset($payload['entity']) && $payload['entity']) {
+            $text .= ' ('.$payload['entity'].')';
+        }
+
+        return $text;
     }
 
-    private static function itineraryName(?Application $application): string
+    private static function value(array $payload, string $key): string
     {
-        return $application && $application->requested_itinerary ? $application->requested_itinerary->name : '';
+        return isset($payload[$key]) && $payload[$key] !== null ? (string) $payload[$key] : '';
     }
 
     private static function itineraryOf(?Trip $trip): string

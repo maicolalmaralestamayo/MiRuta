@@ -1,8 +1,6 @@
 <?php
 
-use App\Models\AbsenceApplication;
 use App\Models\AbsenceType;
-use App\Models\Application;
 use App\Models\Notice;
 use App\Models\Setting;
 use App\Models\SettingDefinition;
@@ -48,7 +46,7 @@ class InactivityTest extends TestCase
     private function completedTrip(int $day): Trip
     {
         return Trip::create([
-            'itinerary_id' => $this->itinerary->id, 'vehicle_id' => $this->vehicle->id, 'driver_id' => $this->driver->driverId(),
+            'itinerary_id' => $this->itinerary->id, 'vehicle_id' => $this->vehicle->id, 'driver_id' => $this->driver->id,
             'departs_at' => Carbon::create(2026, 10, $day, 17), 'returns_at' => Carbon::create(2026, 10, $day + 1, 6),
             'status' => Trip::STATUS_COMPLETED, 'created_by' => $this->chief->user_id,
         ]);
@@ -88,17 +86,15 @@ class InactivityTest extends TestCase
 
         $this->assertNull($absent->fresh()->itinerary_id);
         $this->assertSame($this->itinerary->id, (int) $regular->fresh()->itinerary_id);
-        $removal = Application::where('worker_id', $absent->id)->where('type', 'itinerary_removal')->first();
-        $this->assertSame('approved', $removal->status);
-        $this->assertSame($this->itinerary->id, (int) $removal->itineraryApplication->itinerary_id);
-        $this->assertTrue(Notice::where('user_id', $absent->user_id)->where('type', 'inactivity_removal')->exists());
+        $notice = Notice::where('user_id', $absent->user_id)->where('type', 'inactivity_removal')->first();
+        $this->assertSame('Ruta Este', $notice->payload['itinerary']);
+        $this->assertStringContainsString('salió del itinerario Ruta Este por inactividad', \App\Support\NoticeText::for($notice));
     }
 
     public function testDiasSinViajesYAusenciasNoCuentan()
     {
         $worker = $this->joinItinerary($this->createWorker(), $this->itinerary);
-        $application = Application::create(['worker_id' => $worker->id, 'type' => 'absence', 'status' => 'approved']);
-        AbsenceApplication::create(['application_id' => $application->id, 'absence_type_id' => AbsenceType::first()->id, 'starts_on' => '2026-10-02', 'ends_on' => '2026-10-05']);
+        \App\Models\Absence::create(['worker_id' => $worker->id, 'absence_type_id' => AbsenceType::first()->id, 'starts_on' => '2026-10-02', 'ends_on' => '2026-10-05']);
 
         // 6 viajes, 4 durante la ausencia → solo cuentan 2
         foreach (range(2, 7) as $day) {
@@ -115,7 +111,7 @@ class InactivityTest extends TestCase
     private function completedTripDrivenBy($driverWorker, int $day): Trip
     {
         return Trip::create([
-            'itinerary_id' => $this->createItinerary('Otra '.$day)->id, 'vehicle_id' => $this->vehicle->id, 'driver_id' => $driverWorker->driverId(),
+            'itinerary_id' => $this->createItinerary('Otra '.$day)->id, 'vehicle_id' => $this->vehicle->id, 'driver_id' => $driverWorker->id,
             'departs_at' => Carbon::create(2026, 10, $day, 7), 'returns_at' => Carbon::create(2026, 10, $day, 9),
             'status' => Trip::STATUS_COMPLETED, 'created_by' => $this->chief->user_id,
         ]);
@@ -148,7 +144,7 @@ class InactivityTest extends TestCase
 
         foreach (range(2, 7) as $day) {
             Trip::create([
-                'itinerary_id' => $foreignItinerary->id, 'vehicle_id' => $foreignVehicle->id, 'driver_id' => $foreignDriver->driverId(),
+                'itinerary_id' => $foreignItinerary->id, 'vehicle_id' => $foreignVehicle->id, 'driver_id' => $foreignDriver->id,
                 'departs_at' => Carbon::create(2026, 10, $day, 17), 'returns_at' => Carbon::create(2026, 10, $day + 1, 6),
                 'status' => Trip::STATUS_COMPLETED, 'created_by' => $this->chief->user_id,
             ]);

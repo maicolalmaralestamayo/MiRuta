@@ -62,8 +62,11 @@ class ConversationController extends Controller
         $data = $this->validateResource($request, 'conversations', [
             'relationships.topic.data.type' => ['required', 'in:conversation-topics'],
             'relationships.topic.data.id' => ['required', 'exists:conversation_topics,id,deleted_at,NULL'],
+            'relationships.entity.data.type' => ['sometimes', 'in:entities'],
+            'relationships.entity.data.id' => ['sometimes', 'integer'],
         ]);
-        $conversation = $this->chats->openConversation($request->user(), (int) $data['relationships']['topic']['data']['id']);
+        $conversation = $this->chats->openConversation($request->user(), (int) $data['relationships']['topic']['data']['id'],
+            isset($data['relationships']['entity']['data']['id']) ? (int) $data['relationships']['entity']['data']['id'] : null);
 
         return JsonApiResponse::make((new Document($request))->resource($conversation->fresh()), 201);
     }
@@ -120,7 +123,7 @@ class ConversationController extends Controller
         $conversation = $this->chats->visibleConversations($request->user())->find($id);
 
         if (! $conversation) {
-            throw new JsonApiException(404, 'NOT_FOUND', 'No encontrado', 'La conversación no existe o no puedes verla.');
+            throw new JsonApiException(404, 'NOT_FOUND', 'No encontrado', 'La conversación no existe o no puede verla.');
         }
 
         return $conversation;

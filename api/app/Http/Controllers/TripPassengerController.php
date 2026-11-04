@@ -21,7 +21,7 @@ class TripPassengerController extends Controller
         $trip = $trips->visibleTo($user)->find($id);
 
         if (! $trip) {
-            throw new JsonApiException(404, 'NOT_FOUND', 'No encontrado', 'El viaje no existe o no puedes verlo.');
+            throw new JsonApiException(404, 'NOT_FOUND', 'No encontrado', 'El viaje no existe o no puede verlo.');
         }
 
         $stop = $request->input('filter.stop');
@@ -57,7 +57,6 @@ class TripPassengerController extends Controller
             ];
             $included['workers:'.$worker->id] = $document->resourceObjectFor($worker);
             $included['users:'.$worker->user_id] = $document->resourceObjectFor($worker->user);
-            $included['ranks:'.$worker->rank_id] = $document->resourceObjectFor($worker->rank);
         }
 
         $result = Document::fromArray($data, ['total' => count($data), 'direction' => $direction]);

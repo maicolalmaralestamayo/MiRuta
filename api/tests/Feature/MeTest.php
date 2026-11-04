@@ -32,21 +32,52 @@ class MeTest extends TestCase
         return $this->jsonApiAs($who, 'PATCH', '/api/v1/me', $document);
     }
 
-    public function testMiPerfilIncluyeUsuarioPaseYJerarquia()
+    public function testMiPerfilConPermisosYPertenencias()
     {
-        $worker = $this->createWorker(['pass' => 4321, 'user' => ['username' => 'maria']]);
+        $itinerary = $this->createItinerary('Ruta Este', 2);
+        $worker = $this->joinItinerary($this->createWorker(['user' => ['username' => 'maria']]), $itinerary, 2);
+        $this->assignRole($worker, 'Chofer');
+        $other = $this->createEntity('OTRA');
+        $this->createWorker(['user_id' => $worker->user_id], $other);
 
-        $this->jsonApiAs($worker, 'GET', '/api/v1/me?include=worker,worker.rank,worker.entity');
+        $this->jsonApiAs($worker, 'GET', '/api/v1/me');
 
         $this->assertResponseOk();
-        $json = $this->responseJson();
-        $this->assertSame('users', $json['data']['type']);
-        $this->assertSame('maria', $json['data']['attributes']['username']);
-        $this->assertSame((string) $worker->id, $json['data']['relationships']['worker']['data']['id']);
-        $included = collect($json['included'])->keyBy('type');
-        $this->assertSame(4321, $included['workers']['attributes']['pass']);
-        $this->assertSame('PRUEBA', $included['entities']['attributes']['abbreviation']);
-        $this->assertSame('ranks', $included['ranks']['type']);
+        $json = $this->responseJson()['data'];
+        $this->assertSame('users', $json['type']);
+        $this->assertSame('maria', $json['attributes']['username']);
+        $this->assertSame(['OTRA', 'PRUEBA'], $json['attributes']['entities']);
+        $this->assertArrayHasKey('identityCard', $json['attributes']);
+
+        $memberships = collect($json['meta']['memberships'])->keyBy('entity.abbreviation');
+        $this->assertSame('Ruta Este', $memberships['PRUEBA']['itinerary']['name']);
+        $this->assertSame('Ruta Este parada 2', $memberships['PRUEBA']['stop']['landmark']);
+        $this->assertSame(['Chofer', 'Trabajador'], collect($memberships['PRUEBA']['roles'])->pluck('name')->sort()->values()->all());
+        $this->assertNull($memberships['OTRA']['itinerary']);
+        $this->assertSame(['Trabajador'], collect($memberships['OTRA']['roles'])->pluck('name')->all());
+
+        $permissions = collect($json['meta']['permissions']);
+        $this->assertTrue($permissions->contains(['operation' => 'tracking.drive', 'scope' => 'entity', 'entityId' => (string) $this->defaultEntity()->id, 'itineraryId' => null]));
+        $this->assertTrue($permissions->contains(['operation' => 'trips.view', 'scope' => 'own', 'entityId' => (string) $other->id, 'itineraryId' => null]));
+        $this->assertFalse($permissions->contains(['operation' => 'tracking.drive', 'scope' => 'entity', 'entityId' => (string) $other->id, 'itineraryId' => null]));
+
+        // El Administrador: todas con «all».
+        $this->jsonApiAs($this->createAdmin(), 'GET', '/api/v1/me');
+        $permissions = collect($this->responseJson()['data']['meta']['permissions']);
+        $this->assertSame(count(\App\Support\Operations::CATALOG), $permissions->where('scope', 'all')->count());
+    }
+
+    public function testCambiarElCarneCambiaSexoYNacimiento()
+    {
+        $worker = $this->createWorker();
+        $taken = $this->createUser();
+
+        $this->patchMe($worker, ['identityCard' => '90010112361']); // penúltimo 6 → M
+        $this->assertResponseOk();
+        $this->seeJson(['identityCard' => '90010112361', 'birthDate' => '1990-01-01', 'sex' => 'M']);
+
+        $this->patchMe($worker, ['identityCard' => $taken->identityCard()]);
+        $this->assertJsonApiError(409, 'IDENTITY_CARD_TAKEN', '/data/attributes/identityCard');
     }
 
     public function testCambiarNombres()
@@ -63,17 +94,6 @@ class MeTest extends TestCase
         $this->patchMe($worker, ['middleName' => '  ']);
         $this->assertResponseOk();
         $this->assertNull($this->userOf($worker)->fresh()->middle_name);
-    }
-
-    public function testCambiarLaJerarquiaEnElPerfil()
-    {
-        $worker = $this->createWorker();
-        $rank = \App\Models\Rank::where('name', 'Cabo')->first();
-
-        $this->patchMe($worker, [], ['relationships' => ['rank' => ['data' => ['type' => 'ranks', 'id' => (string) $rank->id]]]]);
-
-        $this->assertResponseOk();
-        $this->assertSame($rank->id, (int) $worker->fresh()->rank_id);
     }
 
     public function testCambiarElUsuarioBloqueaElAnteriorTreintaDias()
@@ -196,23 +216,40 @@ class MeTest extends TestCase
         $this->assertJsonApiError(422, 'VALIDATION_ERROR', '/photo');
     }
 
-    public function testElPaseLoVenSoloElTrabajadorSusJefesYElAdministrador()
+    public function testElCarneLoVenLaPersonaElAdministradorYElJefeDeSuItinerario()
     {
         $itinerary = $this->createItinerary();
-        $worker = $this->joinItinerary($this->createWorker(['pass' => 77]), $itinerary);
+        $worker = $this->joinItinerary($this->createWorker(), $itinerary);
         $peer = $this->joinItinerary($this->createWorker(), $itinerary);
         $chief = $this->createItineraryChief($itinerary);
+        $otherChief = $this->createItineraryChief($this->createItinerary('Ruta Oeste'));
         $transportChief = $this->createTransportChief();
         $admin = $this->createAdmin();
 
-        foreach ([[$worker, true], [$peer, false], [$chief, true], [$transportChief, true], [$admin, true]] as list($viewer, $sees)) {
-            $this->jsonApiAs($viewer, 'GET', '/api/v1/workers/'.$worker->id);
+        foreach ([[$worker, true], [$peer, false], [$chief, true], [$otherChief, false], [$transportChief, false], [$admin, true]] as $index => list($viewer, $sees)) {
+            $this->jsonApiAs($viewer, 'GET', '/api/v1/workers/'.$worker->id.'?include=user');
+
+            if ($viewer === $peer || $viewer === $otherChief) {
+                // Sin workers.view sobre él no lo consultan.
+                $this->assertResponseStatus(404);
+                continue;
+            }
+
             $this->assertResponseOk();
-            $this->assertSame($sees, array_key_exists('pass', $this->responseJson()['data']['attributes']));
+            $this->assertSame($sees, array_key_exists('identityCard', $this->responseJson()['data']['attributes']), "Caso {$index}");
+            $user = collect($this->responseJson()['included'])->firstWhere('type', 'users');
+            $this->assertSame($sees, array_key_exists('identityCard', $user['attributes']), "Caso {$index}");
         }
 
-        $this->jsonApiAs($peer, 'GET', '/api/v1/workers/'.$worker->id.'?include=user');
-        $user = collect($this->responseJson()['included'])->firstWhere('type', 'users');
-        $this->assertArrayNotHasKey('username', $user['attributes']);
+        // También lo ve el Jefe del itinerario que alguien solicita.
+        $applicant = $this->createWorker();
+        \App\Models\Application::create([
+            'user_id' => $applicant->user_id, 'entity_id' => $applicant->entity_id, 'type' => 'itinerary_membership', 'status' => 'pending',
+            'itinerary_id' => $itinerary->id, 'stop_id' => $itinerary->stops->first()->id, 'created_by' => $applicant->user_id,
+        ]);
+        $this->jsonApiAs($chief, 'GET', '/api/v1/users/'.$applicant->user_id);
+        $this->assertResponseOk();
+        $this->assertArrayHasKey('identityCard', $this->responseJson()['data']['attributes']);
+        $this->assertArrayNotHasKey('username', $this->responseJson()['data']['attributes']);
     }
 }

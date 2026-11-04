@@ -333,7 +333,6 @@ class Statistics
                     'vehicle' => $trip->vehicle->plate,
                     'level' => $occupancy['overloaded'] ? 'Sobresaturado' : 'Saturado',
                     'expectedPassengers' => $occupancy['expectedPassengers'],
-                    'expectedChildren' => $occupancy['expectedChildren'],
                     'seats' => $occupancy['seats'],
                     'totalCapacity' => $occupancy['totalCapacity'],
                     'standing' => max(0, min($occupancy['expectedPassengers'], $occupancy['totalCapacity']) - $occupancy['seats']),
@@ -345,7 +344,7 @@ class Statistics
         return [[
             ['trip', 'Viaje', 'string'], ['departsAt', 'Salida', 'datetime'], ['itinerary', 'Itinerario', 'string'],
             ['vehicle', 'Vehículo', 'string'], ['level', 'Estado', 'string'], ['expectedPassengers', 'Trabajadores', 'integer'],
-            ['expectedChildren', 'Niños', 'integer'], ['seats', 'Asientos', 'integer'], ['totalCapacity', 'Capacidad', 'integer'],
+            ['seats', 'Asientos', 'integer'], ['totalCapacity', 'Capacidad', 'integer'],
             ['standing', 'De pie', 'integer'], ['excess', 'No caben', 'integer'],
         ], $rows];
     }
@@ -687,7 +686,7 @@ class Statistics
         $trip = $this->trips->visibleTo($this->user)->with('itinerary.stops', 'vehicle', 'driver')->find($this->filters['trip']);
 
         if (! $trip) {
-            throw new JsonApiException(404, 'NOT_FOUND', 'No encontrado', 'El viaje no existe o no puedes verlo.');
+            throw new JsonApiException(404, 'NOT_FOUND', 'No encontrado', 'El viaje no existe o no puede verlo.');
         }
 
         $occupancy = $this->trips->occupancy($trip);

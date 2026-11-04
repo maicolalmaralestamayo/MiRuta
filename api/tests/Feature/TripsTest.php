@@ -1,13 +1,8 @@
 <?php
 
 use App\Models\AbsenceType;
-use App\Models\Application;
-use App\Models\AbsenceApplication;
 use App\Models\Child;
-use App\Models\ChildApplication;
-use App\Models\ItineraryChief;
 use App\Models\Notice;
-use App\Models\Rank;
 use App\Models\Trip;
 use App\Models\TripCompletion;
 use App\Models\Vehicle;
@@ -51,14 +46,14 @@ class TripsTest extends TestCase
         return ['type' => 'trips', 'attributes' => ['departsAt' => $departs, 'returnsAt' => $returns, 'status' => $status], 'relationships' => [
             'itinerary' => ['data' => ['type' => 'itineraries', 'id' => (string) ($itinerary ?: $this->itinerary)->id]],
             'vehicle' => ['data' => ['type' => 'vehicles', 'id' => (string) ($vehicle ?: $this->vehicle)->id]],
-            'driver' => ['data' => ['type' => 'drivers', 'id' => (string) ($driver ?: $this->driver)->driverId()]],
+            'driver' => ['data' => ['type' => 'workers', 'id' => (string) ($driver ?: $this->driver)->id]],
         ]];
     }
 
     private function createTrip(string $departs = '2026-11-03 17:00', string $returns = '2026-11-04 06:30', string $status = 'confirmed'): Trip
     {
         return Trip::create([
-            'itinerary_id' => $this->itinerary->id, 'vehicle_id' => $this->vehicle->id, 'driver_id' => $this->driver->driverId(),
+            'itinerary_id' => $this->itinerary->id, 'vehicle_id' => $this->vehicle->id, 'driver_id' => $this->driver->id,
             'departs_at' => Carbon::parse($departs), 'returns_at' => Carbon::parse($returns), 'status' => $status, 'created_by' => $this->chief->user_id,
         ]);
     }
@@ -169,7 +164,7 @@ class TripsTest extends TestCase
         $this->assertSame('completed', $trip->fresh()->status);
 
         $mark($itineraryChief);
-        $this->seeJson(['role' => 'itinerary_chief']);
+        $this->seeJson(['role' => 'manager']);
         $mark($itineraryChief);
 
         $this->jsonApiAs($member, 'GET', '/api/v1/trip-completions?filter[trip]='.$trip->id.'&include=user');
@@ -199,8 +194,7 @@ class TripsTest extends TestCase
         }
         $absent = $this->joinItinerary($this->createWorker(), $this->itinerary);
         $this->joinItinerary($this->driver, $this->itinerary);
-        $application = Application::create(['worker_id' => $absent->id, 'type' => 'absence', 'status' => 'approved']);
-        AbsenceApplication::create(['application_id' => $application->id, 'absence_type_id' => AbsenceType::first()->id, 'starts_on' => '2026-11-01', 'ends_on' => '2026-11-05']);
+        \App\Models\Absence::create(['worker_id' => $absent->id, 'absence_type_id' => AbsenceType::first()->id, 'starts_on' => '2026-11-01', 'ends_on' => '2026-11-05']);
 
         // 2 asientos y 1 de pie: 3 trabajadores van de pie (saturado), pero caben.
         $this->jsonApiAs($this->chief, 'GET', '/api/v1/trips/'.$trip->id);
@@ -249,7 +243,7 @@ class TripsTest extends TestCase
         Carbon::setTestNow(Carbon::create(2026, 11, 2, 12));
 
         $first = $this->itinerary->itineraryStops()->where('position', 1)->first();
-        $this->jsonApiAs($this->chief, 'PATCH', '/api/v1/itinerary-stops/'.$first->id, ['data' => ['type' => 'itinerary-stops', 'id' => (string) $first->id, 'attributes' => ['position' => 2]]]);
+        $this->jsonApiAs($this->createAdmin(), 'PATCH', '/api/v1/itinerary-stops/'.$first->id, ['data' => ['type' => 'itinerary-stops', 'id' => (string) $first->id, 'attributes' => ['position' => 2]]]);
 
         $this->assertSame('2026-11-02 12:00:00', $trip->fresh()->updated_at->toDateTimeString());
         $this->assertNotSame('2026-11-02 12:00:00', $done->fresh()->updated_at->toDateTimeString());
@@ -321,15 +315,14 @@ class TripsTest extends TestCase
         $this->joinItinerary($this->createWorker(), $this->itinerary);
 
         foreach (['Pepe', 'Juan', 'Rosa'] as $name) {
-            $child = Child::create(['worker_id' => $parent->id, 'first_name' => $name, 'middle_name' => 'X', 'first_surname' => 'Pérez', 'second_surname' => 'Y', 'birth_date' => '2018-05-05']);
-            $application = Application::create(['worker_id' => $parent->id, 'type' => 'child_addition', 'status' => 'approved']);
-            ChildApplication::create(['application_id' => $application->id, 'child_id' => $child->id]);
+            $this->createChild($parent, '2018-05-05', ['first_name' => $name]);
         }
 
         $this->jsonApiAs($this->chief, 'GET', '/api/v1/trips/'.$trip->id);
         $meta = $this->responseJson()['data']['meta'];
         $this->assertSame(2, $meta['expectedPassengers']);
-        $this->assertSame(3, $meta['expectedChildren']);
+        // No se espera a ningún niño (docs/11 §11.11).
+        $this->assertArrayNotHasKey('expectedChildren', $meta);
         $this->assertSame('normal', $meta['occupancyLevel']);
     }
 
@@ -347,9 +340,7 @@ class TripsTest extends TestCase
         $perez = $make('Luis', 'Pérez', 3);
         $rodriguez = $make('María', 'Rodríguez', 2);
 
-        $child = Child::create(['worker_id' => $perez->id, 'first_name' => 'Pepe', 'middle_name' => 'Luis', 'first_surname' => 'Pérez', 'second_surname' => 'Gómez', 'birth_date' => '2015-03-05']);
-        $application = Application::create(['worker_id' => $perez->id, 'type' => 'child_addition', 'status' => 'approved']);
-        ChildApplication::create(['application_id' => $application->id, 'child_id' => $child->id]);
+        $this->createChild($perez, '2015-03-05');
 
         $this->jsonApiAs($this->driver, 'GET', '/api/v1/trips/'.$trip->id.'/passengers');
 

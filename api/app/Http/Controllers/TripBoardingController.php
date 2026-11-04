@@ -36,7 +36,7 @@ class TripBoardingController extends TrackingController
         return JsonApiResponse::make((new Document($request))->collection($paginator, $parameters->includes()));
     }
 
-    public function store(Request $request, Boardings $boardings, Tracking $tracking)
+    public function store(Request $request, Boardings $boardings, Tracking $tracking, \App\Services\Trips $trips)
     {
         $data = $this->validateResource($request, 'trip-boardings', array_merge([
             'attributes.method' => ['required', 'in:self,qr,manual'],
@@ -52,16 +52,16 @@ class TripBoardingController extends TrackingController
 
         switch ($attributes['method']) {
             case TripBoarding::METHOD_SELF:
-                $worker = $user->workerModel();
+                $worker = $user->workerIn($trips->entityOf($leg->trip));
                 $markedBy = $user;
 
                 if (! $worker) {
-                    throw new JsonApiException(422, 'NOT_A_PASSENGER', 'No es pasajero', 'No eres pasajero de este viaje.');
+                    throw new JsonApiException(422, 'NOT_A_PASSENGER', 'No es pasajero', 'No es pasajero de este viaje.');
                 }
                 break;
             default:
-                if (! $tracking->canOperate($leg->trip, $user)) {
-                    throw new JsonApiException(403, 'FORBIDDEN', 'Sin permiso', 'Solo el chofer y los jefes pueden registrar la subida de otros.');
+                if (! $tracking->canScan($leg->trip, $user)) {
+                    throw new JsonApiException(403, 'FORBIDDEN', 'Sin permiso', 'Solo el chofer y quien tenga permiso para escanear la subida pueden registrar la de otros.');
                 }
                 $worker = $attributes['method'] === TripBoarding::METHOD_QR
                     ? $boardings->verifyPass($attributes['boardingPassToken'], $leg)

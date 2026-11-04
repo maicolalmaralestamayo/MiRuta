@@ -105,6 +105,11 @@ abstract class ResourceController extends Controller
 
     public function store(Request $request)
     {
+        // Sin la operación en ningún sitio, 403 antes de validar.
+        if ($this->manageOperation === null || ! app(Permissions::class)->canAnywhere($request->user(), $this->manageOperation)) {
+            throw Permissions::forbidden();
+        }
+
         $rules = $this->rules($request, null);
 
         if ($this->entityScoped) {

@@ -2,14 +2,13 @@
 
 namespace App\Serializers;
 
-use App\Services\ChildEligibility;
+use App\Models\WorkerRole;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 
 /**
- * Trabajador. Los nombres y la foto vienen de su cuenta. El Pase lo ven el
- * propio trabajador, el Jefe de su itinerario, los Jefes de Transporte de
- * su Entidad y el Administrador (docs/08-version-2.md §8.3).
+ * Pertenencia persona–Entidad. Los nombres y la foto vienen de la persona;
+ * el carné, solo para quien puede verlo (ver UserSerializer).
  */
 class WorkerSerializer extends Serializer
 {
@@ -27,17 +26,16 @@ class WorkerSerializer extends Serializer
             'firstSurname' => $user ? $user->first_surname : null,
             'secondSurname' => $user ? $user->second_surname : null,
             'fullName' => $user ? $user->fullName() : null,
+            'sex' => $user ? $user->sex : null,
             'photoUrl' => $user && $user->photo_path ? url($user->photo_path) : null,
-            'sex' => $worker->sex,
+            'hasPhone' => $user ? (bool) $user->has_phone : null,
             'active' => ! $worker->trashed(),
+            'itineraryAssignedAt' => $this->date($worker->itinerary_assigned_at),
             'createdAt' => $this->date($worker->created_at),
         ];
 
-        if (self::canSeePass($worker, $request)) {
-            $attributes = ['pass' => $worker->pass] + $attributes + [
-                // Cuenta creada por un superior y aún sin activar.
-                'activated' => $user ? $user->isActivated() : false,
-            ];
+        if ($user && UserSerializer::canSeeIdentityCard($user, $request)) {
+            $attributes['identityCard'] = $user->identityCard();
         }
 
         return $attributes;
@@ -50,28 +48,18 @@ class WorkerSerializer extends Serializer
         }
 
         return [
-            'childrenCount' => app(ChildEligibility::class)->eligibleCount($worker),
-            'roles' => [
-                'isTransportChief' => $worker->transportChief()->exists(),
-                'driverId' => ($id = $worker->driver()->value('id')) ? (string) $id : null,
-                'chiefOfItineraries' => array_map('strval', $worker->itineraryChiefs()->pluck('itinerary_id')->all()),
-            ],
+            'roles' => WorkerRole::where('worker_id', $worker->id)->with('role')->get()->filter(function ($workerRole) {
+                return $workerRole->role && ! $workerRole->role->trashed();
+            })->map(function ($workerRole) {
+                return [
+                    'id' => (string) $workerRole->id,
+                    'roleId' => (string) $workerRole->role_id,
+                    'name' => $workerRole->role->name,
+                    'icon' => $workerRole->role->icon,
+                    'itineraryId' => $workerRole->itinerary_id ? (string) $workerRole->itinerary_id : null,
+                ];
+            })->values()->all(),
         ];
-    }
-
-    public static function canSeePass(Model $worker, Request $request): bool
-    {
-        $viewer = $request->user();
-
-        if (! $viewer) {
-            return false;
-        }
-
-        return $viewer->isAdmin()
-            || $viewer->workerId() === (int) $worker->id
-            || $viewer->managesEntity($worker->entity_id)
-            || ($worker->itinerary_id !== null && in_array((int) $worker->itinerary_id, $viewer->chiefItineraryIds(), true))
-            || self::isApplyingToChiefsItinerary($worker, $viewer);
     }
 
     public function toOneRelationships(): array
@@ -79,30 +67,8 @@ class WorkerSerializer extends Serializer
         return [
             'user' => ['users', 'user_id', 'user'],
             'entity' => ['entities', 'entity_id', 'entity'],
-            'rank' => ['ranks', 'rank_id', 'rank'],
             'itinerary' => ['itineraries', 'itinerary_id', 'itinerary'],
             'stop' => ['stops', 'stop_id', 'stop'],
         ];
-    }
-
-    /**
-     * El Jefe de itinerario ve el Pase de quien pide entrar en su itinerario,
-     * para comprobar quién es.
-     */
-    private static function isApplyingToChiefsItinerary(Model $worker, $viewer): bool
-    {
-        $itineraries = $viewer->chiefItineraryIds();
-
-        if ($itineraries === []) {
-            return false;
-        }
-
-        return \App\Models\Application::where('worker_id', $worker->id)
-            ->where('type', \App\Models\Application::TYPE_ITINERARY_MEMBERSHIP)
-            ->where('status', \App\Models\Application::STATUS_PENDING)
-            ->whereHas('itineraryApplication', function ($query) use ($itineraries) {
-                $query->whereIn('itinerary_id', $itineraries);
-            })
-            ->exists();
     }
 }

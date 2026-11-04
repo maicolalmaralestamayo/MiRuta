@@ -25,10 +25,10 @@ class MapController extends Controller
         $user = $request->user();
         $query = Stop::query();
 
-        if (! $user->isAdmin()) {
-            $query->where('entity_id', $user->entityId());
-        } elseif ($entity = $request->input('filter.entity')) {
+        if ($entity = $request->input('filter.entity')) {
             $query->where('entity_id', (int) $entity);
+        } elseif (! $user->isAdmin()) {
+            $query->whereIn('entity_id', $user->entityIds() ?: [0]);
         }
 
         $box = $query->selectRaw('MIN(latitude) AS south, MIN(longitude) AS west, MAX(latitude) AS north, MAX(longitude) AS east')->first();

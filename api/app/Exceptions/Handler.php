@@ -85,7 +85,7 @@ class Handler extends ExceptionHandler
         }
 
         if ($exception instanceof AuthorizationException) {
-            return new JsonApiException(403, 'FORBIDDEN', 'Sin permiso', 'No tienes permiso para realizar esta acción.');
+            return new JsonApiException(403, 'FORBIDDEN', 'Sin permiso', 'No tiene permiso para realizar esta acción.');
         }
 
         if ($exception instanceof HttpException) {
