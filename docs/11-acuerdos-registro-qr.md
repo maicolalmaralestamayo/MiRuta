@@ -224,7 +224,9 @@ la **parada**.
   - **usuario** → pantalla **Perfil**;
   - **un hijo** → formulario de **ese hijo**;
   - **Entidad** → **selector de Entidad**;
-  - las demás no hacen nada.
+  - **itinerario y parada** → pantalla **Itinerario y parada**;
+  - **un rol** → pantalla **Roles**;
+  - **un viaje** → **detalle de ese viaje**.
 - **Barra inferior sin «Solicitudes»**: queda Inicio, Viajes, Mensajes y Más. Las solicitudes se hacen desde
   las tarjetas.
 - **Tarjetas modelo:** estas tarjetas son el modelo para toda la app. Cuando se mencione la tarjeta de un usuario,
