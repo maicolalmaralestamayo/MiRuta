@@ -278,7 +278,9 @@ la **parada**.
   - se actualiza con cada petición y, si no hay actividad, comprobando cada 30 segundos;
   - al tocarlo: «Conectado a <servidor>» o «Sin conexión con el servidor desde las hh:mm».
 
-## 11.15 Quién hace qué
+## 11.15 Quién hace qué (configuración de partida)
+
+Es el reparto **con el que arranca la app**. Los roles se pueden editar después (§11.16).
 
 **Jefe de Transporte:** solo **aprueba a los choferes**, **gestiona los vehículos** y **planifica los viajes** de su
 Entidad.
@@ -330,3 +332,109 @@ Entidad.
 - la configuración por trabajador;
 - los roles;
 - la relación trabajador – Entidad – roles.
+
+## 11.16 Roles configurables
+
+- **La tabla de operaciones es fija**: viene con la app y nadie la puede editar, solo consultar.
+- **Un rol es un conjunto de operaciones**, cada una con su **ámbito**:
+
+  | Ámbito | Significa |
+  |---|---|
+  | Propio | Solo sus datos (su cuenta, sus hijos, sus ausencias) |
+  | Su itinerario | El itinerario del que es jefe o miembro |
+  | Su Entidad | La Entidad en la que tiene ese rol |
+  | Todas | Toda la app |
+
+- **El Administrador crea, edita y elimina roles**, les pone nombre y marca sus operaciones y ámbitos.
+  - **Chofer, Jefe de itinerario y Jefe de Transporte** son roles de partida (configurados como en §11.15),
+    **editables**.
+  - Se puede **eliminar un rol aunque lo tengan personas asignadas**: lo pierden en ese momento y reciben el
+    aviso de rol quitado.
+- **El Administrador es un rol fijo**: todas las operaciones con ámbito «Todas»; no se puede editar ni eliminar;
+  siempre debe haber al menos una persona con ese rol.
+- **Cada rol tiene además:**
+  - si **se puede solicitar** o solo lo asigna quien tenga permiso;
+  - **qué roles aprueban sus solicitudes** (por ejemplo, Chofer → Jefe de Transporte de esa Entidad y
+    Administrador).
+- **Asignación por Entidad:** los roles se asignan a una persona **en una Entidad**. Si el rol actúa sobre «su
+  itinerario», quien lo asigna elige el itinerario. Un **Jefe de itinerario lo es de un solo itinerario en cada
+  Entidad**.
+- **Rol por defecto:** el Administrador elige qué rol se asigna automáticamente **cada vez que se aprueba la
+  entrada de una persona en una Entidad** (por ejemplo, «Trabajador»).
+- **Los trabajadores solicitan** los roles que se pueden solicitar; los aprueban los roles indicados.
+
+### Tabla de operaciones (fija)
+
+| Grupo | Operación | Ámbitos posibles |
+|---|---|---|
+| Cuenta propia | Ver y editar mi perfil, mi foto y mi contraseña | Propio |
+| | Ver mi QR | Propio |
+| | Solicitar entrar en una Entidad / darme de baja | Propio |
+| | Solicitar itinerario y parada / darme de baja | Propio |
+| | Solicitar un rol / renunciar a un rol | Propio |
+| | Declarar y editar mis ausencias | Propio |
+| | Editar mis ajustes | Propio |
+| Trabajadores | Consultar trabajadores | Su itinerario, Su Entidad, Todas |
+| | Registrar trabajadores (con o sin teléfono) | Su Entidad, Todas |
+| | Editar los datos de un trabajador | Su itinerario, Su Entidad, Todas |
+| | Desactivar y reactivar trabajadores | Su Entidad, Todas |
+| | Eliminar trabajadores | Todas |
+| | Ver el carné | Su itinerario, Su Entidad, Todas |
+| | Ver, reimprimir y anular el QR impreso | Su itinerario, Su Entidad, Todas |
+| Hijos | Consultar hijos | Propio, Su itinerario, Su Entidad, Todas |
+| | Añadir, editar y quitar hijos | Propio, Todas |
+| Entidades | Consultar Entidades | Su Entidad, Todas |
+| | Crear, editar y eliminar Entidades | Todas |
+| | Aprobar o rechazar la entrada en una Entidad | Su Entidad, Todas |
+| | Añadir o quitar a alguien de una Entidad directamente | Su Entidad, Todas |
+| Itinerarios y paradas | Consultar itinerarios y paradas | Su itinerario, Su Entidad, Todas |
+| | Crear, editar y eliminar itinerarios | Su Entidad, Todas |
+| | Crear, editar y eliminar paradas | Su Entidad, Todas |
+| | Ordenar las paradas de un itinerario | Su itinerario, Su Entidad, Todas |
+| | Marcar el recorrido de referencia | Su itinerario, Su Entidad, Todas |
+| Miembros del itinerario | Aprobar o rechazar solicitudes de itinerario y parada | Su itinerario, Su Entidad, Todas |
+| | Asignar o quitar itinerario y parada directamente | Su itinerario, Su Entidad, Todas |
+| | Alta en un itinerario escaneando el QR | Su itinerario, Su Entidad, Todas |
+| Roles | Consultar roles y la tabla de operaciones | Todas |
+| | Crear, editar y eliminar roles | Todas |
+| | Elegir el rol por defecto | Todas |
+| | Asignar o quitar roles directamente | Su Entidad, Todas |
+| | Aprobar o rechazar solicitudes de rol | Su Entidad, Todas |
+| Vehículos | Consultar vehículos | Su Entidad, Todas |
+| | Crear, editar y eliminar vehículos | Su Entidad, Todas |
+| | Asignar el chofer habitual de un vehículo | Su Entidad, Todas |
+| Viajes | Consultar viajes | Propio, Su itinerario, Su Entidad, Todas |
+| | Planificar viajes (crear y copiar a un rango de fechas) | Su itinerario, Su Entidad, Todas |
+| | Editar viajes (vehículo, chofer, horas) | Su itinerario, Su Entidad, Todas |
+| | Confirmar y cancelar viajes | Su itinerario, Su Entidad, Todas |
+| | Eliminar viajes | Su Entidad, Todas |
+| | Marcar un viaje como realizado | Su itinerario, Su Entidad, Todas |
+| Recorrido | Conducir: iniciar y terminar el recorrido y enviar la ubicación | Su Entidad, Todas |
+| | Ver el recorrido en tiempo real | Propio, Su itinerario, Su Entidad, Todas |
+| | Escanear la subida | Su itinerario, Su Entidad, Todas |
+| | Dejar subir a alguien de otro itinerario o Entidad | Su itinerario, Su Entidad, Todas |
+| | Corregir los pasajeros de un viaje | Su itinerario, Su Entidad, Todas |
+| Ausencias | Consultar ausencias de otros | Su itinerario, Su Entidad, Todas |
+| | Declarar, editar y quitar ausencias de otros | Su itinerario, Su Entidad, Todas |
+| | Crear, editar y eliminar tipos de ausencia | Todas |
+| Configuración | Ajustes de la app | Todas |
+| | Ajustes de la Entidad | Su Entidad, Todas |
+| | Ajustes por itinerario y parada | Su itinerario, Su Entidad, Todas |
+| | Ajustes de un trabajador | Su itinerario, Su Entidad, Todas |
+| Nomencladores | Tipos de vehículo y motivos de conversación | Todas |
+| Mensajes | Chat del viaje | Propio |
+| | Recibir y responder conversaciones dirigidas a un rol | Su itinerario, Su Entidad, Todas |
+| | Borrar mensajes de otros | Su itinerario, Su Entidad, Todas |
+| Estadísticas | Consultar estadísticas | Su itinerario, Su Entidad, Todas |
+| Olvidé algo | Consultar, aprobar, rechazar y bloquear teléfonos | Todas |
+| Actualizaciones de la app | Publicar y retirar versiones | Todas |
+| Mantenimiento del servidor | Ver el estado y ejecutar órdenes | Todas |
+
+## 11.17 Ajustes por itinerario y parada
+
+- Nuevo nivel de configuración **por itinerario** y **por parada dentro de un itinerario**.
+- Se pueden cambiar en ese nivel **todos los ajustes que tengan sentido**: los del viaje y el recorrido por
+  itinerario (tolerancia de atraso, desvíos, avisos, retención del chat del viaje…) y los de la parada por parada
+  (tiempo mínimo de parada, velocidad de paso…).
+- **Gana el más concreto:** trabajador → parada del itinerario → itinerario → Entidad → app.
+
