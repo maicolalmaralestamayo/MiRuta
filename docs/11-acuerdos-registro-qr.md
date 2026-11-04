@@ -160,3 +160,31 @@ itinerario. Mientras no tiene ninguno de los dos, su tarjeta dice «Sin itinerar
 - Cada código es de **un solo uso**: el teléfono que escanea no acepta dos veces el mismo, y el servidor descarta
   los repetidos al sincronizar.
 - Diferencia de hora admitida entre los dos teléfonos: **±2 minutos**.
+
+## 11.8 QR impreso para trabajadores sin teléfono
+
+- Al registrar a un trabajador, el Administrador, el Jefe de Transporte o el Jefe de itinerario indican **si tiene
+  teléfono**.
+- **Sin teléfono:** el sistema genera un **QR fijo**, que **no caduca**, se puede **imprimir** y se puede
+  **compartir** con la lista de Android (WhatsApp, Telegram, Bluetooth…).
+- **Usos:** los mismos que el QR del trabajador (§11.7):
+  - subir a la guagua;
+  - que un jefe le dé de alta o le **cambie de itinerario y parada**.
+- **Funciona sin conexión.**
+  - El código solo lleva el número del trabajador y la firma del servidor, sin datos personales.
+  - Quien escanea con MiRuta ve la tarjeta del trabajador, que sale de la lista de la Entidad guardada en su
+    teléfono.
+- **Tarjeta impresa:** el QR y, impresos al lado, nombres y apellidos, sexo, Entidad y Pase.
+  - **Sin jerarquía, itinerario ni parada**, para que siga valiendo dentro de la misma Entidad sin reimprimirla.
+- **La foto no es obligatoria.** Si tiene foto, se muestra al escanear para comparar; si no, se compara con el
+  nombre y el Pase.
+- **Quién lo ve, lo reimprime y lo anula:** el Administrador, el Jefe de Transporte de su Entidad y el Jefe de su
+  itinerario.
+- **Protección ante copias** (una fotocopia funciona igual que el original):
+  - se puede **anular y generar uno nuevo** en cualquier momento; sin conexión, el teléfono que escanea se entera al
+    sincronizar;
+  - **una sola subida por trayecto**: si el mismo QR se usa dos veces en el mismo viaje, se avisa.
+- **Cuenta del trabajador sin teléfono:**
+  - también se le crea usuario y contraseña, propuestos por el sistema;
+  - cuando entra por primera vez en la app, su QR impreso **se anula** y pasa a usar el QR que cambia cada pocos
+    segundos.
