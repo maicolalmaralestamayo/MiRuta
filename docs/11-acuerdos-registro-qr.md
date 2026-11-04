@@ -458,9 +458,9 @@ tocarla se abre «Mis Entidades» para elegir, con ✓ en la elegida.
 - **Tocar una tarjeta** abre directamente su formulario de edición.
 - **Mantenerla pulsada** entra en **modo selección**: queda marcada con ✓ y cada toque marca o desmarca otras,
   así que se pueden seleccionar varias. Arriba: «N seleccionadas» y ✕ para salir.
-- **Botón «Acciones»**, naranja, abajo a la derecha, encima de la barra principal. Al tocarlo **sube desde abajo
-  una hoja «Acciones»**, igual que «Mis Entidades» en Inicio: esquinas redondeadas, título y la lista de acciones
-  con ícono y texto. Tiene **todas las acciones de la pantalla**:
+- **Botón «Acciones»**, naranja, abajo a la derecha, encima de la barra principal. Al tocarlo se despliega un
+  **menú flotante** encima del botón, a la derecha, con la lista de acciones (ícono y texto); el botón cambia a ✕
+  para cerrarlo. Tiene **todas las acciones de la pantalla**:
   - las que no necesitan selección (Crear, Agregar, Solicitar, Declarar, Guardar…) están **siempre activas**;
   - **Editar** se activa con **una** tarjeta seleccionada y abre el mismo formulario que tocarla;
   - **Desactivar, Eliminar, Darme de baja, Cancelar solicitud…** se activan con **una o varias** seleccionadas
