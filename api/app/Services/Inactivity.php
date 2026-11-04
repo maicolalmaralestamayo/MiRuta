@@ -2,8 +2,8 @@
 
 namespace App\Services;
 
-use App\Models\Application;
-use App\Models\ItineraryApplication;
+use App\Models\Absence;
+use App\Models\Itinerary;
 use App\Models\Notice;
 use App\Models\Trip;
 use App\Models\Worker;
@@ -37,9 +37,9 @@ class Inactivity
         $removed = 0;
 
         foreach (Worker::whereNotNull('itinerary_id')->get() as $worker) {
-            // Los plazos son de la Entidad del trabajador.
-            $limit = $this->settings->int('inactivity_days', null, (int) $worker->entity_id);
-            $warningDays = $this->settings->int('inactivity_warning_days', null, (int) $worker->entity_id);
+            // Los plazos son los de su itinerario (o su Entidad).
+            $limit = $this->settings->int('inactivity_days', null, (int) $worker->entity_id, (int) $worker->itinerary_id);
+            $warningDays = $this->settings->int('inactivity_warning_days', null, (int) $worker->entity_id, (int) $worker->itinerary_id);
             $since = $this->since($worker);
             $counted = $this->countedDays($worker, $since);
 
@@ -47,7 +47,7 @@ class Inactivity
                 $this->remove($worker);
                 $removed++;
             } elseif ($warningDays > 0 && $counted === $limit - $warningDays && ! $this->alreadyWarned($worker, $since)) {
-                $this->notices->send([(int) $worker->user_id], Notice::TYPE_INACTIVITY_WARNING);
+                $this->notices->send([(int) $worker->user_id], Notice::TYPE_INACTIVITY_WARNING, null, null, null, $this->payload($worker));
                 $warned++;
             }
         }
@@ -57,7 +57,7 @@ class Inactivity
 
     /**
      * Días contados desde $since: días en que el itinerario tuvo viajes
-     * realizados y el trabajador no tenía una ausencia aprobada.
+     * realizados y el trabajador no tenía una ausencia declarada.
      */
     public function countedDays(Worker $worker, CarbonImmutable $since): int
     {
@@ -73,12 +73,7 @@ class Inactivity
             ->values()
             ->all();
 
-        $absences = DB::table('absence_applications')
-            ->join('applications', 'applications.id', '=', 'absence_applications.application_id')
-            ->where('applications.worker_id', $worker->id)
-            ->where('applications.type', Application::TYPE_ABSENCE)
-            ->where('applications.status', Application::STATUS_APPROVED)
-            ->get(['starts_on', 'ends_on']);
+        $absences = Absence::where('worker_id', $worker->id)->get();
 
         // Los días en que condujo un viaje realizado tampoco cuentan.
         $driven = $this->drivenDays($worker, $since);
@@ -89,8 +84,7 @@ class Inactivity
             }
 
             foreach ($absences as $absence) {
-                // Sin fechas = ausencia indefinida: cubre todos los días.
-                if (($absence->starts_on === null || $day >= $absence->starts_on) && ($absence->ends_on === null || $day <= $absence->ends_on)) {
+                if ($absence->covers($day)) {
                     return false;
                 }
             }
@@ -113,18 +107,11 @@ class Inactivity
             ->where('trips.status', Trip::STATUS_COMPLETED)
             ->max('trips.departs_at');
 
-        $joined = Application::where('worker_id', $worker->id)
-            ->whereIn('type', [Application::TYPE_ITINERARY_MEMBERSHIP, Application::TYPE_ITINERARY_CHIEF])
-            ->where('status', Application::STATUS_APPROVED)
-            ->whereHas('itineraryApplication', function ($query) use ($worker) {
-                $query->where('itinerary_id', $worker->itinerary_id);
-            })
-            ->max('resolved_at');
+        $joined = $worker->itinerary_assigned_at ? (string) $worker->itinerary_assigned_at : null;
 
         // Conducir un viaje realizado también es actividad.
         $lastDriven = DB::table('trips')
-            ->join('drivers', 'drivers.id', '=', 'trips.driver_id')
-            ->where('drivers.worker_id', $worker->id)
+            ->where('trips.driver_id', $worker->id)
             ->where('trips.status', Trip::STATUS_COMPLETED)
             ->where('trips.departs_at', '<=', Carbon::now())
             ->max('trips.departs_at');
@@ -140,8 +127,7 @@ class Inactivity
     private function drivenDays(Worker $worker, CarbonImmutable $since): array
     {
         return DB::table('trips')
-            ->join('drivers', 'drivers.id', '=', 'trips.driver_id')
-            ->where('drivers.worker_id', $worker->id)
+            ->where('trips.driver_id', $worker->id)
             ->where('trips.status', Trip::STATUS_COMPLETED)
             ->where('trips.departs_at', '>', $since)
             ->pluck('trips.departs_at')
@@ -161,24 +147,27 @@ class Inactivity
     private function remove(Worker $worker): void
     {
         DB::transaction(function () use ($worker) {
+            $payload = $this->payload($worker) + ['person' => $worker->fullName()];
             $itineraryId = (int) $worker->itinerary_id;
-            $application = Application::create([
-                'worker_id' => $worker->id,
-                'type' => Application::TYPE_ITINERARY_REMOVAL,
-                'status' => Application::STATUS_APPROVED,
-                'resolved_at' => Carbon::now(),
-            ]);
-            ItineraryApplication::create(['application_id' => $application->id, 'itinerary_id' => $itineraryId, 'stop_id' => $worker->stop_id]);
 
-            $worker->itinerary_id = null;
-            $worker->stop_id = null;
-            $worker->save();
+            $worker->forceFill(['itinerary_id' => null, 'stop_id' => null, 'itinerary_assigned_at' => null])->save();
+            app(Permissions::class)->flush((int) $worker->user_id);
 
             $this->notices->send(
-                array_merge([(int) $worker->user_id], $this->notices->itineraryChiefIds($itineraryId)),
+                array_merge([(int) $worker->user_id], app(Permissions::class)->userIdsWith('members.approve', (int) $worker->entity_id, $itineraryId, false)),
                 Notice::TYPE_INACTIVITY_REMOVAL,
-                $application->id
+                null,
+                null,
+                null,
+                $payload
             );
         });
+    }
+
+    private function payload(Worker $worker): array
+    {
+        $itinerary = $worker->itinerary_id ? Itinerary::withTrashed()->find($worker->itinerary_id) : null;
+
+        return ['itinerary' => $itinerary ? $itinerary->name : null, 'entity' => $worker->entity ? $worker->entity->abbreviation : null];
     }
 }

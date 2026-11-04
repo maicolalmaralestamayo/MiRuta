@@ -32,8 +32,8 @@ class CreateChatTables extends Migration
             $table->foreignId('installation_id')->nullable()->comment('Instalación desde la que se abrió sin cuenta')->constrained();
             $table->string('guest_name', 150)->nullable()->comment('Solo sin cuenta');
             $table->text('guest_phone_encrypted')->nullable()->comment('Solo sin cuenta; lo ve el Administrador');
-            $table->foreignId('itinerary_id')->nullable()->comment('Solo para los Jefes de itinerario')->constrained();
-            $table->foreignId('entity_id')->nullable()->comment('Solo para los Jefes de Transporte')->constrained();
+            $table->foreignId('itinerary_id')->nullable()->comment('Si el rol destinatario es por itinerario')->constrained();
+            $table->foreignId('entity_id')->nullable()->comment('Entidad del rol destinatario')->constrained();
             $table->dateTime('closed_at')->nullable();
             $table->timestamps();
             $table->softDeletes();

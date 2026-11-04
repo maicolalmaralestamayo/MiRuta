@@ -10,6 +10,7 @@ class CreateNoticesTable extends Migration
         'application_received', 'application_resolved', 'role_assigned', 'role_removed', 'resignation',
         'inactivity_warning', 'inactivity_removal', 'trip_needs_reassignment',
         'access_recovery_requested', 'password_expiring', 'trip_started', 'trip_delayed', 'trip_incident',
+        'entity_added', 'entity_removed', 'itinerary_assigned', 'itinerary_removed',
     ];
 
     /**

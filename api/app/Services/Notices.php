@@ -2,14 +2,12 @@
 
 namespace App\Services;
 
-use App\Models\ItineraryChief;
 use App\Models\Notice;
-use App\Models\TransportChief;
 use App\Models\User;
 use App\Models\Worker;
 
 /**
- * Avisos del servidor. Los destinatarios son cuentas (users).
+ * Avisos del servidor. Los destinatarios son personas (users).
  */
 class Notices
 {
@@ -42,34 +40,13 @@ class Notices
     }
 
     /**
-     * Cuentas de los Jefes de Transporte de una Entidad.
+     * Personas que pueden hacer la operación en esa Entidad o itinerario.
      *
      * @return int[]
      */
-    public function transportChiefIds(?int $entityId): array
+    public function usersWith(string $operation, ?int $entityId = null, ?int $itineraryId = null): array
     {
-        if ($entityId === null) {
-            return [];
-        }
-
-        return array_map('intval', Worker::where('entity_id', $entityId)
-            ->whereIn('id', TransportChief::query()->select('worker_id'))
-            ->pluck('user_id')->all());
-    }
-
-    /**
-     * Cuentas de los Jefes de un itinerario.
-     *
-     * @return int[]
-     */
-    public function itineraryChiefIds(?int $itineraryId): array
-    {
-        if ($itineraryId === null) {
-            return [];
-        }
-
-        return array_map('intval', Worker::whereIn('id', ItineraryChief::where('itinerary_id', $itineraryId)->select('worker_id'))
-            ->pluck('user_id')->all());
+        return app(Permissions::class)->userIdsWith($operation, $entityId, $itineraryId);
     }
 
     public function userIdOfWorker(?int $workerId): ?int

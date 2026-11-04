@@ -31,6 +31,10 @@ class StopController extends ResourceController
 
     protected $entityScoped = true;
 
+    protected $manageOperation = 'stops.manage';
+
+    protected $viewOperation = 'itineraries.view';
+
     protected $defaultSort = 'landmark';
 
     protected function rules(Request $request, ?Model $model): array

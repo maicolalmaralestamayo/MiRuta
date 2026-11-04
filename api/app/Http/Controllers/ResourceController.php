@@ -6,6 +6,7 @@ use App\JsonApi\Document;
 use App\JsonApi\JsonApiException;
 use App\JsonApi\JsonApiResponse;
 use App\JsonApi\QueryParameters;
+use App\Services\Permissions;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -13,7 +14,8 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * Controlador JSON:API genérico: listar, ver, crear, modificar y borrar
- * (borrado lógico), con permisos por política, filtros, orden e include.
+ * (borrado lógico), con permisos por operación (App\Services\Permissions),
+ * filtros, orden e include.
  *
  * Cada recurso define su modelo, sus reglas de validación y cómo se pasan
  * los atributos y relaciones a columnas.
@@ -46,12 +48,35 @@ abstract class ResourceController extends Controller
 
     /**
      * El recurso es de una Entidad (tabla raíz con entity_id): cada uno ve
-     * los de la suya y los crea en la suya; el Administrador ve todos
-     * (filter[entity]) y al crear indica relationships.entity.
+     * los de su ámbito (filter[entity] para elegir una) y al crear indica
+     * relationships.entity (si puede crear en una sola Entidad, se usa esa).
      *
      * @var bool
      */
     protected $entityScoped = false;
+
+    /**
+     * Operación para crear, modificar y borrar (null = nadie).
+     *
+     * @var string|null
+     */
+    protected $manageOperation;
+
+    /**
+     * Operación para consultar los de otras Entidades (null = los ven todos
+     * los que pertenecen a la Entidad).
+     *
+     * @var string|null
+     */
+    protected $viewOperation;
+
+    /**
+     * Los miembros de la Entidad ven sus recursos (itinerarios y paradas, para
+     * pedir el suyo); si no, solo con viewOperation.
+     *
+     * @var bool
+     */
+    protected $membersCanView = true;
 
     /**
      * Reglas de validación con claves JSON:API ("attributes.name").
@@ -61,8 +86,6 @@ abstract class ResourceController extends Controller
 
     public function index(Request $request)
     {
-        $this->authorize('viewAny', $this->model);
-
         $parameters = QueryParameters::fromRequest($request, $this->sortable, $this->filterable, $this->includable, $this->defaultSort);
         $query = $this->newQuery($request);
         $this->applyFilters($query, $parameters, $request);
@@ -76,31 +99,28 @@ abstract class ResourceController extends Controller
     public function show(Request $request, $id)
     {
         $model = $this->findOrFail($request, $id);
-        $this->authorize('view', $model);
 
         return JsonApiResponse::make((new Document($request))->resource($model, QueryParameters::readIncludes($request, $this->includable)));
     }
 
     public function store(Request $request)
     {
-        $this->authorize('create', $this->model);
-
         $rules = $this->rules($request, null);
 
-        if ($this->entityScoped && $request->user()->isAdmin()) {
-            $rules += $this->relationshipRules('entity', 'entities', 'entities', true);
+        if ($this->entityScoped) {
+            $rules += $this->relationshipRules('entity', 'entities', 'entities', false);
         }
 
         $data = $this->validateResource($request, $this->type, $rules);
+        $entityId = $this->entityScoped ? $this->creationEntityId($request) : null;
+        $this->authorizeManage($request, $entityId);
 
-        $model = DB::transaction(function () use ($data, $request) {
+        $model = DB::transaction(function () use ($data, $request, $entityId) {
             $model = $this->restorable($data) ?: new $this->model();
             $this->fill($model, $data);
 
             if ($this->entityScoped) {
-                $model->entity_id = $request->user()->isAdmin()
-                    ? (int) $data['relationships']['entity']['data']['id']
-                    : $request->user()->entityId();
+                $model->entity_id = $entityId;
             }
             $this->beforeSave($model, $request, true);
             $model->save();
@@ -121,7 +141,7 @@ abstract class ResourceController extends Controller
     public function update(Request $request, $id)
     {
         $model = $this->findOrFail($request, $id);
-        $this->authorize('update', $model);
+        $this->authorizeManage($request, $this->entityScoped ? (int) $model->entity_id : null, $model);
 
         $data = $this->validateResource($request, $this->type, $this->rules($request, $model));
 
@@ -142,7 +162,7 @@ abstract class ResourceController extends Controller
     public function destroy(Request $request, $id)
     {
         $model = $this->findOrFail($request, $id);
-        $this->authorize('delete', $model);
+        $this->authorizeManage($request, $this->entityScoped ? (int) $model->entity_id : null, $model);
 
         DB::transaction(function () use ($model, $request) {
             $this->beforeDelete($model, $request);
@@ -161,14 +181,77 @@ abstract class ResourceController extends Controller
         $query = $this->model::query();
 
         if ($this->entityScoped && $request->user()) {
-            $query->visibleTo($request->user());
+            $table = (new $this->model())->getTable();
+            $query->whereIn($table.'.entity_id', $this->visibleEntityIds($request));
 
-            if ($request->user()->isAdmin() && ($entity = $request->input('filter.entity'))) {
-                $query->where((new $this->model())->getTable().'.entity_id', $entity);
+            if ($entity = $request->input('filter.entity')) {
+                $query->where($table.'.entity_id', $entity);
             }
         }
 
         return $query;
+    }
+
+    /**
+     * Entidades cuyos recursos ve: aquellas a las que pertenece (si los ven
+     * todos sus miembros) y las de su ámbito de la operación de consulta o
+     * de gestión. Con ámbito «all», todas (subconsulta).
+     *
+     * @return array|\Illuminate\Database\Query\Builder
+     */
+    protected function visibleEntityIds(Request $request)
+    {
+        $user = $request->user();
+        $permissions = app(Permissions::class);
+        $ids = $this->membersCanView ? $user->entityIds() : [];
+
+        foreach (array_filter([$this->viewOperation, $this->manageOperation]) as $operation) {
+            $scope = $permissions->scope($user, $operation);
+
+            if ($scope['all']) {
+                return DB::table('entities')->select('id');
+            }
+
+            $ids = array_merge($ids, $scope['entities'], $scope['own']);
+
+            foreach ($scope['itineraries'] as $itineraryId) {
+                $ids[] = $permissions->entityOfItinerary($itineraryId);
+            }
+        }
+
+        return array_values(array_unique(array_filter($ids))) ?: [0];
+    }
+
+    /**
+     * Entidad en la que se crea: la indicada o, si puede crear en una sola, esa.
+     */
+    protected function creationEntityId(Request $request): int
+    {
+        $id = $request->input('data.relationships.entity.data.id');
+
+        if ($id !== null) {
+            return (int) $id;
+        }
+
+        $scope = $this->manageOperation ? app(Permissions::class)->scope($request->user(), $this->manageOperation) : ['all' => false, 'entities' => []];
+
+        if (! $scope['all'] && count($scope['entities']) === 1) {
+            return (int) $scope['entities'][0];
+        }
+
+        throw new JsonApiException(422, 'VALIDATION_ERROR', 'Falta la Entidad', 'Indique la Entidad (relationships.entity).', ['pointer' => '/data/relationships/entity']);
+    }
+
+    /**
+     * Comprueba la operación de gestión (en la Entidad, si es de una).
+     */
+    protected function authorizeManage(Request $request, ?int $entityId, ?Model $model = null): void
+    {
+        if ($this->manageOperation === null) {
+            throw Permissions::forbidden();
+        }
+
+        app(Permissions::class)->authorize($request->user(), $this->manageOperation, $entityId);
     }
 
     protected function applyFilters(Builder $query, QueryParameters $parameters, Request $request): void

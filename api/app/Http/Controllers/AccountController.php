@@ -7,16 +7,20 @@ use App\JsonApi\JsonApiResponse;
 use App\JsonApi\QueryParameters;
 use App\Models\User;
 use App\Models\Worker;
+use App\Services\Applications;
+use App\Services\Memberships;
+use App\Services\Permissions;
 use App\Services\TokenService;
-use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Cuentas (solo el Administrador): incluye las que aún no se unieron a
- * ninguna Entidad. Activar y desactivar.
+ * Personas (users). Cada uno ve la suya, las de las pertenencias de su
+ * ámbito de workers.view y las de las solicitudes que puede resolver; con
+ * workers.view «all», todas (también las que no tienen Entidad). Desactivar
+ * y reactivar una cuenta (eliminar trabajadores): workers.delete.
  */
 class AccountController extends ResourceController
 {
@@ -26,9 +30,9 @@ class AccountController extends ResourceController
 
     protected $sortable = ['id' => 'id', 'username' => 'username', 'firstSurname' => 'first_surname', 'createdAt' => 'created_at'];
 
-    protected $filterable = ['search', 'active', 'hasWorker'];
+    protected $filterable = ['search', 'active', 'hasWorker', 'entity'];
 
-    protected $includable = ['worker', 'worker.entity'];
+    protected $includable = [];
 
     protected $defaultSort = 'firstSurname';
 
@@ -37,37 +41,27 @@ class AccountController extends ResourceController
         return ['attributes.active' => ['required', 'boolean']];
     }
 
-    public function index(Request $request)
-    {
-        $this->ensureAdmin($request);
-
-        return parent::index($request);
-    }
-
-    public function show(Request $request, $id)
-    {
-        $this->ensureAdmin($request);
-
-        return parent::show($request, $id);
-    }
-
     public function update(Request $request, $id)
     {
-        $this->ensureAdmin($request);
+        app(Permissions::class)->authorize($request->user(), 'workers.delete');
         $user = User::withTrashed()->findOrFail($id);
         $data = $this->validateResource($request, $this->type, $this->rules($request, $user));
         $active = filter_var($data['attributes']['active'], FILTER_VALIDATE_BOOLEAN);
 
-        DB::transaction(function () use ($user, $active) {
-            $worker = Worker::withTrashed()->where('user_id', $user->id)->first();
+        if (! $active && $user->isAdmin() && User::where('is_admin', true)->where('id', '<>', $user->id)->doesntExist()) {
+            throw \App\JsonApi\JsonApiException::conflict('LAST_ADMIN', 'Siempre tiene que haber al menos un Administrador.');
+        }
 
+        DB::transaction(function () use ($user, $active) {
             if ($active) {
                 $user->restore();
-                $worker && $worker->restore();
             } else {
                 $user->delete();
-                $worker && $worker->delete();
                 app(TokenService::class)->revokeAll($user->id);
+
+                foreach (Worker::where('user_id', $user->id)->get() as $worker) {
+                    app(Memberships::class)->afterDriveLost($worker);
+                }
             }
         });
 
@@ -76,8 +70,10 @@ class AccountController extends ResourceController
 
     protected function newQuery(Request $request): Builder
     {
+        $viewer = $request->user();
         $query = User::query();
         $active = $request->input('filter.active');
+        $permissions = app(Permissions::class);
 
         if ($active === 'false') {
             $query->onlyTrashed();
@@ -85,7 +81,21 @@ class AccountController extends ResourceController
             $query->withTrashed();
         }
 
-        return $query;
+        $scope = $permissions->scope($viewer, 'workers.view');
+
+        if ($scope['all']) {
+            return $query;
+        }
+
+        $workers = Worker::query()->select('user_id');
+        $permissions->restrict($workers, $viewer, 'workers.view', 'entity_id', 'itinerary_id');
+        $applicants = app(Applications::class)->visibleTo($viewer)->select('user_id');
+
+        return $query->where(function (Builder $query) use ($viewer, $workers, $applicants) {
+            $query->where('users.id', $viewer->id)
+                ->orWhereIn('users.id', $workers->toBase())
+                ->orWhereIn('users.id', $applicants->toBase());
+        });
     }
 
     protected function applyFilters(Builder $query, QueryParameters $parameters, Request $request): void
@@ -95,18 +105,21 @@ class AccountController extends ResourceController
                 foreach (['username', 'first_name', 'middle_name', 'first_surname', 'second_surname'] as $column) {
                     $query->orWhere($column, 'like', '%'.$search.'%');
                 }
+
+                if (\App\Support\IdentityCard::isValid($search)) {
+                    $query->orWhere('identity_card_hash', \App\Support\IdentityCard::hash($search));
+                }
             });
         }
 
         if ($parameters->filter('hasWorker') !== null) {
-            $parameters->filter('hasWorker') === 'true' ? $query->has('worker') : $query->doesntHave('worker');
+            $parameters->filter('hasWorker') === 'true' ? $query->has('workers') : $query->doesntHave('workers');
         }
-    }
 
-    private function ensureAdmin(Request $request): void
-    {
-        if (! $request->user()->isAdmin()) {
-            throw new AuthorizationException();
+        if ($entity = $parameters->filter('entity')) {
+            $query->whereHas('workers', function (Builder $query) use ($entity) {
+                $query->where('entity_id', $entity);
+            });
         }
     }
 }

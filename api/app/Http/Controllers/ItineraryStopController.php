@@ -7,6 +7,8 @@ use App\JsonApi\JsonApiResponse;
 use App\JsonApi\QueryParameters;
 use App\Models\ItineraryStop;
 use App\Services\ItineraryStops;
+use App\Services\Permissions;
+use App\Support\Tenancy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -29,6 +31,10 @@ class ItineraryStopController extends ResourceController
     protected $includable = ['stop', 'itinerary'];
 
     protected $defaultSort = 'position';
+
+    protected $manageOperation = 'itineraries.manage';
+
+    protected $viewOperation = 'itineraries.view';
 
     /** @var ItineraryStops */
     private $itineraryStops;
@@ -60,24 +66,22 @@ class ItineraryStopController extends ResourceController
 
     protected function newQuery(Request $request): Builder
     {
-        $user = $request->user();
-        $query = ItineraryStop::query();
+        $entities = $this->visibleEntityIds($request);
 
-        return $user->isAdmin() ? $query : $query->whereHas('itinerary', function (Builder $query) use ($user) {
-            $query->where('entity_id', $user->entityId());
+        return ItineraryStop::query()->whereHas('itinerary', function (Builder $query) use ($entities) {
+            $query->whereIn('entity_id', $entities);
         });
     }
 
     public function store(Request $request)
     {
-        $this->authorize('create', ItineraryStop::class);
         $data = $this->validateResource($request, $this->type, $this->rules($request, null));
         $position = isset($data['attributes']['position']) ? (int) $data['attributes']['position'] : null;
         $itineraryId = (int) $data['relationships']['itinerary']['data']['id'];
 
-        // El itinerario tiene que ser suyo y la parada de la misma Entidad.
-        \App\Support\Tenancy::ensureVisible($request->user(), 'itineraries', $itineraryId);
-        \App\Support\Tenancy::ensureSame(\App\Support\Tenancy::entityOf('itineraries', $itineraryId), 'stops',
+        // Puede gestionar los itinerarios de esa Entidad y la parada es de la misma.
+        app(Permissions::class)->authorize($request->user(), 'itineraries.manage', Tenancy::entityOf('itineraries', $itineraryId));
+        Tenancy::ensureSame(Tenancy::entityOf('itineraries', $itineraryId), 'stops',
             (int) $data['relationships']['stop']['data']['id'], '/data/relationships/stop');
 
         $itineraryStop = DB::transaction(function () use ($data, $position) {
@@ -96,7 +100,13 @@ class ItineraryStopController extends ResourceController
     public function update(Request $request, $id)
     {
         $itineraryStop = $this->findOrFail($request, $id);
-        $this->authorize('update', $itineraryStop);
+        // Ordenar: itineraries.order_stops sobre el itinerario (o gestionar los itinerarios).
+        $permissions = app(Permissions::class);
+        $entityId = Tenancy::entityOf('itineraries', $itineraryStop->itinerary_id);
+
+        if (! $permissions->can($request->user(), 'itineraries.order_stops', $entityId, (int) $itineraryStop->itinerary_id)) {
+            $permissions->authorize($request->user(), 'itineraries.manage', $entityId);
+        }
         $data = $this->validateResource($request, $this->type, $this->rules($request, $itineraryStop));
 
         $itineraryStop = DB::transaction(function () use ($itineraryStop, $data) {
@@ -109,7 +119,7 @@ class ItineraryStopController extends ResourceController
     public function destroy(Request $request, $id)
     {
         $itineraryStop = $this->findOrFail($request, $id);
-        $this->authorize('delete', $itineraryStop);
+        app(Permissions::class)->authorize($request->user(), 'itineraries.manage', Tenancy::entityOf('itineraries', $itineraryStop->itinerary_id));
 
         DB::transaction(function () use ($itineraryStop) {
             $this->itineraryStops->remove($itineraryStop);

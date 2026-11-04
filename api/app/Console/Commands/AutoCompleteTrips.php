@@ -17,7 +17,7 @@ class AutoCompleteTrips extends Command
 
     public function handle(Trips $trips, Settings $settings)
     {
-        $due = $trips->dueForAutoCompletion($settings->int('trip_auto_complete_delay_minutes'));
+        $due = $trips->dueForAutoCompletion();
 
         foreach ($due as $trip) {
             $trips->markCompleted($trip, null);

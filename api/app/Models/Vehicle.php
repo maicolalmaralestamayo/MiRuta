@@ -22,11 +22,11 @@ class Vehicle extends Model
     }
 
     /**
-     * Chofer habitual.
+     * Chofer habitual: una pertenencia (worker) con tracking.drive.
      */
     public function driver()
     {
-        return $this->belongsTo(Driver::class);
+        return $this->belongsTo(Worker::class, 'driver_id')->withTrashed();
     }
 
     /**
@@ -42,11 +42,4 @@ class Vehicle extends Model
         return $this->belongsTo(Entity::class)->withTrashed();
     }
 
-    /**
-     * Los de la Entidad de esa cuenta (todos, para el Administrador).
-     */
-    public function scopeVisibleTo($query, User $user)
-    {
-        return $user->isAdmin() ? $query : $query->where($this->getTable().'.entity_id', $user->entityId());
-    }
 }

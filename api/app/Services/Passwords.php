@@ -74,6 +74,37 @@ class Passwords
     }
 
     /**
+     * Contraseña propuesta (docs/11 §11.5 y §11.7): cumple la política, con
+     * mayúsculas, minúsculas, números y un símbolo, sin caracteres que se
+     * confundan (0/O, 1/l/I).
+     */
+    public function suggest(): string
+    {
+        $length = max(10, $this->settings->int('password_min_length'));
+        $sets = ['ABCDEFGHJKLMNPQRSTUVWXYZ', 'abcdefghijkmnopqrstuvwxyz', '23456789', '.-_*#'];
+        $pick = function (string $set) {
+            return $set[random_int(0, strlen($set) - 1)];
+        };
+        $characters = [$pick($sets[0]), $pick($sets[2]), $pick($sets[3])];
+
+        while (count($characters) < $length - 1) {
+            $characters[] = $pick(random_int(0, 2) === 0 ? $sets[0] : $sets[1]);
+        }
+
+        // La primera, una letra (más fácil de dictar); el resto, mezclado.
+        $first = $pick($sets[0]);
+        $rest = $characters;
+        for ($i = count($rest) - 1; $i > 0; $i--) {
+            $j = random_int(0, $i);
+            $tmp = $rest[$i];
+            $rest[$i] = $rest[$j];
+            $rest[$j] = $tmp;
+        }
+
+        return $first.implode('', $rest);
+    }
+
+    /**
      * Guarda la contraseña nueva (ya validada) y la anterior en el historial.
      */
     public function set(User $user, string $password): void

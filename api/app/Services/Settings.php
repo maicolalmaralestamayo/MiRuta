@@ -4,6 +4,10 @@ namespace App\Services;
 
 use App\JsonApi\JsonApiException;
 use App\Models\EntitySetting;
+use App\Models\Itinerary;
+use App\Models\ItinerarySetting;
+use App\Models\ItineraryStop;
+use App\Models\ItineraryStopSetting;
 use App\Models\Setting;
 use App\Models\SettingDefinition;
 use App\Models\UserSetting;
@@ -12,8 +16,9 @@ use App\Models\User;
 /**
  * Valor efectivo y validación de los ajustes (docs/07-algoritmos.md §7.5).
  *
- * Tres niveles: app (Administrador) → Entidad (Jefe de Transporte, solo los
- * ajustes de nivel Entidad) → usuario (solo los que el usuario puede cambiar).
+ * Niveles (docs/11 §11.17), gana el más concreto: usuario (los que puede
+ * cambiar) → parada del itinerario (stop_level) → itinerario
+ * (itinerary_level) → Entidad (nivel Entidad) → app → valor por defecto.
  */
 class Settings
 {
@@ -26,21 +31,27 @@ class Settings
     /** @var array [id de Entidad => [id de definición => valor]] */
     private $entityValues = [];
 
+    /** @var array [id de itinerario => [id de definición => valor]] */
+    private $itineraryValues = [];
+
+    /** @var array ["itinerario-parada" => [id de definición => valor]] */
+    private $stopValues = [];
+
     /**
-     * Valor efectivo convertido a su tipo: el del usuario, si no el de su
-     * Entidad, si no el de la app, si no el valor por defecto; nunca menor
-     * que su ajuste mínimo. Sin $entityId se usa la Entidad del usuario.
+     * Valor efectivo convertido a su tipo (ver los niveles arriba); nunca
+     * menor que su ajuste mínimo. Sin $entityId se usa la del itinerario o,
+     * si la persona pertenece a una sola Entidad, la suya.
      */
-    public function get(string $key, ?User $user = null, ?int $entityId = null)
+    public function get(string $key, ?User $user = null, ?int $entityId = null, ?int $itineraryId = null, ?int $stopId = null)
     {
         $definition = $this->definition($key);
 
-        return $this->cast($definition, $this->effectiveRaw($definition, $user, $entityId));
+        return $this->cast($definition, $this->effectiveRaw($definition, $user, $entityId, $itineraryId, $stopId));
     }
 
-    public function int(string $key, ?User $user = null, ?int $entityId = null): int
+    public function int(string $key, ?User $user = null, ?int $entityId = null, ?int $itineraryId = null, ?int $stopId = null): int
     {
-        return (int) $this->get($key, $user, $entityId);
+        return (int) $this->get($key, $user, $entityId, $itineraryId, $stopId);
     }
 
     /**
@@ -54,21 +65,30 @@ class Settings
     /**
      * Valor sin convertir, ya ajustado al mínimo (como se envía en la API).
      */
-    public function effectiveRaw(SettingDefinition $definition, ?User $user = null, ?int $entityId = null): string
+    public function effectiveRaw(SettingDefinition $definition, ?User $user = null, ?int $entityId = null, ?int $itineraryId = null, ?int $stopId = null): string
     {
-        if ($entityId === null && $user) {
-            $entityId = $user->entityId();
+        if ($entityId === null && $itineraryId !== null) {
+            $entityId = $this->entityOfItinerary($itineraryId);
         }
 
-        return $this->applyMinimum($definition, $this->rawValue($definition, $user, $entityId));
+        if ($entityId === null && $user) {
+            $entityId = $user->singleEntityId();
+        }
+
+        return $this->applyMinimum($definition, $this->rawValue($definition, $user, $entityId, $itineraryId, $stopId));
     }
 
     /**
-     * Valor por encima del usuario: el de la Entidad o el de la app.
+     * Valor por encima del usuario: el de la parada, el del itinerario, el de
+     * la Entidad o el de la app.
      */
-    public function inheritedRaw(SettingDefinition $definition, ?int $entityId): string
+    public function inheritedRaw(SettingDefinition $definition, ?int $entityId, ?int $itineraryId = null, ?int $stopId = null): string
     {
-        return $this->applyMinimum($definition, $this->rawValue($definition, null, $entityId));
+        if ($entityId === null && $itineraryId !== null) {
+            $entityId = $this->entityOfItinerary($itineraryId);
+        }
+
+        return $this->applyMinimum($definition, $this->rawValue($definition, null, $entityId, $itineraryId, $stopId));
     }
 
     public function definition(string $key): SettingDefinition
@@ -193,9 +213,11 @@ class Settings
         $this->definitions = null;
         $this->globals = null;
         $this->entityValues = [];
+        $this->itineraryValues = [];
+        $this->stopValues = [];
     }
 
-    private function rawValue(SettingDefinition $definition, ?User $user, ?int $entityId): string
+    private function rawValue(SettingDefinition $definition, ?User $user, ?int $entityId, ?int $itineraryId = null, ?int $stopId = null): string
     {
         if ($user && $definition->user_overridable) {
             $userValue = UserSetting::where('user_id', $user->id)
@@ -204,6 +226,31 @@ class Settings
 
             if ($userValue !== null) {
                 return $userValue;
+            }
+        }
+
+        if ($itineraryId !== null && $stopId !== null && $definition->stop_level) {
+            $key = $itineraryId.'-'.$stopId;
+
+            if (! isset($this->stopValues[$key])) {
+                $itineraryStopId = ItineraryStop::where('itinerary_id', $itineraryId)->where('stop_id', $stopId)->value('id');
+                $this->stopValues[$key] = $itineraryStopId
+                    ? ItineraryStopSetting::where('itinerary_stop_id', $itineraryStopId)->pluck('value', 'setting_definition_id')->all()
+                    : [];
+            }
+
+            if (isset($this->stopValues[$key][$definition->id])) {
+                return $this->stopValues[$key][$definition->id];
+            }
+        }
+
+        if ($itineraryId !== null && $definition->itinerary_level) {
+            if (! isset($this->itineraryValues[$itineraryId])) {
+                $this->itineraryValues[$itineraryId] = ItinerarySetting::where('itinerary_id', $itineraryId)->pluck('value', 'setting_definition_id')->all();
+            }
+
+            if (isset($this->itineraryValues[$itineraryId][$definition->id])) {
+                return $this->itineraryValues[$itineraryId][$definition->id];
             }
         }
 
@@ -236,6 +283,13 @@ class Settings
         }
 
         return (string) $value;
+    }
+
+    private function entityOfItinerary(int $itineraryId): ?int
+    {
+        $entityId = Itinerary::withTrashed()->whereKey($itineraryId)->value('entity_id');
+
+        return $entityId === null ? null : (int) $entityId;
     }
 
     private function globals(): array

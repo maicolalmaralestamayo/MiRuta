@@ -8,6 +8,7 @@ use App\JsonApi\JsonApiResponse;
 use App\Models\Itinerary;
 use App\Models\TripLeg;
 use App\Models\Worker;
+use App\Services\Permissions;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -21,6 +22,10 @@ class ItineraryController extends NomenclatorController
 
     protected $entityScoped = true;
 
+    protected $manageOperation = 'itineraries.manage';
+
+    protected $viewOperation = 'itineraries.view';
+
     protected $filterable = ['name', 'entity'];
 
     protected $relationships = [
@@ -29,8 +34,9 @@ class ItineraryController extends NomenclatorController
     ];
 
     /**
-     * El Jefe de itinerario puede marcar el recorrido de referencia del suyo
-     * (solo eso); el resto lo gestiona el Jefe de Transporte.
+     * Marcar el recorrido de referencia (solo eso) lo puede hacer quien tenga
+     * itineraries.reference_route sobre el itinerario; el resto, quien tenga
+     * itineraries.manage en su Entidad.
      */
     public function update(Request $request, $id)
     {
@@ -40,7 +46,7 @@ class ItineraryController extends NomenclatorController
             && ! empty($data['relationships'])
             && ! array_diff(array_keys($data['relationships']), ['referenceOutboundLeg', 'referenceReturnLeg']);
 
-        if ($onlyReference && ! $user->isTransportChief() && ! $user->isAdmin() && $user->isChiefOf((int) $id)) {
+        if ($onlyReference && app(Permissions::class)->can($user, 'itineraries.reference_route', null, (int) $id)) {
             $itinerary = $this->findOrFail($request, $id);
             $validated = $this->validateResource($request, $this->type, $this->rules($request, $itinerary));
             DB::transaction(function () use ($itinerary, $validated, $request) {
@@ -113,21 +119,31 @@ class ItineraryController extends NomenclatorController
     /**
      * Entidad en la que se crea o está el recurso.
      */
-    public static function targetEntityId(Request $request, ?Model $model): ?int
+    public static function targetEntityId(Request $request, ?Model $model, string $operation = 'itineraries.manage'): ?int
     {
         if ($model) {
             return (int) $model->entity_id;
         }
 
-        $user = $request->user();
+        $id = $request->input('data.relationships.entity.data.id');
 
-        return $user->isAdmin() ? (int) $request->input('data.relationships.entity.data.id') : $user->entityId();
+        if ($id !== null) {
+            return (int) $id;
+        }
+
+        $scope = app(Permissions::class)->scope($request->user(), $operation);
+
+        return ! $scope['all'] && count($scope['entities']) === 1 ? (int) $scope['entities'][0] : null;
     }
 
     protected function beforeDelete(Model $itinerary, Request $request): void
     {
         if (Worker::where('itinerary_id', $itinerary->id)->exists()) {
             throw JsonApiException::conflict('ITINERARY_HAS_MEMBERS', 'El itinerario tiene miembros. Primero hay que cambiarlos de itinerario.');
+        }
+
+        if (\App\Models\WorkerRole::where('itinerary_id', $itinerary->id)->exists()) {
+            throw JsonApiException::conflict('ITINERARY_HAS_ROLES', 'Alguien tiene un rol en este itinerario (p. ej. Jefe de itinerario). Primero hay que quitárselo.');
         }
     }
 }

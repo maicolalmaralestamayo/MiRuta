@@ -6,7 +6,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
- * Solicitud. Las solicitudes no se borran: son el historial.
+ * Solicitud (docs/11 §11.6 y §11.16): entrar en una Entidad, itinerario y
+ * parada, o un rol. Las solicitudes no se borran: son el historial. Darse
+ * de baja es una acción directa, sin solicitud.
  */
 class Application extends Model
 {
@@ -17,45 +19,44 @@ class Application extends Model
     const STATUS_REJECTED = 'rejected';
     const STATUS_CANCELLED = 'cancelled';
 
+    const TYPE_ENTITY_MEMBERSHIP = 'entity_membership';
     const TYPE_ITINERARY_MEMBERSHIP = 'itinerary_membership';
-    const TYPE_ITINERARY_CHIEF = 'itinerary_chief';
-    const TYPE_DRIVER = 'driver';
-    const TYPE_TRANSPORT_CHIEF = 'transport_chief';
-    const TYPE_CHILD_ADDITION = 'child_addition';
-    const TYPE_CHILD_REMOVAL = 'child_removal';
-    const TYPE_ABSENCE = 'absence';
-    const TYPE_ITINERARY_LEAVE = 'itinerary_leave';
-    const TYPE_ITINERARY_CHIEF_LEAVE = 'itinerary_chief_leave';
-    const TYPE_DRIVER_LEAVE = 'driver_leave';
-    const TYPE_TRANSPORT_CHIEF_LEAVE = 'transport_chief_leave';
-    const TYPE_ITINERARY_REMOVAL = 'itinerary_removal';
+    const TYPE_ROLE = 'role';
 
-    /** Bajas voluntarias: se aprueban al crearse. */
-    const LEAVE_TYPES = [
-        self::TYPE_ITINERARY_LEAVE,
-        self::TYPE_ITINERARY_CHIEF_LEAVE,
-        self::TYPE_DRIVER_LEAVE,
-        self::TYPE_TRANSPORT_CHIEF_LEAVE,
+    const TYPES = [self::TYPE_ENTITY_MEMBERSHIP, self::TYPE_ITINERARY_MEMBERSHIP, self::TYPE_ROLE];
+
+    protected $fillable = [
+        'user_id', 'entity_id', 'type', 'status', 'itinerary_id', 'stop_id', 'role_id',
+        'created_by', 'resolved_by', 'resolved_at', 'resolution_note',
     ];
-
-    /** Tipos que guardan itinerario (y parada) en itinerary_applications. */
-    const ITINERARY_TYPES = [
-        self::TYPE_ITINERARY_MEMBERSHIP,
-        self::TYPE_ITINERARY_CHIEF,
-        self::TYPE_ITINERARY_LEAVE,
-        self::TYPE_ITINERARY_CHIEF_LEAVE,
-        self::TYPE_ITINERARY_REMOVAL,
-    ];
-
-    protected $fillable = ['worker_id', 'group_id', 'type', 'status', 'created_by', 'resolved_by', 'resolved_at', 'resolution_note'];
 
     protected $casts = [
         'resolved_at' => 'datetime',
     ];
 
-    public function worker()
+    public function user()
     {
-        return $this->belongsTo(Worker::class)->withTrashed();
+        return $this->belongsTo(User::class)->withTrashed();
+    }
+
+    public function entity()
+    {
+        return $this->belongsTo(Entity::class)->withTrashed();
+    }
+
+    public function itinerary()
+    {
+        return $this->belongsTo(Itinerary::class)->withTrashed();
+    }
+
+    public function stop()
+    {
+        return $this->belongsTo(Stop::class)->withTrashed();
+    }
+
+    public function role()
+    {
+        return $this->belongsTo(Role::class)->withTrashed();
     }
 
     public function creator()
@@ -68,66 +69,12 @@ class Application extends Model
         return $this->belongsTo(User::class, 'resolved_by')->withTrashed();
     }
 
-    public function itineraryApplication()
+    /**
+     * Pertenencia del solicitante en la Entidad (si ya la tiene).
+     */
+    public function worker(): ?Worker
     {
-        return $this->hasOne(ItineraryApplication::class);
-    }
-
-
-    public function childApplication()
-    {
-        return $this->hasOne(ChildApplication::class);
-    }
-
-    public function absenceApplication()
-    {
-        return $this->hasOne(AbsenceApplication::class);
-    }
-
-    /*
-    | Datos del subtipo como si fueran del recurso (para la serialización).
-    */
-
-    public function getItineraryIdAttribute()
-    {
-        return $this->itineraryApplication ? $this->itineraryApplication->itinerary_id : null;
-    }
-
-    public function getStopIdAttribute()
-    {
-        return $this->itineraryApplication ? $this->itineraryApplication->stop_id : null;
-    }
-
-
-    public function getChildIdAttribute()
-    {
-        return $this->childApplication ? $this->childApplication->child_id : null;
-    }
-
-    public function getAbsenceTypeIdAttribute()
-    {
-        return $this->absenceApplication ? $this->absenceApplication->absence_type_id : null;
-    }
-
-    public function getRequestedItineraryAttribute()
-    {
-        return $this->itineraryApplication ? $this->itineraryApplication->itinerary : null;
-    }
-
-    public function getRequestedStopAttribute()
-    {
-        return $this->itineraryApplication ? $this->itineraryApplication->stop : null;
-    }
-
-
-    public function getRelatedChildAttribute()
-    {
-        return $this->childApplication ? $this->childApplication->child : null;
-    }
-
-    public function getRelatedAbsenceTypeAttribute()
-    {
-        return $this->absenceApplication ? $this->absenceApplication->absenceType : null;
+        return Worker::where('user_id', $this->user_id)->where('entity_id', $this->entity_id)->first();
     }
 
     public function isPending(): bool

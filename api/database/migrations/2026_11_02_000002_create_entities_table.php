@@ -20,6 +20,7 @@ class CreateEntitiesTable extends Migration
             $table->string('name', 150);
             $table->text('description')->nullable();
             $table->text('observation')->nullable();
+            $table->string('image_path')->nullable()->comment('Imagen opcional (sin imagen se muestra un ícono)');
             $table->timestamps();
             $table->softDeletes();
         });

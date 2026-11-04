@@ -10,10 +10,9 @@ use Closure;
 use Illuminate\Http\Request;
 
 /**
- * Exige un token de acceso válido de una cuenta activa.
- *
- * Con el parámetro "member" (middleware 'auth:member') exige además que la
- * cuenta sea del Administrador o tenga trabajador en una Entidad.
+ * Exige un token de acceso válido de una cuenta activa. No hace falta
+ * pertenecer a ninguna Entidad (docs/11 §11.5): lo que cada uno puede ver o
+ * hacer lo deciden sus permisos (App\Services\Permissions).
  *
  * Si la contraseña caducó o hay que cambiarla, solo se permite el perfil
  * propio y cerrar la sesión (403 PASSWORD_CHANGE_REQUIRED).
@@ -32,7 +31,7 @@ class Authenticate
         $this->passwords = $passwords;
     }
 
-    public function handle(Request $request, Closure $next, ?string $requirement = null)
+    public function handle(Request $request, Closure $next)
     {
         $token = $request->bearerToken();
 
@@ -47,6 +46,7 @@ class Authenticate
             throw new JsonApiException(401, 'TOKEN_REVOKED', 'Token revocado', 'La cuenta está desactivada.');
         }
 
+        app(\App\Services\Permissions::class)->flush();
         $user->setCurrentSessionId(isset($claims['sid']) ? (int) $claims['sid'] : null);
         $this->rememberAppVersion($user, $request);
         app('auth')->guard()->setUser($user);
@@ -55,15 +55,10 @@ class Authenticate
         });
 
         if ($this->passwords->mustChange($user) && ! $this->allowedWhileChangingPassword($request)) {
-            throw new JsonApiException(403, 'PASSWORD_CHANGE_REQUIRED', 'Cambia tu contraseña',
+            throw new JsonApiException(403, 'PASSWORD_CHANGE_REQUIRED', 'Cambie su contraseña',
                 $user->must_change_password
-                    ? 'Recuperaste el acceso: primero tienes que elegir una contraseña nueva.'
-                    : 'Tu contraseña caducó: primero tienes que elegir una nueva.');
-        }
-
-        if ($requirement === 'member' && ! $user->isAdmin() && $user->workerModel() === null) {
-            throw new JsonApiException(403, 'ENTITY_REQUIRED', 'Únete a tu Entidad',
-                'Antes de usar la app tienes que unirte a tu Entidad con su abreviatura y tu Pase.');
+                    ? 'Su contraseña la puso otra persona: primero tiene que elegir una nueva.'
+                    : 'Su contraseña caducó: primero tiene que elegir una nueva.');
         }
 
         return $next($request);

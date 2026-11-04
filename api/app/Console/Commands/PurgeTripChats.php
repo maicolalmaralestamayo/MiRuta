@@ -20,14 +20,21 @@ class PurgeTripChats extends Command
 
     public function handle(Settings $settings)
     {
-        // Se conservan trip_chat_retention_days días desde el regreso.
-        $days = $settings->int('trip_chat_retention_days');
-        $deleted = DB::table('trip_messages')
-            ->whereIn('trip_id', Trip::withTrashed()
-                ->whereIn('status', [Trip::STATUS_CANCELLED, Trip::STATUS_COMPLETED])
-                ->where('returns_at', '<=', Carbon::now()->subDays($days))
-                ->select('id'))
-            ->delete();
+        // Se conservan trip_chat_retention_days días desde el regreso (ajuste por itinerario).
+        $deleted = 0;
+        $trips = Trip::withTrashed()
+            ->whereIn('status', [Trip::STATUS_CANCELLED, Trip::STATUS_COMPLETED])
+            ->where('returns_at', '<=', Carbon::now())
+            ->whereIn('id', DB::table('trip_messages')->select('trip_id'))
+            ->get();
+
+        foreach ($trips as $trip) {
+            $days = $settings->int('trip_chat_retention_days', null, null, (int) $trip->itinerary_id);
+
+            if ($trip->returns_at->lessThanOrEqualTo(Carbon::now()->subDays($days))) {
+                $deleted += DB::table('trip_messages')->where('trip_id', $trip->id)->delete();
+            }
+        }
 
         $this->info("Mensajes borrados: {$deleted}");
     }

@@ -14,15 +14,36 @@ class CreateNomenclatorTables extends Migration
      */
     public function up()
     {
-        Schema::create('ranks', function (Blueprint $table) {
+        // Roles configurables (docs/11 §11.16). El Administrador no es una fila:
+        // es users.is_admin y tiene todas las operaciones con ámbito «Todas».
+        Schema::create('roles', function (Blueprint $table) {
             $table->id();
             $table->string('name', 100)->unique();
-            $table->text('description')->nullable();
-            $table->text('observation')->nullable();
-            $table->unsignedSmallInteger('sort_order')->default(0)->comment('Orden de presentación en las listas');
-            $table->string('icon_path')->nullable();
+            $table->string('icon', 100)->nullable()->comment('Nombre de un ícono de Material');
+            $table->boolean('requestable')->default(false)->comment('Los trabajadores lo pueden solicitar');
+            $table->boolean('is_default')->default(false)->comment('Se asigna al aprobarse la entrada en una Entidad (como mucho uno)');
+            $table->boolean('itinerary_scoped')->default(false)->comment('Se asigna con un itinerario (p. ej. Jefe de itinerario)');
             $table->timestamps();
             $table->softDeletes();
+        });
+
+        Schema::create('role_permissions', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('role_id')->constrained();
+            $table->string('operation', 60)->comment('Clave del catálogo fijo App\\Support\\Operations');
+            $table->enum('scope', ['own', 'itinerary', 'entity', 'all']);
+            $table->timestamps();
+            $table->softDeletes();
+            $table->unique(['role_id', 'operation']);
+        });
+
+        Schema::create('role_approvers', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('role_id')->comment('Rol solicitado')->constrained();
+            $table->foreignId('approver_role_id')->comment('Rol que aprueba sus solicitudes')->constrained('roles');
+            $table->timestamps();
+            $table->softDeletes();
+            $table->unique(['role_id', 'approver_role_id']);
         });
 
         foreach (['vehicle_types', 'absence_types'] as $name) {
@@ -41,10 +62,11 @@ class CreateNomenclatorTables extends Migration
             $table->string('name', 100);
             $table->text('description')->nullable();
             $table->text('observation')->nullable();
-            $table->enum('recipient', ['itinerary_chiefs', 'transport_chiefs', 'developer']);
+            $table->enum('recipient', ['role', 'developer'])->comment('role: a quienes tienen ese rol en la Entidad (o el itinerario)');
+            $table->foreignId('role_id')->nullable()->constrained();
             $table->timestamps();
             $table->softDeletes();
-            $table->unique(['name', 'recipient']);
+            $table->unique(['name', 'recipient', 'role_id']);
         });
 
     }
@@ -54,7 +76,7 @@ class CreateNomenclatorTables extends Migration
      */
     public function down()
     {
-        foreach (['conversation_topics', 'absence_types', 'vehicle_types', 'ranks'] as $name) {
+        foreach (['conversation_topics', 'absence_types', 'vehicle_types', 'role_approvers', 'role_permissions', 'roles'] as $name) {
             Schema::dropIfExists($name);
         }
     }

@@ -45,7 +45,7 @@ class TripTimeliness
     {
         $entityId = $trip->itinerary ? (int) $trip->itinerary->entity_id : null;
 
-        return $this->settings->int('trip_delay_tolerance_minutes', null, $entityId);
+        return $this->settings->int('trip_delay_tolerance_minutes', null, $entityId, (int) $trip->itinerary_id);
     }
 
     /**
@@ -139,20 +139,22 @@ class TripTimeliness
     {
         $userIds = $this->trips->expectedPassengers($trip)->pluck('user_id')->all();
 
-        if ($trip->driver && $trip->driver->worker) {
-            $userIds[] = $trip->driver->worker->user_id;
+        if ($trip->driver) {
+            $userIds[] = $trip->driver->user_id;
         }
 
-        $userIds = array_merge($userIds, $this->notices->itineraryChiefIds((int) $trip->itinerary_id));
+        $entityId = $trip->itinerary ? (int) $trip->itinerary->entity_id : null;
+        $userIds = array_merge($userIds, app(Permissions::class)->userIdsWith('trips.edit', $entityId, (int) $trip->itinerary_id, false));
         $absent = $this->absences->absentOn($trip->departs_at);
 
         $recipients = User::whereIn('id', array_unique(array_map('intval', array_filter($userIds))))->get()
-            ->filter(function (User $user) use ($settingKey, $absent) {
-                if (! $this->settings->get($settingKey, $user)) {
+            ->filter(function (User $user) use ($settingKey, $absent, $entityId) {
+                if (! $this->settings->get($settingKey, $user, $entityId)) {
                     return false;
                 }
 
-                $workerId = $user->workerId();
+                $worker = $user->workerIn($entityId);
+                $workerId = $worker ? (int) $worker->id : null;
 
                 return ! ($workerId && in_array($workerId, $absent, true) && ! $this->settings->get('notify_during_absence', $user));
             })

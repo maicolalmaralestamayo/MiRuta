@@ -21,12 +21,15 @@ class SettingDefinition extends Model
     protected $fillable = [
         'key', 'name', 'description', 'observation', 'value_type', 'default_value',
         'min_value', 'max_value', 'min_setting_definition_id', 'max_setting_definition_id', 'level', 'user_overridable',
+        'itinerary_level', 'stop_level',
     ];
 
     protected $casts = [
         'min_value' => 'integer',
         'max_value' => 'integer',
         'user_overridable' => 'boolean',
+        'itinerary_level' => 'boolean',
+        'stop_level' => 'boolean',
     ];
 
     public function options()

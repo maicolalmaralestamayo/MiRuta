@@ -18,7 +18,7 @@ class CreateVehiclesTable extends Migration
             $table->string('plate', 20)->comment('Matrícula');
             $table->unsignedSmallInteger('seats')->comment('Sin contar el del chofer');
             $table->unsignedSmallInteger('standing_capacity');
-            $table->foreignId('driver_id')->nullable()->comment('Chofer habitual')->constrained();
+            $table->foreignId('driver_id')->nullable()->comment('Chofer habitual: pertenencia con tracking.drive')->constrained('workers');
             $table->timestamps();
             $table->softDeletes();
             $table->unique(['entity_id', 'plate']);

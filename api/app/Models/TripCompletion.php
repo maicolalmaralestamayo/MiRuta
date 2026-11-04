@@ -14,8 +14,8 @@ class TripCompletion extends Model
     use SoftDeletes;
 
     const ROLE_DRIVER = 'driver';
-    const ROLE_ITINERARY_CHIEF = 'itinerary_chief';
-    const ROLE_TRANSPORT_CHIEF = 'transport_chief';
+    /** Quien tiene trips.complete sobre el viaje. */
+    const ROLE_MANAGER = 'manager';
     const ROLE_ADMINISTRATOR = 'administrator';
     const ROLE_SYSTEM = 'system';
 

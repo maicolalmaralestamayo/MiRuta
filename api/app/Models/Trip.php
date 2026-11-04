@@ -37,11 +37,12 @@ class Trip extends Model
     }
 
     /**
-     * El chofer puede haberse dado de baja (viaje pendiente de reasignar).
+     * Chofer: la pertenencia (worker) de quien conduce. Puede haberse dado
+     * de baja o perdido el rol (viaje pendiente de reasignar).
      */
     public function driver()
     {
-        return $this->belongsTo(Driver::class)->withTrashed();
+        return $this->belongsTo(Worker::class, 'driver_id')->withTrashed();
     }
 
     public function legs()

@@ -25,6 +25,10 @@ class Notice extends Model
     const TYPE_TRIP_STARTED = 'trip_started';
     const TYPE_TRIP_DELAYED = 'trip_delayed';
     const TYPE_TRIP_INCIDENT = 'trip_incident';
+    const TYPE_ENTITY_ADDED = 'entity_added';
+    const TYPE_ENTITY_REMOVED = 'entity_removed';
+    const TYPE_ITINERARY_ASSIGNED = 'itinerary_assigned';
+    const TYPE_ITINERARY_REMOVED = 'itinerary_removed';
 
     protected $fillable = ['user_id', 'type', 'application_id', 'trip_id', 'access_recovery_id', 'payload', 'read_at'];
 

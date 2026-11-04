@@ -7,9 +7,9 @@ use Illuminate\Support\Facades\Schema;
 class CreateUsersTables extends Migration
 {
     /**
-     * Cuentas de la app (docs/08-version-2.md §8.3). El Administrador es una
-     * cuenta sin trabajador. Un trabajador registrado por un superior tiene
-     * cuenta sin usuario ni contraseña hasta que la activa.
+     * Personas (docs/11 §11.2 y §11.6). La cuenta es de la persona y se
+     * identifica por su carné de identidad, único en toda la app; en cada
+     * Entidad tiene una pertenencia (workers).
      *
      * @return void
      */
@@ -17,16 +17,22 @@ class CreateUsersTables extends Migration
     {
         Schema::create('users', function (Blueprint $table) {
             $table->id();
-            $table->string('username', 20)->nullable()->unique()->comment('En minúsculas; NULL hasta activar la cuenta');
-            $table->string('password')->nullable()->comment('Hash bcrypt; NULL hasta activar la cuenta');
+            $table->string('username', 50)->unique()->comment('En minúsculas');
+            $table->string('password')->comment('Hash bcrypt');
             $table->dateTime('password_changed_at')->nullable()->comment('Para la caducidad anual');
             $table->boolean('must_change_password')->default(false);
             $table->string('first_name', 50);
             $table->string('middle_name', 50)->nullable();
             $table->string('first_surname', 50);
             $table->string('second_surname', 50);
+            $table->text('identity_card_encrypted')->comment('Carné de identidad cifrado (Crypt)');
+            $table->char('identity_card_hash', 64)->unique()->comment('HMAC del carné: para buscarlo y que no se repita');
+            $table->enum('sex', ['F', 'M'])->comment('Sale del carné');
+            $table->date('birth_date')->comment('Sale del carné');
             $table->string('photo_path')->nullable();
             $table->boolean('is_admin')->default(false);
+            $table->boolean('has_phone')->default(true)->comment('Sin teléfono usa el QR impreso');
+            $table->unsignedInteger('printed_qr_version')->default(1)->comment('Subirla anula el QR impreso');
             $table->unsignedInteger('app_version_code')->nullable()->comment('Versión de la app instalada (la envía la app en cada petición)');
             $table->timestamps();
             $table->softDeletes();
@@ -44,7 +50,7 @@ class CreateUsersTables extends Migration
         Schema::create('released_usernames', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->comment('Quien lo usaba')->constrained();
-            $table->string('username', 20);
+            $table->string('username', 50);
             $table->dateTime('released_at')->comment('Bloqueado para los demás durante username_reuse_block_days');
             $table->timestamps();
             $table->softDeletes();

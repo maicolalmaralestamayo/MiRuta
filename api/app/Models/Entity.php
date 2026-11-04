@@ -12,7 +12,7 @@ class Entity extends Model
 {
     use SoftDeletes;
 
-    protected $fillable = ['abbreviation', 'number', 'name', 'description', 'observation'];
+    protected $fillable = ['abbreviation', 'number', 'name', 'description', 'observation', 'image_path'];
 
     public static function normalizeAbbreviation($value): string
     {

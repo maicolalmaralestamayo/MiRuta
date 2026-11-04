@@ -7,7 +7,8 @@ use Illuminate\Support\Facades\Schema;
 class CreateWorkersTables extends Migration
 {
     /**
-     * Trabajadores (de una Entidad), códigos de activación y roles.
+     * Pertenencias persona–Entidad (workers), sus roles y sus ausencias
+     * (docs/11 §11.6, §11.12 y §11.16).
      *
      * @return void
      */
@@ -15,52 +16,43 @@ class CreateWorkersTables extends Migration
     {
         Schema::create('workers', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id')->unique()->constrained();
+            $table->foreignId('user_id')->constrained();
             $table->foreignId('entity_id')->constrained();
-            $table->unsignedInteger('pass')->comment('Pase: número del trabajador dentro de su Entidad');
-            $table->enum('sex', ['F', 'M']);
-            $table->foreignId('rank_id')->constrained();
-            $table->unsignedBigInteger('itinerary_id')->nullable();
+            $table->unsignedBigInteger('itinerary_id')->nullable()->comment('Siempre junto con la parada');
             $table->unsignedBigInteger('stop_id')->nullable();
+            $table->dateTime('itinerary_assigned_at')->nullable()->comment('Desde cuándo está en su itinerario (inactividad)');
             $table->timestamps();
-            $table->softDeletes();
+            $table->softDeletes()->comment('Baja de la Entidad o pertenencia desactivada');
 
-            $table->unique(['entity_id', 'pass'], 'workers_entity_pass_unique');
+            // Una sola pertenencia por persona y Entidad: al volver se restaura la misma fila.
+            $table->unique(['user_id', 'entity_id']);
             $table->index(['itinerary_id', 'stop_id']);
-            // La parada del trabajador tiene que pertenecer a su itinerario.
+            // La parada tiene que pertenecer al itinerario.
             $table->foreign(['itinerary_id', 'stop_id'])->references(['itinerary_id', 'stop_id'])->on('itinerary_stop');
         });
 
-        Schema::create('activation_codes', function (Blueprint $table) {
+        Schema::create('worker_roles', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id')->comment('Cuenta que se activará')->constrained();
-            $table->char('code_hash', 64);
-            $table->unsignedTinyInteger('failed_attempts')->default(0);
-            $table->dateTime('expires_at');
-            $table->foreignId('created_by')->constrained('users');
-            $table->dateTime('used_at')->nullable();
+            $table->foreignId('worker_id')->comment('Pertenencia: el rol es por Entidad')->constrained();
+            $table->foreignId('role_id')->constrained();
+            $table->foreignId('itinerary_id')->nullable()->comment('Solo si el rol es por itinerario')->constrained();
             $table->timestamps();
             $table->softDeletes();
-            $table->index(['user_id', 'used_at']);
+            $table->unique(['worker_id', 'role_id']);
         });
 
-        Schema::create('itinerary_chiefs', function (Blueprint $table) {
+        Schema::create('absences', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('itinerary_id')->constrained();
             $table->foreignId('worker_id')->constrained();
+            $table->foreignId('absence_type_id')->constrained();
+            $table->date('starts_on');
+            $table->date('ends_on')->nullable()->comment('NULL = indefinida');
+            $table->boolean('indefinite')->default(false);
+            $table->text('note')->nullable();
             $table->timestamps();
             $table->softDeletes();
-            $table->unique(['itinerary_id', 'worker_id']);
+            $table->index(['worker_id', 'starts_on', 'ends_on']);
         });
-
-        foreach (['drivers', 'transport_chiefs'] as $name) {
-            Schema::create($name, function (Blueprint $table) {
-                $table->id();
-                $table->foreignId('worker_id')->unique()->constrained();
-                $table->timestamps();
-                $table->softDeletes();
-            });
-        }
     }
 
     /**
@@ -68,7 +60,7 @@ class CreateWorkersTables extends Migration
      */
     public function down()
     {
-        foreach (['transport_chiefs', 'drivers', 'itinerary_chiefs', 'activation_codes', 'workers'] as $name) {
+        foreach (['absences', 'worker_roles', 'workers'] as $name) {
             Schema::dropIfExists($name);
         }
     }

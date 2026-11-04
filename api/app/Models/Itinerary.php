@@ -9,7 +9,7 @@ class Itinerary extends Model
 {
     use SoftDeletes;
 
-    protected $fillable = ['entity_id', 'name', 'description', 'observation', 'reference_outbound_leg_id', 'reference_return_leg_id'];
+    protected $fillable = ['entity_id', 'name', 'description', 'observation', 'image_path', 'reference_outbound_leg_id', 'reference_return_leg_id'];
 
     public function referenceOutboundLeg()
     {
@@ -47,11 +47,6 @@ class Itinerary extends Model
             ->orderBy('itinerary_stop.position');
     }
 
-    public function chiefs()
-    {
-        return $this->hasMany(ItineraryChief::class);
-    }
-
     public function members()
     {
         return $this->hasMany(Worker::class);
@@ -83,13 +78,5 @@ class Itinerary extends Model
     public function entity()
     {
         return $this->belongsTo(Entity::class)->withTrashed();
-    }
-
-    /**
-     * Los de la Entidad de esa cuenta (todos, para el Administrador).
-     */
-    public function scopeVisibleTo($query, User $user)
-    {
-        return $user->isAdmin() ? $query : $query->where($this->getTable().'.entity_id', $user->entityId());
     }
 }

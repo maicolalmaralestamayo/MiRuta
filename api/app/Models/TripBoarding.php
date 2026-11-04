@@ -18,7 +18,10 @@ class TripBoarding extends Model
     const METHOD_QR = 'qr';
     const METHOD_MANUAL = 'manual';
 
-    protected $fillable = ['trip_leg_id', 'worker_id', 'method', 'marked_by', 'children_count', 'boarded_at'];
+    const OUTSIDER_ITINERARY = 'itinerary';
+    const OUTSIDER_ENTITY = 'entity';
+
+    protected $fillable = ['trip_leg_id', 'worker_id', 'method', 'marked_by', 'children_count', 'outsider', 'boarded_at'];
 
     protected $casts = [
         'children_count' => 'integer',

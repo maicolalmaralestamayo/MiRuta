@@ -9,4 +9,6 @@ class VehicleTypeController extends NomenclatorController
     protected $model = VehicleType::class;
 
     protected $type = 'vehicle-types';
+
+    protected $manageOperation = 'nomenclators.manage';
 }

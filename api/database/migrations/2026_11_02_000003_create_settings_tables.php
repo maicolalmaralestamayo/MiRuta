@@ -7,7 +7,8 @@ use Illuminate\Support\Facades\Schema;
 class CreateSettingsTables extends Migration
 {
     /**
-     * Ajustes en tres niveles: app → Entidad → usuario (docs/06-ajustes.md).
+     * Ajustes: app → Entidad → itinerario → parada del itinerario → usuario
+     * (docs/06-ajustes.md y docs/11 §11.17). Gana el más concreto.
      *
      * @return void
      */
@@ -32,6 +33,8 @@ class CreateSettingsTables extends Migration
             $table->enum('level', ['app', 'entity'])
                 ->comment('app: solo el Administrador; entity: el Administrador fija el valor de la app y cada Jefe de Transporte el de su Entidad');
             $table->boolean('user_overridable')->default(false);
+            $table->boolean('itinerary_level')->default(false)->comment('Se puede cambiar por itinerario');
+            $table->boolean('stop_level')->default(false)->comment('Se puede cambiar por parada de un itinerario');
             $table->timestamps();
             $table->softDeletes();
         });

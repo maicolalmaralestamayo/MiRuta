@@ -9,7 +9,7 @@ class Stop extends Model
 {
     use SoftDeletes;
 
-    protected $fillable = ['entity_id', 'landmark', 'street', 'cross_street_1', 'cross_street_2', 'latitude', 'longitude'];
+    protected $fillable = ['entity_id', 'landmark', 'street', 'cross_street_1', 'cross_street_2', 'latitude', 'longitude', 'image_path'];
 
     protected $casts = [
         'latitude' => 'float',
@@ -37,11 +37,4 @@ class Stop extends Model
         return $this->belongsTo(Entity::class)->withTrashed();
     }
 
-    /**
-     * Los de la Entidad de esa cuenta (todos, para el Administrador).
-     */
-    public function scopeVisibleTo($query, User $user)
-    {
-        return $user->isAdmin() ? $query : $query->where($this->getTable().'.entity_id', $user->entityId());
-    }
 }

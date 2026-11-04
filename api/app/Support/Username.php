@@ -8,19 +8,22 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Nombre de usuario (docs/08-version-2.md §8.3). Lo elige el propio usuario.
+ * Nombre de usuario (docs/08-version-2.md §8.3 y docs/11 §11.4). El sistema
+ * propone uno (suggest) y quien registra lo puede cambiar.
  *
- * - De 4 a 20 caracteres: letras sin tilde, números, punto y guion bajo.
+ * - De 2 a 50 caracteres: letras sin tilde, números, punto y guion bajo.
  * - Empieza por letra y no termina en signo; sin dos signos seguidos.
- * - Al menos 3 letras; ningún carácter repetido más de 3 veces seguidas.
- * - Sin palabras reservadas ni palabras no permitidas (nomenclador).
+ * - Al menos 2 letras; ningún carácter repetido más de 3 veces seguidas.
+ * - Sin palabras reservadas.
  * - En minúsculas, único en toda la app; el que alguien deja de usar queda
  *   bloqueado para los demás durante username_reuse_block_days.
  */
 final class Username
 {
-    const MIN_LENGTH = 4;
-    const MAX_LENGTH = 20;
+    const MIN_LENGTH = 2;
+    const MAX_LENGTH = 50;
+
+    const MIN_LETTERS = 2;
 
     /** Nadie puede hacerse pasar por la app o por su equipo. */
     const RESERVED = [
@@ -72,8 +75,8 @@ final class Username
             return 'El usuario no puede tener dos signos seguidos.';
         }
 
-        if (preg_match_all('/[a-z]/', $username) < 3) {
-            return 'El usuario tiene que tener al menos 3 letras.';
+        if (preg_match_all('/[a-z]/', $username) < self::MIN_LETTERS) {
+            return 'El usuario tiene que tener al menos '.self::MIN_LETTERS.' letras.';
         }
 
         if (preg_match('/(.)\1{3}/', $username)) {
@@ -128,6 +131,71 @@ final class Username
         }
 
         return $days > 0 && $released->exists();
+    }
+
+    /**
+     * Usuario propuesto (docs/11 §11.4): se van añadiendo partes separadas
+     * por punto solo mientras el resultado esté ocupado o no sea válido:
+     * primer nombre → + segundo nombre → + primer apellido → + segundo
+     * apellido → + 2, 3… Todo en minúsculas y sin tildes.
+     */
+    public static function suggest(?string $firstName, ?string $middleName, ?string $firstSurname, ?string $secondSurname, ?int $exceptUserId = null): string
+    {
+        $parts = array_values(array_filter(array_map(function ($part) {
+            return self::slug((string) $part);
+        }, [$firstName, $middleName, $firstSurname, $secondSurname]), 'strlen'));
+
+        if (! $parts) {
+            $parts = ['usuario'];
+        }
+
+        $usable = function (string $candidate) use ($exceptUserId) {
+            return self::unavailableReason($candidate) === null && ! self::taken($candidate, $exceptUserId);
+        };
+        $candidate = '';
+
+        foreach ($parts as $part) {
+            $next = $candidate === '' ? $part : $candidate.'.'.$part;
+
+            if (strlen($next) > self::MAX_LENGTH) {
+                break;
+            }
+
+            $candidate = $next;
+
+            if ($usable($candidate)) {
+                return $candidate;
+            }
+        }
+
+        if (preg_match_all('/[a-z]/', $candidate) < self::MIN_LETTERS) {
+            $candidate = 'usuario'.($candidate === '' ? '' : '.'.$candidate);
+        }
+
+        for ($number = 2; $number < 100000; $number++) {
+            $suffix = '.'.$number;
+            $numbered = substr($candidate, 0, self::MAX_LENGTH - strlen($suffix)).$suffix;
+            $numbered = preg_replace('/[._]+(\.\d+)$/', '$1', $numbered);
+
+            if ($usable($numbered)) {
+                return $numbered;
+            }
+        }
+
+        return $candidate;
+    }
+
+    /**
+     * Parte de un nombre en minúsculas, sin tildes y solo con letras y números
+     * (las palabras de un nombre compuesto se unen con punto).
+     */
+    public static function slug(string $text): string
+    {
+        $text = mb_strtolower(trim($text), 'UTF-8');
+        $text = strtr($text, ['á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ú' => 'u', 'ü' => 'u', 'ñ' => 'n', 'à' => 'a', 'è' => 'e', 'ì' => 'i', 'ò' => 'o', 'ù' => 'u']);
+        $text = preg_replace('/[^a-z0-9]+/', '.', $text);
+
+        return trim((string) $text, '.');
     }
 
     public static function containsReservedWord(string $username): bool

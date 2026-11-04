@@ -4,20 +4,20 @@ namespace App\Services;
 
 use App\JsonApi\JsonApiException;
 use App\Models\AccessRecovery;
-use App\Models\Entity;
 use App\Models\Installation;
 use App\Models\Notice;
 use App\Models\User;
-use App\Models\Worker;
+use App\Support\IdentityCard;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 
 /**
- * "No puedo entrar" (docs/08-version-2.md §8.6): el trabajador indica qué
- * olvidó, su Entidad, su Pase y un teléfono; el Administrador lo verifica
- * por su cuenta y aprueba o rechaza. Lo aprobado solo vale en la instalación
- * desde la que se pidió.
+ * «Olvidé algo» (docs/11 §11.7): la persona indica qué olvidó, su carné y
+ * un teléfono; solo el Administrador la aprueba, tras verificarlo por una
+ * tercera vía. Al aprobarla se propone una contraseña nueva (hay que
+ * cambiarla al entrar) y se comunica solo lo pedido: al Administrador en la
+ * respuesta y a la instalación que la pidió.
  */
 class AccessRecoveries
 {
@@ -40,24 +40,25 @@ class AccessRecoveries
     /**
      * Crea la solicitud. La respuesta no dice si los datos coinciden.
      */
-    public function request(Installation $installation, bool $forgotUsername, bool $forgotPassword, string $abbreviation, int $pass, string $phone): AccessRecovery
+    public function request(Installation $installation, bool $forgotUsername, bool $forgotPassword, string $identityCard, string $phone): AccessRecovery
     {
         if (! $forgotUsername && ! $forgotPassword) {
-            throw new JsonApiException(422, 'VALIDATION_ERROR', 'Datos no válidos', 'Indica qué olvidaste: el usuario, la contraseña o los dos.',
+            throw new JsonApiException(422, 'VALIDATION_ERROR', 'Datos no válidos', 'Indique qué olvidó: el usuario, la contraseña o los dos.',
                 ['pointer' => '/data/attributes/forgotUsername']);
         }
+
+        $card = IdentityCard::validated($identityCard);
 
         $limit = $this->settings->int('access_recovery_max_per_hour');
         $recent = AccessRecovery::where('installation_id', $installation->id)->where('created_at', '>=', Carbon::now()->subHour())->count();
 
         if ($recent >= $limit) {
-            throw new JsonApiException(429, 'TOO_MANY_REQUESTS', 'Demasiadas solicitudes', 'Espera un rato antes de enviar otra solicitud.');
+            throw new JsonApiException(429, 'TOO_MANY_REQUESTS', 'Demasiadas solicitudes', 'Espere un rato antes de enviar otra solicitud.');
         }
 
-        $entity = Entity::findByAbbreviation($abbreviation);
-        $worker = $entity ? Worker::where('entity_id', $entity->id)->where('pass', $pass)->first() : null;
+        $user = User::findByIdentityCard($card);
 
-        return DB::transaction(function () use ($installation, $forgotUsername, $forgotPassword, $abbreviation, $pass, $phone, $worker) {
+        return DB::transaction(function () use ($installation, $forgotUsername, $forgotPassword, $card, $phone, $user) {
             // Una nueva sustituye a las abiertas de esta instalación.
             foreach (AccessRecovery::where('installation_id', $installation->id)->whereIn('status', [AccessRecovery::STATUS_PENDING, AccessRecovery::STATUS_APPROVED])->get() as $previous) {
                 $previous->close(AccessRecovery::STATUS_EXPIRED);
@@ -67,10 +68,10 @@ class AccessRecoveries
                 'installation_id' => $installation->id,
                 'forgot_username' => $forgotUsername,
                 'forgot_password' => $forgotPassword,
-                'entity_abbreviation' => Entity::normalizeAbbreviation($abbreviation),
-                'pass' => $pass,
+                'identity_card_encrypted' => Crypt::encryptString($card),
+                'identity_card_hash' => IdentityCard::hash($card),
                 'phone_encrypted' => Crypt::encryptString($phone),
-                'worker_id' => $worker && $worker->user && $worker->user->isActivated() ? $worker->id : null,
+                'user_id' => $user ? $user->id : null,
                 'status' => AccessRecovery::STATUS_PENDING,
                 'expires_at' => Carbon::now()->addHours($this->settings->int('access_recovery_ttl_hours')),
             ]);
@@ -87,13 +88,31 @@ class AccessRecoveries
     {
         $this->ensurePending($recovery);
 
-        if (! $recovery->worker_id) {
-            throw JsonApiException::conflict('RECOVERY_NOT_MATCHED', 'Los datos no coinciden con ningún trabajador con cuenta activada: solo se puede rechazar.');
+        if (! $recovery->user_id || ! $recovery->user || $recovery->user->trashed()) {
+            throw JsonApiException::conflict('RECOVERY_NOT_MATCHED', 'El carné no coincide con ninguna persona con cuenta activa: solo se puede rechazar.');
         }
 
-        $recovery->forceFill(['status' => AccessRecovery::STATUS_APPROVED, 'resolved_by' => $admin->id, 'resolved_at' => Carbon::now()])->save();
+        return DB::transaction(function () use ($recovery, $admin) {
+            $password = null;
 
-        return $recovery;
+            if ($recovery->forgot_password) {
+                $user = $recovery->user;
+                $password = $this->passwords->suggest();
+                $this->passwords->set($user, $password);
+                // Contraseña puesta por otro: hay que cambiarla al entrar.
+                $user->forceFill(['must_change_password' => true])->save();
+                app(TokenService::class)->revokeAll($user->id);
+            }
+
+            $recovery->forceFill([
+                'status' => AccessRecovery::STATUS_APPROVED,
+                'resolved_by' => $admin->id,
+                'resolved_at' => Carbon::now(),
+                'password_encrypted' => $password === null ? null : Crypt::encryptString($password),
+            ])->save();
+
+            return $recovery;
+        });
     }
 
     public function reject(AccessRecovery $recovery, User $admin): AccessRecovery
@@ -116,38 +135,14 @@ class AccessRecoveries
     }
 
     /**
-     * Si solo olvidó el usuario y ya se aprobó, se da por terminada una vez
-     * que la instalación lo ha leído.
+     * Una vez que la instalación leyó lo aprobado, se da por terminada (la
+     * contraseña propuesta ya no se vuelve a mostrar).
      */
-    public function completeIfOnlyUsername(AccessRecovery $recovery): void
+    public function completeAfterReading(AccessRecovery $recovery): void
     {
-        if ($recovery->status === AccessRecovery::STATUS_APPROVED && ! $recovery->forgot_password) {
+        if ($recovery->status === AccessRecovery::STATUS_APPROVED) {
             $recovery->close(AccessRecovery::STATUS_COMPLETED);
         }
-    }
-
-    /**
-     * Contraseña nueva tras la aprobación. Cierra las demás sesiones y
-     * devuelve la cuenta para iniciar sesión.
-     */
-    public function setPassword(AccessRecovery $recovery, string $password): User
-    {
-        $this->expireIfNeeded($recovery);
-
-        if ($recovery->status !== AccessRecovery::STATUS_APPROVED || ! $recovery->forgot_password) {
-            throw JsonApiException::conflict('RECOVERY_NOT_APPROVED', 'La solicitud no está aprobada para cambiar la contraseña.');
-        }
-
-        $user = $recovery->worker->user;
-        $this->passwords->validate($password, [$user->username, $user->first_name, $user->middle_name, $user->first_surname, $user->second_surname], $user);
-
-        return DB::transaction(function () use ($recovery, $user, $password) {
-            $this->passwords->set($user, $password);
-            app(TokenService::class)->revokeAll($user->id);
-            $recovery->close(AccessRecovery::STATUS_COMPLETED);
-
-            return $user;
-        });
     }
 
     /**

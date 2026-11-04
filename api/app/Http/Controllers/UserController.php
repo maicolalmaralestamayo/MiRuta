@@ -6,11 +6,13 @@ use App\Http\Middleware\AuthenticateInstallation;
 use App\JsonApi\Document;
 use App\JsonApi\JsonApiResponse;
 use App\Services\Accounts;
+use App\Services\Passwords;
+use App\Support\Username;
 use Illuminate\Http\Request;
 
 /**
- * Paso 1 del registro: crear la cuenta (público). La primera cuenta es la
- * del Administrador.
+ * Registro (público, docs/11 §11.5): nombres, carné, usuario y contraseña,
+ * sin Entidad. Si aún no hay Administrador, quien se registra lo es.
  */
 class UserController extends Controller
 {
@@ -50,12 +52,13 @@ class UserController extends Controller
     public function store(Request $request, Accounts $accounts)
     {
         $data = $this->validateResource($request, 'users', self::nameRules() + [
-            'attributes.username' => ['required', 'string', 'max:50'],
+            'attributes.identityCard' => ['required', 'string', 'max:20'],
+            'attributes.username' => ['required', 'string', 'max:60'],
             'attributes.password' => ['required', 'string'],
         ]);
         $attributes = $data['attributes'];
 
-        $user = $accounts->register(self::names($attributes), $attributes['username'], $attributes['password']);
+        $user = $accounts->register(self::names($attributes), $attributes['identityCard'], $attributes['username'], $attributes['password']);
 
         if ($installation = AuthenticateInstallation::resolve($request)) {
             TokenController::linkInstallation($installation, $user);
@@ -64,5 +67,50 @@ class UserController extends Controller
         return JsonApiResponse::make((new Document($request))->resource($user->fresh()), 201, [
             'Location' => url('api/v1/users/'.$user->id),
         ]);
+    }
+
+    /**
+     * ¿Ya hay Administrador? (público; solo responde sí o no).
+     */
+    public function registrationStatus()
+    {
+        return JsonApiResponse::make(['data' => [
+            'type' => 'registration-status',
+            'id' => 'current',
+            'attributes' => ['adminExists' => Accounts::adminExists()],
+        ]]);
+    }
+
+    /**
+     * Usuario propuesto a partir de los nombres (público, docs/11 §11.4).
+     */
+    public function usernameSuggestion(Request $request)
+    {
+        $this->validate($request, [
+            'firstName' => ['required', 'string', 'max:50'],
+            'middleName' => ['sometimes', 'nullable', 'string', 'max:50'],
+            'firstSurname' => ['sometimes', 'nullable', 'string', 'max:50'],
+            'secondSurname' => ['sometimes', 'nullable', 'string', 'max:50'],
+        ]);
+        $username = Username::suggest($request->query('firstName'), $request->query('middleName'),
+            $request->query('firstSurname'), $request->query('secondSurname'));
+
+        return JsonApiResponse::make(['data' => [
+            'type' => 'username-suggestions',
+            'id' => $username,
+            'attributes' => ['username' => $username],
+        ]]);
+    }
+
+    /**
+     * Contraseña propuesta que cumple la política (público).
+     */
+    public function passwordSuggestion(Passwords $passwords)
+    {
+        return JsonApiResponse::make(['data' => [
+            'type' => 'password-suggestions',
+            'id' => 'current',
+            'attributes' => ['password' => $passwords->suggest()],
+        ]]);
     }
 }

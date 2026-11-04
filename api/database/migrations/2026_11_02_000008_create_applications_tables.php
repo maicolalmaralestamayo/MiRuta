@@ -6,16 +6,11 @@ use Illuminate\Support\Facades\Schema;
 
 class CreateApplicationsTables extends Migration
 {
-    const TYPES = [
-        'itinerary_membership', 'itinerary_chief', 'driver', 'transport_chief',
-        'child_addition', 'child_removal', 'absence', 'itinerary_leave', 'itinerary_chief_leave',
-        'driver_leave', 'transport_chief_leave', 'itinerary_removal',
-    ];
+    const TYPES = ['entity_membership', 'itinerary_membership', 'role'];
 
     /**
-     * Hijos y solicitudes. Las solicitudes son el historial: también las
-     * asignaciones y retiradas que hace un superior (created_by) y las bajas
-     * que genera el sistema (created_by NULL).
+     * Hijos (de la persona, con carné) y solicitudes (docs/11 §11.6, §11.11
+     * y §11.16). Darse de baja es una acción directa, no una solicitud.
      *
      * @return void
      */
@@ -23,61 +18,47 @@ class CreateApplicationsTables extends Migration
     {
         Schema::create('children', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('worker_id')->constrained();
+            $table->text('identity_card_encrypted');
+            $table->char('identity_card_hash', 64)->unique()->comment('HMAC del carné');
             $table->string('first_name', 50);
             $table->string('middle_name', 50)->nullable();
             $table->string('first_surname', 50);
             $table->string('second_surname', 50);
-            $table->date('birth_date')->comment('Privada: el padre o la madre, sus jefes al aprobar y el Administrador');
+            $table->enum('sex', ['F', 'M'])->comment('Sale del carné');
+            $table->date('birth_date')->comment('Sale del carné');
+            $table->string('photo_path')->nullable();
+            $table->boolean('active')->default(true)->comment('Los padres lo pueden desactivar y reactivar');
+            $table->timestamps();
+            $table->softDeletes()->comment('Cuando ya no le queda ningún padre');
+        });
+
+        Schema::create('child_parents', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('child_id')->constrained('children');
+            $table->foreignId('user_id')->comment('Padre o madre que lo declaró')->constrained();
             $table->timestamps();
             $table->softDeletes();
-            $table->index(['birth_date', 'first_name', 'first_surname']);
+            $table->unique(['child_id', 'user_id']);
         });
 
         Schema::create('applications', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('worker_id')->comment('Trabajador al que se refiere')->constrained();
-            $table->unsignedBigInteger('group_id')->nullable()
-                ->comment('Solicitudes enviadas juntas (p. ej. varios hijos): el id de la primera');
+            $table->foreignId('user_id')->comment('Persona a la que se refiere')->constrained();
+            $table->foreignId('entity_id')->constrained();
             $table->enum('type', self::TYPES);
             $table->enum('status', ['pending', 'approved', 'rejected', 'cancelled']);
-            $table->foreignId('created_by')->nullable()->comment('Quien la creó: el trabajador, un superior (asignación) o NULL (el sistema)')->constrained('users');
+            $table->foreignId('itinerary_id')->nullable()->comment('itinerary_membership y roles por itinerario')->constrained();
+            $table->foreignId('stop_id')->nullable()->comment('itinerary_membership')->constrained();
+            $table->foreignId('role_id')->nullable()->comment('role')->constrained();
+            $table->foreignId('created_by')->nullable()->constrained('users');
             $table->foreignId('resolved_by')->nullable()->constrained('users');
             $table->dateTime('resolved_at')->nullable();
             $table->text('resolution_note')->nullable();
             $table->timestamps();
             $table->softDeletes();
             $table->index(['status', 'type']);
-            $table->index(['worker_id', 'created_at']);
-            $table->foreign('group_id')->references('id')->on('applications');
-        });
-
-        Schema::create('itinerary_applications', function (Blueprint $table) {
-            $table->foreignId('application_id')->primary()->constrained();
-            $table->foreignId('itinerary_id')->constrained();
-            $table->unsignedBigInteger('stop_id')->nullable();
-            $table->timestamps();
-            $table->softDeletes();
-            $table->foreign('stop_id')->references('id')->on('stops');
-            $table->foreign(['itinerary_id', 'stop_id'])->references(['itinerary_id', 'stop_id'])->on('itinerary_stop');
-        });
-
-        Schema::create('child_applications', function (Blueprint $table) {
-            $table->foreignId('application_id')->primary()->constrained();
-            $table->foreignId('child_id')->constrained('children');
-            $table->timestamps();
-            $table->softDeletes();
-        });
-
-        Schema::create('absence_applications', function (Blueprint $table) {
-            $table->foreignId('application_id')->primary()->constrained();
-            $table->foreignId('absence_type_id')->constrained();
-            $table->date('starts_on')->nullable()->comment('NULL = ausencia indefinida, sin fechas');
-            $table->date('ends_on')->nullable();
-            $table->text('observation')->nullable();
-            $table->timestamps();
-            $table->softDeletes();
-            $table->index(['starts_on', 'ends_on']);
+            $table->index(['user_id', 'created_at']);
+            $table->index(['entity_id', 'status']);
         });
     }
 
@@ -86,7 +67,7 @@ class CreateApplicationsTables extends Migration
      */
     public function down()
     {
-        foreach (['absence_applications', 'child_applications', 'itinerary_applications', 'applications', 'children'] as $name) {
+        foreach (['applications', 'child_parents', 'children'] as $name) {
             Schema::dropIfExists($name);
         }
     }

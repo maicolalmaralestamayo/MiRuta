@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Crypt;
 
 /**
- * Solicitud "No puedo entrar" (docs/08-version-2.md §8.6).
+ * Solicitud «Olvidé algo» (docs/11 §11.7): carné y teléfono.
  */
 class AccessRecovery extends Model
 {
@@ -21,17 +21,16 @@ class AccessRecovery extends Model
     const STATUS_EXPIRED = 'expired';
 
     protected $fillable = [
-        'installation_id', 'forgot_username', 'forgot_password', 'entity_abbreviation', 'pass',
-        'phone_encrypted', 'worker_id', 'status', 'resolved_by', 'resolved_at',
-        'password_token_hash', 'expires_at', 'completed_at',
+        'installation_id', 'forgot_username', 'forgot_password', 'identity_card_encrypted', 'identity_card_hash',
+        'phone_encrypted', 'user_id', 'status', 'resolved_by', 'resolved_at',
+        'password_encrypted', 'expires_at', 'completed_at',
     ];
 
-    protected $hidden = ['phone_encrypted', 'password_token_hash'];
+    protected $hidden = ['phone_encrypted', 'password_encrypted', 'identity_card_encrypted', 'identity_card_hash'];
 
     protected $casts = [
         'forgot_username' => 'boolean',
         'forgot_password' => 'boolean',
-        'pass' => 'integer',
     ];
 
     protected $dates = ['resolved_at', 'expires_at', 'completed_at'];
@@ -41,9 +40,9 @@ class AccessRecovery extends Model
         return $this->belongsTo(Installation::class);
     }
 
-    public function worker()
+    public function user()
     {
-        return $this->belongsTo(Worker::class)->withTrashed();
+        return $this->belongsTo(User::class)->withTrashed();
     }
 
     public function resolver()
@@ -54,6 +53,19 @@ class AccessRecovery extends Model
     public function phone(): ?string
     {
         return $this->phone_encrypted ? Crypt::decryptString($this->phone_encrypted) : null;
+    }
+
+    public function identityCard(): ?string
+    {
+        return $this->identity_card_encrypted ? Crypt::decryptString($this->identity_card_encrypted) : null;
+    }
+
+    /**
+     * Contraseña propuesta al aprobar (solo mientras está aprobada).
+     */
+    public function proposedPassword(): ?string
+    {
+        return $this->password_encrypted ? Crypt::decryptString($this->password_encrypted) : null;
     }
 
     public function isOpen(): bool
@@ -69,7 +81,8 @@ class AccessRecovery extends Model
         $this->forceFill([
             'status' => $status,
             'phone_encrypted' => null,
-            'password_token_hash' => null,
+            'identity_card_encrypted' => null,
+            'password_encrypted' => null,
             'completed_at' => $status === self::STATUS_COMPLETED ? Carbon::now() : $this->completed_at,
         ])->save();
     }

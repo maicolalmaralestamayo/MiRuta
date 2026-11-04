@@ -50,7 +50,9 @@ class Chats
     }
 
     /**
-     * Conversaciones que el usuario puede ver: las que abrió y las dirigidas a él.
+     * Conversaciones que la persona puede ver: las que abrió y las dirigidas
+     * a un rol que tiene (en esa Entidad y, si el rol es por itinerario, en
+     * ese itinerario) con chat.role_conversations. El Administrador, todas.
      */
     public function visibleConversations(User $user): Builder
     {
@@ -60,52 +62,60 @@ class Chats
             return $query;
         }
 
-        $chiefOf = $user->chiefItineraryIds();
-        $isTransportChief = $user->isTransportChief();
-        $entityId = $user->entityId();
+        $held = DB::table('worker_roles AS wr')
+            ->join('workers AS w', 'w.id', '=', 'wr.worker_id')
+            ->join('role_permissions AS rp', 'rp.role_id', '=', 'wr.role_id')
+            ->whereNull('wr.deleted_at')->whereNull('w.deleted_at')->whereNull('rp.deleted_at')
+            ->where('w.user_id', $user->id)->where('rp.operation', 'chat.role_conversations')
+            ->get(['wr.role_id', 'wr.itinerary_id', 'w.entity_id']);
 
-        return $query->where(function (Builder $query) use ($user, $chiefOf, $isTransportChief, $entityId) {
+        return $query->where(function (Builder $query) use ($user, $held) {
             $query->where('opened_by', $user->id);
 
-            if ($chiefOf) {
-                $query->orWhere(function (Builder $query) use ($chiefOf) {
-                    $query->whereIn('itinerary_id', $chiefOf)->whereHas('topic', function (Builder $query) {
-                        $query->where('recipient', ConversationTopic::RECIPIENT_ITINERARY_CHIEFS);
-                    });
-                });
-            }
+            foreach ($held as $row) {
+                $query->orWhere(function (Builder $query) use ($row) {
+                    $query->where('entity_id', $row->entity_id)
+                        ->whereHas('topic', function (Builder $query) use ($row) {
+                            $query->where('recipient', ConversationTopic::RECIPIENT_ROLE)->where('role_id', $row->role_id);
+                        });
 
-            if ($isTransportChief) {
-                $query->orWhere(function (Builder $query) use ($entityId) {
-                    $query->where('entity_id', $entityId)->whereHas('topic', function (Builder $query) {
-                        $query->where('recipient', ConversationTopic::RECIPIENT_TRANSPORT_CHIEFS);
-                    });
+                    if ($row->itinerary_id !== null) {
+                        $query->where('itinerary_id', $row->itinerary_id);
+                    }
                 });
             }
         });
     }
 
-    public function openConversation(User $user, int $topicId): Conversation
+    /**
+     * Abre una conversación. Si va dirigida a un rol, es el de la Entidad
+     * indicada (o la única a la que pertenece) y, si el rol es por
+     * itinerario, el de su itinerario en esa Entidad.
+     */
+    public function openConversation(User $user, int $topicId, ?int $entityId = null): Conversation
     {
         $topic = ConversationTopic::findOrFail($topicId);
-        $worker = $user->workerModel();
         $itineraryId = null;
-        $entityId = null;
 
-        if ($topic->recipient === ConversationTopic::RECIPIENT_ITINERARY_CHIEFS) {
-            if (! $worker || ! $worker->itinerary_id) {
-                throw new JsonApiException(422, 'NO_ITINERARY', 'Sin itinerario', 'Para escribir a los Jefes de itinerario hay que ser miembro de un itinerario.', ['pointer' => '/data/relationships/topic']);
-            }
+        if ($topic->recipient === ConversationTopic::RECIPIENT_ROLE) {
+            $entityId = $entityId !== null ? $entityId : $user->singleEntityId();
+            $worker = $user->workerIn($entityId);
 
-            $itineraryId = (int) $worker->itinerary_id;
-        }
-
-        if ($topic->recipient === ConversationTopic::RECIPIENT_TRANSPORT_CHIEFS) {
             if (! $worker) {
-                throw new JsonApiException(422, 'ENTITY_REQUIRED', 'Sin Entidad', 'Para escribir a los Jefes de Transporte hay que pertenecer a una Entidad.', ['pointer' => '/data/relationships/topic']);
+                throw new JsonApiException(422, 'ENTITY_REQUIRED', 'Sin Entidad', 'Para escribir a un rol hay que indicar una Entidad a la que pertenezca.', ['pointer' => '/data/relationships/entity']);
             }
 
-            $entityId = (int) $worker->entity_id;
+            $role = $topic->role;
+
+            if ($role && $role->itinerary_scoped) {
+                if (! $worker->itinerary_id) {
+                    throw new JsonApiException(422, 'NO_ITINERARY', 'Sin itinerario', 'Para escribir a ese rol hay que ser miembro de un itinerario.', ['pointer' => '/data/relationships/topic']);
+                }
+
+                $itineraryId = (int) $worker->itinerary_id;
+            }
+        } else {
+            $entityId = null;
         }
 
         return Conversation::create([
@@ -165,7 +175,7 @@ class Chats
             ->count();
 
         if ($sent >= $limit) {
-            throw new JsonApiException(429, 'TOO_MANY_REQUESTS', 'Demasiados mensajes', 'Espera un rato antes de escribir otro mensaje.');
+            throw new JsonApiException(429, 'TOO_MANY_REQUESTS', 'Demasiados mensajes', 'Espere un rato antes de escribir otro mensaje.');
         }
     }
 

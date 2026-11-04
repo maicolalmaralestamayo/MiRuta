@@ -18,7 +18,7 @@ class CreateTripsTables extends Migration
             $table->id();
             $table->foreignId('itinerary_id')->constrained();
             $table->foreignId('vehicle_id')->constrained();
-            $table->foreignId('driver_id')->constrained();
+            $table->foreignId('driver_id')->comment('Chofer: pertenencia con tracking.drive')->constrained('workers');
             $table->dateTime('departs_at');
             $table->dateTime('returns_at');
             $table->enum('status', ['unconfirmed', 'confirmed', 'completed', 'cancelled']);
@@ -36,7 +36,8 @@ class CreateTripsTables extends Migration
             $table->id();
             $table->foreignId('trip_id')->constrained();
             $table->foreignId('user_id')->nullable()->comment('NULL = el sistema')->constrained();
-            $table->enum('role', ['driver', 'itinerary_chief', 'transport_chief', 'administrator', 'system']);
+            $table->enum('role', ['driver', 'manager', 'administrator', 'system'])
+                ->comment('driver = el chofer del viaje; manager = con trips.complete; system = automático');
             $table->timestamps();
             $table->softDeletes();
             $table->unique(['trip_id', 'user_id']);

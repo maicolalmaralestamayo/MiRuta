@@ -7,21 +7,27 @@ use App\JsonApi\JsonApiException;
 use App\JsonApi\JsonApiResponse;
 use App\JsonApi\QueryParameters;
 use App\Models\Entity;
+use App\Services\Permissions;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
 /**
- * Entidades. Solo el Administrador las lista, crea, edita y desactiva; los
- * demás solo ven la suya. Para unirse a una se busca por su abreviatura
- * exacta (lookup), sin mostrar la lista.
+ * Entidades. Las crea, edita y desactiva quien tiene entities.manage (el
+ * Administrador); cada uno ve aquellas a las que pertenece y las de su
+ * ámbito de entities.view. Para solicitar entrar en una se busca por su
+ * abreviatura exacta (lookup), sin mostrar la lista.
  */
 class EntityController extends ResourceController
 {
     protected $model = Entity::class;
 
     protected $type = 'entities';
+
+    protected $manageOperation = 'entities.manage';
+
+    protected $viewOperation = 'entities.view';
 
     protected $attributes = [
         'abbreviation' => 'abbreviation',
@@ -67,8 +73,9 @@ class EntityController extends ResourceController
     {
         $user = $request->user();
         $query = Entity::query();
+        $permissions = app(Permissions::class);
 
-        if ($user->isAdmin()) {
+        if ($permissions->can($user, 'entities.view') || $permissions->can($user, 'entities.manage')) {
             $active = $request->input('filter.active');
 
             if ($active === 'false') {
@@ -80,12 +87,12 @@ class EntityController extends ResourceController
             return $query;
         }
 
-        return $query->whereKey($user->entityId());
+        return $query->whereKey(array_merge($user->entityIds(), $permissions->scope($user, 'entities.view')['entities']) ?: [0]);
     }
 
     protected function findOrFail(Request $request, $id): Model
     {
-        return $request->user()->isAdmin() && $request->getMethod() !== 'GET'
+        return app(Permissions::class)->can($request->user(), 'entities.manage') && $request->getMethod() !== 'GET'
             ? Entity::withTrashed()->findOrFail($id)
             : parent::findOrFail($request, $id);
     }
@@ -106,7 +113,7 @@ class EntityController extends ResourceController
     {
         if ($request->has('data.attributes.active')) {
             $entity = Entity::withTrashed()->findOrFail($id);
-            $this->authorize('update', $entity);
+            app(Permissions::class)->authorize($request->user(), 'entities.manage');
             $active = filter_var($request->input('data.attributes.active'), FILTER_VALIDATE_BOOLEAN);
             $active ? $entity->restore() : $entity->delete();
 
@@ -126,7 +133,7 @@ class EntityController extends ResourceController
 
         if (! $entity) {
             throw new JsonApiException(404, 'ENTITY_NOT_FOUND', 'Entidad no encontrada',
-                'No hay ninguna Entidad con esa abreviatura. Pregúntala a tu superior.');
+                'No hay ninguna Entidad con esa abreviatura. Pregúntela a su superior.');
         }
 
         return JsonApiResponse::make(['data' => [

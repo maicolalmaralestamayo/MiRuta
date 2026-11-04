@@ -22,8 +22,14 @@ class VehicleController extends ResourceController
 
     protected $relationships = [
         'vehicleType' => ['vehicle-types', 'vehicle_type_id'],
-        'driver' => ['drivers', 'driver_id'],
+        'driver' => ['workers', 'driver_id'],
     ];
+
+    protected $manageOperation = 'vehicles.manage';
+
+    protected $viewOperation = 'vehicles.view';
+
+    protected $membersCanView = false;
 
     protected $sortable = ['id' => 'id', 'plate' => 'plate'];
 
@@ -31,7 +37,7 @@ class VehicleController extends ResourceController
 
     protected $entityScoped = true;
 
-    protected $includable = ['vehicleType', 'driver', 'driver.worker', 'driver.worker.user', 'entity'];
+    protected $includable = ['vehicleType', 'driver', 'driver.user', 'entity'];
 
     protected $defaultSort = 'plate';
 
@@ -74,7 +80,7 @@ class VehicleController extends ResourceController
         };
         // La matrícula es única dentro de la Entidad.
         $unique = \Illuminate\Validation\Rule::unique('vehicles', 'plate')
-            ->where('entity_id', ItineraryController::targetEntityId($request, $model))
+            ->where('entity_id', ItineraryController::targetEntityId($request, $model, 'vehicles.manage'))
             ->whereNull('deleted_at')->ignore($model ? $model->id : null);
 
         return array_merge([
@@ -83,7 +89,7 @@ class VehicleController extends ResourceController
             'attributes.standingCapacity' => [$presence, 'integer', 'min:0', 'max:500'],
         ],
             $this->relationshipRules('vehicleType', 'vehicle-types', 'vehicle_types', ! $model),
-            $this->relationshipRules('driver', 'drivers', 'drivers', false, true)
+            $this->relationshipRules('driver', 'workers', 'workers', false, true)
         );
     }
 
@@ -105,16 +111,40 @@ class VehicleController extends ResourceController
     protected function restorable(array $data): ?Model
     {
         return Vehicle::onlyTrashed()
-            ->where('entity_id', ItineraryController::targetEntityId(app('request'), null))
+            ->where('entity_id', ItineraryController::targetEntityId(app('request'), null, 'vehicles.manage'))
             ->where('plate', trim($data['attributes']['plate']))->first();
     }
 
     /**
-     * El chofer habitual tiene que ser de la misma Entidad.
+     * Crear, editar y eliminar: vehicles.manage. Solo cambiar el chofer
+     * habitual: también vehicles.assign_driver.
+     */
+    protected function authorizeManage(Request $request, ?int $entityId, ?Model $model = null): void
+    {
+        $data = $request->json('data');
+        $onlyDriver = $model && $request->getMethod() === 'PATCH' && is_array($data) && empty($data['attributes'])
+            && isset($data['relationships']) && array_keys($data['relationships']) === ['driver'];
+
+        if ($onlyDriver && app(\App\Services\Permissions::class)->can($request->user(), 'vehicles.assign_driver', $entityId)) {
+            return;
+        }
+
+        parent::authorizeManage($request, $entityId, $model);
+    }
+
+    /**
+     * El chofer habitual tiene que ser de la misma Entidad y poder conducir.
      */
     protected function beforeSave(Model $model, Request $request, bool $creating): void
     {
         parent::beforeSave($model, $request, $creating);
-        \App\Support\Tenancy::ensureSame((int) $model->entity_id, 'drivers', $model->driver_id, '/data/relationships/driver');
+
+        if ($model->isDirty('driver_id') && $model->driver_id !== null) {
+            \App\Support\Tenancy::ensureSame((int) $model->entity_id, 'workers', $model->driver_id, '/data/relationships/driver');
+
+            if ($model->driver_id !== $model->getOriginal('driver_id') && ! app(\App\Services\Memberships::class)->canDrive(\App\Models\Worker::find($model->driver_id))) {
+                throw new \App\JsonApi\JsonApiException(422, 'NOT_A_DRIVER', 'No es chofer', 'Esa persona no tiene permiso para conducir en esta Entidad.', ['pointer' => '/data/relationships/driver']);
+            }
+        }
     }
 }

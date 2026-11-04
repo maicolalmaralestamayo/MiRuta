@@ -6,21 +6,20 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
- * Trabajador de una Entidad: el que viaja. Los nombres, el usuario y la
- * contraseña están en su cuenta (`user`). Inactivo = borrado lógico.
+ * Pertenencia de una persona a una Entidad (docs/11 §11.6): en cada Entidad
+ * tiene itinerario y parada (siempre juntos) y roles. Los nombres, el carné,
+ * el usuario y la contraseña están en la persona (`user`). Borrado lógico =
+ * baja de la Entidad (o pertenencia desactivada).
  */
 class Worker extends Model
 {
     use SoftDeletes;
 
-    const SEX_FEMALE = 'F';
-    const SEX_MALE = 'M';
-
-    protected $fillable = ['user_id', 'entity_id', 'pass', 'sex', 'rank_id', 'itinerary_id', 'stop_id'];
+    protected $fillable = ['user_id', 'entity_id', 'itinerary_id', 'stop_id', 'itinerary_assigned_at'];
 
     protected $casts = [
-        'pass' => 'integer',
         'entity_id' => 'integer',
+        'itinerary_assigned_at' => 'datetime',
     ];
 
     public function user()
@@ -33,11 +32,6 @@ class Worker extends Model
         return $this->belongsTo(Entity::class)->withTrashed();
     }
 
-    public function rank()
-    {
-        return $this->belongsTo(Rank::class);
-    }
-
     public function itinerary()
     {
         return $this->belongsTo(Itinerary::class);
@@ -48,51 +42,18 @@ class Worker extends Model
         return $this->belongsTo(Stop::class);
     }
 
-    public function driver()
+    public function workerRoles()
     {
-        return $this->hasOne(Driver::class);
+        return $this->hasMany(WorkerRole::class);
     }
 
-    public function transportChief()
+    public function absences()
     {
-        return $this->hasOne(TransportChief::class);
-    }
-
-    public function itineraryChiefs()
-    {
-        return $this->hasMany(ItineraryChief::class);
-    }
-
-    public function children()
-    {
-        return $this->hasMany(Child::class);
-    }
-
-    public function applications()
-    {
-        return $this->hasMany(Application::class);
-    }
-
-    /**
-     * Id de su fila de chofer, si lo es.
-     */
-    public function driverId(): ?int
-    {
-        $id = Driver::where('worker_id', $this->id)->value('id');
-
-        return $id === null ? null : (int) $id;
+        return $this->hasMany(Absence::class);
     }
 
     public function fullName(): string
     {
         return $this->user ? $this->user->fullName() : '';
-    }
-
-    /**
-     * Trabajadores que puede ver esa cuenta: los de su Entidad (todos, para el Administrador).
-     */
-    public function scopeVisibleTo($query, User $user)
-    {
-        return $user->isAdmin() ? $query : $query->where('workers.entity_id', $user->entityId());
     }
 }

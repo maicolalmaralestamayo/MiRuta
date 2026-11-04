@@ -2,13 +2,14 @@
 
 namespace App\Models;
 
+use App\Support\IdentityCard;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
- * Hijo declarado por un trabajador. Mientras su solicitud está pendiente la
- * fila existe pero no cuenta; cuenta cuando la solicitud se aprueba.
+ * Hijo (docs/11 §11.11): es de la persona, se identifica por su carné y lo
+ * pueden tener declarado varios padres (child_parents).
  */
 class Child extends Model
 {
@@ -16,33 +17,57 @@ class Child extends Model
 
     protected $table = 'children';
 
-    protected $fillable = ['worker_id', 'first_name', 'middle_name', 'first_surname', 'second_surname', 'birth_date'];
+    protected $fillable = [
+        'identity_card_encrypted', 'identity_card_hash', 'first_name', 'middle_name', 'first_surname', 'second_surname',
+        'sex', 'birth_date', 'photo_path', 'active',
+    ];
 
-    protected $dates = ['birth_date'];
+    protected $hidden = ['identity_card_encrypted', 'identity_card_hash'];
 
-    public function worker()
+    protected $casts = [
+        'active' => 'boolean',
+        'birth_date' => 'date',
+    ];
+
+    public function parentLinks()
     {
-        return $this->belongsTo(Worker::class);
-    }
-
-    public function childApplications()
-    {
-        return $this->hasMany(ChildApplication::class);
+        return $this->hasMany(ChildParent::class);
     }
 
     /**
-     * Solo los niños con su declaración aprobada (y sin quitar).
+     * Padres y madres que lo tienen declarado.
      */
-    public function scopeDeclared(Builder $query): Builder
+    public function parents()
     {
-        return $query->whereExists(function ($query) {
-            $query->selectRaw('1')
-                ->from('child_applications')
-                ->join('applications', 'applications.id', '=', 'child_applications.application_id')
-                ->whereColumn('child_applications.child_id', 'children.id')
-                ->where('applications.type', Application::TYPE_CHILD_ADDITION)
-                ->where('applications.status', Application::STATUS_APPROVED);
-        });
+        return $this->belongsToMany(User::class, 'child_parents')->wherePivotNull('deleted_at')->withTimestamps();
+    }
+
+    /**
+     * Los que tiene declarados esa persona.
+     */
+    public function scopeOfParent(Builder $query, int $userId): Builder
+    {
+        return $query->whereIn('children.id', ChildParent::where('user_id', $userId)->select('child_id'));
+    }
+
+    /**
+     * @return int[]
+     */
+    public function parentIds(): array
+    {
+        return array_map('intval', ChildParent::where('child_id', $this->id)->pluck('user_id')->all());
+    }
+
+    public function identityCard(): ?string
+    {
+        return IdentityCard::decrypt($this->identity_card_encrypted);
+    }
+
+    public static function findByIdentityCard(string $card, bool $withTrashed = false): ?self
+    {
+        $query = $withTrashed ? static::withTrashed() : static::query();
+
+        return $query->where('identity_card_hash', IdentityCard::hash($card))->first();
     }
 
     public function fullName(): string

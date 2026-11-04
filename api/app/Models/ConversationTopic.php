@@ -9,9 +9,14 @@ class ConversationTopic extends Model
 {
     use SoftDeletes;
 
-    const RECIPIENT_ITINERARY_CHIEFS = 'itinerary_chiefs';
-    const RECIPIENT_TRANSPORT_CHIEFS = 'transport_chiefs';
+    /** A quienes tienen ese rol en la Entidad (o en el itinerario, si el rol es por itinerario). */
+    const RECIPIENT_ROLE = 'role';
     const RECIPIENT_DEVELOPER = 'developer';
 
-    protected $fillable = ['name', 'description', 'observation', 'recipient'];
+    protected $fillable = ['name', 'description', 'observation', 'recipient', 'role_id'];
+
+    public function role()
+    {
+        return $this->belongsTo(Role::class)->withTrashed();
+    }
 }

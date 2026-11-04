@@ -21,7 +21,9 @@ use Illuminate\Support\Facades\DB;
  * Estadísticas (docs/02-procesos.md §2.11 y docs/04-api.md §4.6). Cada una
  * devuelve columnas y filas; la app dibuja los gráficos y las tablas.
  *
- * Cada uno ve lo de su Entidad; el Administrador, todas (o una con filter[entity]).
+ * Con statistics.view se ve lo de su ámbito (sus Entidades o itinerarios;
+ * con «all», todas o una con filter[entity]). Sin él, quien conduce ve las
+ * de sus viajes y cualquiera, las suyas.
  */
 class Statistics
 {
@@ -58,11 +60,14 @@ class Statistics
     /** @var int[]|null itinerarios a los que se limita; null = todos */
     private $itineraryScope;
 
-    /** @var int|null chofer al que se limita */
+    /** @var int[]|null choferes (pertenencias) a los que se limita */
     private $driverScope;
 
-    /** @var int|null Entidad a la que se limita; null = todas (Administrador) */
+    /** @var int[]|null Entidades a las que se limita; null = todas */
     private $entityScope;
+
+    /** @var int[] Entidades enteras de su ámbito (además de itineraryScope) */
+    private $wholeEntities = [];
 
     /** @var User */
     private $user;
@@ -164,38 +169,53 @@ class Statistics
     {
         $this->itineraryScope = null;
         $this->driverScope = null;
+        $this->entityScope = null;
+        $this->wholeEntities = [];
         $user = $this->user;
+        $permissions = app(Permissions::class);
+        $requested = ! empty($this->filters['entity']) ? (int) $this->filters['entity'] : null;
+        $scope = $permissions->scope($user, 'statistics.view');
 
-        if ($user->isAdmin()) {
-            $this->entityScope = ! empty($this->filters['entity']) ? (int) $this->filters['entity'] : null;
-
-            return;
-        }
-
-        $this->entityScope = $user->entityId();
-
-        if ($user->isTransportChief()) {
-            return;
-        }
-
-        if ($user->chiefItineraryIds()) {
-            $this->itineraryScope = $user->chiefItineraryIds();
+        if ($scope['all']) {
+            $this->entityScope = $requested !== null ? [$requested] : null;
 
             return;
         }
 
-        if ($user->isDriver() && in_array($name, self::DRIVER_NAMES, true)) {
-            $this->driverScope = $user->driverId();
+        if ($scope['entities'] || $scope['itineraries']) {
+            $entities = $scope['entities'];
+            $itineraries = $scope['itineraries'];
+
+            if ($requested !== null) {
+                $entities = array_values(array_intersect($entities, [$requested]));
+                $itineraries = DB::table('itineraries')->whereIn('id', $itineraries ?: [0])->where('entity_id', $requested)->pluck('id')->map(function ($id) {
+                    return (int) $id;
+                })->all();
+            }
+
+            // Lo de sus Entidades enteras y lo de sus itinerarios.
+            $this->wholeEntities = $entities;
+            $this->itineraryScope = array_values(array_unique(array_merge($itineraries,
+                DB::table('itineraries')->whereIn('entity_id', $entities ?: [0])->pluck('id')->map(function ($id) {
+                    return (int) $id;
+                })->all())));
+
+            return;
+        }
+
+        if ($permissions->canAnywhere($user, 'tracking.drive') && in_array($name, self::DRIVER_NAMES, true)) {
+            $this->driverScope = $user->workerIds() ?: [0];
 
             return;
         }
 
         if (! in_array($name, self::WORKER_NAMES, true)) {
-            throw new JsonApiException(403, 'FORBIDDEN', 'Sin permiso', 'No puedes ver esta estadística.');
+            throw new JsonApiException(403, 'FORBIDDEN', 'Sin permiso', 'No puede ver esta estadística.');
         }
 
-        $worker = $user->workerModel();
-        $this->itineraryScope = $worker && $worker->itinerary_id ? [(int) $worker->itinerary_id] : [];
+        $this->itineraryScope = $user->activeWorkers()->pluck('itinerary_id')->filter()->map(function ($id) {
+            return (int) $id;
+        })->values()->all();
     }
 
     /*
@@ -221,7 +241,7 @@ class Statistics
         $group = $this->groupBy(['itinerary', 'vehicle', 'driver'], 'itinerary');
         $rows = [];
 
-        foreach ($this->tripQuery()->where('status', Trip::STATUS_COMPLETED)->with('itinerary', 'vehicle', 'driver.worker')->get() as $trip) {
+        foreach ($this->tripQuery()->where('status', Trip::STATUS_COMPLETED)->with('itinerary', 'vehicle', 'driver.user')->get() as $trip) {
             $legs = TripLeg::where('trip_id', $trip->id)->get()->keyBy('direction');
             $key = $this->groupKey($trip, $group);
             $rows[$key] = isset($rows[$key]) ? $rows[$key] : ['group' => $this->groupLabel($trip, $group), 'trips' => 0, 'departure' => [], 'arrival' => []];
@@ -421,20 +441,23 @@ class Statistics
     private function workersDistribution(): array
     {
         $by = isset($this->filters['by']) ? $this->filters['by'] : 'itinerary';
-        $columns = ['itinerary' => 'itinerary_id', 'stop' => 'stop_id', 'rank' => 'rank_id', 'sex' => 'sex'];
+        $columns = ['itinerary' => 'workers.itinerary_id', 'stop' => 'workers.stop_id', 'sex' => 'users.sex'];
 
         if (! isset($columns[$by])) {
-            throw JsonApiException::badRequest('filter[by] debe ser itinerary, stop, rank o sex.', 'filter[by]');
+            throw JsonApiException::badRequest('filter[by] debe ser itinerary, stop o sex.', 'filter[by]');
         }
 
-        $query = Worker::query()->select($columns[$by].' AS value', DB::raw('COUNT(*) AS total'))->groupBy($columns[$by]);
+        $query = Worker::query()->join('users', 'users.id', '=', 'workers.user_id')->whereNull('users.deleted_at')
+            ->select($columns[$by].' AS value', DB::raw('COUNT(*) AS total'))->groupBy($columns[$by]);
 
         if ($this->entityScope !== null) {
-            $query->where('entity_id', $this->entityScope);
+            $query->whereIn('workers.entity_id', $this->entityScope);
         }
 
         if ($this->itineraryScope !== null) {
-            $query->whereIn('itinerary_id', $this->itineraryScope);
+            $query->where(function ($query) {
+                $query->whereIn('workers.itinerary_id', $this->itineraryScope ?: [0])->orWhereIn('workers.entity_id', $this->wholeEntities ?: [0]);
+            });
         }
 
         $names = $this->namesFor($by);
@@ -445,22 +468,29 @@ class Statistics
             return ['group' => $label, 'workers' => (int) $row->total];
         })->sortBy('group')->values()->all();
 
-        $titles = ['itinerary' => 'Itinerario', 'stop' => 'Parada', 'rank' => 'Jerarquía', 'sex' => 'Sexo'];
+        $titles = ['itinerary' => 'Itinerario', 'stop' => 'Parada', 'sex' => 'Sexo'];
 
         return [[['group', $titles[$by], 'string'], ['workers', 'Trabajadores', 'integer']], $rows];
     }
 
     private function workerTrips(): array
     {
-        $ownId = (int) $this->user->workerId();
-        $workerId = isset($this->filters['worker']) ? (int) $this->filters['worker'] : $ownId;
+        $ownIds = $this->user->workerIds();
+        $workerId = isset($this->filters['worker']) ? (int) $this->filters['worker'] : ($ownIds ? $ownIds[0] : 0);
+        $own = in_array($workerId, $ownIds, true);
 
-        if ($workerId !== $ownId && ! $this->user->managesTransport() && ! $this->user->chiefItineraryIds()) {
-            throw new JsonApiException(403, 'FORBIDDEN', 'Sin permiso', 'Solo puedes ver tus propios viajes.');
-        }
+        if (! $own) {
+            $worker = Worker::withTrashed()->find($workerId);
+            $permissions = app(Permissions::class);
 
-        if ($workerId !== $ownId && ! $this->user->canAccessEntity(\App\Support\Tenancy::entityOf('workers', $workerId))) {
-            throw new JsonApiException(404, 'NOT_FOUND', 'No encontrado', 'El trabajador no existe.');
+            if (! $worker) {
+                throw new JsonApiException(404, 'NOT_FOUND', 'No encontrado', 'El trabajador no existe.');
+            }
+
+            if (! $permissions->can($this->user, 'statistics.view', (int) $worker->entity_id, $worker->itinerary_id ? (int) $worker->itinerary_id : null)
+                && ! $permissions->can($this->user, 'workers.view', (int) $worker->entity_id, $worker->itinerary_id ? (int) $worker->itinerary_id : null)) {
+                throw new JsonApiException(403, 'FORBIDDEN', 'Sin permiso', 'Solo puede ver sus propios viajes.');
+            }
         }
 
         $rows = DB::table('trip_boardings')
@@ -472,7 +502,7 @@ class Statistics
             ->where(function ($query) {
                 $this->applyPeriod($query, 'trips.departs_at');
             })
-            ->when($this->itineraryScope !== null && $workerId !== $ownId, function ($query) {
+            ->when($this->itineraryScope !== null && ! $own, function ($query) {
                 $query->whereIn('trips.itinerary_id', $this->itineraryScope);
             })
             ->orderBy('trips.departs_at')
@@ -506,14 +536,12 @@ class Statistics
         });
 
         if ($this->entityScope !== null) {
-            $query->whereHas('worker', function (Builder $query) {
-                $query->withTrashed()->where('entity_id', $this->entityScope);
-            });
+            $query->whereIn('entity_id', $this->entityScope);
         }
 
         if ($this->itineraryScope !== null) {
-            $query->whereHas('worker', function (Builder $query) {
-                $query->whereIn('itinerary_id', $this->itineraryScope);
+            $query->where(function ($query) {
+                $query->whereIn('itinerary_id', $this->itineraryScope ?: [0])->orWhereIn('entity_id', $this->wholeEntities ?: [0]);
             });
         }
 
@@ -717,7 +745,7 @@ class Statistics
 
         if ($this->entityScope !== null) {
             $query->whereHas('itinerary', function (Builder $query) {
-                $query->withTrashed()->where('entity_id', $this->entityScope);
+                $query->withTrashed()->whereIn('entity_id', $this->entityScope);
             });
         }
 
@@ -726,7 +754,7 @@ class Statistics
         }
 
         if ($this->driverScope !== null) {
-            $query->where('driver_id', $this->driverScope);
+            $query->whereIn('driver_id', $this->driverScope);
         }
 
         foreach (['itinerary' => 'itinerary_id', 'vehicle' => 'vehicle_id', 'driver' => 'driver_id'] as $filter => $column) {
@@ -753,7 +781,7 @@ class Statistics
     {
         $rows = [];
 
-        foreach ($this->tripQuery()->where('status', Trip::STATUS_COMPLETED)->with('vehicle', 'driver.worker')->get() as $trip) {
+        foreach ($this->tripQuery()->where('status', Trip::STATUS_COMPLETED)->with('vehicle', 'driver.user')->get() as $trip) {
             $key = $this->groupKey($trip, $field);
             $rows[$key] = isset($rows[$key]) ? $rows[$key] : [$field => $this->groupLabel($trip, $field), 'trips' => 0];
             $rows[$key]['trips']++;
@@ -784,9 +812,7 @@ class Statistics
             case 'vehicle':
                 return $trip->vehicle ? $trip->vehicle->plate : '';
             case 'driver':
-                $worker = $trip->driver ? $trip->driver->worker : null;
-
-                return $worker ? $worker->fullName() : '';
+                return $trip->driver ? $trip->driver->fullName() : '';
             default:
                 return $trip->itinerary ? $trip->itinerary->name : '';
         }
@@ -804,8 +830,6 @@ class Statistics
                 return DB::table('itineraries')->pluck('name', 'id')->all();
             case 'stop':
                 return DB::table('stops')->pluck('landmark', 'id')->all();
-            case 'rank':
-                return DB::table('ranks')->pluck('name', 'id')->all();
             default:
                 return [];
         }

@@ -3,12 +3,15 @@
 namespace App\Services;
 
 use App\Models\Child;
+use App\Models\ChildParent;
 use App\Models\Worker;
 use Carbon\CarbonImmutable;
 
 /**
- * Derecho a viajar de un hijo (docs/07-algoritmos.md §7.9): hasta el 31 de
- * agosto siguiente al día en que cumple la edad máxima.
+ * Derecho a viajar de un hijo (docs/07-algoritmos.md §7.9 y docs/11 §11.11):
+ * hasta el 31 de agosto siguiente al cumpleaños en que cumple la edad máxima
+ * (child_max_age). La edad máxima es la de la Entidad de sus padres o, si
+ * pertenecen a varias (o a ninguna), la de la app.
  */
 class ChildEligibility
 {
@@ -21,8 +24,7 @@ class ChildEligibility
     }
 
     /**
-     * Último día con derecho a viajar: el 31 de agosto siguiente a cumplir
-     * la edad máxima de su Entidad (child_max_age).
+     * Último día con derecho a viajar.
      */
     public function eligibleUntil($birthDate, ?int $entityId): CarbonImmutable
     {
@@ -46,27 +48,60 @@ class ChildEligibility
         return $date->startOfDay()->lessThanOrEqualTo($this->eligibleUntil($birthDate, $entityId));
     }
 
+    /**
+     * Entidad con la que se calcula: la única de sus padres, o null (la app).
+     *
+     * @param int[] $parentIds
+     */
+    public function entityForParents(array $parentIds): ?int
+    {
+        if (! $parentIds) {
+            return null;
+        }
+
+        $entities = Worker::whereIn('user_id', $parentIds)->distinct()->pluck('entity_id')->all();
+
+        return count($entities) === 1 ? (int) $entities[0] : null;
+    }
+
+    public function childEntityId(Child $child): ?int
+    {
+        return $this->entityForParents($child->parentIds());
+    }
+
     public function isChildEligible(Child $child, ?CarbonImmutable $date = null): bool
     {
-        return $this->isEligible($child->birth_date, $this->entityOf($child->worker_id), $date);
+        return $this->isEligible($child->birth_date, $this->childEntityId($child), $date);
     }
 
     public function childEligibleUntil(Child $child): CarbonImmutable
     {
-        return $this->eligibleUntil($child->birth_date, $this->entityOf($child->worker_id));
+        return $this->eligibleUntil($child->birth_date, $this->childEntityId($child));
     }
 
     /**
-     * Hijos declarados con derecho a viajar en la fecha indicada.
+     * Hijos activos con derecho a viajar de esa persona.
+     *
+     * @return \Illuminate\Support\Collection|Child[]
+     */
+    public function eligibleChildrenOf(int $userId, ?CarbonImmutable $date = null)
+    {
+        return Child::ofParent($userId)->where('active', true)->get()->filter(function (Child $child) use ($date) {
+            return $this->isChildEligible($child, $date);
+        })->values();
+    }
+
+    /**
+     * Hijos con derecho de la persona de la pertenencia.
      */
     public function eligibleCount(Worker $worker, ?CarbonImmutable $date = null): int
     {
-        return $this->eligibleCountsByWorker([$worker->id], $date)[$worker->id] ?? 0;
+        return $this->eligibleChildrenOf((int) $worker->user_id, $date)->count();
     }
 
     /**
      * @param int[] $workerIds
-     * @return array [id de trabajador => hijos con derecho]
+     * @return array [id de pertenencia => hijos con derecho]
      */
     public function eligibleCountsByWorker(array $workerIds, ?CarbonImmutable $date = null): array
     {
@@ -76,23 +111,27 @@ class ChildEligibility
             return $counts;
         }
 
-        $entities = Worker::withTrashed()->whereIn('id', $workerIds)->pluck('entity_id', 'id')->all();
+        $users = Worker::withTrashed()->whereIn('id', $workerIds)->pluck('user_id', 'id')->all();
+        $byUser = [];
 
-        foreach (Child::declared()->whereIn('worker_id', $workerIds)->get() as $child) {
-            $entityId = isset($entities[$child->worker_id]) ? (int) $entities[$child->worker_id] : null;
+        foreach (array_unique($users) as $userId) {
+            $byUser[$userId] = $this->eligibleChildrenOf((int) $userId, $date)->count();
+        }
 
-            if ($this->isEligible($child->birth_date, $entityId, $date)) {
-                $counts[$child->worker_id]++;
-            }
+        foreach ($users as $workerId => $userId) {
+            $counts[$workerId] = $byUser[$userId];
         }
 
         return $counts;
     }
 
-    private function entityOf($workerId): ?int
+    /**
+     * Ids de las personas que tienen declarado al niño.
+     *
+     * @return int[]
+     */
+    public function parentIds(Child $child): array
     {
-        $entityId = Worker::withTrashed()->whereKey($workerId)->value('entity_id');
-
-        return $entityId === null ? null : (int) $entityId;
+        return array_map('intval', ChildParent::where('child_id', $child->id)->pluck('user_id')->all());
     }
 }

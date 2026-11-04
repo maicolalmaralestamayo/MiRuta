@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\JsonApi\JsonApiException;
+use App\Models\Itinerary;
 use App\Models\Trip;
 use App\Models\TripCompletion;
 use App\Models\ItineraryStop;
@@ -25,48 +26,62 @@ class Trips
     /** @var ChildEligibility */
     private $childEligibility;
 
-    public function __construct(Absences $absences, ChildEligibility $childEligibility)
+    /** @var Permissions */
+    private $permissions;
+
+    public function __construct(Absences $absences, ChildEligibility $childEligibility, Permissions $permissions)
     {
         $this->absences = $absences;
         $this->childEligibility = $childEligibility;
+        $this->permissions = $permissions;
     }
 
     /**
-     * Viajes que el usuario puede ver.
+     * Viajes que la persona puede ver (trips.view): los de las Entidades o
+     * itinerarios de su ámbito; con «own», los de su itinerario en esa
+     * Entidad. Siempre, los que conduce.
      */
     public function visibleTo(User $user): Builder
     {
         $query = Trip::query();
+        $scope = $this->permissions->scope($user, 'trips.view');
 
-        if ($user->isAdmin()) {
+        if ($scope['all']) {
             return $query;
         }
 
-        $entityId = $user->entityId();
+        $workers = $user->activeWorkers();
+        $ownItineraries = $workers->filter(function ($worker) use ($scope) {
+            return $worker->itinerary_id && in_array((int) $worker->entity_id, $scope['own'], true);
+        })->pluck('itinerary_id')->map(function ($id) {
+            return (int) $id;
+        })->all();
+        $itineraries = array_values(array_unique(array_merge($scope['itineraries'], $ownItineraries)));
 
-        if ($user->isTransportChief()) {
-            return $query->whereHas('itinerary', function (Builder $query) use ($entityId) {
-                $query->withTrashed()->where('entity_id', $entityId);
-            });
-        }
+        return $query->where(function (Builder $query) use ($scope, $itineraries, $user) {
+            $query->whereIn('driver_id', $user->workerIds() ?: [0]);
 
-        $worker = $user->workerModel();
-
-        return $query->where(function (Builder $query) use ($user, $worker) {
-            $query->whereRaw('1 = 0');
-
-            if ($worker && $worker->itinerary_id) {
-                $query->orWhere('itinerary_id', $worker->itinerary_id);
+            if ($scope['entities']) {
+                $query->orWhereIn('itinerary_id', Itinerary::withTrashed()->whereIn('entity_id', $scope['entities'])->select('id'));
             }
 
-            if ($chiefOf = $user->chiefItineraryIds()) {
-                $query->orWhereIn('itinerary_id', $chiefOf);
-            }
-
-            if ($driverId = $user->driverId()) {
-                $query->orWhere('driver_id', $driverId);
+            if ($itineraries) {
+                $query->orWhereIn('itinerary_id', $itineraries);
             }
         });
+    }
+
+    /**
+     * Es el chofer del viaje (una de sus pertenencias).
+     */
+    public function isDriverOf(Trip $trip, User $user): bool
+    {
+        return in_array((int) $trip->driver_id, $user->workerIds(), true);
+    }
+
+    public function entityOf(Trip $trip): ?int
+    {
+        return $this->permissions->entityOfItinerary((int) $trip->itinerary_id);
     }
 
     /**
@@ -139,7 +154,7 @@ class Trips
         $role = $user ? $this->completionRole($trip, $user) : TripCompletion::ROLE_SYSTEM;
 
         if ($role === null) {
-            throw new JsonApiException(403, 'FORBIDDEN', 'Sin permiso', 'Solo el chofer del viaje, los Jefes de su itinerario y los Jefes de Transporte pueden marcarlo como realizado.');
+            throw new JsonApiException(403, 'FORBIDDEN', 'Sin permiso', 'Solo el chofer del viaje y quien tenga permiso para marcar viajes como realizados pueden hacerlo.');
         }
 
         return DB::transaction(function () use ($trip, $user, $role) {
@@ -165,32 +180,30 @@ class Trips
             return TripCompletion::ROLE_ADMINISTRATOR;
         }
 
-        if ($user->driverId() !== null && (int) $trip->driver_id === $user->driverId()) {
+        if ($this->isDriverOf($trip, $user)) {
             return TripCompletion::ROLE_DRIVER;
         }
 
-        if ($user->isTransportChief() && $user->isChiefOf((int) $trip->itinerary_id)) {
-            return TripCompletion::ROLE_TRANSPORT_CHIEF;
-        }
-
-        if ($user->isChiefOf((int) $trip->itinerary_id)) {
-            return TripCompletion::ROLE_ITINERARY_CHIEF;
+        if ($this->permissions->can($user, 'trips.complete', null, (int) $trip->itinerary_id)) {
+            return TripCompletion::ROLE_MANAGER;
         }
 
         return null;
     }
 
     /**
-     * Pasajeros esperados (7.13): miembros activos del itinerario, sin los que
-     * tienen ausencia aprobada en la fecha de salida ni el chofer del viaje.
+     * Pasajeros esperados (7.13 y docs/11 §11.11): solo trabajadores (ningún
+     * niño); los miembros activos del itinerario, sin los que tienen una
+     * ausencia en la fecha de salida ni el chofer del viaje.
      *
      * @return Collection|Worker[]
      */
     public function expectedPassengers(Trip $trip): Collection
     {
-        $members = Worker::where('itinerary_id', $trip->itinerary_id)->with('user', 'rank')->get();
+        $members = Worker::where('itinerary_id', $trip->itinerary_id)
+            ->whereHas('user')->with('user')->get();
         $absent = $this->absences->absentOn($trip->departs_at, $members->pluck('id')->all());
-        $driverWorkerId = $trip->driver ? (int) $trip->driver->worker_id : null;
+        $driverWorkerId = $trip->driver_id ? (int) $trip->driver_id : null;
 
         return $members->reject(function (Worker $worker) use ($absent, $driverWorkerId) {
             return in_array((int) $worker->id, $absent, true) || (int) $worker->id === $driverWorkerId;
@@ -199,7 +212,7 @@ class Trips
 
     /**
      * Ocupación (docs/08-version-2.md §8.9). Solo cuentan los trabajadores:
-     * los niños van cargados, pero se informan.
+     * no se espera a ningún niño (docs/11 §11.11).
      *
      * - normal: trabajadores ≤ asientos;
      * - saturated (saturado): más que asientos, pero caben de pie;
@@ -208,10 +221,6 @@ class Trips
     public function occupancy(Trip $trip): array
     {
         $passengers = $this->expectedPassengers($trip);
-        $children = array_sum($this->childEligibility->eligibleCountsByWorker(
-            $passengers->pluck('id')->all(),
-            CarbonImmutable::instance($trip->departs_at)
-        ));
         $vehicle = $trip->vehicle;
         $seats = $vehicle ? (int) $vehicle->seats : 0;
         $capacity = $vehicle ? $vehicle->totalCapacity() : 0;
@@ -219,7 +228,6 @@ class Trips
 
         return [
             'expectedPassengers' => $count,
-            'expectedChildren' => $children,
             'seats' => $seats,
             'totalCapacity' => $capacity,
             'occupancyLevel' => self::occupancyLevel($count, $seats, $capacity),
@@ -258,7 +266,7 @@ class Trips
         $positions = ItineraryStop::where('itinerary_id', $trip->itinerary_id)->pluck('position', 'stop_id')->all();
 
         $list = $passengers->map(function (Worker $worker) use ($children) {
-            return ['worker' => $worker, 'children' => $children[$worker->id]];
+            return ['worker' => $worker, 'children' => isset($children[$worker->id]) ? $children[$worker->id] : 0];
         })->all();
 
         usort($list, function (array $a, array $b) use ($positions) {
@@ -351,7 +359,7 @@ class Trips
      */
     private function purgeChat(Trip $trip): void
     {
-        if (app(Settings::class)->int('trip_chat_retention_days') === 0) {
+        if (app(Settings::class)->int('trip_chat_retention_days', null, null, (int) $trip->itinerary_id) === 0) {
             DB::table('trip_messages')->where('trip_id', $trip->id)->delete();
         }
     }
@@ -362,14 +370,22 @@ class Trips
     }
 
     /**
-     * Viajes confirmados cuyo regreso (más la demora configurada) ya pasó.
+     * Viajes confirmados cuyo regreso (más la demora de su itinerario) ya pasó.
      *
      * @return Collection|Trip[]
      */
-    public function dueForAutoCompletion(int $delayMinutes): Collection
+    public function dueForAutoCompletion(): Collection
     {
+        $settings = app(Settings::class);
+
+        // La demora es un ajuste por itinerario (docs/11 §11.17).
         return Trip::where('status', Trip::STATUS_CONFIRMED)
-            ->where('returns_at', '<=', Carbon::now()->subMinutes($delayMinutes))
-            ->get();
+            ->where('returns_at', '<=', Carbon::now())
+            ->get()
+            ->filter(function (Trip $trip) use ($settings) {
+                $delay = $settings->int('trip_auto_complete_delay_minutes', null, null, (int) $trip->itinerary_id);
+
+                return $trip->returns_at->lessThanOrEqualTo(Carbon::now()->subMinutes($delay));
+            })->values();
     }
 }

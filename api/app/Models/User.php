@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\IdentityCard;
 use App\Support\Username;
 use Illuminate\Auth\Authenticatable;
 use Illuminate\Contracts\Auth\Access\Authorizable as AuthorizableContract;
@@ -11,14 +12,14 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Laravel\Lumen\Auth\Authorizable;
 
 /**
- * Cuenta de la app (docs/08-version-2.md §8.3). Inactiva = borrado lógico.
+ * La persona (docs/11 §11.2 y §11.6). Inactiva = borrado lógico.
  *
- * - El Administrador es una cuenta sin trabajador: ve y hace todo, en todas
- *   las Entidades, y cuenta como Jefe de Transporte y Jefe de todos los itinerarios.
- * - Los demás tienen un trabajador (`worker`) en una Entidad. Mientras no lo
- *   tengan solo pueden unirse a una Entidad.
- * - Una cuenta creada por un superior no tiene usuario ni contraseña hasta
- *   que el trabajador la activa con su código.
+ * - La cuenta es de la persona: usuario, contraseña, nombres, carné (y con
+ *   él sexo y fecha de nacimiento), hijos y QR.
+ * - En cada Entidad tiene una pertenencia (`workers`), con su itinerario y
+ *   parada y sus roles. Puede no tener ninguna (sin Entidad).
+ * - El Administrador (is_admin) tiene todas las operaciones con ámbito
+ *   «Todas» y también puede pertenecer a Entidades como un trabajador más.
  */
 class User extends Model implements AuthenticatableContract, AuthorizableContract
 {
@@ -27,14 +28,18 @@ class User extends Model implements AuthenticatableContract, AuthorizableContrac
     protected $fillable = [
         'username', 'password', 'password_changed_at', 'must_change_password',
         'first_name', 'middle_name', 'first_surname', 'second_surname',
-        'photo_path', 'is_admin',
+        'identity_card_encrypted', 'identity_card_hash', 'sex', 'birth_date',
+        'photo_path', 'is_admin', 'has_phone', 'printed_qr_version',
     ];
 
-    protected $hidden = ['password'];
+    protected $hidden = ['password', 'identity_card_encrypted', 'identity_card_hash'];
 
     protected $casts = [
         'is_admin' => 'boolean',
         'must_change_password' => 'boolean',
+        'has_phone' => 'boolean',
+        'printed_qr_version' => 'integer',
+        'birth_date' => 'date',
     ];
 
     protected $dates = ['password_changed_at'];
@@ -46,17 +51,24 @@ class User extends Model implements AuthenticatableContract, AuthorizableContrac
      */
     private $currentSessionId;
 
-    /** @var array|null Roles leídos (se calculan una vez por instancia) */
-    private $roleCache;
-
     public static function findByUsername($username): ?self
     {
         return Username::looksValid($username) ? static::where('username', Username::normalize($username))->first() : null;
     }
 
-    public function worker()
+    public static function findByIdentityCard(string $card, bool $withTrashed = false): ?self
     {
-        return $this->hasOne(Worker::class);
+        $query = $withTrashed ? static::withTrashed() : static::query();
+
+        return $query->where('identity_card_hash', IdentityCard::hash($card))->first();
+    }
+
+    /**
+     * Pertenencias activas (una por Entidad).
+     */
+    public function workers()
+    {
+        return $this->hasMany(Worker::class);
     }
 
     public function settings()
@@ -89,149 +101,78 @@ class User extends Model implements AuthenticatableContract, AuthorizableContrac
         return (bool) $this->is_admin;
     }
 
-    public function isActivated(): bool
+    public function identityCard(): ?string
     {
-        return $this->username !== null && $this->password !== null;
+        return IdentityCard::decrypt($this->identity_card_encrypted);
     }
 
     /**
-     * Trabajador de la cuenta (null para el Administrador o si aún no se unió a una Entidad).
+     * Pertenencia activa en esa Entidad, o null.
      */
-    public function workerModel(): ?Worker
+    public function workerIn($entityId): ?Worker
     {
-        if (! $this->relationLoaded('worker')) {
-            $this->setRelation('worker', $this->worker()->first());
+        if ($entityId === null) {
+            return null;
         }
 
-        return $this->getRelation('worker');
-    }
-
-    public function workerId(): ?int
-    {
-        $worker = $this->workerModel();
-
-        return $worker ? (int) $worker->id : null;
-    }
-
-    public function entityId(): ?int
-    {
-        $worker = $this->workerModel();
-
-        return $worker ? (int) $worker->entity_id : null;
+        return $this->activeWorkers()->firstWhere('entity_id', (int) $entityId);
     }
 
     /**
-     * Puede ver y actuar sobre los datos de esa Entidad.
+     * @return \Illuminate\Support\Collection|Worker[]
      */
-    public function canAccessEntity($entityId): bool
+    public function activeWorkers()
     {
-        return $this->isAdmin() || ($entityId !== null && (int) $entityId === $this->entityId());
-    }
-
-    public function isTransportChief(): bool
-    {
-        return $this->roles()['transport_chief'];
-    }
-
-    /**
-     * Administrador o Jefe de Transporte: gestiona vehículos, itinerarios y viajes.
-     */
-    public function managesTransport(): bool
-    {
-        return $this->isAdmin() || $this->isTransportChief();
-    }
-
-    /**
-     * Gestiona el transporte de esa Entidad.
-     */
-    public function managesEntity($entityId): bool
-    {
-        return $this->isAdmin() || ($this->isTransportChief() && (int) $entityId === $this->entityId());
-    }
-
-    public function isDriver(): bool
-    {
-        return $this->roles()['driver_id'] !== null;
-    }
-
-    public function driverId(): ?int
-    {
-        return $this->roles()['driver_id'];
-    }
-
-    /**
-     * Ids de los itinerarios de los que es jefe (como mucho uno).
-     *
-     * @return int[]
-     */
-    public function chiefItineraryIds(): array
-    {
-        return $this->roles()['itinerary_ids'];
-    }
-
-    public function isItineraryChief(): bool
-    {
-        return $this->chiefItineraryIds() !== [];
-    }
-
-    /**
-     * Jefe de ese itinerario. El Administrador lo es de todos, y el Jefe de
-     * Transporte de todos los de su Entidad.
-     */
-    public function isChiefOf(?int $itineraryId): bool
-    {
-        if ($itineraryId === null) {
-            return false;
+        if (! $this->relationLoaded('workers')) {
+            $this->setRelation('workers', $this->workers()->orderBy('id')->get());
         }
 
-        if ($this->isAdmin() || in_array($itineraryId, $this->chiefItineraryIds(), true)) {
-            return true;
-        }
-
-        return $this->isTransportChief() && (int) Itinerary::withTrashed()->whereKey($itineraryId)->value('entity_id') === $this->entityId();
+        return $this->getRelation('workers');
     }
 
     /**
-     * Puede planificar viajes de ese itinerario: Administrador, Jefes de
-     * Transporte de su Entidad y los Jefes de ese itinerario.
+     * @return int[] ids de sus pertenencias activas
      */
-    public function canPlan(?int $itineraryId): bool
+    public function workerIds(): array
     {
-        return $this->isChiefOf($itineraryId);
+        return $this->activeWorkers()->pluck('id')->map(function ($id) {
+            return (int) $id;
+        })->all();
     }
 
     /**
-     * Puede planificar viajes de algún itinerario.
+     * @return int[] Entidades a las que pertenece
      */
-    public function plansTrips(): bool
+    public function entityIds(): array
     {
-        return $this->managesTransport() || $this->isItineraryChief();
+        return $this->activeWorkers()->pluck('entity_id')->map(function ($id) {
+            return (int) $id;
+        })->all();
     }
 
     /**
-     * Olvida los roles leídos (tras cambiarlos).
+     * La Entidad, si pertenece exactamente a una.
      */
-    public function refreshRoles(): self
+    public function singleEntityId(): ?int
     {
-        $this->roleCache = null;
-        $this->unsetRelation('worker');
+        $ids = $this->entityIds();
+
+        return count($ids) === 1 ? $ids[0] : null;
+    }
+
+    public function belongsToEntity($entityId): bool
+    {
+        return $entityId !== null && in_array((int) $entityId, $this->entityIds(), true);
+    }
+
+    /**
+     * Olvida las pertenencias y permisos leídos (tras cambiarlos).
+     */
+    public function refreshMemberships(): self
+    {
+        $this->unsetRelation('workers');
+        app(\App\Services\Permissions::class)->flush($this->id);
 
         return $this;
-    }
-
-    private function roles(): array
-    {
-        if ($this->roleCache === null) {
-            $workerId = $this->workerId();
-            $this->roleCache = $workerId === null
-                ? ['transport_chief' => false, 'driver_id' => null, 'itinerary_ids' => []]
-                : [
-                    'transport_chief' => TransportChief::where('worker_id', $workerId)->exists(),
-                    'driver_id' => ($id = Driver::where('worker_id', $workerId)->value('id')) ? (int) $id : null,
-                    'itinerary_ids' => array_map('intval', ItineraryChief::where('worker_id', $workerId)->pluck('itinerary_id')->all()),
-                ];
-        }
-
-        return $this->roleCache;
     }
 }

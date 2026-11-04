@@ -89,10 +89,23 @@ class CreateTrackingTables extends Migration
             $table->enum('method', ['automatic', 'self', 'qr', 'manual']);
             $table->foreignId('marked_by')->nullable()->constrained('users');
             $table->unsignedTinyInteger('children_count');
+            $table->enum('outsider', ['itinerary', 'entity'])->nullable()
+                ->comment('Subió alguien de otro itinerario o de otra Entidad (lo permitió quien escaneó)');
             $table->dateTime('boarded_at');
             $table->timestamps();
             $table->softDeletes();
             $table->index(['trip_leg_id', 'worker_id']);
+        });
+
+        // Hijos que suben con el trabajador: cada niño cuenta una vez por trayecto.
+        Schema::create('trip_boarding_children', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('trip_boarding_id')->constrained();
+            $table->foreignId('trip_leg_id')->constrained();
+            $table->foreignId('child_id')->constrained('children');
+            $table->timestamps();
+            $table->softDeletes();
+            $table->unique(['trip_leg_id', 'child_id']);
         });
     }
 
@@ -107,7 +120,7 @@ class CreateTrackingTables extends Migration
             $table->dropColumn(['reference_outbound_leg_id', 'reference_return_leg_id']);
         });
 
-        foreach (['trip_boardings', 'trip_leg_incidents', 'trip_stop_passes', 'trip_positions', 'trip_legs'] as $name) {
+        foreach (['trip_boarding_children', 'trip_boardings', 'trip_leg_incidents', 'trip_stop_passes', 'trip_positions', 'trip_legs'] as $name) {
             Schema::dropIfExists($name);
         }
     }

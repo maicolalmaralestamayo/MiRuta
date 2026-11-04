@@ -41,13 +41,26 @@ class Tracking
     }
 
     /**
-     * Pueden iniciar y finalizar trayectos (y registrar subidas de otros) el
-     * chofer del viaje, los Jefes de su itinerario y los Jefes de Transporte.
+     * Pueden iniciar y finalizar trayectos el chofer del viaje, quien tenga
+     * tracking.drive en su Entidad y quien pueda marcarlo como realizado.
      */
     public function canOperate(Trip $trip, User $user): bool
     {
-        return ($user->driverId() !== null && (int) $trip->driver_id === $user->driverId())
-            || $user->isChiefOf((int) $trip->itinerary_id);
+        $permissions = app(Permissions::class);
+
+        return $this->trips->isDriverOf($trip, $user)
+            || $permissions->can($user, 'tracking.drive', $this->trips->entityOf($trip))
+            || $permissions->can($user, 'trips.complete', null, (int) $trip->itinerary_id);
+    }
+
+    /**
+     * Pueden registrar la subida de otros el chofer del viaje y quien tenga
+     * tracking.scan_boarding sobre su itinerario.
+     */
+    public function canScan(Trip $trip, User $user): bool
+    {
+        return $this->trips->isDriverOf($trip, $user)
+            || app(Permissions::class)->can($user, 'tracking.scan_boarding', null, (int) $trip->itinerary_id);
     }
 
     public function start(Trip $trip, string $direction, User $user): TripLeg
@@ -96,7 +109,7 @@ class Tracking
     public function addPosition(TripLeg $leg, Worker $sensor, float $latitude, float $longitude, ?float $accuracy, CarbonInterface $recordedAt): TripPosition
     {
         $trip = $leg->trip;
-        $isDriver = $trip->driver && (int) $trip->driver->worker_id === (int) $sensor->id;
+        $isDriver = (int) $trip->driver_id === (int) $sensor->id;
 
         if (! $isDriver && (int) $sensor->itinerary_id !== (int) $trip->itinerary_id) {
             throw new JsonApiException(403, 'FORBIDDEN', 'Sin permiso', 'Solo el chofer del viaje y los miembros del itinerario pueden enviar su ubicación.');
@@ -214,7 +227,7 @@ class Tracking
     {
         $trip = $leg->trip;
         $entityId = $trip->itinerary ? (int) $trip->itinerary->entity_id : null;
-        $radius = $this->settings->int('stop_detection_radius_m');
+        $radius = $this->settings->int('stop_detection_radius_m', null, $entityId, (int) $trip->itinerary_id);
         $stops = $leg->orderedStops()->values();
         $passes = TripStopPass::where('trip_leg_id', $leg->id)->get()->keyBy('stop_id');
         $first = $stops->first();
@@ -238,8 +251,8 @@ class Tracking
             }
 
             $dwell = $at->getTimestamp() - $pass->passed_at->getTimestamp();
-            $stopped = $dwell >= $this->settings->int('stop_min_dwell_seconds', null, $entityId)
-                || ($pass->min_speed_kmh !== null && $pass->min_speed_kmh <= $this->settings->int('stop_pass_speed_kmh', null, $entityId))
+            $stopped = $dwell >= $this->settings->int('stop_min_dwell_seconds', null, $entityId, (int) $trip->itinerary_id, (int) $pass->stop_id)
+                || ($pass->min_speed_kmh !== null && $pass->min_speed_kmh <= $this->settings->int('stop_pass_speed_kmh', null, $entityId, (int) $trip->itinerary_id, (int) $pass->stop_id))
                 || ($first && (int) $pass->stop_id === (int) $first->id);
             $pass->forceFill([
                 'left_at' => $at,
@@ -309,7 +322,7 @@ class Tracking
         }
 
         $distance = Geo::distanceToPolyline($latitude, $longitude, $line);
-        $limit = $this->settings->int('route_deviation_m', null, (int) $itinerary->entity_id);
+        $limit = $this->settings->int('route_deviation_m', null, (int) $itinerary->entity_id, (int) $itinerary->id);
         $open = $leg->deviating
             ? TripLegIncident::where('trip_leg_id', $leg->id)->where('type', TripLegIncident::TYPE_DEVIATION)->whereNull('ended_at')->latest('id')->first()
             : null;
@@ -372,7 +385,7 @@ class Tracking
         $itinerary = $trip->itinerary;
         $notices = app(Notices::class);
         $notices->send(
-            array_merge($notices->itineraryChiefIds((int) $trip->itinerary_id), $notices->transportChiefIds($itinerary ? (int) $itinerary->entity_id : null)),
+            app(Permissions::class)->userIdsWith('trips.edit', $itinerary ? (int) $itinerary->entity_id : null, (int) $trip->itinerary_id, false),
             Notice::TYPE_TRIP_INCIDENT,
             null,
             (int) $trip->id,
@@ -407,7 +420,7 @@ class Tracking
     {
         $trip = $leg->trip;
 
-        if ($trip->driver && (int) $trip->driver->worker_id === (int) $worker->id) {
+        if ((int) $trip->driver_id === (int) $worker->id) {
             return;
         }
 
@@ -465,7 +478,7 @@ class Tracking
     private function ensureCanOperate(Trip $trip, User $user): void
     {
         if (! $this->canOperate($trip, $user)) {
-            throw new JsonApiException(403, 'FORBIDDEN', 'Sin permiso', 'Solo el chofer del viaje, los Jefes de su itinerario y los Jefes de Transporte pueden hacerlo.');
+            throw new JsonApiException(403, 'FORBIDDEN', 'Sin permiso', 'Solo el chofer del viaje y quien tenga permiso sobre el recorrido pueden hacerlo.');
         }
     }
 }
