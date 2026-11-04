@@ -206,12 +206,15 @@ itinerario. Mientras no tiene ninguno de los dos, en Inicio sale la tarjeta «Si
 | Hijos | Una por hijo con derecho. **Foto a la derecha**. Línea 1: nombres y apellidos. Línea 2: `Nacimiento 20/01/20`. Línea 3: `Derecho 20/01/30`. |
 | Entidad | Imagen a la izquierda. Línea 1: abreviatura. Línea 2: nombre. Línea 3: `50 trabajadores`. |
 | Itinerario y parada | Las dos imágenes juntas a la izquierda (itinerario y parada). Línea 1: nombre del itinerario. Línea 2: `calle • punto de referencia`. Línea 3: `50 trabajadores` (del itinerario). Sin itinerario: tarjeta «Sin itinerario», que al tocarla abre la solicitud de itinerario y parada. |
-| Roles | Una por rol, con su ícono. Línea 1: el rol. Línea 2: **Jefe de itinerario** → nombre de su itinerario; **Jefe de Transporte** y **Chofer** → abreviatura de la Entidad. |
+| Roles | **Siempre primero la tarjeta «Trabajador»** (línea 2: abreviatura de la Entidad); después una por cada rol solicitado y aprobado, con su ícono. Línea 1: el rol. Línea 2: **Jefe de itinerario** → nombre de su itinerario; **Jefe de Transporte** y **Chofer** → abreviatura de la Entidad. |
 | Viajes | Los planificados y los que están en curso (tarjeta de viaje actual). |
 
 - **Hijos sin derecho:** cuando un hijo pierde el derecho por edad, **deja de mostrarse**.
-- **Sin hijos o sin roles:** en lugar de esas tarjetas, al final de la pantalla aparecen dos botones para ir a
-  sus formularios: **Añadir hijo** (directo, §11.10) y **Solicitar rol**.
+- **«Trabajador» no es un rol que se solicite:** es la condición de todo el que está unido a una Entidad con su
+  Pase. Su tarjeta sale siempre en «Roles», así que esa sección nunca queda vacía. El Administrador no la tiene.
+- **Botones al final de la pantalla:**
+  - **Añadir hijo** (directo, §11.10), cuando no tiene hijos registrados;
+  - **Solicitar rol**, cuando no tiene ningún rol además de Trabajador.
 - **Al tocar cualquier tarjeta** se abre su formulario de edición, de detalle o de solicitud.
 - **Barra inferior sin «Solicitudes»**: queda Inicio, Viajes, Mensajes y Más. Las solicitudes se hacen desde
   las tarjetas.
