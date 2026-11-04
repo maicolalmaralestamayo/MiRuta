@@ -220,7 +220,11 @@ la **parada**.
 - **Botones de Inicio**, debajo de la tarjeta del usuario, con **ícono y una sola palabra** debajo:
   **Perfil**, **Hijos**, **Entidades**, **Itinerario**, **Roles** y **Viajes**. Cada uno lleva a su pantalla
   (§11.18).
-- **Las tarjetas de Inicio no hacen nada al tocarlas**, salvo la de la Entidad, que es el **selector de Entidad**.
+- **Al tocar las tarjetas de Inicio:**
+  - **usuario** → pantalla **Perfil**;
+  - **un hijo** → formulario de **ese hijo**;
+  - **Entidad** → **selector de Entidad**;
+  - las demás no hacen nada.
 - **Barra inferior sin «Solicitudes»**: queda Inicio, Viajes, Mensajes y Más. Las solicitudes se hacen desde
   las tarjetas.
 - **Tarjetas modelo:** estas tarjetas son el modelo para toda la app. Cuando se mencione la tarjeta de un usuario,
