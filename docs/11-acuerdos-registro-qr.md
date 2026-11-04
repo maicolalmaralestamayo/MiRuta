@@ -21,8 +21,8 @@ Acuerdos con el Product Owner del 03 y 04/11/2026, **pendientes de implementar**
 - **Quién lo ve:**
   - el propio trabajador;
   - el Administrador;
-  - el Jefe de Transporte de las Entidades a las que pertenece o en las que solicita entrar.
-  - No lo ven los demás trabajadores ni el Jefe de itinerario.
+  - el Jefe de itinerario, solo el de los miembros de su itinerario y de quienes solicitan entrar en él.
+  - No lo ven los demás trabajadores ni el Jefe de Transporte.
 - Los **hijos** también se identifican por su carné, del que salen su fecha de nacimiento y su sexo (§11.11).
 
 ## 11.3 Tarjeta de usuario
@@ -48,7 +48,7 @@ solo los valores.
 - La regla «al menos 3 letras» pasa a **al menos 2 letras**. El resto de reglas de formación y las palabras
   reservadas se mantienen.
 
-**Usuario propuesto.** El sistema siempre propone un usuario; quien registra (la persona o un jefe) puede
+**Usuario propuesto.** El sistema siempre propone un usuario; quien registra (la persona o el Administrador) puede
 cambiarlo. Se van añadiendo partes, separadas por punto, solo mientras el resultado esté ocupado o no sea válido,
 todo en minúsculas y sin tildes:
 
@@ -91,15 +91,15 @@ Se abre justo después del registro, ya con la sesión iniciada:
 **Itinerario y parada siempre van juntos.** Nadie tiene itinerario sin parada ni parada sin itinerario. Mientras no
 tiene ninguno de los dos en una Entidad, en Inicio sale la tarjeta «Sin itinerario» (§11.10).
 
-### Registro por un jefe
+### Registro por el Administrador
 
-- Lo hacen el Administrador, el Jefe de Transporte o el Jefe de itinerario, **en su Entidad**.
+- Lo hace **solo el Administrador**, en la Entidad que elija.
 - Datos: nombres y apellidos, **carné de identidad** y si **tiene teléfono** (§11.9).
-- El sistema propone usuario y contraseña; el jefe puede cambiarlos.
+- El sistema propone usuario y contraseña; el Administrador puede cambiarlos.
 - Al guardar, se muestran la tarjeta de la persona, su **usuario** y su **contraseña**, con botones para copiarlos
   y compartirlos.
 - **Si el carné ya existe** (la persona ya tiene cuenta, quizá en otra Entidad): **no se crea otra cuenta**; se le
-  añade la Entidad del jefe, ya aprobada. Si tiene teléfono, se le avisa; si no, se lo comunica el jefe.
+  añade esa Entidad, ya aprobada. Si tiene teléfono, se le avisa; si no, se lo comunica el Administrador.
 - **Desaparecen** «Me registró un superior» y los códigos de activación.
 
 ## 11.6 Varias Entidades por persona
@@ -111,7 +111,7 @@ tiene ninguno de los dos en una Entidad, en Inicio sale la tarjeta «Sin itinera
   como pasajero esperado y en sus estadísticas.
 - **Solicitar entrar en una Entidad:**
   - la solicita la persona, indicando la abreviatura de la Entidad;
-  - la aprueba el **Jefe de Transporte de esa Entidad** o el **Administrador**.
+  - la aprueba **solo el Administrador**.
 - **Darse de baja de una Entidad:** cuando quiera. Se borran su itinerario, su parada y sus roles en esa Entidad.
   Para volver a pertenecer a ella, tiene que **solicitarlo de nuevo**. Si era su única Entidad, se queda con la
   cuenta **sin Entidad**.
@@ -145,8 +145,7 @@ una Entidad: sirve en todas sus Entidades.
    - Estadística nueva: **trabajadores que viajan fuera de su itinerario** (o de su Entidad).
    - Se marca **qué hijos suben con él** (§11.11).
 2. **Alta directa en un itinerario**, sin solicitud.
-   - La hace el **Jefe de ese itinerario o el Jefe de Transporte**, y solo si la persona **pertenece a su
-     Entidad**.
+   - La hace, por ahora, **solo el Administrador**, y solo si la persona **pertenece a esa Entidad**.
    - Quien escanea elige la **parada**.
    - Si la persona tenía otro itinerario **en esa Entidad**, **se le cambia y pierde el anterior**.
    - Si era Jefe del itinerario anterior, sigue siéndolo: cambiar de itinerario no quita jefaturas.
@@ -173,7 +172,7 @@ una Entidad: sirve en todas sus Entidades.
 
 ## 11.9 QR impreso para quien no tiene teléfono
 
-- Al registrar a alguien, el jefe indica **si tiene teléfono**.
+- Al registrar a alguien, el Administrador indica **si tiene teléfono**.
 - **Sin teléfono:** el sistema genera un **QR fijo**, que **no caduca**, se puede **imprimir** y se puede
   **compartir** con la lista de Android (WhatsApp, Telegram, Bluetooth…).
 - **Un único QR por persona que no cambia nunca**: sirve en todas sus Entidades sin reimprimirlo.
@@ -184,15 +183,14 @@ una Entidad: sirve en todas sus Entidades.
 - **Tarjeta impresa:** el QR y, impresos al lado, solo **nombres, apellidos y sexo**.
 - **La foto no es obligatoria.** Si tiene foto, se muestra al escanear para comparar; si no, se compara con el
   nombre.
-- **Quién lo ve, lo reimprime y lo anula:** el Administrador, el Jefe de Transporte de cualquiera de sus Entidades y
-  el Jefe de su itinerario.
+- **Quién lo ve, lo reimprime y lo anula:** el Administrador y el Jefe de su itinerario.
 - **Protección ante copias** (una fotocopia funciona igual que el original):
   - se puede **anular y generar uno nuevo** en cualquier momento; sin conexión, el teléfono que escanea se entera al
     sincronizar;
   - **una sola subida por trayecto**: si el mismo QR se usa dos veces en el mismo viaje, se avisa.
 - **Cuenta:** también se le crea usuario y contraseña, propuestos por el sistema. Cuando entra por primera vez en la
   app, su QR impreso **se anula** y pasa a usar el QR que cambia cada pocos segundos.
-- **Alta en otra Entidad:** la registra el **Jefe de Transporte de esa Entidad** (§11.5, registro por un jefe).
+- **Alta en otra Entidad:** la registra el **Administrador** (§11.5).
 
 ## 11.10 Pantalla de Inicio y tarjetas modelo
 
@@ -279,3 +277,34 @@ la **parada**.
   - **verde** si hay conexión con el servidor y **rojo** si no;
   - se actualiza con cada petición y, si no hay actividad, comprobando cada 30 segundos;
   - al tocarlo: «Conectado a <servidor>» o «Sin conexión con el servidor desde las hh:mm».
+
+## 11.15 Quién hace qué
+
+**Jefe de Transporte:** solo **aprueba a los choferes**, **gestiona los vehículos** y **planifica los viajes** de su
+Entidad.
+
+| Tarea | Quién |
+|---|---|
+| Aprobar la entrada en una Entidad | Administrador |
+| Aprobar itinerario y parada | Jefe de ese itinerario y Administrador |
+| Aprobar el rol de Chofer | Jefe de Transporte de la Entidad y Administrador |
+| Aprobar el rol de Jefe de itinerario | Administrador |
+| Aprobar el rol de Jefe de Transporte | Administrador |
+| Crear y editar itinerarios y paradas (y ordenar sus paradas) | Administrador |
+| Registrar trabajadores (también sin teléfono) | Administrador |
+| Alta directa en un itinerario con el QR | Administrador (por ahora) |
+| Ver el carné | El propio trabajador; Administrador; Jefe de itinerario (miembros de su itinerario y quienes solicitan entrar) |
+| Ver, reimprimir y anular el QR impreso | Administrador y Jefe de su itinerario |
+| Ajustes de la Entidad | Administrador |
+| Gestionar vehículos | Jefe de Transporte y Administrador |
+| Planificar viajes | Jefe de Transporte (toda su Entidad), Jefe de itinerario (su itinerario) y Administrador |
+| Escanear la subida | Chofer y Jefe de itinerario |
+
+**Asignar y quitar directamente**, sin solicitud:
+
+| Quién | Qué |
+|---|---|
+| Administrador | Todo: Entidad, itinerario y parada, y los roles de Chofer, Jefe de itinerario y Jefe de Transporte |
+| Jefe de Transporte | Solo el rol de Chofer en su Entidad |
+| Jefe de itinerario | Nada directamente: solo aprueba las solicitudes de su itinerario |
+
