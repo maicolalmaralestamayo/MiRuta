@@ -1013,3 +1013,6 @@ Cada viaje (de ida o de regreso) pasa por estos estados. Los cambios los provoca
 
 - **Sin avisos automáticos** dentro del chat: solo los mensajes de las personas (los cambios de estado se ven en el
   viaje, no en el chat).
+- **Un chat por viaje** (06/11/2026): uno para la **ida** y otro para el **regreso**.
+- **Se eliminan** los mensajes del chat **en cuanto el viaje queda cancelado, terminado o eliminado** (sin plazo de
+  retención; desaparece el ajuste `trip_chat_retention_days`).
