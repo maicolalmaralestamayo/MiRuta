@@ -873,3 +873,16 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
   pasajero que se ofrezca**, desde el viaje («Iniciar recorrido» / «Terminar»).
 - **No se implementa nada del recorrido en tiempo real** en la próxima entrega: queda pendiente de nuevas
   indicaciones del usuario.
+
+## 11.33 Pestaña Viajes (06/11/2026, pendiente de implementar; en definición)
+
+- **Quién ve qué:** el **Jefe de itinerario** solo ve los viajes **de su itinerario**; el **Administrador** ve
+  **todos**; el trabajador, los de su itinerario.
+- **Sin filtros de fecha.** Se muestran los viajes **confirmados** y los **en curso** (de ida y de regreso), y también
+  **todos los terminados**; en Acciones, **«Ocultar viajes terminados»** (y «Mostrar…» para volver a verlos).
+- **«Declarar ausencia»** sale de Viajes y pasa a **Gestión** (donde están el itinerario y las paradas).
+- **Opciones del trabajador en un viaje en curso:** **«Estoy en mi parada»**, **«Ya me recogieron»**, **«Ya me
+  bajé»** y **«No voy en este viaje»**. Caso particular: el trabajador que está en la **primera parada, que es el
+  trabajo**. Ojo: en el viaje de **regreso**, en la interfaz, la **última parada es la primera del recorrido** (el
+  orden se invierte).
+- **Un viaje son en realidad dos viajes:** uno de **ida** y otro de **regreso**, cada uno por separado.
