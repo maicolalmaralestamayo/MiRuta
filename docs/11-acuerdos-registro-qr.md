@@ -856,3 +856,10 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
   (o se le saca del suyo), **pierde el rol de Jefe**, también con aviso previo.
 - **Solo el Administrador** asigna y quita el rol de Jefe de itinerario (con personas marcadas: «Asignar rol» y
   **«Quitar rol de Jefe»**); un Jefe no puede nombrar a otros Jefes (06/11/2026).
+
+## 11.31 Campos de nomencladores (06/11/2026, pendiente de implementar)
+
+- **Tipo de vehículo:** además de nombre, descripción, observación y activación, tiene **cantidad de asientos** y
+  **cantidad de pasajeros de pie**. El **total de pasajeros** es la **suma** de ambos (calculado, solo lectura).
+- **Motivo de conversación:** tiene una **clave foránea al rol** al que pertenece (`role_id` → tabla `roles` con los
+  tres roles fijos de §11.30), obligatoria. Sustituye al campo «Destinatario».
