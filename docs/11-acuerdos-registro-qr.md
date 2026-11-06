@@ -930,5 +930,7 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
 - **Hijos en la ida** (06/11/2026): igual que en el regreso. Al pulsar **«Estoy en la parada <primera>»** el
   trabajador elige **con qué hijos** sube; si lo marca el Jefe de itinerario o el Administrador, solo indica
   **cuántos**.
-- **Niños y ocupación** (06/11/2026): en la **ocupación prevista** (planificación) **no cuentan**; en la **ocupación
-  real** del viaje en curso **sí**, sumando los niños que subieron (p. ej. «45 + 6 niños de 60»).
+- **Niños y ocupación** (06/11/2026; corrige lo anotado antes): los niños **cuentan en la cantidad total de
+  pasajeros** (cuántas personas viajan), pero **no ocupan plaza** frente a la capacidad del tipo de vehículo, porque
+  van sentados en las piernas de sus padres. La ocupación (normal, de pie, no caben) se calcula **solo con
+  trabajadores**; los niños se muestran aparte (p. ej. «45 de 60 • 51 pasajeros con 6 niños»).
