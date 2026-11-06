@@ -957,6 +957,9 @@ Cada viaje (de ida o de regreso) pasa por estos estados. Los cambios los provoca
   parada**, **el servidor sí pone la causa «Recogiendo en la parada» e indica qué parada** (p. ej. «Recogiendo en
   la parada Coppelia»). En la **ida** la causa es **«Dejando en la parada …»** y en el **regreso** **«Recogiendo en
   la parada …»**. Son las únicas causas que pone el servidor.
+- **Salir de Detenido** (06/11/2026): vuelve a **En curso** por las mismas tres vías: lo marca el Administrador o el
+  Jefe del itinerario; lo marcan al menos 3 trabajadores; o el servidor ve que al menos 3 teléfonos se han movido
+  **150 m o más** entre un envío y el siguiente.
 - **Nomencladores nuevos:** **Causas de atraso** y **Causas de detención** (en la pantalla de Nomencladores, con
   las mismas reglas que los demás).
 - Las reglas automáticas dependen de que los teléfonos envíen su ubicación (recorrido en tiempo real, §11.32, que
