@@ -706,6 +706,8 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
   **«Solicitar Entidad»**; no ve viajes ni itinerarios hasta que la acepten en una.
 - **Persona con Entidad pero sin itinerario** (06/11/2026): **no ve viajes** hasta tener itinerario; puede
   «Solicitar Itinerario» o ser asignada por QR.
+- **Persona con itinerario pero sin parada** (06/11/2026): **no ve viajes** hasta tener parada; puede elegirla con
+  «Cambiarme a esta parada» en Gestionar Paradas.
 - **Cambiar de Entidad:** además del itinerario, se puede **escoger la parada** (ambos opcionales).
 - **Cambiar de parada:** muestra el **itinerario en solo lectura**.
 - **Los formularios de consulta y edición no muestran datos relacionados** (lookup), **al menos en esta versión**: por ejemplo, el formulario del
