@@ -792,3 +792,6 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
     rechazadas».
 - **Número en la pestaña Gestión** (06/11/2026): para el Jefe de itinerario y el Administrador, la pestaña muestra
   la **cantidad de solicitudes pendientes** que les toca resolver; desaparece cuando no hay ninguna.
+- **El trabajador se entera de lo resuelto** (06/11/2026): cuando le aprueban o rechazan una solicitud, la pestaña
+  Gestión le muestra un **número** hasta que abre la sección Solicitudes. Si se aprobó, Inicio se actualiza solo (desaparece
+  el aviso «Aún no tiene…» correspondiente). Sin mensaje aparte.
