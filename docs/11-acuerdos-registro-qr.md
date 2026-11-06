@@ -704,6 +704,8 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
   Entidad». El Jefe de itinerario y el trabajador no la ven.
 - **Persona sin ninguna Entidad** (06/11/2026): **puede entrar** en la app con acceso limitado: ve su perfil y puede
   **«Solicitar Entidad»**; no ve viajes ni itinerarios hasta que la acepten en una.
+- **Persona con Entidad pero sin itinerario** (06/11/2026): **no ve viajes** hasta tener itinerario; puede
+  «Solicitar Itinerario» o ser asignada por QR.
 - **Cambiar de Entidad:** además del itinerario, se puede **escoger la parada** (ambos opcionales).
 - **Cambiar de parada:** muestra el **itinerario en solo lectura**.
 - **Los formularios de consulta y edición no muestran datos relacionados** (lookup), **al menos en esta versión**: por ejemplo, el formulario del
