@@ -674,3 +674,26 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
 - **Con tarjetas marcadas:** **solo las acciones sobre lo marcado** (Editar —con una—, asignar, cambiar, aprobar,
   rechazar, ocultar, desactivar, eliminar…). Las generales desaparecen hasta desmarcar.
 - Ya no se muestran acciones en gris: en cada momento solo aparecen las que se pueden usar.
+
+## 11.24 Ajustes a la gestión y nueva plataforma PHP (06/11/2026, pendiente de implementar)
+
+- **Activación:** las tablas de **Entidades, itinerarios, paradas y trabajadores** tienen un campo **activación**
+  (booleano): `true` = **Activado**, `false` = **Desactivado**. Las acciones «Activar» / «Desactivar» cambian ese
+  campo.
+- La acción de las solicitudes se llama **«Rechazar»** (sin puntos suspensivos).
+- **Solicitudes, para todos los roles:** dos opciones en Acciones, **«Mostrar/Ocultar solicitudes rechazadas»** y
+  **«Mostrar/Ocultar solicitudes aprobadas»**. Se **quitan** las opciones anteriores de ocultar una solicitud y
+  «Mostrar solicitudes ocultas».
+- **Una parada puede pertenecer a varios itinerarios de varias Entidades** (la parada deja de pertenecer a una sola
+  Entidad; la relación es solo itinerario–parada).
+- **Cambiar de Entidad:** además del itinerario, se puede **escoger la parada** (ambos opcionales).
+- **Cambiar de parada:** muestra el **itinerario en solo lectura**.
+- **Los formularios de consulta y edición no muestran datos relacionados** (lookup): por ejemplo, el formulario del
+  trabajador no lista sus itinerarios y paradas, el de la parada no lista sus itinerarios y el del itinerario no
+  muestra el Jefe de itinerario. Solo los campos propios del objeto.
+- **PHP del hospedaje: 8.2.35** (exacta). Se actualiza la tecnología de implementación y de pruebas:
+  - **Lumen 11** (`laravel/lumen-framework` ^11.0, la última publicada; exige PHP ^8.2), con **PHPUnit 10** y
+    `fakerphp/faker`, según el esqueleto oficial `laravel/lumen` 11.
+  - `composer.json`: `"php": "^8.2"` y `config.platform.php` = `8.2.35`.
+  - El contenedor de pruebas pasa de PHP 7.2 a **PHP 8.2** (imagen oficial `php:8.2`), y el paquete y las
+    instrucciones de hospedaje y local se actualizan igual.
