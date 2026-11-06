@@ -837,3 +837,15 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
 - Un elemento de nomenclador **en uso** (p. ej. un motivo con el que ya se rechazaron solicitudes o un tipo de
   vehículo con vehículos registrados) **no se puede eliminar**: la app avisa de que está en uso y **propone
   desactivarlo** (interruptor «Activado» del formulario). Los que no están en uso se eliminan tras confirmar.
+
+## 11.30 Tres roles fijos (06/11/2026, pendiente de implementar; sustituye a §11.16)
+
+- Desaparecen los **roles configurables** (tablas de roles, permisos por operación y aprobadores, y su pantalla de
+  configuración). Quedan **tres roles fijos**, con sus permisos definidos en el código:
+  - **Administrador:** todo, en todas las Entidades (incluye Nomencladores).
+  - **Jefe de itinerario:** gestiona **su itinerario** (paradas, personas, solicitudes de su itinerario, Incluir por
+    QR) y ve sus Entidades.
+  - **Trabajador:** consulta; solicita Entidad e itinerario, sale de ellos, se cambia de parada y gestiona sus
+    propias solicitudes.
+- El Administrador **asigna directamente** el rol de Jefe de itinerario (no hay solicitudes de rol).
+- En los **Motivos de conversación**, el destinatario «Un rol» elige entre estos roles fijos (o el desarrollador).
