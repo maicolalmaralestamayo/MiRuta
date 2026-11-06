@@ -911,3 +911,5 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
 - **Planificar** (06/11/2026): el formulario tiene dos casillas, **«Ida»** y **«Regreso»** (las dos marcadas por
   defecto), cada una con **su hora y su tipo de vehículo**; se crean **dos viajes independientes**. Se puede
   planificar solo la ida o solo el regreso. Igual en «Planificar por fechas».
+- **«No voy en este viaje» en la ida** (06/11/2026): la app pregunta **«¿Tampoco irá en el regreso?»** («Sí,
+  tampoco» / «No, solo la ida») y, si responde que tampoco, lo marca también en el regreso de ese día.
