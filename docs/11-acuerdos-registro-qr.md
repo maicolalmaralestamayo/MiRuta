@@ -1022,3 +1022,7 @@ Cada viaje (de ida o de regreso) pasa por estos estados. Los cambios los provoca
   parada), los **Jefes del itinerario** y el **Administrador**. Cada uno **borra sus mensajes**; los **Jefes del
   itinerario y el Administrador** pueden borrar también **los de otros**. Los mensajes se marcan como el resto de
   tarjetas (Acciones: Marcar todo, Desmarcar todo, Invertir selección, Copiar, Eliminar).
+- **Se elimina la pestaña Mensajes** (06/11/2026). En su lugar, la barra principal tiene **«Avisos»** con el ícono de
+  una **campanita** (sustituye a la campanita de la barra superior de Inicio). Barra principal: Inicio, Gestión,
+  Viajes, **Avisos**, Más.
+- Por tanto, al **chat del viaje** se entra **desde el viaje** (Acciones: «Chat del viaje»).
