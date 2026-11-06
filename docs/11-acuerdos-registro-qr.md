@@ -908,3 +908,6 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
   confirman.
 - **Pasajeros esperados** (06/11/2026): se espera a **todos los del itinerario** (con parada); nadie se apunta. Quien
   no va pulsa **«No voy en este viaje»** o declara una **ausencia** en Gestión. La ocupación prevista se calcula sola.
+- **Planificar** (06/11/2026): el formulario tiene dos casillas, **«Ida»** y **«Regreso»** (las dos marcadas por
+  defecto), cada una con **su hora y su tipo de vehículo**; se crean **dos viajes independientes**. Se puede
+  planificar solo la ida o solo el regreso. Igual en «Planificar por fechas».
