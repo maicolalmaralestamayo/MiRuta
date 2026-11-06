@@ -831,3 +831,9 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
 - Se quitan **Entidades** e **Itinerario** (se gestionan en la pestaña Gestión), **Roles** (pantalla eliminada),
   **Viajes** (ya está en la barra principal) e **Incluir por QR** (queda solo en Acciones de Gestión; sustituye lo
   dicho en «Dónde está el QR»).
+
+## 11.29 Eliminar nomencladores en uso (06/11/2026, pendiente de implementar)
+
+- Un elemento de nomenclador **en uso** (p. ej. un motivo con el que ya se rechazaron solicitudes o un tipo de
+  vehículo con vehículos registrados) **no se puede eliminar**: la app avisa de que está en uso y **propone
+  desactivarlo** (interruptor «Activado» del formulario). Los que no están en uso se eliminan tras confirmar.
