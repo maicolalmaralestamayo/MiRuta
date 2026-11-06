@@ -634,3 +634,8 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
   Acciones: **«Asignar Jefe de itinerario»** y **«Cambiar de itinerario»**.
 - **Gestionar Paradas** muestra también las **personas** (sin CRUD de personas). Con personas marcadas, en Acciones:
   **«Cambiar de parada»**.
+- **Itinerario y parada dejan de ser obligatorios.** Una persona puede **no tener itinerario**; y si tiene
+  itinerario, puede **no tener parada**. Al ponerla en un itinerario se le ofrece elegir parada, pero **no es
+  obligatorio**.
+- **Todos los selectores de itinerario** incluyen la opción **«Sin itinerario»** (personas sin itinerario) y **todos
+  los selectores de parada** la opción **«Sin parada»** (personas del itinerario sin parada), además de «Todos».
