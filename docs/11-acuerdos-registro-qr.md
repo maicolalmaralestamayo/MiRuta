@@ -699,6 +699,9 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
 - **Paradas sin itinerario** (06/11/2026): si una parada se queda sin ningún itinerario **se conserva**. Los
   selectores de itinerario tienen la opción **«Sin itinerario»**, que en Gestionar Paradas muestra esas paradas (y,
   como siempre, las personas sin itinerario); el Administrador puede añadirlas a un itinerario o eliminarlas.
+- **«Sin Entidad»** (06/11/2026): el selector de Entidad tiene esta opción **solo para el Administrador**; muestra a
+  las personas que se quedaron sin Entidad (por ejemplo, al eliminar la suya) para ponerlas en otra con «Cambiar de
+  Entidad». El Jefe de itinerario y el trabajador no la ven.
 - **Cambiar de Entidad:** además del itinerario, se puede **escoger la parada** (ambos opcionales).
 - **Cambiar de parada:** muestra el **itinerario en solo lectura**.
 - **Los formularios de consulta y edición no muestran datos relacionados** (lookup), **al menos en esta versión**: por ejemplo, el formulario del
