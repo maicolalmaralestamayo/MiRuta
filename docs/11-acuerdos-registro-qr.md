@@ -851,3 +851,6 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
 - En los **Motivos de conversación**, el destinatario «Un rol» elige entre estos roles fijos (o el desarrollador).
 - **Varios Jefes por itinerario** (06/11/2026): un itinerario puede tener **más de un Jefe**, todos con los mismos
   permisos sobre él; cada persona sigue siendo Jefe de **un solo itinerario**.
+- **El Jefe viaja en su itinerario** (06/11/2026): al asignarle el rol de Jefe de un itinerario **se le pone en ese
+  itinerario** si no lo estaba (avisando de que le cambia el itinerario); si después se le cambia a otro itinerario
+  (o se le saca del suyo), **pierde el rol de Jefe**, también con aviso previo.
