@@ -783,3 +783,7 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
   interruptor **«Activado»** en los **formularios de consulta y edición** (Entidad, itinerario, parada, trabajador y
   nomencladores).
 - **Tarjetas de personas paginadas de 5 en 5** (06/11/2026).
+- **Quién ve qué solicitudes** (06/11/2026):
+  - **«Mis solicitudes»**: solo las ve **el propio trabajador** que las hizo.
+  - Solicitudes **pendientes y aprobadas** de otros: el **Jefe de itinerario** ve solo las **de su itinerario**; el
+    **Administrador** las ve **todas** (por tanto, las solicitudes de Entidad las resuelve el Administrador).
