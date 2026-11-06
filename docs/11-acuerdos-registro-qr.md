@@ -849,3 +849,5 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
     propias solicitudes.
 - El Administrador **asigna directamente** el rol de Jefe de itinerario (no hay solicitudes de rol).
 - En los **Motivos de conversación**, el destinatario «Un rol» elige entre estos roles fijos (o el desarrollador).
+- **Varios Jefes por itinerario** (06/11/2026): un itinerario puede tener **más de un Jefe**, todos con los mismos
+  permisos sobre él; cada persona sigue siendo Jefe de **un solo itinerario**.
