@@ -995,3 +995,11 @@ Cada viaje (de ida o de regreso) pasa por estos estados. Los cambios los provoca
 - **Secciones de Viajes y estados** (06/11/2026): los estados **Atrasado** y **Detenido** **no tienen sección
   propia**. El viaje se planifica, aparece en su lista y, a partir de ahí, **su estado se indica en la propia
   tarjeta** (etiqueta).
+- **Secciones de la pestaña Viajes** (06/11/2026):
+
+  | Sección | Qué viajes | Quién la ve |
+  |---|---|---|
+  | **Sin confirmar** | No confirmados | Jefe del itinerario y Administrador |
+  | **Planificados** | Confirmados, Atrasados, En marcha y Detenidos (estado en la etiqueta de la tarjeta) | Todos |
+  | **Terminados** | Terminados (Acciones: «Ocultar viajes terminados») | Todos |
+  | **Cancelados** | Cancelados (ocultos por defecto; Acciones: «Mostrar cancelados») | Todos |
