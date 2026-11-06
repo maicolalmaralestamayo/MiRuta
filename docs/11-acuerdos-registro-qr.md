@@ -1037,3 +1037,5 @@ Cada viaje (de ida o de regreso) pasa por estos estados. Los cambios los provoca
 - **Avisos de estado del viaje:** los trabajadores del viaje, sus Jefes y el Administrador reciben un aviso cuando
   el viaje se **confirma**, se **cancela**, se **atrasa** (con la causa), se pone **en marcha**, se **detiene** (con
   la causa) o **termina**. Cada usuario puede **apagarlos en sus ajustes**.
+- **Mensajes nuevos** (del chat del viaje o de una conversación) (06/11/2026): **solo notificación del teléfono**, no
+  aparecen en la pestaña Avisos; al tocarla se abre el chat o la conversación.
