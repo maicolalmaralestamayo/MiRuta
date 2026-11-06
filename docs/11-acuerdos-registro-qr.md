@@ -1029,3 +1029,11 @@ Cada viaje (de ida o de regreso) pasa por estos estados. Los cambios los provoca
 - **Conversaciones por motivo** (06/11/2026): se **mantienen**, con entrada desde la pestaña **Más** («Conversaciones»):
   lista de sus conversaciones y opción para abrir una nueva eligiendo el **motivo** (que determina el rol que la
   recibe, §11.31).
+
+## 11.36 Pestaña Avisos (06/11/2026, pendiente de implementar; en definición)
+
+- Se mantienen los avisos actuales (solicitud recibida, solicitud resuelta, contraseña por caducar). Los de
+  incidencias del recorrido esperan al recorrido en tiempo real (§11.32).
+- **Avisos de estado del viaje:** los trabajadores del viaje, sus Jefes y el Administrador reciben un aviso cuando
+  el viaje se **confirma**, se **cancela**, se **atrasa** (con la causa), se pone **en marcha**, se **detiene** (con
+  la causa) o **termina**. Cada usuario puede **apagarlos en sus ajustes**.
