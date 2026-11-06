@@ -854,3 +854,5 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
 - **El Jefe viaja en su itinerario** (06/11/2026): al asignarle el rol de Jefe de un itinerario **se le pone en ese
   itinerario** si no lo estaba (avisando de que le cambia el itinerario); si después se le cambia a otro itinerario
   (o se le saca del suyo), **pierde el rol de Jefe**, también con aviso previo.
+- **Solo el Administrador** asigna y quita el rol de Jefe de itinerario (con personas marcadas: «Asignar rol» y
+  **«Quitar rol de Jefe»**); un Jefe no puede nombrar a otros Jefes (06/11/2026).
