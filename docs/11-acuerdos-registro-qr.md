@@ -784,6 +784,8 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
   nomencladores).
 - **Todas las secciones paginadas de 5 en 5** (06/11/2026): Entidades, Itinerarios, Paradas, Personas y
   Solicitudes, con primera / anterior / siguiente / última página y «1–5 de N».
+  **Excepción:** con un **itinerario elegido**, sus **paradas no se paginan** (se ven todas, para ordenarlas
+  arrastrando).
 - **Quién ve qué solicitudes** (06/11/2026):
   - **«Mis solicitudes»**: solo las ve **el propio trabajador** que las hizo.
   - **Estados:** una solicitud está **pendiente** o **resuelta**; las resueltas están **aprobadas** o **rechazadas**.
