@@ -525,7 +525,7 @@ Mismo diseño que el resto (§11.18): selector de Entidad, tarjetas, selección 
 | | Entidades | Itinerarios | Paradas | Nomencladores |
 |---|---|---|---|---|
 | **Administrador** | Todo (crear, consultar, editar, desactivar, eliminar) | Todo, en cualquier Entidad | Todo, en cualquier Entidad | Todo |
-| **Jefe de itinerario** | — | Ver los de las Entidades donde está registrado | **Crear paradas dentro de su itinerario**; ver las de sus Entidades | — |
+| **Jefe de itinerario** | — | Ver los de las Entidades donde está registrado | **Todo sobre las paradas de su itinerario** (crear, editar, quitar y reordenar); ver las de sus Entidades | — |
 | **Trabajador** | — | Ver los de las Entidades donde está registrado | Ver las de sus Entidades | — |
 
 **Pantallas**
@@ -545,7 +545,7 @@ Mismo diseño que el resto (§11.18): selector de Entidad, tarjetas, selección 
 - **Nomencladores:** activos y desactivados, con cuántas veces se usa cada uno. Acciones: Crear; Editar, Desactivar,
   Eliminar (también varios a la vez).
 - **Jefe de itinerario:** en Paradas ve las de **su itinerario** (numeradas) y, solo para consultar, las de los otros
-  itinerarios de su Entidad. Su única acción: **«Crear parada en <su itinerario>»**.
+  itinerarios de su Entidad. Acciones sobre su itinerario: **crear, editar, quitar y reordenar paradas**.
 - **Trabajador:** Itinerarios y Paradas de sus Entidades, solo para consultar, sin botón «Acciones».
 
 **Se elimina todo lo del chofer:** el rol Chofer, el chofer habitual de los vehículos y el chofer de los viajes,
