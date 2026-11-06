@@ -696,6 +696,9 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
   **quitarla del suyo**. Eliminarla del todo es del **Administrador**.
 - **«Añadir parada existente»** (06/11/2026): ofrece **todas las paradas del sistema**, de cualquier Entidad, con
   **búsqueda por nombre o calle**, para reutilizarlas en vez de repetirlas.
+- **Paradas sin itinerario** (06/11/2026): si una parada se queda sin ningún itinerario **se conserva**. Los
+  selectores de itinerario tienen la opción **«Sin itinerario»**, que en Gestionar Paradas muestra esas paradas (y,
+  como siempre, las personas sin itinerario); el Administrador puede añadirlas a un itinerario o eliminarlas.
 - **Cambiar de Entidad:** además del itinerario, se puede **escoger la parada** (ambos opcionales).
 - **Cambiar de parada:** muestra el **itinerario en solo lectura**.
 - **Los formularios de consulta y edición no muestran datos relacionados** (lookup), **al menos en esta versión**: por ejemplo, el formulario del
