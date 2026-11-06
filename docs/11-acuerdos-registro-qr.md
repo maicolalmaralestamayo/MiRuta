@@ -738,3 +738,33 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
   objetos**. Ejemplo dado por el usuario, **Gestionar Trabajadores**: registrar, eliminar, activar/desactivar,
   actualizar los datos del trabajador, asignarle o quitarle una Entidad, solicitar Entidad, solicitar itinerario,
   asignarle o cambiarle el itinerario, asignarle o cambiarle la parada.
+
+## 11.26 Una sola pantalla de Gestión (06/11/2026, pendiente de implementar; sustituye a las cuatro gestiones de §11.23 y §11.25)
+
+- La pestaña **Gestión** abre **una única pantalla**; desaparecen «Gestionar Trabajadores / Entidades / Itinerarios /
+  Paradas» y la navegación entre ellas.
+- **Arriba:** selectores **Entidad → Itinerario → Parada** (con «Todos», «Sin Entidad» —solo Administrador—, «Sin
+  itinerario», «Sin parada») y un **campo de búsqueda de personas** (nombre, carné o usuario) en lugar de un cuarto
+  selector. Después, un **separador**.
+- **Secciones plegables con su cantidad:** Entidades, Itinerarios, Paradas, Personas y Solicitudes. Los selectores
+  filtran todas las secciones.
+- Tocar una tarjeta abre su formulario (sin datos relacionados); mantenerla la marca; **un solo tipo marcado** cada
+  vez.
+- **Marca:** el check va en **color de énfasis (naranja), arriba a la derecha** de cada tarjeta.
+- **Con tarjetas marcadas**, el menú Acciones incluye además **«Marcar todo»**, **«Desmarcar todo»** e **«Invertir
+  selección»** (sobre las tarjetas de ese tipo).
+- **Menú Acciones sin nada marcado:** Registrar trabajador, Crear Entidad, Crear itinerario, Crear parada, Solicitar
+  Entidad, Solicitar Itinerario, Mostrar/Ocultar solicitudes aprobadas, Mostrar/Ocultar solicitudes rechazadas y
+  **Nomencladores (solo el Administrador)**.
+- **Con marcadas, según el tipo:**
+  - Entidades: Editar, Activar/Desactivar, Eliminar, Crear itinerario, Salir de la Entidad.
+  - Itinerarios: Editar, Activar/Desactivar, Eliminar, Cambiar de Entidad, Asignar Jefe de itinerario, Crear parada,
+    Añadir parada existente, Salir del itinerario.
+  - Paradas: Editar, Activar/Desactivar, Eliminar, Añadir a un itinerario, Quitar del itinerario, Cambiarme a esta
+    parada.
+  - Personas: Editar, Activar/Desactivar, Eliminar, Asignar rol, Cambiar de Entidad, Cambiar de itinerario, Cambiar
+    de parada.
+  - Solicitudes: Aprobar / Rechazar (Jefe y Administrador); Cancelar / Eliminar las propias (trabajador).
+- **Ordenar paradas arrastrando** solo cuando hay un itinerario elegido.
+- **Quién ve qué:** el Administrador todo; el Jefe de itinerario todo, actuando solo en su itinerario; el trabajador
+  las mismas secciones sin acciones de gestión (solo lo suyo).
