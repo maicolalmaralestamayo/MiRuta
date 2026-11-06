@@ -1026,3 +1026,6 @@ Cada viaje (de ida o de regreso) pasa por estos estados. Los cambios los provoca
   una **campanita** (sustituye a la campanita de la barra superior de Inicio). Barra principal: Inicio, Gestión,
   Viajes, **Avisos**, Más.
 - Por tanto, al **chat del viaje** se entra **desde el viaje** (Acciones: «Chat del viaje»).
+- **Conversaciones por motivo** (06/11/2026): se **mantienen**, con entrada desde la pestaña **Más** («Conversaciones»):
+  lista de sus conversaciones y opción para abrir una nueva eligiendo el **motivo** (que determina el rol que la
+  recibe, §11.31).
