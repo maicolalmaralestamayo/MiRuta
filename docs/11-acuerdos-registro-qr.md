@@ -551,3 +551,18 @@ Mismo diseño que el resto (§11.18): selector de Entidad, tarjetas, selección 
 **Se elimina todo lo del chofer:** el rol Chofer, el chofer habitual de los vehículos y el chofer de los viajes,
 conducir y compartir la ubicación como chofer, las solicitudes y pantallas del chofer. **Los vehículos y el
 nomenclador Tipos de vehículo se mantienen por ahora.**
+
+## 11.21 Gestión unificada «Entidades y personas» (06/11/2026, pendiente de implementar)
+
+- **Una pantalla** con tres **selectores en cascada** arriba: **Entidad → Itinerario → Parada**; cada uno filtra al
+  siguiente y cada uno tiene la opción **«Todos/Todas»**. Debajo, las **personas** que cumplen el filtro.
+- **Tarjetas de los selectores:** tocar la tarjeta abre el **formulario de edición** de esa Entidad, itinerario o
+  parada; el botón naranja **↕** abre la lista para elegir (con «Todos» primero y ✓ en el elegido).
+- **Acciones** según lo elegido y seleccionado: Crear Entidad, Crear itinerario en <Entidad>, Crear parada en
+  <itinerario>, Registrar persona en <Entidad>; con personas seleccionadas: Editar (una), Asignar itinerario y parada,
+  Asignar rol, Desactivar, Dar de baja de la Entidad; y **«Listados y nomencladores…»**.
+- **Listados y nomencladores:** Entidades, Itinerarios, Paradas, Personas, Tipos de vehículo, Tipos de ausencia y
+  Motivos de conversación; cada uno abre su **listado independiente** con su CRUD en el menú Acciones (§11.20).
+
+**Regla para toda la app:** **tocar una tarjeta abre su edición** y, además, **al marcarla** (selección) aparece en
+Acciones la acción **Editar**, que abre el mismo formulario. Vale también para las tarjetas de los selectores.
