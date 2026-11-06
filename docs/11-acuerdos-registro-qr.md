@@ -1008,3 +1008,8 @@ Cada viaje (de ida o de regreso) pasa por estos estados. Los cambios los provoca
 - **Maquetas de Viajes aprobadas** (06/11/2026): las de la tercera versión (lista con «Sin confirmar»,
   «Planificados» y «Terminados»; opciones por estado y sentido; hijos al subir; causas de atraso y detención;
   «Trabajadores» del viaje; planificar solo de forma manual).
+
+## 11.35 Chat del viaje (06/11/2026, pendiente de implementar; en definición)
+
+- **Sin avisos automáticos** dentro del chat: solo los mensajes de las personas (los cambios de estado se ven en el
+  viaje, no en el chat).
