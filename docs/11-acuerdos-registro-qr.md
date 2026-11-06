@@ -692,8 +692,11 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
   trabajador no lista sus itinerarios y paradas, el de la parada no lista sus itinerarios y el del itinerario no
   muestra el Jefe de itinerario. Solo los campos propios del objeto.
 - **PHP del hospedaje: 8.2.35** (exacta). Se actualiza la tecnología de implementación y de pruebas:
-  - **Lumen 11** (`laravel/lumen-framework` ^11.0, la última publicada; exige PHP ^8.2), con **PHPUnit 10** y
-    `fakerphp/faker`, según el esqueleto oficial `laravel/lumen` 11.
+  - **Decisión (06/11/2026): Laravel 12** (`laravel/framework` ^12, exige PHP ^8.2) en lugar de Lumen, que ya no
+    publica versiones nuevas (la última, 11.2.0, es de 2024). Laravel 13 no sirve: exige PHP ^8.3.
+  - Se mantiene la **misma API JSON:API** (rutas, respuestas y errores) para que la app no cambie por esto.
+  - Pruebas con **PHPUnit 11** (la del esqueleto oficial de Laravel 12) y `fakerphp/faker`.
   - `composer.json`: `"php": "^8.2"` y `config.platform.php` = `8.2.35`.
-  - El contenedor de pruebas pasa de PHP 7.2 a **PHP 8.2** (imagen oficial `php:8.2`), y el paquete y las
-    instrucciones de hospedaje y local se actualizan igual.
+  - El contenedor de pruebas pasa de PHP 7.2 a **PHP 8.2** (imagen oficial `php:8.2`), y el paquete de hospedaje
+    (`configuracion.php`, mantenimiento sin cron, `desempaquetar.php`, `diagnostico.php`) y las instrucciones de
+    hospedaje y local se adaptan igual.
