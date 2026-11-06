@@ -790,3 +790,5 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
     **de su itinerario**; el **Administrador** las ve **todas** (por tanto, las solicitudes de Entidad las resuelve
     el Administrador). Las resueltas se muestran con «Mostrar solicitudes aprobadas» / «Mostrar solicitudes
     rechazadas».
+- **Número en la pestaña Gestión** (06/11/2026): para el Jefe de itinerario y el Administrador, la pestaña muestra
+  la **cantidad de solicitudes pendientes** que les toca resolver; desaparece cuando no hay ninguna.
