@@ -750,6 +750,8 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
   filtran todas las secciones.
 - Las secciones se abren **como las dejó la última vez** (el teléfono recuerda cuáles estaban plegadas); la primera
   vez, todas desplegadas.
+- Los selectores se abren con **lo último que eligió** (lo recuerda el teléfono); la primera vez, **su Entidad, su
+  itinerario y «Todas las paradas»**.
 - Tocar una tarjeta abre su formulario (sin datos relacionados); mantenerla la marca; **un solo tipo marcado** cada
   vez.
 - **Marca:** el check va en **color de énfasis (naranja), arriba a la derecha** de cada tarjeta.
