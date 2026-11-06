@@ -779,3 +779,7 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
   por nomenclador** y su cantidad (Tipos de vehículo, Tipos de ausencia, Motivos de conversación, Motivos de
   denegación). Tocar abre el formulario; mantener marca; Acciones: Crear, Editar, Activar/Desactivar, Eliminar
   (con las mismas reglas de marcado). *Quedan cosas por definir.*
+- **Activar/Desactivar** (06/11/2026): como es un campo de la tabla, **sale del menú Acciones** y queda solo como el
+  interruptor **«Activado»** en los **formularios de consulta y edición** (Entidad, itinerario, parada, trabajador y
+  nomencladores).
+- **Tarjetas de personas paginadas de 5 en 5** (06/11/2026).
