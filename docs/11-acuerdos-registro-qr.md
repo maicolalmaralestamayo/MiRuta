@@ -708,6 +708,11 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
   «Solicitar Itinerario» o ser asignada por QR.
 - **Persona con itinerario pero sin parada** (06/11/2026): **no ve viajes** hasta tener parada; puede elegirla con
   «Cambiarme a esta parada» en Gestionar Paradas.
+- **Avisos en Inicio de lo que falta** (06/11/2026): la pantalla Inicio muestra un aviso con su botón, que
+  desaparece en cuanto se resuelve:
+  - «Aún no tiene Entidad» → botón **«Solicitar Entidad»**;
+  - «Aún no tiene itinerario» → botón **«Solicitar Itinerario»**;
+  - «Aún no tiene parada» → botón **«Elegir parada»** (lleva a Gestionar Paradas de su itinerario).
 - **Cambiar de Entidad:** además del itinerario, se puede **escoger la parada** (ambos opcionales).
 - **Cambiar de parada:** muestra el **itinerario en solo lectura**.
 - **Los formularios de consulta y edición no muestran datos relacionados** (lookup), **al menos en esta versión**: por ejemplo, el formulario del
