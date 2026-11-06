@@ -574,3 +574,20 @@ nomenclador Tipos de vehículo se mantienen por ahora.**
 
 **Regla para toda la app:** **tocar una tarjeta abre su edición** y, además, **al marcarla** (selección) aparece en
 Acciones la acción **Editar**, que abre el mismo formulario. Vale también para las tarjetas de los selectores.
+
+## 11.22 Pantalla «Gestión» en la barra principal (06/11/2026, pendiente de implementar)
+
+- La pantalla unificada (§11.21) se llama **Gestión** y va en la **barra principal, justo después de Inicio**:
+  Inicio, Gestión, Viajes, Mensajes, Más.
+- **Trabajador:** en Acciones, **Solicitar entrar en una Entidad**, **Solicitar itinerario y parada** y los listados
+  de consulta. Sus formularios son de solo consulta.
+- **Solicitudes:** ver las solicitudes, aprobarlas o denegarlas (Jefe de itinerario y Administrador) y que el
+  trabajador vea las suyas y su estado se hará **en otra pantalla más adelante**.
+- **Motivos de denegación:** son un **nomenclador** por tipo de solicitud (entrada en Entidad, itinerario y parada,
+  rol). Se gestionan desde «Listados y nomencladores».
+- **Todas las eliminaciones de la app piden confirmación**, explicando qué se borra y qué se conserva.
+- **Al eliminar:**
+  - **una Entidad:** se eliminan sus itinerarios y paradas; las personas **no** se eliminan: quedan sin esa Entidad;
+  - **un itinerario:** se eliminan sus paradas; las personas quedan **sin itinerario y sin parada**;
+  - **una parada:** las personas quedan **sin parada**;
+  - **una persona:** sin consecuencias para lo demás.
