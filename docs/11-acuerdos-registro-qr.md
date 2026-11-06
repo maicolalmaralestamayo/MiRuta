@@ -639,3 +639,21 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
   obligatorio**.
 - **Todos los selectores de itinerario** incluyen la opción **«Sin itinerario»** (personas sin itinerario) y **todos
   los selectores de parada** la opción **«Sin parada»** (personas del itinerario sin parada), además de «Todos».
+
+### Estructura común de las cuatro gestiones (06/11/2026)
+
+- **Todas** llevan arriba los selectores **Entidad → Itinerario → Parada** (con «Todos», «Sin itinerario» y «Sin
+  parada») y al final las **tarjetas de personas** que cumplen el filtro.
+- Entre los selectores y las personas va lo propio de cada gestión:
+
+  | Pantalla | Tarjetas propias | Además |
+  |---|---|---|
+  | Gestionar Trabajadores | — (solo personas) | CRUD de trabajadores |
+  | Gestionar Entidades | Entidades | CRUD de Entidades, crear itinerario, solicitudes de Entidad |
+  | Gestionar Itinerarios | Itinerarios | CRUD de itinerarios, crear parada, solicitudes de itinerario |
+  | Gestionar Paradas | Paradas (arrastrar para ordenar) | CRUD de paradas |
+
+- **Movimientos** de personas (en Acciones, con personas marcadas, en todas las gestiones donde tengan sentido):
+  **Asignar rol** (Jefe de itinerario), **Cambiar de Entidad**, **Cambiar de itinerario** (con parada opcional) y
+  **Cambiar de parada**.
+- Las **solicitudes** se mantienen donde proceden (Entidades e Itinerarios), como en §11.23.
