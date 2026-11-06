@@ -589,5 +589,13 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
 - **Al eliminar:**
   - **una Entidad:** se eliminan sus itinerarios y paradas; las personas **no** se eliminan: quedan sin esa Entidad;
   - **un itinerario:** se eliminan sus paradas; las personas quedan **sin itinerario y sin parada**;
-  - **una parada:** las personas quedan **sin parada**;
+  - **una parada:** las personas quedan **sin parada** (conservan su itinerario y eligen otra parada; pueden
+    hacerlo ellas mismas, porque el cambio de parada es directo);
   - **una persona:** sin consecuencias para lo demás.
+- **«Itinerario y parada van juntos» es una regla de interfaz:** una parada siempre se muestra dentro del itinerario
+  del que forma parte. En los datos, una persona **sí puede tener itinerario sin parada** (por ejemplo, tras eliminar
+  su parada).
+- **El Jefe de itinerario también ve la pantalla Gestión:** igual que el trabajador (sus Entidades, consulta de
+  itinerarios, paradas y personas, y las solicitudes) y, además, en Acciones, **crear, editar, quitar y reordenar las
+  paradas de su itinerario**.
+
