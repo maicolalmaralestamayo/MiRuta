@@ -951,6 +951,10 @@ Cada viaje (de ida o de regreso) pasa por estos estados. Los cambios los provoca
 - **Terminado, regla automática** (06/11/2026): se mide contra la **parada final del recorrido**: en la **ida**, la
   **última** parada; en el **regreso**, la **primera**. Además, **solo puede pasar a Terminado un viaje que ya estuvo
   En curso**.
+- **Detenido, regla automática** (06/11/2026): se aplica **tal como está** (interesa saber siempre que el viaje está
+  detenido). Cuando lo detecta **el servidor no se indica causa**; la causa la ponen el Administrador, el Jefe del
+  itinerario o al menos 3 trabajadores con la misma causa. Si la detención es a **menos de 150 m de la próxima
+  parada**, se entiende que la causa es **«Recogiendo en la parada»**.
 - **Nomencladores nuevos:** **Causas de atraso** y **Causas de detención** (en la pantalla de Nomencladores, con
   las mismas reglas que los demás).
 - Las reglas automáticas dependen de que los teléfonos envíen su ubicación (recorrido en tiempo real, §11.32, que
