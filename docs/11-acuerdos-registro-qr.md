@@ -927,3 +927,6 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
 - **Formato de fechas y horas en toda la app** (06/11/2026): fechas **«sáb. dd-mm-aa»** (día de la semana abreviado
   y año de 2 dígitos, separados por guiones, p. ej. «sáb. 14-03-26»); horas en formato de **24 horas** («17:30»).
   Sustituye a las barras usadas antes (docs/05, docs/09).
+- **Hijos en la ida** (06/11/2026): igual que en el regreso. Al pulsar **«Estoy en la parada <primera>»** el
+  trabajador elige **con qué hijos** sube; si lo marca el Jefe de itinerario o el Administrador, solo indica
+  **cuántos**.
