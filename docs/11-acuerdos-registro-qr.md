@@ -810,8 +810,8 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
 
 ## 11.27 El QR sirve para incluir en Entidad, itinerario o parada (06/11/2026, pendiente de implementar; amplía §11.19)
 
-- La acción pasa a llamarse **«Incluir por QR»** (Jefe de itinerario y Administrador; en Acciones de Gestión sin
-  nada marcado y en Inicio). Tras escanear el QR de la persona se elige **dónde incluirla**:
+- La acción pasa a llamarse **«Incluir por QR»** (Jefe de itinerario y Administrador; **solo en Acciones de Gestión
+  sin nada marcado**, no en Inicio). Tras escanear el QR de la persona se elige **dónde incluirla**:
   - **En una Entidad:** se puede escoger además **itinerario y parada** (opcionales).
   - **En un itinerario:** se puede escoger además **parada** (opcional).
   - **En una parada:** el **itinerario se muestra bloqueado** (solo lectura); al quedar en la parada, la persona
@@ -824,3 +824,10 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
 - El Jefe de itinerario solo puede incluir en **su itinerario** (y, con ello, en su Entidad); el Administrador en
   cualquiera.
 - Funciona con y sin conexión (§11.19).
+
+## 11.28 Botones de Inicio (06/11/2026, pendiente de implementar)
+
+- Inicio tiene solo los botones **Perfil**, **Hijos** y **Mi QR** (para todos).
+- Se quitan **Entidades** e **Itinerario** (se gestionan en la pestaña Gestión), **Roles** (pantalla eliminada),
+  **Viajes** (ya está en la barra principal) e **Incluir por QR** (queda solo en Acciones de Gestión; sustituye lo
+  dicho en «Dónde está el QR»).
