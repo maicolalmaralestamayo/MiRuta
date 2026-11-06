@@ -782,7 +782,8 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
 - **Activar/Desactivar** (06/11/2026): como es un campo de la tabla, **sale del menú Acciones** y queda solo como el
   interruptor **«Activado»** en los **formularios de consulta y edición** (Entidad, itinerario, parada, trabajador y
   nomencladores).
-- **Tarjetas de personas paginadas de 5 en 5** (06/11/2026).
+- **Todas las secciones paginadas de 5 en 5** (06/11/2026): Entidades, Itinerarios, Paradas, Personas y
+  Solicitudes, con primera / anterior / siguiente / última página y «1–5 de N».
 - **Quién ve qué solicitudes** (06/11/2026):
   - **«Mis solicitudes»**: solo las ve **el propio trabajador** que las hizo.
   - **Estados:** una solicitud está **pendiente** o **resuelta**; las resueltas están **aprobadas** o **rechazadas**.
