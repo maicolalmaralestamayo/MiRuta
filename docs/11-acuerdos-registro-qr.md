@@ -886,9 +886,12 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
   trabajo**. Ojo: en el viaje de **regreso**, en la interfaz, la **última parada es la primera del recorrido** (el
   orden se invierte).
 - **Un viaje son en realidad dos viajes:** uno de **ida** y otro de **regreso**, cada uno por separado.
-- **Sentido de los viajes** (06/11/2026): la **parada 1 es el trabajo**.
-  - **Ida:** sale del **trabajo** y recorre las paradas **en orden** (1 → 2 → 3…). En el trabajo los trabajadores
-    usan «Estoy en mi parada» / «Ya me recogieron»; en su parada, «Ya me bajé».
-  - **Regreso:** recorre las paradas **al revés** y **termina en el trabajo** (…3 → 2 → 1). En su parada usan «Estoy
-    en mi parada» / «Ya me recogieron»; en el trabajo, «Ya me bajé».
+- **Sentido de los viajes** (06/11/2026; corrige lo anotado antes): la **parada 1 no tiene por qué ser el trabajo**
+  (aunque, como una parada puede estar en varios itinerarios, es probable que la primera de muchos sea algo como
+  «Parqueo del trabajo»).
+  - **Ida:** empieza en la **primera parada**. **Todos esperan y suben ahí**; después **solo se bajan**, cada uno en
+    su parada; en la **última parada** se baja quien no se haya bajado antes.
+  - **Regreso:** empieza en la **última parada**, donde sube una parte; en el camino **van subiendo** más por sus
+    paradas, hasta llegar a la **primera parada**, donde **se bajan todos**.
+  - La parada de cada trabajador es, por tanto, **donde se baja en la ida y donde sube en el regreso**.
   - La interfaz muestra las paradas en el **orden del recorrido** de cada viaje (en el regreso, invertido).
