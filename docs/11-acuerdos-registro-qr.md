@@ -682,6 +682,9 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
 - **Activación:** las tablas de **Entidades, itinerarios, paradas y trabajadores** tienen un campo **activación**
   (booleano): `true` = **Activado**, `false` = **Desactivado**. Las acciones «Activar» / «Desactivar» cambian ese
   campo.
+- **Lo desactivado en las listas de gestión** (06/11/2026): se muestra **atenuado** (gris claro) solo al
+  **Administrador** y al **Jefe de itinerario** (en su ámbito), que pueden volver a activarlo. El **trabajador no lo
+  ve**.
 - La acción de las solicitudes se llama **«Rechazar»** (sin puntos suspensivos).
 - **Solicitudes, para todos los roles:** dos opciones en Acciones, **«Mostrar/Ocultar solicitudes rechazadas»** y
   **«Mostrar/Ocultar solicitudes aprobadas»**. Se **quitan** las opciones anteriores de ocultar una solicitud y
