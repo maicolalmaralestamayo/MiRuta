@@ -798,3 +798,4 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
 - **El trabajador se entera de lo resuelto** (06/11/2026): cuando le aprueban o rechazan una solicitud, la pestaña
   Gestión le muestra un **número** hasta que abre la sección Solicitudes. Si se aprobó, Inicio se actualiza solo (desaparece
   el aviso «Aún no tiene…» correspondiente). Sin mensaje aparte.
+- **Buscador** (06/11/2026): busca **solo personas** (nombre, carné o usuario).
