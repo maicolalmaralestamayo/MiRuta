@@ -748,6 +748,8 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
   selector. Después, un **separador**.
 - **Secciones plegables con su cantidad:** Entidades, Itinerarios, Paradas, Personas y Solicitudes. Los selectores
   filtran todas las secciones.
+- Las secciones se abren **como las dejó la última vez** (el teléfono recuerda cuáles estaban plegadas); la primera
+  vez, todas desplegadas.
 - Tocar una tarjeta abre su formulario (sin datos relacionados); mantenerla la marca; **un solo tipo marcado** cada
   vez.
 - **Marca:** el check va en **color de énfasis (naranja), arriba a la derecha** de cada tarjeta.
