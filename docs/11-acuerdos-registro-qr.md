@@ -906,3 +906,5 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
 - **Viajes sin confirmar** (06/11/2026): solo los ven el **Jefe de itinerario** (los de su itinerario) y el
   **Administrador**, en una sección **«Sin confirmar»**, para confirmarlos. El trabajador no los ve hasta que se
   confirman.
+- **Pasajeros esperados** (06/11/2026): se espera a **todos los del itinerario** (con parada); nadie se apunta. Quien
+  no va pulsa **«No voy en este viaje»** o declara una **ausencia** en Gestión. La ocupación prevista se calcula sola.
