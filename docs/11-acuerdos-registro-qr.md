@@ -616,3 +616,15 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
     **rechazar eligiendo el motivo** del nomenclador (más una observación opcional). No pueden eliminarlas: las pueden
     **ocultar** y **mostrar las ocultas**.
 - La pestaña **Gestión** de la barra principal abre estas pantallas (se navega entre ellas desde Acciones).
+- La pestaña **Gestión** abre primero **Gestionar Trabajadores**.
+- **Textos del menú Acciones:**
+  - navegación: **«Gestionar Trabajadores»**, **«Gestionar Entidades»**, **«Gestionar Itinerarios»**,
+    **«Gestionar Paradas»** (sin «Ir a»);
+  - solicitudes: **«Solicitar Entidad»** y **«Solicitar Itinerario»**;
+  - crear: **«Crear <objeto>»**, sin nombrar la Entidad o el itinerario padre («Crear itinerario», «Crear parada»);
+  - darse de baja: **«Salir de <objeto>»** («Salir de la Entidad», «Salir del itinerario»).
+- **Gestionar Paradas:** las tarjetas llevan el **ícono de arrastrar** para ordenarlas (Jefe de su itinerario y
+  Administrador; el trabajador no lo ve); desaparece «Ordenar paradas» del menú. Nueva acción **«Cambiar de
+  itinerario»** para las paradas marcadas.
+- **Roles:** los trabajadores **ya no solicitan roles**. El **Administrador asigna directamente** el rol de Jefe de
+  itinerario («Asignar Jefe de itinerario» en Gestionar Trabajadores).
