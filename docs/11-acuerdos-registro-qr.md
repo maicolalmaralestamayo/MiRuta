@@ -944,6 +944,24 @@ Además, **Cancelado** (06/11/2026): el Jefe del itinerario o el Administrador c
 terminado; **se conserva en el historial**, se **avisa a los trabajadores** y los cancelados se pueden **mostrar u
 ocultar** en Viajes.
 
+**Transiciones permitidas** (06/11/2026):
+
+| Desde | Puede pasar a |
+|---|---|
+| No confirmado | Confirmado, Cancelado |
+| Confirmado | No confirmado, Cancelado, Atrasado, En marcha |
+| Atrasado | En marcha |
+| En marcha | Detenido, Terminado |
+| Detenido | En marcha, Terminado |
+| Terminado | — |
+| Cancelado | — |
+
+- Confirmar, desconfirmar y cancelar solo lo hacen el Jefe del itinerario y el Administrador.
+- **Opciones de los trabajadores** (cada marca es un voto; en el menú Acciones del viaje, solo las que tienen
+  sentido según el estado actual): Confirmado → «Está atrasado…» (con causa) / «Ya está en marcha»; Atrasado → «Ya
+  está en marcha»; En marcha → «Está detenido…» (con causa) / «Terminó el viaje»; Detenido → «Ya está en marcha» /
+  «Terminó el viaje».
+
 Cada viaje (de ida o de regreso) pasa por estos estados. Los cambios los provoca **una persona con autoridad**, un
 **mínimo de usuarios de acuerdo** o, de forma **automática**, las **ubicaciones** que envían los teléfonos.
 
