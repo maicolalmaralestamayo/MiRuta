@@ -564,5 +564,13 @@ nomenclador Tipos de vehículo se mantienen por ahora.**
 - **Listados y nomencladores:** Entidades, Itinerarios, Paradas, Personas, Tipos de vehículo, Tipos de ausencia y
   Motivos de conversación; cada uno abre su **listado independiente** con su CRUD en el menú Acciones (§11.20).
 
+**Quién la ve:** **todo el mundo**.
+- **Trabajador:** el selector de Entidad solo ofrece **las Entidades donde está registrado**. Ve **todos los
+  itinerarios, paradas y personas** de esas Entidades. Puede abrir los formularios tocando las tarjetas, pero **solo
+  para consultar**: no puede crear, editar ni eliminar (sin acciones de cambio). El carné de las personas no se le
+  muestra (§11.2).
+- **Jefe de itinerario:** igual que el trabajador y, además, todo sobre las paradas de su itinerario (§11.20).
+- **Administrador:** todas las Entidades y todas las acciones.
+
 **Regla para toda la app:** **tocar una tarjeta abre su edición** y, además, **al marcarla** (selección) aparece en
 Acciones la acción **Editar**, que abre el mismo formulario. Vale también para las tarjetas de los selectores.
