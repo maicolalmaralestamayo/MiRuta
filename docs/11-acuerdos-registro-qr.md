@@ -900,4 +900,6 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
     segunda a la última; la última es una parada más).
   - **Regreso:** **«Estoy en mi parada»** (su parada, de la última a la segunda), **«Ya me recogieron»** y
     **«Terminó el viaje»** (equivale a estar en la primera parada).
+  - En la ida, «Ya me recogieron» es **sinónimo** de «Estoy en la parada <primera>» (todos suben ahí), por eso no
+    es una opción aparte.
   - En los dos: **«No voy en este viaje»**.
