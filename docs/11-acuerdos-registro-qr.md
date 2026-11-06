@@ -727,3 +727,14 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
   - El contenedor de pruebas pasa de PHP 7.2 a **PHP 8.2** (imagen oficial `php:8.2`), y el paquete de hospedaje
     (`configuracion.php`, mantenimiento sin cron, `desempaquetar.php`, `diagnostico.php`) y las instrucciones de
     hospedaje y local se adaptan igual.
+
+## 11.25 Misma estructura y acciones completas en las cuatro gestiones (06/11/2026, pendiente de implementar; sustituye lo que cambie de §11.23)
+
+- **Todas las pantallas de gestión** tienen, en este orden: los **4 selectores**, un **separador**, las **tarjetas de
+  Entidad**, las **tarjetas de itinerario**, las **tarjetas de parada**, las **tarjetas de personas** y, al final,
+  las **solicitudes**.
+- Las tarjetas llevan al **formulario de consulta y edición** del objeto, **sin datos relacionados** (lookup).
+- **Acciones:** cada gestión incluye las operaciones con **su objeto** y también las **relacionadas con los demás
+  objetos**. Ejemplo dado por el usuario, **Gestionar Trabajadores**: registrar, eliminar, activar/desactivar,
+  actualizar los datos del trabajador, asignarle o quitarle una Entidad, solicitar Entidad, solicitar itinerario,
+  asignarle o cambiarle el itinerario, asignarle o cambiarle la parada.
