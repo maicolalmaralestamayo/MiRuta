@@ -1018,3 +1018,7 @@ Cada viaje (de ida o de regreso) pasa por estos estados. Los cambios los provoca
   retención; desaparece el ajuste `trip_chat_retention_days`).
 - **Desde cuándo** (06/11/2026): el chat se abre **al confirmarse** el viaje; si vuelve a **No confirmado**, el chat
   queda **oculto** (sin borrarse) hasta que se confirme otra vez.
+- **Participantes y borrado** (06/11/2026): participan los **trabajadores del itinerario que ven el viaje** (con
+  parada), los **Jefes del itinerario** y el **Administrador**. Cada uno **borra sus mensajes**; los **Jefes del
+  itinerario y el Administrador** pueden borrar también **los de otros**. Los mensajes se marcan como el resto de
+  tarjetas (Acciones: Marcar todo, Desmarcar todo, Invertir selección, Copiar, Eliminar).
