@@ -665,3 +665,12 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
 - **Tocar un selector** solo **despliega** su lista para elegir (no abre formularios).
 - **Los selectores nunca se marcan**: mantener el dedo en ellos no hace nada distinto de tocarlos.
 - Por tanto, el botón ↕ deja de ser necesario: todo el selector despliega la lista.
+- **Selectores:** llevan el ícono de flechas **↕** para que se reconozcan como selectores.
+
+### Menú «Acciones» según lo marcado (06/11/2026, toda la app)
+
+- **Sin nada marcado:** acciones generales de la pantalla (crear, solicitar, mostrar ocultas, navegar a otras
+  pantallas).
+- **Con tarjetas marcadas:** **solo las acciones sobre lo marcado** (Editar —con una—, asignar, cambiar, aprobar,
+  rechazar, ocultar, desactivar, eliminar…). Las generales desaparecen hasta desmarcar.
+- Ya no se muestran acciones en gris: en cada momento solo aparecen las que se pueden usar.
