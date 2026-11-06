@@ -657,3 +657,11 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
   **Asignar rol** (Jefe de itinerario), **Cambiar de Entidad**, **Cambiar de itinerario** (con parada opcional) y
   **Cambiar de parada**.
 - Las **solicitudes** se mantienen donde proceden (Entidades e Itinerarios), como en §11.23.
+
+### Tarjetas y selectores en toda la app (06/11/2026; sustituye lo dicho antes sobre los selectores)
+
+- **Tocar una tarjeta** abre el **formulario de consulta o edición** de ese objeto.
+- **Mantener el dedo en una tarjeta** la **marca** para realizar acciones (selección múltiple).
+- **Tocar un selector** solo **despliega** su lista para elegir (no abre formularios).
+- **Los selectores nunca se marcan**: mantener el dedo en ellos no hace nada distinto de tocarlos.
+- Por tanto, el botón ↕ deja de ser necesario: todo el selector despliega la lista.
