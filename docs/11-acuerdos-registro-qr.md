@@ -954,7 +954,8 @@ Cada viaje (de ida o de regreso) pasa por estos estados. Los cambios los provoca
 - **Detenido, regla automática** (06/11/2026): se aplica **tal como está** (interesa saber siempre que el viaje está
   detenido). Cuando lo detecta **el servidor no se indica causa**; la causa la ponen el Administrador, el Jefe del
   itinerario o al menos 3 trabajadores con la misma causa. Si la detención es a **menos de 150 m de la próxima
-  parada**, se entiende que la causa es **«Recogiendo en la parada»**.
+  parada**, **el servidor sí pone la causa «Recogiendo en la parada» e indica qué parada** (p. ej. «Recogiendo en
+  la parada Coppelia»). Es la única causa que pone el servidor.
 - **Nomencladores nuevos:** **Causas de atraso** y **Causas de detención** (en la pantalla de Nomencladores, con
   las mismas reglas que los demás).
 - Las reglas automáticas dependen de que los teléfonos envíen su ubicación (recorrido en tiempo real, §11.32, que
