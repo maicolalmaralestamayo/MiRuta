@@ -863,3 +863,6 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
   **cantidad de pasajeros de pie**. El **total de pasajeros** es la **suma** de ambos (calculado, solo lectura).
 - **Motivo de conversación:** tiene una **clave foránea al rol** al que pertenece (`role_id` → tabla `roles` con los
   tres roles fijos de §11.30), obligatoria. Sustituye al campo «Destinatario».
+- **Se elimina el modelo Vehículo** (tabla `vehicles`, su pantalla y su API) (06/11/2026). La capacidad (asientos,
+  de pie y total) está **solo en el tipo de vehículo**. Un **viaje** solo indica **qué tipo de vehículo** lo hará
+  (clave foránea al tipo de vehículo, en lugar de al vehículo).
