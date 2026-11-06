@@ -960,6 +960,9 @@ Cada viaje (de ida o de regreso) pasa por estos estados. Los cambios los provoca
 - **Salir de Detenido** (06/11/2026): vuelve a **En curso** por las mismas tres vías: lo marca el Administrador o el
   Jefe del itinerario; lo marcan al menos 3 trabajadores; o el servidor ve que al menos 3 teléfonos se han movido
   **150 m o más** entre un envío y el siguiente.
+- **Umbrales ajustables** (06/11/2026): el **mínimo de usuarios o teléfonos** (3 por defecto) y la **distancia**
+  (150 m por defecto) son **ajustes generales de toda la app**, en la **tabla de configuración** (no por
+  itinerario).
 - **Nomencladores nuevos:** **Causas de atraso** y **Causas de detención** (en la pantalla de Nomencladores, con
   las mismas reglas que los demás).
 - Las reglas automáticas dependen de que los teléfonos envíen su ubicación (recorrido en tiempo real, §11.32, que
