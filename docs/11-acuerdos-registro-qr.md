@@ -948,6 +948,9 @@ Cada viaje (de ida o de regreso) pasa por estos estados. Los cambios los provoca
 | **Terminado** | Lo marca | **Al menos 3** usuarios lo marcan | **Al menos 3** teléfonos están a **menos de 150 m de la primera parada** |
 | **Detenido** | Lo marca **indicando la causa** (nomenclador «Causas de detención») | **Al menos 3** usuarios lo marcan con **la misma causa** | Se reciben las ubicaciones de **al menos 3** teléfonos en un instante y, en el **siguiente envío**, siguen a **menos de 150 m** (no se han movido) |
 
+- **Terminado, regla automática** (06/11/2026): se mide contra la **parada final del recorrido**: en la **ida**, la
+  **última** parada; en el **regreso**, la **primera**. Además, **solo puede pasar a Terminado un viaje que ya estuvo
+  En curso**.
 - **Nomencladores nuevos:** **Causas de atraso** y **Causas de detención** (en la pantalla de Nomencladores, con
   las mismas reglas que los demás).
 - Las reglas automáticas dependen de que los teléfonos envíen su ubicación (recorrido en tiempo real, §11.32, que
