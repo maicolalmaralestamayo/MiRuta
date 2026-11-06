@@ -1005,3 +1005,6 @@ Cada viaje (de ida o de regreso) pasa por estos estados. Los cambios los provoca
   | **Cancelados** | Cancelados (ocultos por defecto; Acciones: «Mostrar cancelados») | Todos |
 - **Viajes sin confirmar para todos** (06/11/2026; sustituye lo dicho antes): los ven **todos los roles**, con la
   opción **«Ocultar viajes sin confirmar»** en Acciones.
+- **Maquetas de Viajes aprobadas** (06/11/2026): las de la tercera versión (lista con «Sin confirmar»,
+  «Planificados» y «Terminados»; opciones por estado y sentido; hijos al subir; causas de atraso y detención;
+  «Trabajadores» del viaje; planificar solo de forma manual).
