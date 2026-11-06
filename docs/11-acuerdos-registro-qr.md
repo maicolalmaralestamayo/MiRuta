@@ -753,6 +753,9 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
 - **Marca:** el check va en **color de énfasis (naranja), arriba a la derecha** de cada tarjeta.
 - **Con tarjetas marcadas**, el menú Acciones incluye además **«Marcar todo»**, **«Desmarcar todo»** e **«Invertir
   selección»** (sobre las tarjetas de ese tipo).
+- **Acciones de un solo objeto** (Editar, «Cambiarme a esta parada», Asignar Jefe de itinerario, etc.) **solo
+  aparecen con exactamente una tarjeta marcada**; con varias se ocultan. «Marcar todo», «Desmarcar todo» e «Invertir
+  selección» aparecen siempre que haya algo marcado.
 - **Menú Acciones sin nada marcado:** Registrar trabajador, Crear Entidad, Crear itinerario, Crear parada, Solicitar
   Entidad, Solicitar Itinerario, Mostrar/Ocultar solicitudes aprobadas, Mostrar/Ocultar solicitudes rechazadas y
   **Nomencladores (solo el Administrador)**.
