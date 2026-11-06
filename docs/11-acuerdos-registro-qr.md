@@ -913,3 +913,17 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
   planificar solo la ida o solo el regreso. Igual en «Planificar por fechas».
 - **«No voy en este viaje» en la ida** (06/11/2026): la app pregunta **«¿Tampoco irá en el regreso?»** («Sí,
   tampoco» / «No, solo la ida») y, si responde que tampoco, lo marca también en el regreso de ese día.
+- **Ajustes a Viajes** (06/11/2026):
+  - El diálogo de «No voy» en la ida tiene los botones **«Tampoco»** y **«Solo la ida»**.
+  - Se quita la acción **«Cambiar tipo de vehículo»**: el tipo de vehículo se cambia en el **formulario** del viaje.
+  - La acción **«Pasajeros»** se llama **«Trabajadores»**.
+  - **Recogido en el regreso con hijos:** cuando el **trabajador** pulsa «Ya me recogieron» indica **con cuáles de
+    sus hijos** subió (niños concretos). Cuando lo marca el **Jefe de itinerario** (o el Administrador) como
+    recogido, indica solo **cuántos hijos** subieron con él.
+  - **«No va en este viaje»** lo puede marcar **el propio trabajador**, el **Jefe de itinerario** o el
+    **Administrador**.
+  - **Se eliminan** la **planificación por fechas** y **«Copiar a otras fechas»**: en esta versión todos los viajes
+    se planifican **de forma manual**, uno a uno.
+- **Formato de fechas y horas en toda la app** (06/11/2026): fechas **«sáb. dd-mm-aa»** (día de la semana abreviado
+  y año de 2 dígitos, separados por guiones, p. ej. «sáb. 14-03-26»); horas en formato de **24 horas** («17:30»).
+  Sustituye a las barras usadas antes (docs/05, docs/09).
