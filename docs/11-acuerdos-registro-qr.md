@@ -515,3 +515,39 @@ Sustituye a §11.8 y §11.9.
   - el **QR impreso** (compartir, imprimir, anular) y el dato **«¿tiene teléfono?»** al registrar;
   - las estadísticas que dependían del escaneo de subida (quienes viajan fuera de su itinerario o Entidad).
 
+
+## 11.20 Gestión de Entidades, itinerarios, paradas y nomencladores (06/11/2026, pendiente de implementar)
+
+Mismo diseño que el resto (§11.18): selector de Entidad, tarjetas, selección múltiple y menú «Acciones».
+
+**Quién puede qué**
+
+| | Entidades | Itinerarios | Paradas | Nomencladores |
+|---|---|---|---|---|
+| **Administrador** | Todo (crear, consultar, editar, desactivar, eliminar) | Todo, en cualquier Entidad | Todo, en cualquier Entidad | Todo |
+| **Jefe de itinerario** | — | Ver los de las Entidades donde está registrado | **Crear paradas dentro de su itinerario**; ver las de sus Entidades | — |
+| **Trabajador** | — | Ver los de las Entidades donde está registrado | Ver las de sus Entidades | — |
+
+**Pantallas**
+- **Gestión:** «Entidades y recorridos» (Entidades, Itinerarios, Paradas) y «Nomencladores» (Tipos de vehículo,
+  Tipos de ausencia, Motivos de conversación).
+- **Entidades:** activadas y desactivadas. Acciones: Crear Entidad; Editar, Desactivar/Activar, Eliminar.
+- **Formulario de Entidad:** imagen, abreviatura, nombre, número, descripción, observación. Acciones: Guardar,
+  Desactivar, Eliminar.
+- **Itinerarios** (selector de Entidad): Acciones: Crear itinerario; Editar, Desactivar, Eliminar.
+- **Formulario de itinerario:** imagen, nombre, descripción y sus **paradas numeradas en orden** (la 1.ª es la salida y
+  la última el regreso). Acciones: Guardar, Añadir parada existente, Crear parada nueva, Ordenar paradas, Quitar
+  parada, Eliminar itinerario.
+- **Paradas** (selector de Entidad): cada una dice en qué itinerarios está o «Sin itinerario». Acciones: Crear parada;
+  Editar, Eliminar.
+- **Formulario de parada:** imagen, punto de referencia, calle, entrecalles y **mapa** para situarla; en qué itinerarios
+  está y en qué posición. Acciones: Guardar, Eliminar.
+- **Nomencladores:** activos y desactivados, con cuántas veces se usa cada uno. Acciones: Crear; Editar, Desactivar,
+  Eliminar (también varios a la vez).
+- **Jefe de itinerario:** en Paradas ve las de **su itinerario** (numeradas) y, solo para consultar, las de los otros
+  itinerarios de su Entidad. Su única acción: **«Crear parada en <su itinerario>»**.
+- **Trabajador:** Itinerarios y Paradas de sus Entidades, solo para consultar, sin botón «Acciones».
+
+**Se elimina todo lo del chofer:** el rol Chofer, el chofer habitual de los vehículos y el chofer de los viajes,
+conducir y compartir la ubicación como chofer, las solicitudes y pantallas del chofer. **Los vehículos y el
+nomenclador Tipos de vehículo se mantienen por ahora.**
