@@ -992,3 +992,6 @@ Cada viaje (de ida o de regreso) pasa por estos estados. Los cambios los provoca
   las mismas reglas que los demás).
 - Las reglas automáticas dependen de que los teléfonos envíen su ubicación (recorrido en tiempo real, §11.32, que
   **aún no se implementa**).
+- **Secciones de Viajes y estados** (06/11/2026): los estados **Atrasado** y **Detenido** **no tienen sección
+  propia**. El viaje se planifica, aparece en su lista y, a partir de ahí, **su estado se indica en la propia
+  tarjeta** (etiqueta).
