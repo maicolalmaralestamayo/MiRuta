@@ -599,3 +599,20 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
   itinerarios, paradas y personas, y las solicitudes) y, además, en Acciones, **crear, editar, quitar y reordenar las
   paradas de su itinerario**.
 
+
+## 11.23 Cuatro pantallas de gestión (06/11/2026, pendiente de implementar; sustituye a §11.21 y §11.22 en lo que cambie)
+
+| Pantalla | Arriba | Listado | Acciones (además de «Ir a» las otras tres) |
+|---|---|---|---|
+| **Gestionar Trabajadores** | Selectores Entidad → Itinerario → Parada (con «Todos») | Trabajadores | CRUD de trabajadores (Registrar, Editar, Desactivar, Eliminar) |
+| **Gestionar Entidades** | — | Entidades; solicitudes | CRUD de Entidades; **Crear itinerario** en la Entidad; solicitar / resolver solicitudes |
+| **Gestionar Itinerarios** | Selector de Entidad | Itinerarios; solicitudes | CRUD de itinerarios; **Crear parada** en el itinerario; solicitar / resolver solicitudes; darse de baja del itinerario |
+| **Gestionar Paradas** | Selectores Entidad → Itinerario | Paradas (numeradas, en orden) | CRUD de paradas (Jefe de su itinerario y Administrador), ordenar, quitar del itinerario; **«Cambiarme a esta parada»** (directo) |
+
+- **Solicitudes** (Entidad e itinerario y parada; la parada se cambia directamente):
+  - **Trabajador:** ve **sus solicitudes**, su **estado** y, si se rechazaron, **quién, cuándo y el motivo**; puede
+    **cancelar** las pendientes y **eliminar** las suyas.
+  - **Jefe de itinerario y Administrador:** ven las solicitudes por resolver de su ámbito; **aprobar** o
+    **rechazar eligiendo el motivo** del nomenclador (más una observación opcional). No pueden eliminarlas: las pueden
+    **ocultar** y **mostrar las ocultas**.
+- La pestaña **Gestión** de la barra principal abre estas pantallas (se navega entre ellas desde Acciones).
