@@ -799,3 +799,6 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
   Gestión le muestra un **número** hasta que abre la sección Solicitudes. Si se aprobó, Inicio se actualiza solo (desaparece
   el aviso «Aún no tiene…» correspondiente). Sin mensaje aparte.
 - **Buscador** (06/11/2026): busca **solo personas** (nombre, carné o usuario).
+- **Gestión sin conexión** (06/11/2026): **solo consulta** de lo último cargado, con el aviso «Sin conexión: datos
+  del dd/mm hh:mm»; las acciones que cambian datos se ocultan hasta que vuelva la conexión, **salvo asignar
+  itinerario por QR** (que funciona con y sin conexión, §11.19).
