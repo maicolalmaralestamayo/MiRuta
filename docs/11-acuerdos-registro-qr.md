@@ -134,6 +134,8 @@ tiene ninguno de los dos en una Entidad, en Inicio sale la tarjeta «Sin itinera
 
 ## 11.8 Código QR del trabajador
 
+> **Sustituido por §11.19 (06/11/2026, pendiente de implementar):** el QR solo sirve para asignar itinerario.
+
 **Un solo QR por persona para toda la app**, generado siempre de la misma forma. Identifica a la **persona**, no
 una Entidad: sirve en todas sus Entidades.
 
@@ -171,6 +173,8 @@ una Entidad: sirve en todas sus Entidades.
 - Diferencia de hora admitida entre los dos teléfonos: **±2 minutos**.
 
 ## 11.9 QR impreso para quien no tiene teléfono
+
+> **Eliminado por §11.19 (06/11/2026, pendiente de implementar).**
 
 - Al registrar a alguien, el Administrador indica **si tiene teléfono**.
 - **Sin teléfono:** el sistema genera un **QR fijo**, que **no caduca**, se puede **imprimir** y se puede
@@ -484,4 +488,30 @@ opción de **desactivarlo** (o reactivarlo).
 | **Itinerario y parada** | Sí | Mi itinerario y parada; Ausencias | Solicitar (otro itinerario y parada), Darme de baja, Declarar (ausencia), Editar, Eliminar |
 | **Roles** | Sí | Mis roles (Trabajador siempre); Solicitudes pendientes | Solicitar (un rol), Darme de baja (no aplica a Trabajador), Cancelar solicitud |
 | **Viajes** | Sí | En curso; Confirmados | Sin botón Acciones (tocar un viaje abre su detalle) |
+
+## 11.19 QR simplificado: solo para asignar itinerario (06/11/2026, pendiente de implementar)
+
+Sustituye a §11.8 y §11.9.
+
+- **Cada persona tiene un único QR**, que no se puede imprimir, copiar ni reutilizar. Se mantiene cómo se genera:
+  clave guardada en el teléfono (Android Keystore) certificada por el servidor, código que cambia cada 15 segundos,
+  de un solo uso y con la pantalla sin capturas ni grabación.
+- **Su único uso es asignar itinerario y parada sin solicitud.**
+  - **Jefe de itinerario:** asigna **su propio itinerario** (el que dirige), solo a personas registradas en **su misma
+    Entidad**, que es la de ese itinerario.
+  - **Administrador:** asigna **cualquier itinerario de cualquier Entidad**. Si la persona no pertenecía a esa
+    Entidad, **queda añadida automáticamente**, ya aprobada, con el rol por defecto.
+  - **La parada la elige quien escanea** en ese momento, de las paradas del itinerario.
+  - Si la persona ya tenía otro itinerario en esa Entidad, **se le cambia y pierde el anterior**; no pierde sus
+    jefaturas.
+- **Funciona con y sin conexión.** Sin conexión, el teléfono de quien escanea comprueba el QR, guarda la asignación y
+  la envía al servidor al recuperar la conexión; hasta entonces la persona no ve su nuevo itinerario y parada.
+- **Cambio de parada:** después, la persona puede **cambiarse de parada directamente**, sin solicitud, entre las
+  paradas de su itinerario.
+- **Se elimina en esta versión:**
+  - subir a la guagua con el QR (escaneo del chofer, marcar hijos al escanear, dejar subir a quien es de fuera,
+    corrección de pasajeros con QR, aviso de QR usado dos veces);
+  - la lista y la cola de escaneos de **subida** sin conexión;
+  - el **QR impreso** (compartir, imprimir, anular) y el dato **«¿tiene teléfono?»** al registrar;
+  - las estadísticas que dependían del escaneo de subida (quienes viajan fuera de su itinerario o Entidad).
 
