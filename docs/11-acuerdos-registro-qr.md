@@ -807,3 +807,20 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
   Inicio**. Abre la cámara, se escanea el QR de la persona y se elige la parada.
 - **«Mi QR»** (06/11/2026): el trabajador muestra su QR desde **dos lugares**: un **botón «Mi QR» en Inicio**
   (para todos; si no tiene itinerario, junto al aviso «Aún no tiene itinerario») y en **su perfil** (pestaña Más).
+
+## 11.27 El QR sirve para incluir en Entidad, itinerario o parada (06/11/2026, pendiente de implementar; amplía §11.19)
+
+- La acción pasa a llamarse **«Incluir por QR»** (Jefe de itinerario y Administrador; en Acciones de Gestión sin
+  nada marcado y en Inicio). Tras escanear el QR de la persona se elige **dónde incluirla**:
+  - **En una Entidad:** se puede escoger además **itinerario y parada** (opcionales).
+  - **En un itinerario:** se puede escoger además **parada** (opcional).
+  - **En una parada:** el **itinerario se muestra bloqueado** (solo lectura); al quedar en la parada, la persona
+    queda **automáticamente en la Entidad y el itinerario** de esa parada.
+- El formulario **indica dónde está ya** la persona: «Ya está en la Entidad …», «Ya está en el itinerario …», «Ya
+  está en la parada …».
+- **Un único itinerario por Entidad** y **una sola parada por itinerario**: incluir por QR en otro itinerario de la
+  misma Entidad **equivale a cambiarle el itinerario**; incluir en otra parada del mismo itinerario **equivale a
+  cambiarle la parada**.
+- El Jefe de itinerario solo puede incluir en **su itinerario** (y, con ello, en su Entidad); el Administrador en
+  cualquiera.
+- Funciona con y sin conexión (§11.19).
