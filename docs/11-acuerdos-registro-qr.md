@@ -691,6 +691,9 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
   «Mostrar solicitudes ocultas».
 - **Una parada puede pertenecer a varios itinerarios de varias Entidades** (la parada deja de pertenecer a una sola
   Entidad; la relación es solo itinerario–parada).
+- **Paradas compartidas** (06/11/2026): el **Jefe de itinerario** puede **editar** una parada de su itinerario
+  aunque la usen otros (el cambio se ve en todos); **no puede eliminarla** mientras la use otro itinerario, solo
+  **quitarla del suyo**. Eliminarla del todo es del **Administrador**.
 - **Cambiar de Entidad:** además del itinerario, se puede **escoger la parada** (ambos opcionales).
 - **Cambiar de parada:** muestra el **itinerario en solo lectura**.
 - **Los formularios de consulta y edición no muestran datos relacionados** (lookup), **al menos en esta versión**: por ejemplo, el formulario del
