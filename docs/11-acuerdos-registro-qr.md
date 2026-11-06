@@ -903,3 +903,6 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
   - En la ida, «Ya me recogieron» es **sinónimo** de «Estoy en la parada <primera>» (todos suben ahí), por eso no
     es una opción aparte.
   - En los dos: **«No voy en este viaje»**.
+- **Viajes sin confirmar** (06/11/2026): solo los ven el **Jefe de itinerario** (los de su itinerario) y el
+  **Administrador**, en una sección **«Sin confirmar»**, para confirmarlos. El trabajador no los ve hasta que se
+  confirman.
