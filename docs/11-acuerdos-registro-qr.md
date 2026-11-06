@@ -934,3 +934,21 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
   pasajeros** (cuántas personas viajan), pero **no ocupan plaza** frente a la capacidad del tipo de vehículo, porque
   van sentados en las piernas de sus padres. La ocupación (normal, de pie, no caben) se calcula **solo con
   trabajadores**; los niños se muestran aparte (p. ej. «45 de 60 • 51 pasajeros con 6 niños»).
+
+## 11.34 Estados de un viaje (06/11/2026, pendiente de implementar; en definición)
+
+Cada viaje (de ida o de regreso) pasa por estos estados. Los cambios los provoca **una persona con autoridad**, un
+**mínimo de usuarios de acuerdo** o, de forma **automática**, las **ubicaciones** que envían los teléfonos.
+
+| Estado | Manual (Administrador o Jefe del itinerario) | Por usuarios | Automático (ubicaciones) |
+|---|---|---|---|
+| **Confirmado** | Lo confirma | — | — |
+| **Atrasado** | Lo marca **indicando la causa** (nomenclador «Causas de atraso») | **Al menos 3** usuarios lo marcan con **la misma causa** | **Al menos 3** teléfonos envían su ubicación, están a **menos de 150 m de la primera parada** y **ya pasó la hora de salida** |
+| **En curso** | Lo marca | **Al menos 3** usuarios lo marcan | **Al menos 3** teléfonos están a **150 m o más de la primera parada** |
+| **Terminado** | Lo marca | **Al menos 3** usuarios lo marcan | **Al menos 3** teléfonos están a **menos de 150 m de la primera parada** |
+| **Detenido** | Lo marca **indicando la causa** (nomenclador «Causas de detención») | **Al menos 3** usuarios lo marcan con **la misma causa** | Se reciben las ubicaciones de **al menos 3** teléfonos en un instante y, en el **siguiente envío**, siguen a **menos de 150 m** (no se han movido) |
+
+- **Nomencladores nuevos:** **Causas de atraso** y **Causas de detención** (en la pantalla de Nomencladores, con
+  las mismas reglas que los demás).
+- Las reglas automáticas dependen de que los teléfonos envíen su ubicación (recorrido en tiempo real, §11.32, que
+  **aún no se implementa**).
