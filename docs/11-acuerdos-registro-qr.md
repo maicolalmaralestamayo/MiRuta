@@ -866,3 +866,10 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
 - **Se elimina el modelo Vehículo** (tabla `vehicles`, su pantalla y su API) (06/11/2026). La capacidad (asientos,
   de pie y total) está **solo en el tipo de vehículo**. Un **viaje** solo indica **qué tipo de vehículo** lo hará
   (clave foránea al tipo de vehículo, en lugar de al vehículo).
+
+## 11.32 Recorrido en tiempo real sin chofer (06/11/2026, **NO implementar todavía**: el usuario lo modificará)
+
+- Sin chofer, la ubicación del viaje la puede enviar **el Jefe de itinerario que va en el viaje** o **cualquier
+  pasajero que se ofrezca**, desde el viaje («Iniciar recorrido» / «Terminar»).
+- **No se implementa nada del recorrido en tiempo real** en la próxima entrega: queda pendiente de nuevas
+  indicaciones del usuario.
