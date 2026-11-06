@@ -940,6 +940,9 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
 **Estados de un viaje** (06/11/2026): **No confirmado**, **Confirmado**, **Atrasado** (parado, pero en la
 **primera o la última parada**, es decir, sin haber salido), **En marcha**, **Detenido** (parado **en el trayecto**)
 y **Terminado**. «En marcha» sustituye a «En curso».
+Además, **Cancelado** (06/11/2026): el Jefe del itinerario o el Administrador cancelan un viaje que no ha
+terminado; **se conserva en el historial**, se **avisa a los trabajadores** y los cancelados se pueden **mostrar u
+ocultar** en Viajes.
 
 Cada viaje (de ida o de regreso) pasa por estos estados. Los cambios los provoca **una persona con autoridad**, un
 **mínimo de usuarios de acuerdo** o, de forma **automática**, las **ubicaciones** que envían los teléfonos.
