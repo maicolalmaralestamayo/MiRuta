@@ -878,10 +878,10 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
 
 - **Quién ve qué:** el **Jefe de itinerario** solo ve los viajes **de su itinerario**; el **Administrador** ve
   **todos**; el trabajador, los de su itinerario.
-- **Sin filtros de fecha.** Se muestran los viajes **confirmados** y los **en curso** (de ida y de regreso), y también
+- **Sin filtros de fecha.** Se muestran los viajes **confirmados** y los **en marcha** (de ida y de regreso), y también
   **todos los terminados**; en Acciones, **«Ocultar viajes terminados»** (y «Mostrar…» para volver a verlos).
 - **«Declarar ausencia»** sale de Viajes y pasa a **Gestión** (donde están el itinerario y las paradas).
-- **Opciones del trabajador en un viaje en curso:** **«Estoy en mi parada»**, **«Ya me recogieron»**, **«Ya me
+- **Opciones del trabajador en un viaje en marcha:** **«Estoy en mi parada»**, **«Ya me recogieron»**, **«Ya me
   bajé»** y **«No voy en este viaje»**. Caso particular: el trabajador que está en la **primera parada, que es el
   trabajo**. Ojo: en el viaje de **regreso**, en la interfaz, la **última parada es la primera del recorrido** (el
   orden se invierte).
@@ -895,7 +895,7 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
     paradas, hasta llegar a la **primera parada**, donde **se bajan todos**.
   - La parada de cada trabajador es, por tanto, **donde se baja en la ida y donde sube en el regreso**.
   - La interfaz muestra las paradas en el **orden del recorrido** de cada viaje (en el regreso, invertido).
-- **Opciones del trabajador en un viaje en curso** (06/11/2026; sustituyen a las anteriores):
+- **Opciones del trabajador en un viaje en marcha** (06/11/2026; sustituyen a las anteriores):
   - **Ida:** **«Estoy en la parada <nombre de la primera parada>»** y **«Me bajé en mi parada»** (su parada, de la
     segunda a la última; la última es una parada más).
   - **Regreso:** **«Estoy en mi parada»** (su parada, de la última a la segunda), **«Ya me recogieron»** y
@@ -937,6 +937,10 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
 
 ## 11.34 Estados de un viaje (06/11/2026, pendiente de implementar; en definición)
 
+**Estados de un viaje** (06/11/2026): **No confirmado**, **Confirmado**, **Atrasado** (parado, pero en la
+**primera o la última parada**, es decir, sin haber salido), **En marcha**, **Detenido** (parado **en el trayecto**)
+y **Terminado**. «En marcha» sustituye a «En curso».
+
 Cada viaje (de ida o de regreso) pasa por estos estados. Los cambios los provoca **una persona con autoridad**, un
 **mínimo de usuarios de acuerdo** o, de forma **automática**, las **ubicaciones** que envían los teléfonos.
 
@@ -944,20 +948,20 @@ Cada viaje (de ida o de regreso) pasa por estos estados. Los cambios los provoca
 |---|---|---|---|
 | **Confirmado** | Lo confirma | — | — |
 | **Atrasado** | Lo marca **indicando la causa** (nomenclador «Causas de atraso») | **Al menos 3** usuarios lo marcan con **la misma causa** | **Al menos 3** teléfonos envían su ubicación, están a **menos de 150 m de la primera parada** y **ya pasó la hora de salida** |
-| **En curso** | Lo marca | **Al menos 3** usuarios lo marcan | **Al menos 3** teléfonos están a **150 m o más de la primera parada** |
+| **En marcha** | Lo marca | **Al menos 3** usuarios lo marcan | **Al menos 3** teléfonos están a **150 m o más de la primera parada** |
 | **Terminado** | Lo marca | **Al menos 3** usuarios lo marcan | **Al menos 3** teléfonos están a **menos de 150 m de la primera parada** |
 | **Detenido** | Lo marca **indicando la causa** (nomenclador «Causas de detención») | **Al menos 3** usuarios lo marcan con **la misma causa** | Se reciben las ubicaciones de **al menos 3** teléfonos en un instante y, en el **siguiente envío**, siguen a **menos de 150 m** (no se han movido) |
 
 - **Terminado, regla automática** (06/11/2026): se mide contra la **parada final del recorrido**: en la **ida**, la
   **última** parada; en el **regreso**, la **primera**. Además, **solo puede pasar a Terminado un viaje que ya estuvo
-  En curso**.
+  En marcha**.
 - **Detenido, regla automática** (06/11/2026): se aplica **tal como está** (interesa saber siempre que el viaje está
   detenido). Cuando lo detecta **el servidor no se indica causa**; la causa la ponen el Administrador, el Jefe del
   itinerario o al menos 3 trabajadores con la misma causa. Si la detención es a **menos de 150 m de la próxima
   parada**, **el servidor sí pone la causa «Recogiendo en la parada» e indica qué parada** (p. ej. «Recogiendo en
   la parada Coppelia»). En la **ida** la causa es **«Dejando en la parada …»** y en el **regreso** **«Recogiendo en
   la parada …»**. Son las únicas causas que pone el servidor.
-- **Salir de Detenido** (06/11/2026): vuelve a **En curso** por las mismas tres vías: lo marca el Administrador o el
+- **Salir de Detenido** (06/11/2026): vuelve a **En marcha** por las mismas tres vías: lo marca el Administrador o el
   Jefe del itinerario; lo marcan al menos 3 trabajadores; o el servidor ve que al menos 3 teléfonos se han movido
   **150 m o más** entre un envío y el siguiente.
 - **Umbrales ajustables** (06/11/2026): el **mínimo de usuarios o teléfonos** (3 por defecto) y la **distancia**
