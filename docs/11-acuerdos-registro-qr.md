@@ -805,3 +805,5 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
 - **Dónde está el QR** (06/11/2026): **«Asignar itinerario por QR»** aparece, solo para el **Jefe de itinerario** y
   el **Administrador**, en **dos lugares**: en el **menú Acciones de Gestión sin nada marcado** y como **botón en
   Inicio**. Abre la cámara, se escanea el QR de la persona y se elige la parada.
+- **«Mi QR»** (06/11/2026): el trabajador muestra su QR desde **dos lugares**: un **botón «Mi QR» en Inicio**
+  (para todos; si no tiene itinerario, junto al aviso «Aún no tiene itinerario») y en **su perfil** (pestaña Más).
