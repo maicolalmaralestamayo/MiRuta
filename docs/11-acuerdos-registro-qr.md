@@ -802,3 +802,6 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
 - **Gestión sin conexión** (06/11/2026): **solo consulta** de lo último cargado, con el aviso «Sin conexión: datos
   del dd/mm hh:mm»; las acciones que cambian datos se ocultan hasta que vuelva la conexión, **salvo asignar
   itinerario por QR** (que funciona con y sin conexión, §11.19).
+- **Dónde está el QR** (06/11/2026): **«Asignar itinerario por QR»** aparece, solo para el **Jefe de itinerario** y
+  el **Administrador**, en **dos lugares**: en el **menú Acciones de Gestión sin nada marcado** y como **botón en
+  Inicio**. Abre la cámara, se escanea el QR de la persona y se elige la parada.
