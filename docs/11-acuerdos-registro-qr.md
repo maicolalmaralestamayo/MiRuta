@@ -775,3 +775,7 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
 - **Ordenar paradas arrastrando** solo cuando hay un itinerario elegido.
 - **Quién ve qué:** el Administrador todo; el Jefe de itinerario todo, actuando solo en su itinerario; el trabajador
   las mismas secciones sin acciones de gestión (solo lo suyo).
+- **Nomencladores** (solo Administrador, 06/11/2026): **una sola pantalla** como Gestión, con una **sección plegable
+  por nomenclador** y su cantidad (Tipos de vehículo, Tipos de ausencia, Motivos de conversación, Motivos de
+  denegación). Tocar abre el formulario; mantener marca; Acciones: Crear, Editar, Activar/Desactivar, Eliminar
+  (con las mismas reglas de marcado). *Quedan cosas por definir.*
