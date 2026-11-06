@@ -1039,3 +1039,13 @@ Cada viaje (de ida o de regreso) pasa por estos estados. Los cambios los provoca
   la causa) o **termina**. Cada usuario puede **apagarlos en sus ajustes**.
 - **Mensajes nuevos** (del chat del viaje o de una conversación) (06/11/2026): **solo notificación del teléfono**, no
   aparecen en la pestaña Avisos; al tocarla se abre el chat o la conversación.
+
+## 11.37 Sin pantalla de Avisos: solo notificaciones del teléfono (06/11/2026, decisión final; sustituye a §11.36)
+
+- **Se elimina la pantalla (y la pestaña) Avisos**, y con ella la campanita. Barra principal: **Inicio, Gestión,
+  Viajes, Más**.
+- **Todo lo que la app tenga que avisar lo hace con las notificaciones del teléfono**, al menos en esta versión.
+- **Qué se notifica queda pendiente:** el usuario lo indicará más adelante. Hasta entonces no se implementan avisos
+  nuevos (los de estado del viaje de §11.36 quedan en suspenso).
+- El número en la pestaña Gestión (solicitudes pendientes o resueltas, §11.26) se mantiene: no es un aviso, es un
+  contador de la propia pantalla.
