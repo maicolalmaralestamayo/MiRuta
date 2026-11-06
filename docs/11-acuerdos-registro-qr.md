@@ -1016,3 +1016,5 @@ Cada viaje (de ida o de regreso) pasa por estos estados. Los cambios los provoca
 - **Un chat por viaje** (06/11/2026): uno para la **ida** y otro para el **regreso**.
 - **Se eliminan** los mensajes del chat **en cuanto el viaje queda cancelado, terminado o eliminado** (sin plazo de
   retención; desaparece el ajuste `trip_chat_retention_days`).
+- **Desde cuándo** (06/11/2026): el chat se abre **al confirmarse** el viaje; si vuelve a **No confirmado**, el chat
+  queda **oculto** (sin borrarse) hasta que se confirme otra vez.
