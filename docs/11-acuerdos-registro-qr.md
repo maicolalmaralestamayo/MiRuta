@@ -628,3 +628,9 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
   itinerario»** para las paradas marcadas.
 - **Roles:** los trabajadores **ya no solicitan roles**. El **Administrador asigna directamente** el rol de Jefe de
   itinerario («Asignar Jefe de itinerario» en Gestionar Trabajadores).
+- **Se elimina la pantalla Roles** del trabajador (y su botón en Inicio): sus roles siguen viéndose en Inicio.
+- El ícono de **Gestión** en la barra principal es un **engranaje**.
+- **Gestionar Itinerarios** muestra también las **personas** (sin CRUD de personas). Con personas marcadas, en
+  Acciones: **«Asignar Jefe de itinerario»** y **«Cambiar de itinerario»**.
+- **Gestionar Paradas** muestra también las **personas** (sin CRUD de personas). Con personas marcadas, en Acciones:
+  **«Cambiar de parada»**.
