@@ -999,7 +999,9 @@ Cada viaje (de ida o de regreso) pasa por estos estados. Los cambios los provoca
 
   | Sección | Qué viajes | Quién la ve |
   |---|---|---|
-  | **Sin confirmar** | No confirmados | Jefe del itinerario y Administrador |
+  | **Sin confirmar** | No confirmados (Acciones: «Ocultar viajes sin confirmar») | Todos |
   | **Planificados** | Confirmados, Atrasados, En marcha y Detenidos (estado en la etiqueta de la tarjeta) | Todos |
   | **Terminados** | Terminados (Acciones: «Ocultar viajes terminados») | Todos |
   | **Cancelados** | Cancelados (ocultos por defecto; Acciones: «Mostrar cancelados») | Todos |
+- **Viajes sin confirmar para todos** (06/11/2026; sustituye lo dicho antes): los ven **todos los roles**, con la
+  opción **«Ocultar viajes sin confirmar»** en Acciones.
