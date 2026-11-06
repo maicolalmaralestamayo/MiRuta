@@ -930,3 +930,5 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
 - **Hijos en la ida** (06/11/2026): igual que en el regreso. Al pulsar **«Estoy en la parada <primera>»** el
   trabajador elige **con qué hijos** sube; si lo marca el Jefe de itinerario o el Administrador, solo indica
   **cuántos**.
+- **Niños y ocupación** (06/11/2026): en la **ocupación prevista** (planificación) **no cuentan**; en la **ocupación
+  real** del viaje en curso **sí**, sumando los niños que subieron (p. ej. «45 + 6 niños de 60»).
