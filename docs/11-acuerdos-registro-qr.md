@@ -950,7 +950,7 @@ ocultar** en Viajes.
 |---|---|
 | No confirmado | Confirmado, Cancelado |
 | Confirmado | No confirmado, Cancelado, Atrasado, En marcha |
-| Atrasado | En marcha |
+| Atrasado | En marcha, Cancelado |
 | En marcha | Detenido, Terminado |
 | Detenido | En marcha, Terminado |
 | Terminado | — |
