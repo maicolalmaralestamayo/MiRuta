@@ -898,7 +898,6 @@ Acciones la acción **Editar**, que abre el mismo formulario. Vale también para
 - **Opciones del trabajador en un viaje en curso** (06/11/2026; sustituyen a las anteriores):
   - **Ida:** **«Estoy en la parada <nombre de la primera parada>»** y **«Me bajé en mi parada»** (su parada, de la
     segunda a la última; la última es una parada más).
-  - **Regreso:** **«Estoy en mi parada»** (su parada, de la última a la segunda) y **«Terminó el viaje»** (equivale
-    a estar en la primera parada).
+  - **Regreso:** **«Estoy en mi parada»** (su parada, de la última a la segunda), **«Ya me recogieron»** y
+    **«Terminó el viaje»** (equivale a estar en la primera parada).
   - En los dos: **«No voy en este viaje»**.
-  - Desaparece «Ya me recogieron».
