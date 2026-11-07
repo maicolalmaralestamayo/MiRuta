@@ -1270,6 +1270,7 @@ d2 > 100 m → De camino a la parada; se aleja y d2 > 100 m → No voy a viajar;
   | Estado trabajador | **Distancia abandono** | `1km` | «No voy a viajar» definitivo |
   | Estado trabajador | **Frecuencia cálculo** | `10seg` | Cálculo en el teléfono antes de Recogido |
   | Estado trabajador | **Cálculos consecutivos** | `6` | Velocidad humana seguida en una parada para Dejado (ida) |
+  | Estado trabajador | **Espera final** | `10min` | Tras Dormido o Botado, dejar de calcular y recordar desactivar el GPS |
 
 ### Estado del trabajador en la ida (07/11/2026, en definición)
 
@@ -1358,3 +1359,5 @@ Los teléfonos ya no envían ubicaciones, solo cambios de estado; el estado del 
     a velocidad humana sin llegar a Recogido después del paso del vehículo.
   - La línea del regreso muestra en cada parada **cuántos Dormidos y cuántos Botados** hay mientras mantengan ese
     estado; los dos pueden pasar luego a No voy a viajar o, pasado un tiempo, la app deja de calcular.
+  - **Espera final** (ajuste de la app, por defecto `10min`): tiempo tras quedar Dormido o Botado, si no se aleja,
+    para que la app deje de calcular y recuerde desactivar el GPS.
