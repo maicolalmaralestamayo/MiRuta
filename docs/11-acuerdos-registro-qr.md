@@ -1309,3 +1309,8 @@ d2 > 100 m → De camino a la parada; se aleja y d2 > 100 m → No voy a viajar;
   - **Detenido** fuera de ese radio → detenido **en el trayecto** (semáforo, bache, rotura…).
   - **En movimiento** con la distancia a la **próxima parada disminuyendo** (o la distancia a la **parada anterior
     aumentando**) → **entre la parada anterior y la próxima**.
+- **Ajustes del sensor** (07/11/2026): se reutilizan **Frecuencia cálculo** (`10seg`) como frecuencia del sensor y
+  **Tolerancia GPS** (`20m`) como umbral de «misma posición».
+- **Varios sensores** (07/11/2026): cada teléfono sensor envía al servidor su **cambio de estado del vehículo** (con
+  acuse). El servidor toma el estado que indica **la mayoría** de los sensores y solo lo cambia si coinciden al
+  menos **Mínimo confirmaciones** (`3`); si hay menos de 3 sensores, basta la mayoría de los que haya.
