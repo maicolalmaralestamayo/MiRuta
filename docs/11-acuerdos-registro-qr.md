@@ -1376,3 +1376,9 @@ Los teléfonos ya no envían ubicaciones, solo cambios de estado; el estado del 
 
 - Si no hay novedades, el servidor responde **casi vacío**.
 - El recordatorio de activar la ubicación lo **programa el propio teléfono** al enterarse del viaje.
+- **Revisión del estado del viaje** (07/11/2026):
+  - **Nunca salió:** si sigue **Planificado**, el viaje **se elimina del servidor** pasadas **5 horas** (ajuste de la
+    app).
+  - **En ejecución sin terminar:** a las **5 horas** pasa a **Terminado** (ajuste de la app).
+  - **También termina** cuando **todos los sensores dejaron de emitir** o (en la ida) **todos los trabajadores
+    quedaron Dejados**.
