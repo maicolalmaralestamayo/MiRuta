@@ -1331,3 +1331,14 @@ Los teléfonos ya no envían ubicaciones, solo cambios de estado; el estado del 
 | **En ejecución → Terminado** | Lo declara el Administrador o el Jefe del itinerario, **o** según los sensores el vehículo **pasó la última parada** (ida) o está **Detenido en el radio de la primera parada** (regreso) |
 
 - Al **terminar** el viaje, la app de todos **deja de calcular** y **recuerda quitar el GPS**.
+
+### Lo que calcula el servidor (07/11/2026)
+
+- **Ida:**
+  - **personas en el vehículo:** los que alcanzaron **Viajando**;
+  - **en cada parada:** cuántos **se van dejando** (Dejado) y cuántos **siguen Viajando**.
+- **Regreso:**
+  - **personas en cada parada** (En la parada);
+  - **personas en el vehículo:** los que alcanzaron **Recogido**.
+- **Fecha y hora en que el vehículo pasó por cada parada**, en la ida y en el regreso.
+- La interfaz muestra la **cantidad de sensores** (teléfonos que informan el estado del vehículo).
