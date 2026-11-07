@@ -1271,6 +1271,9 @@ d2 > 100 m → De camino a la parada; se aleja y d2 > 100 m → No voy a viajar;
   | Estado trabajador | **Frecuencia cálculo** | `10seg` | Cálculo en el teléfono antes de Recogido |
   | Estado trabajador | **Cálculos consecutivos** | `6` | Velocidad humana seguida en una parada para Dejado (ida) |
   | Estado trabajador | **Espera final** | `10min` | Tras Dormido o Botado, dejar de calcular y recordar desactivar el GPS |
+  | Estado viaje | **Plazo eliminación** | `5hor` | Eliminar un viaje que nunca salió (desde su último estado) |
+  | Estado viaje | **Duración máxima** | `5hor` | Terminar un viaje que sigue En ejecución |
+  | Estado viaje | **Espera cierre** | `2hor` | Terminar tras el último Dejado (ida) o Recogido (regreso) sin llegar a la parada final |
   | Sincronización | **Frecuencia reposo** | `1hor` | Consulta al servidor sin viajes ese día |
   | Sincronización | **Frecuencia día viaje** | `15min` | Consulta al servidor cuando hay un viaje ese día |
   | Sincronización | **Frecuencia chat** | `5seg` | Consulta del chat mientras está abierto |
