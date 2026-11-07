@@ -1227,3 +1227,14 @@ d2 > 100 m → De camino a la parada; se aleja y d2 > 100 m → No voy a viajar;
   (10 km/h o menos), «No voy a viajar» pasa a ser **definitivo**. Entre 100 m y 1000 m todavía **puede cambiar**
   (volver a De camino a la parada / En la parada, o pasar a Recogido si se aleja a más de 10 km/h). Los 1000 m son
   un ajuste de la app.
+
+### Dónde se calcula el estado del trabajador (07/11/2026)
+
+- **Todos los cálculos del estado del trabajador se hacen en la app del teléfono** (tiene la ubicación de su parada
+  y la suya por GPS), **no en el servidor**.
+- La app **envía al servidor solo el cambio de estado**. El servidor responde con un **acuse**. Si la app recibe el
+  acuse, no lo vuelve a enviar; si no lo recibe, **lo reenvía hasta recibirlo**.
+- **Ajustes de la app para los estados del trabajador** (propuestos por el usuario): **radio de parada** `100m`;
+  **velocidad humana** `10km/h`; **frecuencia de cálculo antes de Recogido** `10seg`. (Se completará la lista.)
+- **Distancias con unidades** (07/11/2026): como los tiempos, las distancias se guardan con su unidad: **`m`** para
+  metros y **`km`** para kilómetros (p. ej. `100m`, `1km`), y el sistema las distingue.
