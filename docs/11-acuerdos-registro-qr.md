@@ -1380,5 +1380,7 @@ Los teléfonos ya no envían ubicaciones, solo cambios de estado; el estado del 
   - **Nunca salió:** si sigue **Planificado**, el viaje **se elimina del servidor** pasadas **5 horas** (ajuste de la
     app).
   - **En ejecución sin terminar:** a las **5 horas** pasa a **Terminado** (ajuste de la app).
-  - **También termina** cuando **todos los sensores dejaron de emitir** o (en la ida) **todos los trabajadores
-    quedaron Dejados**.
+  - Las horas se miden **a partir del último estado** del viaje (07/11/2026).
+  - **También termina** (07/11/2026; sustituye a «todos los sensores dejaron de emitir»): si alcanzó **En
+    ejecución** y han pasado **3 horas** (ajuste de la app) desde que **el último trabajador con sensor se bajó**,
+    o (en la ida) cuando **todos los trabajadores quedaron Dejados**.
