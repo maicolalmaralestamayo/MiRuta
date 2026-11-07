@@ -1274,6 +1274,7 @@ d2 > 100 m → De camino a la parada; se aleja y d2 > 100 m → No voy a viajar;
   | Estado viaje | **Plazo eliminación** | `5hor` | Eliminar un viaje que nunca salió (desde su último estado) |
   | Estado viaje | **Duración máxima** | `5hor` | Terminar un viaje que sigue En ejecución |
   | Estado viaje | **Espera cierre** | `2hor` | Terminar tras el último Dejado (ida) o Recogido (regreso) sin llegar a la parada final |
+  | Notificaciones | **Detención larga** | `5min` | Notificar a quienes están En la parada si el vehículo lleva detenido más de ese tiempo |
   | Sincronización | **Frecuencia reposo** | `1hor` | Consulta al servidor sin viajes ese día |
   | Sincronización | **Frecuencia día viaje** | `15min` | Consulta al servidor cuando hay un viaje ese día |
   | Sincronización | **Frecuencia chat** | `5seg` | Consulta del chat mientras está abierto |
@@ -1434,7 +1435,7 @@ Todas por **notificaciones del teléfono** (no hay pantalla de avisos).
 |---|---|
 | **Trabajadores del viaje** | **Creación** del viaje y sus **cambios de estado**, **excepto** la eliminación y la terminación |
 | | **Cambios en los valores** del viaje mientras está **Planificado** (p. ej. la hora de salida) |
-| | **Estado del vehículo** durante el viaje |
+| | **Estado del vehículo** durante el viaje: a los trabajadores **En la parada**, (1) cuando hay una **detención de más de `5min`** (ajuste «Detención larga») y (2) cuando el vehículo **llega a cada parada** (Detenido recogiendo) |
 | | **Sus propios estados**, después de activar el GPS |
 | **Trabajadores** | **Aceptación o denegación** de sus solicitudes |
 | | **Mensajes nuevos** (respuestas del **desarrollador**) en su conversación |
