@@ -1175,3 +1175,13 @@ Se definen uno a uno, con el usuario.
   parada** si su teléfono está a menos de 100 m de ella. Para los de la última parada coincide con lo anterior; para
   los demás se mide desde **10 minutos antes de la hora estimada de paso** por su parada o desde que el viaje está
   **En ejecución**. (Cómo se estima la hora de paso queda por definir.)
+
+### Trabajador «En el vehículo»
+
+Un trabajador está **En el vehículo** si ocurre cualquiera de:
+
+- lo declara el **Administrador** o el **Jefe del itinerario**;
+- lo declara **el propio trabajador**;
+- lo declaran **al menos 3 trabajadores que ya iban en el vehículo**;
+- **alcanzó el estado «En la parada»** (primera parada en la ida, su parada en el regreso) y **luego su ubicación se
+  alejó más de 100 m** de ella.
