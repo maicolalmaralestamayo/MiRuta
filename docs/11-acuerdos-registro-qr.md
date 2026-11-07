@@ -1470,7 +1470,8 @@ Todas por **notificaciones del teléfono** (no hay pantalla de avisos).
   - lleva el **indicador de conexión** (como el resto de pantallas);
   - el botón para indicar el **servidor** se pone **en rojo** cuando **no hay servidor indicado**, y con su **color
     normal** cuando sí lo hay;
-  - **cada vez que se intente operar la app sin servidor** indicado, aparece un **aviso**.
+  - **cada vez que se intente operar la app sin servidor** indicado, aparece un **aviso en un diálogo modal** (del
+    mismo estilo que los demás diálogos de la app), no un texto fijo en la pantalla.
 
 ## 11.51 Ubicación de la parada compartida desde otras apps (07/11/2026)
 
