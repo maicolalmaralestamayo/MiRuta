@@ -1485,3 +1485,13 @@ Todas por **notificaciones del teléfono** (no hay pantalla de avisos).
   longitud ya puestas) o **«Cambiar la ubicación de una parada existente»** (se busca la parada y se le ponen esas
   coordenadas). Solo para el **Administrador** y el **Jefe de itinerario**; a un trabajador se le indica que no
   tiene permiso.
+- **Botones del inicio de sesión** (07/11/2026), en este orden:
+  1. **«Entrar»** (relleno, color principal);
+  2. **«Olvidé usuario/contraseña»** (relleno, **color de énfasis**), debajo de Entrar;
+  3. **«Registrarme»** (**sin relleno**), debajo del anterior.
+
+## 11.52 Botones en toda la app (07/11/2026, regla general)
+
+- **Todos los botones llevan ícono y texto.**
+- Si el usuario no define el texto, el texto es de **muy pocas palabras** e **indica la acción** (p. ej.
+  «Acciones») y, cuando hace falta, **también el objeto** sobre el que actúa (p. ej. «Crear parada»).
