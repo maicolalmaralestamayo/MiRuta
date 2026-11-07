@@ -1206,4 +1206,4 @@ Cada teléfono envía su ubicación en instantes sucesivos t1, t2… Con la dist
   - solo se considera que **se acerca o se aleja** si **|d1 − d2| > 20 m** (ajuste de la app); si la diferencia es
     menor, **no se movió** y conserva el estado que tenía.
 
-Falta otro estado del regreso (lo definirá el usuario a continuación).
+El estado que falta en el regreso es **Recogido** (cómo se determina, en definición).
