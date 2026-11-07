@@ -1183,5 +1183,6 @@ Un trabajador está **En el vehículo** si ocurre cualquiera de:
 - lo declara el **Administrador** o el **Jefe del itinerario**;
 - lo declara **el propio trabajador**;
 - lo declaran **al menos 3 trabajadores que ya iban en el vehículo**;
-- **alcanzó el estado «En la parada»** (primera parada en la ida, su parada en el regreso) y **luego su ubicación se
-  alejó más de 100 m** de ella.
+- regla automática (07/11/2026, afinada): el trabajador **alcanzó el estado «En la parada»** (primera parada en la
+  ida, su parada en el regreso); **después, el vehículo pasó por su parada**; y **luego se alejó más de 100 m** de
+  ella. (Así no cuenta quien se va a pie antes de que pase el vehículo.)
