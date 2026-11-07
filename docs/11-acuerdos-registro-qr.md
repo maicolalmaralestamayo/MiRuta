@@ -1271,6 +1271,9 @@ d2 > 100 m → De camino a la parada; se aleja y d2 > 100 m → No voy a viajar;
   | Estado trabajador | **Frecuencia cálculo** | `10seg` | Cálculo en el teléfono antes de Recogido |
   | Estado trabajador | **Cálculos consecutivos** | `6` | Velocidad humana seguida en una parada para Dejado (ida) |
   | Estado trabajador | **Espera final** | `10min` | Tras Dormido o Botado, dejar de calcular y recordar desactivar el GPS |
+  | Sincronización | **Frecuencia reposo** | `1hor` | Consulta al servidor sin viajes ese día |
+  | Sincronización | **Frecuencia día viaje** | `15min` | Consulta al servidor cuando hay un viaje ese día |
+  | Sincronización | **Frecuencia chat** | `5seg` | Consulta del chat mientras está abierto |
 
 ### Estado del trabajador en la ida (07/11/2026, en definición)
 
@@ -1361,3 +1364,15 @@ Los teléfonos ya no envían ubicaciones, solo cambios de estado; el estado del 
     estado; los dos pueden pasar luego a No voy a viajar o, pasado un tiempo, la app deja de calcular.
   - **Espera final** (ajuste de la app, por defecto `10min`): tiempo tras quedar Dormido o Botado, si no se aleja,
     para que la app deje de calcular y recuerde desactivar el GPS.
+
+### Frecuencias de consulta al servidor (07/11/2026; cierra lo que estaba «en estudio» en §11.41)
+
+| Momento | Consulta al servidor | Ajuste |
+|---|---|---|
+| Sin viajes ese día | Cada `1hor` | Frecuencia reposo |
+| Hay un viaje ese día | Cada `15min` | Frecuencia día viaje |
+| Desde Anticipación viaje (10 min antes) hasta su estado definitivo | Cada `10seg`, en la **misma petición** en que envía sus cambios de estado | Frecuencia cálculo |
+| Con el chat abierto | Cada `5seg` | Frecuencia chat |
+
+- Si no hay novedades, el servidor responde **casi vacío**.
+- El recordatorio de activar la ubicación lo **programa el propio teléfono** al enterarse del viaje.
