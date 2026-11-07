@@ -1102,3 +1102,16 @@ Cada viaje (de ida o de regreso) pasa por estos estados. Los cambios los provoca
 - Se pueden **combinar**: **`12hor30min30seg`** = 12 horas, 30 minutos y 30 segundos; **`1ano6mes`**, **`2sem3dia`**.
 - Así, cada tiempo puede cambiar de unidad sin tocar el código (sustituye a los ajustes con la unidad en el nombre,
   como «…_minutes», «…_seconds», «…_days»).
+
+## 11.41 Batería, ubicación y sincronización (07/11/2026, pendiente de implementar; en definición)
+
+- **Objetivos:** gastar poca batería y que la app sea confiable (depende de la sincronización y de que los usuarios
+  tengan la ubicación activada). No hay websockets: la app consulta al servidor.
+- **Ubicación obligatoria:** para ver el **estado del viaje**, el **chat del viaje** y la **línea del recorrido**, el
+  trabajador **debe tener la ubicación activada**; si no, la app se lo pide antes de mostrarlos.
+- **Recordatorio para activarla:** cuando falten **10 min** para empezar un viaje (tiempo configurable por el
+  Administrador), la app recuerda activar la ubicación.
+- **Recordatorio para desactivarla:** cuando el viaje **termina**, la app recuerda desactivar la ubicación.
+- **Frecuencias** (propuesta del usuario, en estudio): durante un viaje en ejecución, consultar al servidor y enviar
+  la ubicación cada **5 s**; sin viajes confirmados, actualizar cada **1 hora**. Ambos configurables por el
+  Administrador para todas las apps.
