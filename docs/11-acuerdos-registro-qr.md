@@ -1221,3 +1221,5 @@ d2 > 100 m → De camino a la parada; se aleja y d2 > 100 m → No voy a viajar;
     **Recogido**; si se aleja a menos y ya está a más de 100 m → **No voy a viajar**.
   - La velocidad **solo se calcula cuando ya está a más de 100 m** de la parada y alejándose; mientras está dentro
     de los 100 m sigue **En la parada** (así, un arranque suave del vehículo no cambia el estado).
+- **Recogido es el estado final e irreversible** (07/11/2026): una vez Recogido, ya no cambia ni se calcula nada
+  más para ese trabajador en ese viaje.
