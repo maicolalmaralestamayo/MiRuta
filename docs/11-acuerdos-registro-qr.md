@@ -1403,3 +1403,8 @@ Los teléfonos ya no envían ubicaciones, solo cambios de estado; el estado del 
 
 - **Se elimina el chat del viaje** (§11.35) y las **conversaciones dirigidas a un rol** en esta versión.
 - **Solo quedan las conversaciones con el desarrollador** (entrada desde Más → «Conversaciones»).
+- **Motivos de conversación** (07/11/2026): se **mantienen** para **clasificar los mensajes al desarrollador** (p. ej.
+  «Error», «Sugerencia», «Duda»); se les **quita el campo Rol** (sustituye a §11.31 en ese punto).
+- **Línea del recorrido** (07/11/2026): maqueta mostrada (personas en el vehículo con niños aparte, cantidad de
+  sensores, «Mi estado», cantidades por parada, hora de paso y estado del vehículo). **Sin horas estimadas** de
+  llegada mientras no se defina cómo calcularlas.
