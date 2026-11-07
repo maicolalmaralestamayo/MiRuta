@@ -1294,3 +1294,18 @@ d2 > 100 m → De camino a la parada; se aleja y d2 > 100 m → No voy a viajar;
 - **Recordatorio de quitar el GPS** al llegar a un estado definitivo.
 - Todo se **calcula en la app** y se envía el **cambio de estado** con acuse, como en el regreso, con los mismos
   ajustes. Por eso los ajustes «Estado trabajador» sirven para **ida y regreso**.
+
+### Estado y ubicación del vehículo (07/11/2026, en definición)
+
+- **Estados del vehículo:** **Detenido** y **En movimiento**.
+- **Teléfonos sensores:** cuando un trabajador alcanza **Recogido** (regreso) o **Viajando** (ida), su teléfono pasa a
+  ser **sensor del estado del vehículo**.
+- Cada cierto tiempo recalcula su posición: si cambió (más allá de un umbral de algunos metros) → **En movimiento**;
+  si es la misma (dentro del umbral) → **Detenido**. De ahí salen los ajustes (frecuencia y umbral).
+- **Dónde está detenido:** en cada instante se conoce la **próxima parada**, con la que se comparan las distancias
+  (igual que «acercándose» / «alejándose» de la parada):
+  - **Detenido** a **menos de Radio parada** de la próxima parada → **Recogiendo** en esa parada (en la ida,
+    «Dejando»).
+  - **Detenido** fuera de ese radio → detenido **en el trayecto** (semáforo, bache, rotura…).
+  - **En movimiento** con la distancia a la **próxima parada disminuyendo** (o la distancia a la **parada anterior
+    aumentando**) → **entre la parada anterior y la próxima**.
