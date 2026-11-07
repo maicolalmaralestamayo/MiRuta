@@ -1391,9 +1391,10 @@ Los teléfonos ya no envían ubicaciones, solo cambios de estado; el estado del 
       a la primera parada**.
     - Las 2 horas son un ajuste de la app.
 
-## 11.45 El tiempo real queda fuera de la próxima versión (07/11/2026)
+## 11.45 El tiempo real entra en la próxima versión, con la línea del recorrido (07/11/2026)
 
-- Todo lo definido en §11.41–§11.44 sobre **cálculos con GPS** (estados automáticos del trabajador, teléfonos
-  sensores, estado y ubicación del vehículo, avance de la próxima parada, reglas automáticas del estado del viaje,
-  línea del recorrido y frecuencias del tiempo real) **queda documentado pero no se implementa** en la próxima
-  versión.
+- **Corrección:** el tiempo real **sí entra** en la próxima versión, **sin mapa**, mostrado con la **línea del
+  recorrido** (§11.39). Se implementa todo lo definido en §11.41–§11.44: estados del trabajador calculados en el
+  teléfono, teléfonos sensores, estado y ubicación del vehículo, avance de la próxima parada, estado del viaje,
+  lo que calcula el servidor, ajustes y frecuencias.
+- Queda **sin efecto** el «no implementar todavía» de §11.32 y §11.39.
