@@ -1049,3 +1049,17 @@ Cada viaje (de ida o de regreso) pasa por estos estados. Los cambios los provoca
   nuevos (los de estado del viaje de §11.36 quedan en suspenso).
 - El número en la pestaña Gestión (solicitudes pendientes o resueltas, §11.26) se mantiene: no es un aviso, es un
   contador de la propia pantalla.
+
+## 11.38 Un solo nivel de ajustes y pestaña Más (07/11/2026, pendiente de implementar)
+
+- **Un único nivel de ajustes:** todos los ajustes valen **para toda la app, todos los usuarios y todos los
+  teléfonos** (tabla de configuración), al menos en esta versión. Desaparecen los ajustes **de Entidad**, **por
+  itinerario**, **por parada** (§11.17) y **de cada usuario**. Solo el **Administrador** los cambia («Ajustes de la
+  app»).
+- **Pestaña Más** (propuesta mostrada; pendiente de confirmar el resto):
+  - Tarjeta de la persona (abre el perfil); Mi QR; Conversaciones; Estadísticas; Compartir la app; Cerrar sesión y
+    versión.
+  - Administrador: Nomencladores, Ajustes de la app, «Olvidé algo», Actualizaciones de la app, Mantenimiento del
+    servidor.
+  - Desaparecen de Más: Avisos, «Alta en itinerario con QR», Gestión, Vehículos y choferes, Roles, Entidades,
+    Planificación, Ajustes de la Entidad, Ajustes por itinerario y Mis ajustes.
