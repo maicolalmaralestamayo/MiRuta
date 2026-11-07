@@ -1411,3 +1411,12 @@ Los teléfonos ya no envían ubicaciones, solo cambios de estado; el estado del 
 - **Sin horario estimado** en esta versión (07/11/2026).
 - **Sensor** (07/11/2026): un trabajador **Recogido** (regreso) o **Viajando** (ida) **cuyo teléfono está enviando**
   al servidor. La línea del recorrido muestra **en todo momento** cuántos sensores hay, de forma destacada.
+- **Sensor activo** (07/11/2026): deja de contar si **no envía nada en 3 cálculos seguidos** (con Frecuencia cálculo
+  `10seg`, 30 s); si vuelve a enviar, cuenta otra vez.
+- **Diseño de la línea** (07/11/2026):
+  - La **línea sale siempre en la misma posición**; lo que cambia es el **orden de las paradas** de arriba abajo
+    (ida o regreso).
+  - **Regreso:** una parada **no visitada** muestra solo **De camino** y **En la parada**; una parada **ya visitada**
+    muestra solo **Botados**, **Dormidos** y la **hora en que pasó**.
+  - **Ida:** las paradas **ya pasadas** muestran la **hora** y la cantidad de **Dejados**.
+  - Los **Recogidos** (regreso) y los **Viajando** (ida) se muestran en una **tarjeta abajo**.
