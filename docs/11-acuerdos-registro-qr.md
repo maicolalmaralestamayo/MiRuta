@@ -1495,3 +1495,7 @@ Todas por **notificaciones del teléfono** (no hay pantalla de avisos).
 - **Todos los botones llevan ícono y texto.**
 - Si el usuario no define el texto, el texto es de **muy pocas palabras** e **indica la acción** (p. ej.
   «Acciones») y, cuando hace falta, **también el objeto** sobre el que actúa (p. ej. «Crear parada»).
+- **Maquetas de toda la app aprobadas** (07/11/2026): las 21 pantallas en reposo (inicio de sesión, Inicio, Gestión y
+  sus formularios, Incluir por QR, Viajes, formulario y línea del viaje, Más, Perfil, Hijos, Mi QR, Conversación,
+  Nomencladores, Ajustes de la app, Olvidé algo, Actualizaciones y Mantenimiento), con los cambios del inicio de
+  sesión. Al implementar, también los botones «Cancelar» de los diálogos llevan ícono.
