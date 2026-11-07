@@ -1066,3 +1066,5 @@ Cada viaje (de ida o de regreso) pasa por estos estados. Los cambios los provoca
 - **Estadísticas** (07/11/2026): **se quitan en esta versión** (pantalla, API y tareas que las calculan); el usuario
   indicará más adelante cuáles necesita.
 - **Nomencladores** (07/11/2026): **solo en Más** (sección Administrador); sale del menú Acciones de Gestión.
+- **Baja automática por inactividad** (07/11/2026): **se quita en esta versión** (tarea, ajustes y avisos
+  relacionados); se podrá retomar más adelante.
