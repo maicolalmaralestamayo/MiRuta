@@ -1115,3 +1115,18 @@ Cada viaje (de ida o de regreso) pasa por estos estados. Los cambios los provoca
 - **Frecuencias** (propuesta del usuario, en estudio): durante un viaje en ejecución, consultar al servidor y enviar
   la ubicación cada **5 s**; sin viajes confirmados, actualizar cada **1 hora**. Ambos configurables por el
   Administrador para todas las apps.
+
+## 11.42 Modelo simplificado: viaje, vehículo y trabajador (07/11/2026, en definición; sustituye a los estados de §11.34)
+
+Se necesita saber cuatro cosas, cada una con su propio estado:
+
+| Qué | Valores |
+|---|---|
+| **Estado del viaje** | **Planificado** (al crearlo el Administrador o el Jefe de itinerario) → **En ejecución** → **Terminado**; de Planificado también puede pasar a **Cancelado** |
+| **Estado del vehículo** | **Detenido**, **En movimiento** |
+| **Ubicación del vehículo** | **En una parada** del itinerario, **Entre 2 paradas** del itinerario |
+| **Estado del trabajador** | En la ida: **está en la primera parada**. En el regreso: **está en su parada**; **está en el vehículo** |
+
+- Desaparecen los estados No confirmado, Confirmado, Atrasado, En marcha y Detenido del viaje (§11.34). Lo que
+  antes era «Atrasado» o «Detenido» pasa a deducirse del estado y la ubicación del vehículo.
+- Los **algoritmos** para determinar cada cosa se definirán paso a paso con el usuario.
