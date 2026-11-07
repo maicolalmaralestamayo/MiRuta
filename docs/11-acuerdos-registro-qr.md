@@ -1284,6 +1284,8 @@ d2 > 100 m → De camino a la parada; se aleja y d2 > 100 m → No voy a viajar;
   Solo es Dejado si la velocidad sigue siendo humana en **N cálculos consecutivos** (ajuste de la app, «Cálculos
   consecutivos», por defecto **6**: con Frecuencia cálculo `10seg`, 1 minuto).
 - **Dejado** y **No voy a viajar** (definitivo) son **estados definitivos**.
+- **Viajando es semidefinitivo** (07/11/2026): desde Viajando **solo se puede pasar a Dejado**. Una vez Viajando,
+  **solo se calcula la velocidad** (y si está en el radio de una parada), no la distancia a la primera parada.
 - **Recordatorio de quitar el GPS** al llegar a un estado definitivo.
 - Todo se **calcula en la app** y se envía el **cambio de estado** con acuse, como en el regreso, con los mismos
   ajustes. Por eso los ajustes «Estado trabajador» sirven para **ida y regreso**.
