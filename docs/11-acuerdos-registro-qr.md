@@ -1160,3 +1160,14 @@ Se definen uno a uno, con el usuario.
     parada;
   - **ida:** el **vehículo está detenido** a **menos de 100 m** de la **última parada**;
   - **regreso:** el **vehículo está detenido** a **menos de 100 m** de la **primera parada**.
+
+### Ubicación del trabajador (se determina antes que el estado del viaje)
+
+- Valores: **En la primera parada** (ida), **En su parada** (regreso), **Fuera de la parada**.
+- **Ida — En la primera parada:** su teléfono estaba a **menos de 100 m** de la **primera parada** **10 minutos
+  antes** de la hora de comienzo.
+- **Regreso — En su parada:** su teléfono estaba a **menos de 100 m** de la **última parada** 10 minutos antes.
+- **Fuera de la parada:** a **más de 100 m** de la primera parada (ida) o de la última parada (regreso) en esos
+  10 minutos antes.
+- Los **10 minutos** son **un único ajuste** de la app (el mismo para ida y regreso), configurable por el
+  Administrador.
