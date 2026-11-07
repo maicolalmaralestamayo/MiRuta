@@ -968,11 +968,14 @@ Cada viaje (de ida o de regreso) pasa por estos estados. Los cambios los provoca
 | Estado | Manual (Administrador o Jefe del itinerario) | Por usuarios | Automático (ubicaciones) |
 |---|---|---|---|
 | **Confirmado** | Lo confirma | — | — |
-| **Atrasado** | Lo marca **indicando la causa** (nomenclador «Causas de atraso») | **Al menos 3** usuarios lo marcan con **la misma causa** | **Al menos 3** teléfonos envían su ubicación, están a **menos de 150 m de la primera parada** y **ya pasó la hora de salida** |
-| **En marcha** | Lo marca | **Al menos 3** usuarios lo marcan | **Al menos 3** teléfonos están a **150 m o más de la primera parada** |
-| **Terminado** | Lo marca | **Al menos 3** usuarios lo marcan | **Al menos 3** teléfonos están a **menos de 150 m de la primera parada** |
+| **Atrasado** | Lo marca **indicando la causa** (nomenclador «Causas de atraso») | **Al menos 3** usuarios lo marcan con **la misma causa** | **Al menos 3** teléfonos envían su ubicación, están a **menos de 150 m de la parada de salida** y **ya pasó la hora de salida** |
+| **En marcha** | Lo marca | **Al menos 3** usuarios lo marcan | **Al menos 3** teléfonos están a **150 m o más de la parada de salida** |
+| **Terminado** | Lo marca | **Al menos 3** usuarios lo marcan | **Al menos 3** teléfonos están a **menos de 150 m de la parada de llegada** |
 | **Detenido** | Lo marca **indicando la causa** (nomenclador «Causas de detención») | **Al menos 3** usuarios lo marcan con **la misma causa** | Se reciben las ubicaciones de **al menos 3** teléfonos en un instante y, en el **siguiente envío**, siguen a **menos de 150 m** (no se han movido) |
 
+- **Parada de salida y de llegada** (07/11/2026): en la **ida** la salida es la **primera** parada y la llegada la
+  **última**; en el **regreso**, al revés (sale de la última y llega a la primera). Las reglas automáticas usan la
+  parada de salida o de llegada **del viaje en cuestión**.
 - **Terminado, regla automática** (06/11/2026): se mide contra la **parada final del recorrido**: en la **ida**, la
   **última** parada; en el **regreso**, la **primera**. Además, **solo puede pasar a Terminado un viaje que ya estuvo
   En marcha**.
