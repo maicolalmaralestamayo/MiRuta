@@ -1097,6 +1097,8 @@ Cada viaje (de ida o de regreso) pasa por estos estados. Los cambios los provoca
   | `mes` | meses |
   | `ano` | años |
 
+- **Meses y años fijos** (07/11/2026): `1mes` = **30 días** y `1ano` = **365 días** siempre (no según el
+  calendario); `1sem` = 7 días.
 - Se pueden **combinar**: **`12hor30min30seg`** = 12 horas, 30 minutos y 30 segundos; **`1ano6mes`**, **`2sem3dia`**.
 - Así, cada tiempo puede cambiar de unidad sin tocar el código (sustituye a los ajustes con la unidad en el nombre,
   como «…_minutes», «…_seconds», «…_days»).
