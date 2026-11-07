@@ -1219,3 +1219,5 @@ d2 > 100 m → De camino a la parada; se aleja y d2 > 100 m → No voy a viajar;
   trabajador **se aleja de la parada a una velocidad mayor que la de caminar**. Velocidad = (d2 − d1) / (t2 − t1).
   - **Límite: 10 km/h** (ajuste de la app). Si antes estuvo **En la parada** y se aleja a **más de 10 km/h** →
     **Recogido**; si se aleja a menos y ya está a más de 100 m → **No voy a viajar**.
+  - La velocidad **solo se calcula cuando ya está a más de 100 m** de la parada y alejándose; mientras está dentro
+    de los 100 m sigue **En la parada** (así, un arranque suave del vehículo no cambia el estado).
