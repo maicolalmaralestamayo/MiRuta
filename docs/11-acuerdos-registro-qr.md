@@ -1258,3 +1258,14 @@ d2 > 100 m → De camino a la parada; se aleja y d2 > 100 m → No voy a viajar;
   adverbios** (sin artículos ni preposiciones), p. ej. «Radio parada», «Velocidad humana».
 - Los ajustes se **separan en dos grupos**: los **generales**, que sirven para varias cosas, y los **específicos**
   de cada cosa (p. ej. «Estado trabajador»).
+- **Ajustes definidos hasta ahora** (07/11/2026):
+
+  | Grupo | Nombre | Valor | Uso |
+  |---|---|---|---|
+  | General | **Radio parada** | `100m` | Estado del trabajador, estado del viaje, vehículo en la parada |
+  | General | **Anticipación viaje** | `10min` | Recordatorio de activar la ubicación; inicio del cálculo del estado del trabajador |
+  | General | **Mínimo confirmaciones** | `3` | Estado del viaje (trabajadores o teléfonos que deben coincidir) |
+  | Estado trabajador | **Velocidad humana** | `10km/hor` | Recogido / No voy a viajar |
+  | Estado trabajador | **Tolerancia GPS** | `20m` | Diferencia mínima entre d1 y d2 |
+  | Estado trabajador | **Distancia abandono** | `1km` | «No voy a viajar» definitivo |
+  | Estado trabajador | **Frecuencia cálculo** | `10seg` | Cálculo en el teléfono antes de Recogido |
