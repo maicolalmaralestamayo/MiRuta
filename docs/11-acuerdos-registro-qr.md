@@ -1314,3 +1314,8 @@ d2 > 100 m → De camino a la parada; se aleja y d2 > 100 m → No voy a viajar;
 - **Varios sensores** (07/11/2026): cada teléfono sensor envía al servidor su **cambio de estado del vehículo** (con
   acuse). El servidor toma el estado que indica **la mayoría** de los sensores y solo lo cambia si coinciden al
   menos **Mínimo confirmaciones** (`3`); si hay menos de 3 sensores, basta la mayoría de los que haya.
+- **Avance de la próxima parada** (07/11/2026): la próxima parada queda **pasada** cuando el vehículo **entró en su
+  radio** (Radio parada) y luego **salió del radio alejándose**; entonces la próxima es la siguiente del recorrido.
+  Cada sensor lo calcula e informa, y el servidor lo acepta con la misma mayoría. Si el vehículo **se salta** una
+  parada sin entrar en su radio, se considera pasada cuando **empieza a acercarse a la siguiente**. Esto es lo que
+  determina que «el vehículo ya pasó por su parada» (No voy a viajar definitivo en el regreso).
