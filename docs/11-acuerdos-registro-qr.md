@@ -1398,3 +1398,8 @@ Los teléfonos ya no envían ubicaciones, solo cambios de estado; el estado del 
   teléfono, teléfonos sensores, estado y ubicación del vehículo, avance de la próxima parada, estado del viaje,
   lo que calcula el servidor, ajustes y frecuencias.
 - Queda **sin efecto** el «no implementar todavía» de §11.32 y §11.39.
+
+## 11.46 Sin chat en esta versión (07/11/2026)
+
+- **Se elimina el chat del viaje** (§11.35) y las **conversaciones dirigidas a un rol** en esta versión.
+- **Solo quedan las conversaciones con el desarrollador** (entrada desde Más → «Conversaciones»).
