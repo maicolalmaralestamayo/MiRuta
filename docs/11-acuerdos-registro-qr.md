@@ -1504,3 +1504,15 @@ Todas por **notificaciones del teléfono** (no hay pantalla de avisos).
 
 - **Planificados**, **En ejecución**, **Terminados** y **Cancelados**; Terminados y Cancelados con mostrar/ocultar.
 - Desaparece «Sin confirmar» (ya no existe el estado Confirmado, §11.42).
+
+## 11.54 Actualización obligatoria (07/11/2026)
+
+- Al publicar una versión el Administrador la marca **Obligatoria** u Opcional (ya existe). Es obligatoria para una
+  app si **alguna versión posterior a la suya** lo es.
+- **La app lo detecta** en cualquier consulta al servidor (periódica, botón Actualizar o acción). Si es obligatoria:
+  **cierra la sesión** en la app y **en el servidor** (anula sus tokens) y vuelve a la **pantalla de inicio de
+  sesión**.
+- **A partir de ahí la comprobación se hace solo desde la pantalla de inicio de sesión**, sin entrar: la pantalla
+  muestra que hay una **actualización obligatoria** con el botón para **descargarla e instalarla**, y **no deja
+  entrar** hasta tener la versión nueva. La app recuerda la obligación aunque no haya conexión.
+- El **servidor** también **rechaza el inicio de sesión** de una versión con actualización obligatoria pendiente.
