@@ -1425,3 +1425,20 @@ Los teléfonos ya no envían ubicaciones, solo cambios de estado; el estado del 
     también aparece en la **línea**, en la primera parada.
     Texto de la tarjeta: **«N esperando en [nombre de la primera parada]»** (p. ej. «38 esperando en Parqueo del
     trabajo»).
+
+## 11.47 Notificaciones del teléfono (07/11/2026; completa §11.37)
+
+Todas por **notificaciones del teléfono** (no hay pantalla de avisos).
+
+| Para | Se notifica |
+|---|---|
+| **Trabajadores del viaje** | **Creación** del viaje y sus **cambios de estado**, **excepto** la eliminación y la terminación |
+| | **Cambios en los valores** del viaje mientras está **Planificado** (p. ej. la hora de salida) |
+| | **Estado del vehículo** durante el viaje |
+| | **Sus propios estados**, después de activar el GPS |
+| **Trabajadores** | **Aceptación o denegación** de sus solicitudes |
+| | **Mensajes nuevos** en su conversación |
+| **Administrador y Jefe de itinerario** | **Solicitudes hechas** (que les toca resolver) |
+
+- Además siguen los **recordatorios** ya acordados: activar la ubicación antes del viaje y quitar el GPS al llegar a
+  un estado definitivo.
