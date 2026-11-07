@@ -1063,3 +1063,5 @@ Cada viaje (de ida o de regreso) pasa por estos estados. Los cambios los provoca
     servidor.
   - Desaparecen de Más: Avisos, «Alta en itinerario con QR», Gestión, Vehículos y choferes, Roles, Entidades,
     Planificación, Ajustes de la Entidad, Ajustes por itinerario y Mis ajustes.
+- **Estadísticas** (07/11/2026): **se quitan en esta versión** (pantalla, API y tareas que las calculan); el usuario
+  indicará más adelante cuáles necesita.
