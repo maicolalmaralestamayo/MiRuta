@@ -1251,3 +1251,10 @@ d2 > 100 m → De camino a la parada; se aleja y d2 > 100 m → No voy a viajar;
 - Las **distancias se pueden combinar** como los tiempos (`1km200m`).
 - **Distancias con unidades** (07/11/2026): como los tiempos, las distancias se guardan con su unidad: **`m`** para
   metros y **`km`** para kilómetros (p. ej. `100m`, `1km`), y el sistema las distingue.
+
+## 11.44 Nombres y grupos de los ajustes (07/11/2026, regla para toda la app)
+
+- Los **nombres de los ajustes** son de **pocas palabras** y usan **solo sustantivos, adjetivos, verbos y
+  adverbios** (sin artículos ni preposiciones), p. ej. «Radio parada», «Velocidad humana».
+- Los ajustes se **separan en dos grupos**: los **generales**, que sirven para varias cosas, y los **específicos**
+  de cada cosa (p. ej. «Estado trabajador»).
