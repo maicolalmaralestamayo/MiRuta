@@ -1269,6 +1269,7 @@ d2 > 100 m → De camino a la parada; se aleja y d2 > 100 m → No voy a viajar;
   | Estado trabajador | **Tolerancia GPS** | `20m` | Diferencia mínima entre d1 y d2 |
   | Estado trabajador | **Distancia abandono** | `1km` | «No voy a viajar» definitivo |
   | Estado trabajador | **Frecuencia cálculo** | `10seg` | Cálculo en el teléfono antes de Recogido |
+  | Estado trabajador | **Cálculos consecutivos** | `6` | Velocidad humana seguida en una parada para Dejado (ida) |
 
 ### Estado del trabajador en la ida (07/11/2026, en definición)
 
@@ -1281,7 +1282,7 @@ d2 > 100 m → De camino a la parada; se aleja y d2 > 100 m → No voy a viajar;
 - **Dejado** (07/11/2026): estando Viajando, la velocidad es **humana** y está **dentro del radio de alguna parada**
   del recorrido (no necesariamente la suya; bajarse fuera de su parada no es relevante).
   Solo es Dejado si la velocidad sigue siendo humana en **N cálculos consecutivos** (ajuste de la app, «Cálculos
-  consecutivos»).
+  consecutivos», por defecto **6**: con Frecuencia cálculo `10seg`, 1 minuto).
 - **Dejado** y **No voy a viajar** (definitivo) son **estados definitivos**.
 - **Recordatorio de quitar el GPS** al llegar a un estado definitivo.
 - Todo se **calcula en la app** y se envía el **cambio de estado** con acuse, como en el regreso, con los mismos
