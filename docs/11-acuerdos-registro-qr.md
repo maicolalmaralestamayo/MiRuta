@@ -1280,6 +1280,8 @@ d2 > 100 m → De camino a la parada; se aleja y d2 > 100 m → No voy a viajar;
   aleja a más de Velocidad humana).
 - **Dejado** (07/11/2026): estando Viajando, la velocidad es **humana** y está **dentro del radio de alguna parada**
   del recorrido (no necesariamente la suya; bajarse fuera de su parada no es relevante).
+  Solo es Dejado si la velocidad sigue siendo humana en **N cálculos consecutivos** (ajuste de la app, «Cálculos
+  consecutivos»).
 - **Dejado** y **No voy a viajar** (definitivo) son **estados definitivos**.
 - **Recordatorio de quitar el GPS** al llegar a un estado definitivo.
 - Todo se **calcula en la app** y se envía el **cambio de estado** con acuse, como en el regreso, con los mismos
