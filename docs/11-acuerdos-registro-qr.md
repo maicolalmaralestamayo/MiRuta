@@ -1437,8 +1437,11 @@ Todas por **notificaciones del teléfono** (no hay pantalla de avisos).
 | | **Estado del vehículo** durante el viaje |
 | | **Sus propios estados**, después de activar el GPS |
 | **Trabajadores** | **Aceptación o denegación** de sus solicitudes |
-| | **Mensajes nuevos** en su conversación |
+| | **Mensajes nuevos** (respuestas del **desarrollador**) en su conversación |
 | **Administrador y Jefe de itinerario** | **Solicitudes hechas** (que les toca resolver) |
 
 - Además siguen los **recordatorios** ya acordados: activar la ubicación antes del viaje y quitar el GPS al llegar a
   un estado definitivo.
+- **Viaje en ejecución no editable** (07/11/2026): cuando un viaje pasa a **En ejecución**, **ya no se pueden
+  cambiar sus valores** (fecha, hora, tipo de vehículo…) en la tabla; solo cambian su estado y los datos que calcula
+  el sistema.
