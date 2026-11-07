@@ -1217,3 +1217,5 @@ d2 > 100 m → De camino a la parada; se aleja y d2 > 100 m → No voy a viajar;
   o se **calculan automáticamente**. (No los declaran el Jefe, el Administrador ni otros trabajadores.)
 - **Recogido** (07/11/2026, en definición): lo declara el propio trabajador o se calcula automáticamente cuando el
   trabajador **se aleja de la parada a una velocidad mayor que la de caminar**. Velocidad = (d2 − d1) / (t2 − t1).
+  - **Límite: 10 km/h** (ajuste de la app). Si antes estuvo **En la parada** y se aleja a **más de 10 km/h** →
+    **Recogido**; si se aleja a menos y ya está a más de 100 m → **No voy a viajar**.
