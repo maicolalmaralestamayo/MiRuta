@@ -1131,3 +1131,7 @@ Se necesita saber cuatro cosas, cada una con su propio estado:
   antes era «Atrasado» o «Detenido» pasa a deducirse del estado y la ubicación del vehículo.
 - Cuando el vehículo está **Detenido**, la **causa de la detención** es un **nomenclador** («Causas de detención»).
 - Los **algoritmos** para determinar cada cosa se definirán paso a paso con el usuario.
+- **Se quita «Causas de atraso»** (07/11/2026): ya no existe el estado Atrasado; el nomenclador desaparece.
+- **Algoritmo 1 — Ubicación del vehículo** (07/11/2026): se toma de los teléfonos de los **trabajadores que están
+  «en el vehículo»**. Si hay varios, el servidor toma el **punto en que coincide la mayoría** y **descarta** al que
+  se aleja mucho (p. ej. alguien que se bajó sin avisar).
