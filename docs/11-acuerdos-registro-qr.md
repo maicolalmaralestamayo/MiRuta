@@ -1129,4 +1129,5 @@ Se necesita saber cuatro cosas, cada una con su propio estado:
 
 - Desaparecen los estados No confirmado, Confirmado, Atrasado, En marcha y Detenido del viaje (§11.34). Lo que
   antes era «Atrasado» o «Detenido» pasa a deducirse del estado y la ubicación del vehículo.
+- Cuando el vehículo está **Detenido**, la **causa de la detención** es un **nomenclador** («Causas de detención»).
 - Los **algoritmos** para determinar cada cosa se definirán paso a paso con el usuario.
