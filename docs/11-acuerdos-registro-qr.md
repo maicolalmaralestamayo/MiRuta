@@ -1381,6 +1381,9 @@ Los teléfonos ya no envían ubicaciones, solo cambios de estado; el estado del 
     app).
   - **En ejecución sin terminar:** a las **5 horas** pasa a **Terminado** (ajuste de la app).
   - Las horas se miden **a partir del último estado** del viaje (07/11/2026).
-  - **También termina** (07/11/2026; sustituye a «todos los sensores dejaron de emitir»): si alcanzó **En
-    ejecución** y han pasado **3 horas** (ajuste de la app) desde que **el último trabajador con sensor se bajó**,
-    o (en la ida) cuando **todos los trabajadores quedaron Dejados**.
+  - **También termina** (07/11/2026; sustituye a lo anterior sobre sensores y «todos Dejados»):
+    - **ida:** pasaron **2 horas** desde que **el último trabajador alcanzó Dejado** y el vehículo **no llegó a la
+      última parada**;
+    - **regreso:** pasaron **2 horas** desde que **el último trabajador alcanzó Recogido** y el vehículo **no llegó
+      a la primera parada**.
+    - Las 2 horas son un ajuste de la app.
