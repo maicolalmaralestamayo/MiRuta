@@ -1223,3 +1223,7 @@ d2 > 100 m → De camino a la parada; se aleja y d2 > 100 m → No voy a viajar;
     de los 100 m sigue **En la parada** (así, un arranque suave del vehículo no cambia el estado).
 - **Recogido es el estado final e irreversible** (07/11/2026): una vez Recogido, ya no cambia ni se calcula nada
   más para ese trabajador en ese viaje.
+- **No voy a viajar definitivo** (07/11/2026): si se aleja a **más de 1000 m** de su parada a velocidad de persona
+  (10 km/h o menos), «No voy a viajar» pasa a ser **definitivo**. Entre 100 m y 1000 m todavía **puede cambiar**
+  (volver a De camino a la parada / En la parada, o pasar a Recogido si se aleja a más de 10 km/h). Los 1000 m son
+  un ajuste de la app.
