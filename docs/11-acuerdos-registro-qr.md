@@ -1452,3 +1452,8 @@ Todas por **notificaciones del teléfono** (no hay pantalla de avisos).
 - La app tiene **en todo momento** un **botón para actualizar manualmente** los datos, en la barra superior, **al lado
   del indicador de conectividad** (el punto verde). Al pulsarlo consulta al servidor en ese momento, además de las
   consultas periódicas.
+
+## 11.49 Dependencias mínimas (07/11/2026, para la implementación)
+
+- Al pasar a Laravel 12 se **eliminan los paquetes que no se usen** y se **instalan solo los necesarios** (servidor y,
+  por coherencia, también en la app Flutter).
