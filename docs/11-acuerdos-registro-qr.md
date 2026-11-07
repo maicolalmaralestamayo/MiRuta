@@ -1081,3 +1081,11 @@ Cada viaje (de ida o de regreso) pasa por estos estados. Los cambios los provoca
 - **Ubicación de la parada sin mapa** (07/11/2026): el formulario de la parada **no tiene mapa**; tiene el botón
   **«Usar mi ubicación actual»** (se pulsa estando en la parada) y muestra **latitud y longitud** en solo lectura.
   La app deja de necesitar mapas (se quitan el selector de mapa y las herramientas de servidor de mapas).
+
+## 11.40 Ajustes de duración con unidades (07/11/2026, pendiente de implementar)
+
+- Los ajustes que son **tiempos** se guardan en la tabla de configuración como **texto con unidad**, y el servidor
+  (y la app) los interpretan: **`5s`** = 5 segundos, **`5m`** = 5 minutos, **`5h`** = 5 horas.
+- Se pueden **combinar**: **`12h30m30s`** = 12 horas, 30 minutos y 30 segundos.
+- Así, cada tiempo puede cambiar de unidad sin tocar el código (sustituye a los ajustes con la unidad en el nombre,
+  como «…_minutes», «…_seconds», «…_days»).
