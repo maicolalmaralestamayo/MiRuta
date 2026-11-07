@@ -1235,6 +1235,19 @@ d2 > 100 m → De camino a la parada; se aleja y d2 > 100 m → No voy a viajar;
 - La app **envía al servidor solo el cambio de estado**. El servidor responde con un **acuse**. Si la app recibe el
   acuse, no lo vuelve a enviar; si no lo recibe, **lo reenvía hasta recibirlo**.
 - **Ajustes de la app para los estados del trabajador** (propuestos por el usuario): **radio de parada** `100m`;
-  **velocidad humana** `10km/h`; **frecuencia de cálculo antes de Recogido** `10seg`. (Se completará la lista.)
+  **velocidad humana** `10km/h`; **frecuencia de cálculo antes de Recogido** `10seg`.
+- **Lista completa de ajustes de los estados del trabajador** (07/11/2026):
+
+  | Ajuste | Valor por defecto |
+  |---|---|
+  | Radio de parada | `100m` |
+  | Velocidad humana | `10km/hor` |
+  | Frecuencia de cálculo antes de Recogido | `10seg` |
+  | Tolerancia del GPS (diferencia mínima entre d1 y d2) | `20m` |
+  | Distancia de «No voy a viajar» definitivo | `1km` |
+  | Cuándo empieza a calcular (antes de la salida; mismo ajuste que el recordatorio de activar la ubicación) | `10min` |
+
+- **Velocidades** se escriben como **distancia/tiempo** con las unidades acordadas (`10km/hor`, `200m/min`).
+- Las **distancias se pueden combinar** como los tiempos (`1km200m`).
 - **Distancias con unidades** (07/11/2026): como los tiempos, las distancias se guardan con su unidad: **`m`** para
   metros y **`km`** para kilómetros (p. ej. `100m`, `1km`), y el sistema las distingue.
