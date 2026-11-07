@@ -1352,3 +1352,9 @@ Los teléfonos ya no envían ubicaciones, solo cambios de estado; el estado del 
 - Después puede pasar a **No voy a viajar** según su movimiento (se aleja), o **pasado un tiempo** la app deja de
   calcular y recuerda **desactivar el GPS**. (Botado implica que no va a viajar.)
 - Sustituye, para este caso, a «No voy a viajar definitivo» cuando el vehículo ya pasó por su parada.
+- **Nombres definitivos** (07/11/2026):
+  - **Dormido:** llegó a **En la parada** **después** de que el vehículo pasara por ella (llegó tarde).
+  - **Botado:** estaba **En la parada** cuando pasó el vehículo, pero **no lo recogió** (no paró o iba lleno): sigue
+    a velocidad humana sin llegar a Recogido después del paso del vehículo.
+  - La línea del regreso muestra en cada parada **cuántos Dormidos y cuántos Botados** hay mientras mantengan ese
+    estado; los dos pueden pasar luego a No voy a viajar o, pasado un tiempo, la app deja de calcular.
