@@ -105,6 +105,14 @@ de cada tema (lo sustituido no aparece). Pendiente de implementar.
 - Trabajador: solicitudes aprobadas o denegadas; respuestas del desarrollador; **actualizaciones de la app**.
 - Administrador y Jefe: solicitudes recibidas.
 
+## 10 bis. Actualizaciones de la app
+
+- El Administrador sube desde la app los APK de **64 y 32 bits** (Más → Actualizaciones de la app) y marca la versión
+  **Obligatoria** u Opcional. Notificación de actualización disponible.
+- **Obligatoria:** la app lo detecta en cualquier consulta, **cierra la sesión** (también en el servidor) y desde la
+  **pantalla de inicio de sesión** obliga a **descargar e instalar** antes de entrar (lo recuerda sin conexión). El
+  servidor rechaza el inicio de sesión de versiones con una obligatoria pendiente.
+
 ## 11. Conversaciones
 
 - **Sin chat del viaje** ni conversaciones con roles. Solo **conversación con el desarrollador**, estilo WhatsApp,
