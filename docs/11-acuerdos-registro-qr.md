@@ -1471,3 +1471,12 @@ Todas por **notificaciones del teléfono** (no hay pantalla de avisos).
   - el botón para indicar el **servidor** se pone **en rojo** cuando **no hay servidor indicado**, y con su **color
     normal** cuando sí lo hay;
   - **cada vez que se intente operar la app sin servidor** indicado, aparece un **aviso**.
+
+## 11.51 Ubicación de la parada compartida desde otras apps (07/11/2026)
+
+- Además de «Usar mi ubicación actual», la ubicación de una parada se puede **recibir compartida desde otras apps**:
+  **WhatsApp**, **Telegram**, **Google Maps**, **OsmAnd** (o cualquier app que comparta una ubicación). MiRuta
+  aparece en el menú «Compartir» del teléfono; al recibir la ubicación se puede **agregar la parada** con esas
+  coordenadas.
+- La app entiende los formatos habituales: enlaces `geo:` , enlaces de Google Maps (incluidos los cortos, que
+  necesitan conexión para resolverse), enlaces de OsmAnd / OpenStreetMap y coordenadas escritas en el texto.
