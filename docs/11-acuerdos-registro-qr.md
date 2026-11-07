@@ -1201,4 +1201,9 @@ Cada teléfono envía su ubicación en instantes sucesivos t1, t2… Con la dist
 | d2 > d1 | **Alejándose de la parada** |
 | d2 > d1 y d2 > 100 m | **No voy a viajar** |
 
+- **Tolerancia al «temblor» del GPS** (07/11/2026):
+  - si **d2 ≤ 100 m**, el trabajador está **En la parada**, se acerque o se aleje un poco;
+  - solo se considera que **se acerca o se aleja** si **|d1 − d2| > 20 m** (ajuste de la app); si la diferencia es
+    menor, **no se movió** y conserva el estado que tenía.
+
 Falta otro estado del regreso (lo definirá el usuario a continuación).
