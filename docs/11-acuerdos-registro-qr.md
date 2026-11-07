@@ -1480,3 +1480,7 @@ Todas por **notificaciones del teléfono** (no hay pantalla de avisos).
   coordenadas.
 - La app entiende los formatos habituales: enlaces `geo:` , enlaces de Google Maps (incluidos los cortos, que
   necesitan conexión para resolverse), enlaces de OsmAnd / OpenStreetMap y coordenadas escritas en el texto.
+- **Al recibir una ubicación** (07/11/2026), la app pregunta: **«Crear parada nueva»** (abre el formulario con latitud y
+  longitud ya puestas) o **«Cambiar la ubicación de una parada existente»** (se busca la parada y se le ponen esas
+  coordenadas). Solo para el **Administrador** y el **Jefe de itinerario**; a un trabajador se le indica que no
+  tiene permiso.
