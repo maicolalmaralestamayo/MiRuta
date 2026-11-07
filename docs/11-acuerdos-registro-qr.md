@@ -1068,3 +1068,10 @@ Cada viaje (de ida o de regreso) pasa por estos estados. Los cambios los provoca
 - **Nomencladores** (07/11/2026): **solo en Más** (sección Administrador); sale del menú Acciones de Gestión.
 - **Baja automática por inactividad** (07/11/2026): **se quita en esta versión** (tarea, ajustes y avisos
   relacionados); se podrá retomar más adelante.
+
+## 11.39 Viaje en tiempo real con una línea, sin mapa (07/11/2026; amplía §11.32)
+
+- **Se quita el mapa** del viaje en tiempo real (y el recorrido de referencia dibujado en él).
+- El viaje en tiempo real se muestra **solo con una línea**: las paradas en el **orden del recorrido**, las ya
+  pasadas en gris, y el vehículo en el tramo donde va («En marcha • a 600 m de Coppelia»), con «Mi parada» marcada.
+- Como el resto del tiempo real (§11.32), **queda pendiente de implementar** hasta nuevas indicaciones.
