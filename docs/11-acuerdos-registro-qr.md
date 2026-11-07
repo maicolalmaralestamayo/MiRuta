@@ -1423,3 +1423,5 @@ Los teléfonos ya no envían ubicaciones, solo cambios de estado; el estado del 
   - **Cantidades en cero no se muestran** (07/11/2026), en ningún estado.
   - **Ida:** una **tarjeta** con los trabajadores **esperando en la primera parada** (En la parada), y esa cantidad
     también aparece en la **línea**, en la primera parada.
+    Texto de la tarjeta: **«N esperando en [nombre de la primera parada]»** (p. ej. «38 esperando en Parqueo del
+    trabajo»).
