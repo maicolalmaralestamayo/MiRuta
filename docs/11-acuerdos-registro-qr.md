@@ -1446,3 +1446,9 @@ Todas por **notificaciones del teléfono** (no hay pantalla de avisos).
 - **Viaje en ejecución no editable** (07/11/2026): cuando un viaje pasa a **En ejecución**, **ya no se pueden
   cambiar sus valores** (fecha, hora, tipo de vehículo…) en la tabla; solo cambian su estado y los datos que calcula
   el sistema.
+
+## 11.48 Botón de actualización manual (07/11/2026)
+
+- La app tiene **en todo momento** un **botón para actualizar manualmente** los datos, en la barra superior, **al lado
+  del indicador de conectividad** (el punto verde). Al pulsarlo consulta al servidor en ese momento, además de las
+  consultas periódicas.
