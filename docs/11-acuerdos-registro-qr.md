@@ -1319,3 +1319,15 @@ d2 > 100 m → De camino a la parada; se aleja y d2 > 100 m → No voy a viajar;
   Cada sensor lo calcula e informa, y el servidor lo acepta con la misma mayoría. Si el vehículo **se salta** una
   parada sin entrar en su radio, se considera pasada cuando **empieza a acercarse a la siguiente**. Esto es lo que
   determina que «el vehículo ya pasó por su parada» (No voy a viajar definitivo en el regreso).
+
+### Estado del viaje, versión final (07/11/2026; sustituye a la versión con «teléfonos a más de 100 m»)
+
+Los teléfonos ya no envían ubicaciones, solo cambios de estado; el estado del viaje se deduce así:
+
+| Paso | Cuándo |
+|---|---|
+| **Planificado → Cancelado** | Lo cancela el **Administrador** o el **Jefe que lo planificó** |
+| **Planificado → En ejecución** | Lo declara el Administrador o el Jefe del itinerario, **o** al menos **Mínimo confirmaciones** (3) trabajadores pasan a **Viajando** (ida) o a **Recogido** en la **última parada** (regreso) |
+| **En ejecución → Terminado** | Lo declara el Administrador o el Jefe del itinerario, **o** según los sensores el vehículo **pasó la última parada** (ida) o está **Detenido en el radio de la primera parada** (regreso) |
+
+- Al **terminar** el viaje, la app de todos **deja de calcular** y **recuerda quitar el GPS**.
