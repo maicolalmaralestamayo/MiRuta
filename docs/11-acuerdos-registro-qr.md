@@ -1085,7 +1085,18 @@ Cada viaje (de ida o de regreso) pasa por estos estados. Los cambios los provoca
 ## 11.40 Ajustes de duración con unidades (07/11/2026, pendiente de implementar)
 
 - Los ajustes que son **tiempos** se guardan en la tabla de configuración como **texto con unidad**, y el servidor
-  (y la app) los interpretan: **`5s`** = 5 segundos, **`5m`** = 5 minutos, **`5h`** = 5 horas.
-- Se pueden **combinar**: **`12h30m30s`** = 12 horas, 30 minutos y 30 segundos.
+  (y la app) los interpretan. Unidades (07/11/2026; sustituyen a `s`, `m`, `h`):
+
+  | Unidad | Significa |
+  |---|---|
+  | `seg` | segundos |
+  | `min` | minutos |
+  | `hor` | horas |
+  | `dia` | días |
+  | `sem` | semanas |
+  | `mes` | meses |
+  | `ano` | años |
+
+- Se pueden **combinar**: **`12hor30min30seg`** = 12 horas, 30 minutos y 30 segundos; **`1ano6mes`**, **`2sem3dia`**.
 - Así, cada tiempo puede cambiar de unidad sin tocar el código (sustituye a los ajustes con la unidad en el nombre,
   como «…_minutes», «…_seconds», «…_days»).
