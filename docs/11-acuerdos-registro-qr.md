@@ -1212,3 +1212,8 @@ El estado que falta en el regreso es **Recogido** (cómo se determina, en defini
 «Acercándose a la parada»), **En la parada**, **No voy a viajar** y **Recogido**. Desaparece «Alejándose de la
 parada». Reglas, en este orden: d2 ≤ 100 m → En la parada; |d1 − d2| ≤ 20 m → conserva el estado; se acerca y
 d2 > 100 m → De camino a la parada; se aleja y d2 > 100 m → No voy a viajar; Recogido → por definir.
+
+- **Quién declara los estados del trabajador** (07/11/2026): en esta primera versión **solo el propio trabajador**,
+  o se **calculan automáticamente**. (No los declaran el Jefe, el Administrador ni otros trabajadores.)
+- **Recogido** (07/11/2026, en definición): lo declara el propio trabajador o se calcula automáticamente cuando el
+  trabajador **se aleja de la parada a una velocidad mayor que la de caminar**. Velocidad = (d2 − d1) / (t2 − t1).
