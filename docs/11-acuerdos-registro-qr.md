@@ -1435,7 +1435,7 @@ Todas por **notificaciones del teléfono** (no hay pantalla de avisos).
 |---|---|
 | **Trabajadores del viaje** | **Creación** del viaje y sus **cambios de estado**, **excepto** la eliminación y la terminación |
 | | **Cambios en los valores** del viaje mientras está **Planificado** (p. ej. la hora de salida) |
-| | **Estado del vehículo** durante el viaje: a los trabajadores **En la parada**, (1) cuando hay una **detención de más de `5min`** (ajuste «Detención larga») y (2) cuando el vehículo **llega a cada parada** (Detenido recogiendo) |
+| | **Estado del vehículo** durante el viaje: a los trabajadores **En la parada**, (1) cuando hay una **detención de más de `5min`** (ajuste «Detención larga»), (2) cuando, **después de esa detención larga, vuelve a moverse**, y (3) cuando el vehículo **llega a cada parada** (Detenido recogiendo) |
 | | **Sus propios estados**, después de activar el GPS |
 | **Trabajadores** | **Aceptación o denegación** de sus solicitudes |
 | | **Mensajes nuevos** (respuestas del **desarrollador**) en su conversación |
