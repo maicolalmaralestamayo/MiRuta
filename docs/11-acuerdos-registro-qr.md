@@ -1188,3 +1188,17 @@ Un trabajador está **En el vehículo** si ocurre cualquiera de:
   ella. (Así no cuenta quien se va a pie antes de que pase el vehículo.)
 - **El vehículo pasó por la parada de salida** (07/11/2026): se considera que pasó cuando el viaje pasa a **En
   ejecución** (por cualquiera de sus vías). En las demás paradas se sabe por la **ubicación del vehículo**.
+
+### Estado del trabajador en el regreso (07/11/2026, en definición; versión simple)
+
+Cada teléfono envía su ubicación en instantes sucesivos t1, t2… Con la distancia a **su parada** en cada envío
+(d1 en t1, d2 en t2):
+
+| Condición | Estado |
+|---|---|
+| d2 < d1 | **Acercándose a la parada** |
+| d2 < d1 y d2 ≤ 100 m | **En la parada** |
+| d2 > d1 | **Alejándose de la parada** |
+| d2 > d1 y d2 > 100 m | **No voy a viajar** |
+
+Falta otro estado del regreso (lo definirá el usuario a continuación).
