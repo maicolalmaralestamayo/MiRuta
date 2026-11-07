@@ -1408,3 +1408,6 @@ Los teléfonos ya no envían ubicaciones, solo cambios de estado; el estado del 
 - **Línea del recorrido** (07/11/2026): maqueta mostrada (personas en el vehículo con niños aparte, cantidad de
   sensores, «Mi estado», cantidades por parada, hora de paso y estado del vehículo). **Sin horas estimadas** de
   llegada mientras no se defina cómo calcularlas.
+- **Sin horario estimado** en esta versión (07/11/2026).
+- **Sensor** (07/11/2026): un trabajador **Recogido** (regreso) o **Viajando** (ida) **cuyo teléfono está enviando**
+  al servidor. La línea del recorrido muestra **en todo momento** cuántos sensores hay, de forma destacada.
