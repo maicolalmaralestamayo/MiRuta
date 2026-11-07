@@ -1269,3 +1269,17 @@ d2 > 100 m → De camino a la parada; se aleja y d2 > 100 m → No voy a viajar;
   | Estado trabajador | **Tolerancia GPS** | `20m` | Diferencia mínima entre d1 y d2 |
   | Estado trabajador | **Distancia abandono** | `1km` | «No voy a viajar» definitivo |
   | Estado trabajador | **Frecuencia cálculo** | `10seg` | Cálculo en el teléfono antes de Recogido |
+
+### Estado del trabajador en la ida (07/11/2026, en definición)
+
+- Estados: **De camino a la parada** (antes «Acercándose», mismo nombre que en el regreso), **En la parada** (la
+  primera; como todos suben ahí, no hace falta un estado «Recogido»), **Viajando**, **Dejado** y **No voy a viajar**.
+- **De camino a la parada** y **No voy a viajar**: se calculan **igual que en el regreso** (respecto a la primera
+  parada), con las mismas condiciones y ajustes.
+- **Viajando**: se calcula **igual que Recogido** en el regreso (estuvo En la parada; ya a más de Radio parada se
+  aleja a más de Velocidad humana).
+- **Dejado**: estando Viajando, la velocidad pasa a ser **humana** (Velocidad humana o menos).
+- **Dejado** y **No voy a viajar** (definitivo) son **estados definitivos**.
+- **Recordatorio de quitar el GPS** al llegar a un estado definitivo.
+- Todo se **calcula en la app** y se envía el **cambio de estado** con acuse, como en el regreso, con los mismos
+  ajustes. Por eso los ajustes «Estado trabajador» sirven para **ida y regreso**.
