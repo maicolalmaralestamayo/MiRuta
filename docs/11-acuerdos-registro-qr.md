@@ -1420,3 +1420,6 @@ Los teléfonos ya no envían ubicaciones, solo cambios de estado; el estado del 
     muestra solo **Botados**, **Dormidos** y la **hora en que pasó**.
   - **Ida:** las paradas **ya pasadas** muestran la **hora** y la cantidad de **Dejados**.
   - Los **Recogidos** (regreso) y los **Viajando** (ida) se muestran en una **tarjeta abajo**.
+  - **Cantidades en cero no se muestran** (07/11/2026), en ningún estado.
+  - **Ida:** una **tarjeta** con los trabajadores **esperando en la primera parada** (En la parada), y esa cantidad
+    también aparece en la **línea**, en la primera parada.
