@@ -1186,3 +1186,5 @@ Un trabajador está **En el vehículo** si ocurre cualquiera de:
 - regla automática (07/11/2026, afinada): el trabajador **alcanzó el estado «En la parada»** (primera parada en la
   ida, su parada en el regreso); **después, el vehículo pasó por su parada**; y **luego se alejó más de 100 m** de
   ella. (Así no cuenta quien se va a pie antes de que pase el vehículo.)
+- **El vehículo pasó por la parada de salida** (07/11/2026): se considera que pasó cuando el viaje pasa a **En
+  ejecución** (por cualquiera de sus vías). En las demás paradas se sabe por la **ubicación del vehículo**.
