@@ -1457,3 +1457,17 @@ Todas por **notificaciones del teléfono** (no hay pantalla de avisos).
 
 - Al pasar a Laravel 12 se **eliminan los paquetes que no se usen** y se **instalan solo los necesarios** (servidor y,
   por coherencia, también en la app Flutter).
+
+## 11.50 Más notificaciones y estilo de pantallas (07/11/2026)
+
+- **Notificación de actualizaciones de la app disponibles** (para todos).
+- **Hijos:** la consulta y edición de un hijo tiene el **mismo estilo que la de los trabajadores** (formulario sin
+  datos relacionados, interruptor «Activado», menú Acciones).
+- **Perfil:** el **mismo estilo que la de los trabajadores**.
+- **Conversación con el desarrollador:** estilo **WhatsApp** (burbujas propias a la derecha y ajenas a la izquierda,
+  hora en cada mensaje, campo de texto abajo), **solo texto**.
+- **Pantalla de inicio de sesión:**
+  - lleva el **indicador de conexión** (como el resto de pantallas);
+  - el botón para indicar el **servidor** se pone **en rojo** cuando **no hay servidor indicado**, y con su **color
+    normal** cuando sí lo hay;
+  - **cada vez que se intente operar la app sin servidor** indicado, aparece un **aviso**.
