@@ -1135,3 +1135,28 @@ Se necesita saber cuatro cosas, cada una con su propio estado:
 - **Algoritmo 1 — Ubicación del vehículo** (07/11/2026): se toma de los teléfonos de los **trabajadores que están
   «en el vehículo»**. Si hay varios, el servidor toma el **punto en que coincide la mayoría** y **descarta** al que
   se aleja mucho (p. ej. alguien que se bajó sin avisar).
+
+## 11.43 Algoritmos desde cero (07/11/2026, en definición; sustituye a las propuestas anteriores de §11.34 y §11.42)
+
+Se definen uno a uno, con el usuario.
+
+### Estado del viaje
+
+- **Planificado:** al crearlo el Administrador o el Jefe de itinerario.
+- **Planificado → Cancelado:** lo cancela el **Administrador** o el **Jefe de itinerario que lo planificó**.
+- **Planificado → En ejecución**, si ocurre cualquiera de:
+  - el **Administrador** o el **Jefe del itinerario** lo declaran;
+  - **ida:** al menos **3 trabajadores cualesquiera** lo declaran; **regreso:** al menos **3 trabajadores de la última
+    parada** lo declaran;
+  - **después de la hora de inicio**, al menos **3 teléfonos** envían su ubicación y están a **más de 100 m** de la
+    **primera parada** (ida) o de la **última parada** (regreso).
+- **En ejecución → Terminado**, si ocurre cualquiera de:
+  - el **Administrador** o el **Jefe del itinerario** lo declaran;
+  - **ida:** al menos **3 trabajadores de la última parada** lo declaran; **regreso:** al menos **3 trabajadores
+    cualesquiera** lo declaran;
+  - **ida:** al menos **3 teléfonos de trabajadores de la última parada** envían su ubicación y están a **más de
+    100 m** de la última parada;
+  - **regreso:** al menos **3 teléfonos cualesquiera** envían su ubicación y están a **menos de 100 m** de la primera
+    parada;
+  - **ida:** el **vehículo está detenido** a **menos de 100 m** de la **última parada**;
+  - **regreso:** el **vehículo está detenido** a **menos de 100 m** de la **primera parada**.
