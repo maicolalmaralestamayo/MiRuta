@@ -1499,3 +1499,8 @@ Todas por **notificaciones del teléfono** (no hay pantalla de avisos).
   sus formularios, Incluir por QR, Viajes, formulario y línea del viaje, Más, Perfil, Hijos, Mi QR, Conversación,
   Nomencladores, Ajustes de la app, Olvidé algo, Actualizaciones y Mantenimiento), con los cambios del inicio de
   sesión. Al implementar, también los botones «Cancelar» de los diálogos llevan ícono.
+
+## 11.53 Secciones de la pestaña Viajes, versión final (07/11/2026; sustituye a las de §11.34)
+
+- **Planificados**, **En ejecución**, **Terminados** y **Cancelados**; Terminados y Cancelados con mostrar/ocultar.
+- Desaparece «Sin confirmar» (ya no existe el estado Confirmado, §11.42).

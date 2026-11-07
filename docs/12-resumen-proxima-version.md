@@ -77,8 +77,8 @@ de cada tema (lo sustituido no aparece). Pendiente de implementar.
   no ocupan plaza.
 - **Estados:** **Planificado → En ejecución → Terminado**, o **Cancelado** (Administrador o Jefe que lo planificó). En
   ejecución ya no se edita.
-- Secciones: **Planificados**, **En ejecución**, **Terminados**, **Cancelados** (con mostrar/ocultar). *(Pendiente de
-  confirmar: la sección «Sin confirmar» ya no tiene sentido porque desapareció el estado Confirmado.)*
+- Secciones: **Planificados**, **En ejecución**, **Terminados** y **Cancelados**; Terminados y Cancelados se pueden
+  mostrar u ocultar. No hay sección «Sin confirmar» (no existe el estado Confirmado).
 
 ## 9. Tiempo real (línea del recorrido, sin mapa)
 
