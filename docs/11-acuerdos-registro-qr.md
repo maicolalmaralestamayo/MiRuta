@@ -1390,3 +1390,10 @@ Los teléfonos ya no envían ubicaciones, solo cambios de estado; el estado del 
     - **regreso:** pasaron **2 horas** desde que **el último trabajador alcanzó Recogido** y el vehículo **no llegó
       a la primera parada**.
     - Las 2 horas son un ajuste de la app.
+
+## 11.45 El tiempo real queda fuera de la próxima versión (07/11/2026)
+
+- Todo lo definido en §11.41–§11.44 sobre **cálculos con GPS** (estados automáticos del trabajador, teléfonos
+  sensores, estado y ubicación del vehículo, avance de la próxima parada, reglas automáticas del estado del viaje,
+  línea del recorrido y frecuencias del tiempo real) **queda documentado pero no se implementa** en la próxima
+  versión.
