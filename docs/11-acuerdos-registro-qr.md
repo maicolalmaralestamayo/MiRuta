@@ -1342,3 +1342,13 @@ Los teléfonos ya no envían ubicaciones, solo cambios de estado; el estado del 
   - **personas en el vehículo:** los que alcanzaron **Recogido**.
 - **Fecha y hora en que el vehículo pasó por cada parada**, en la ida y en el regreso.
 - La interfaz muestra la **cantidad de sensores** (teléfonos que informan el estado del vehículo).
+
+### Estado «Botado» en el regreso (07/11/2026)
+
+- Si **el vehículo ya pasó por su parada** y **después** el trabajador llega a **En la parada**, su estado es
+  **Botado**, y la app **le informa que llegó tarde** a su parada.
+- Mientras tenga ese estado, el **recorrido de regreso** (la línea) muestra **la cantidad de personas Botadas** en
+  esa parada.
+- Después puede pasar a **No voy a viajar** según su movimiento (se aleja), o **pasado un tiempo** la app deja de
+  calcular y recuerda **desactivar el GPS**. (Botado implica que no va a viajar.)
+- Sustituye, para este caso, a «No voy a viajar definitivo» cuando el vehículo ya pasó por su parada.
