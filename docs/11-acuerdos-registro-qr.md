@@ -1516,3 +1516,12 @@ Todas por **notificaciones del teléfono** (no hay pantalla de avisos).
   muestra que hay una **actualización obligatoria** con el botón para **descargarla e instalarla**, y **no deja
   entrar** hasta tener la versión nueva. La app recuerda la obligación aunque no haya conexión.
 - El **servidor** también **rechaza el inicio de sesión** de una versión con actualización obligatoria pendiente.
+
+## 11.55 Entregables de la próxima versión (08/11/2026)
+
+- **Las 2 APK** (64 y 32 bits).
+- **El código del servidor con `vendor/` ya instalado** (el hospedaje no tiene SSH y puede no tener Composer):
+  listo para subir por FTP.
+- **Todo lo que haya que ejecutar en el servidor** (migraciones, tareas, limpiezas…) se hace **mediante endpoints de
+  la propia API** (como el mantenimiento actual), nunca por consola.
+- **Por ahora no se entregan los contenedores** (imagen de pruebas).

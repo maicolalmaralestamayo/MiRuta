@@ -135,3 +135,10 @@ de cada tema (lo sustituido no aparece). Pendiente de implementar.
 Chofer, Vehículo, roles configurables, pantallas Roles / Entidades / Itinerario sueltas, planificación por fechas y
 copiar viajes, estadísticas, baja por inactividad, avisos en pantalla, chat del viaje, mapas, QR impreso y de subida,
 ajustes por Entidad / itinerario / parada / usuario.
+
+## 14. Entregables
+
+- Las **2 APK** (64 y 32 bits).
+- El **código del servidor con `vendor/` incluido**, listo para subir por FTP; todo lo que haya que ejecutar en el
+  servidor, por **endpoints de la API**.
+- Sin contenedores por ahora.
