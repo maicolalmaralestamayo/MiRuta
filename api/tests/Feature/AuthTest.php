@@ -100,4 +100,26 @@ class AuthTest extends TestCase
         $document = self::resource('users', ['password' => 'Nueva.Clave9']) + ['meta' => ['currentPassword' => self::PASSWORD]];
         $this->jsonApiAs($user, 'PATCH', '/api/v1/me', $document)->assertOk();
     }
+
+    public function test_propuestas_de_usuario_y_contrasena_y_politica(): void
+    {
+        $this->createUser(['username' => 'maicol']);
+
+        $this->jsonApi('GET', '/api/v1/username-suggestion?firstName=Maicol&middleName=Alberto&firstSurname=Almarales')
+            ->assertOk()->assertJsonPath('data.attributes.username', 'maicol.alberto');
+        $password = $this->jsonApi('GET', '/api/v1/password-suggestion')->assertOk()->json('data.attributes.password');
+        $this->assertGreaterThanOrEqual(10, strlen($password));
+        $this->jsonApi('GET', '/api/v1/password-policy')->assertOk()->assertJsonPath('data.attributes.minLength', 8)
+            ->assertJsonPath('data.attributes.expiryDays', 365);
+    }
+
+    public function test_la_instalacion_comprueba_una_abreviatura_sin_sesion(): void
+    {
+        $this->createEntity('UMIM');
+        $header = $this->jsonApi('POST', '/api/v1/installations', self::resource('installations', []))->json('data.meta.header');
+
+        $this->jsonApi('GET', '/api/v1/entities/lookup?filter[abbreviation]=umim', null, ['X-Installation' => $header])
+            ->assertOk()->assertJsonPath('data.attributes.abbreviation', 'UMIM');
+        $this->jsonApi('GET', '/api/v1/entities/lookup?filter[abbreviation]=umim')->assertStatus(401);
+    }
 }
