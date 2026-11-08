@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/api_exception.dart';
+import '../../core/json_api.dart';
 import '../widgets/common.dart';
 import 'password_fields.dart';
 
@@ -27,7 +28,12 @@ class _NewPasswordScreenState extends State<NewPasswordScreen> {
     if (!_form.currentState!.validate()) return;
     setState(() => _error = null);
     try {
-      await context.session.setNewPassword(_password.text, currentPassword: currentRequired ? _current.text : null);
+      final body = resourceData('users', attributes: {'password': _password.text});
+      if (currentRequired) body['meta'] = {'currentPassword': _current.text};
+      final session = context.session;
+      await session.api.patch('/me', body);
+      await session.reloadMe();
+      await session.sync(all: true);
     } on ApiException catch (error) {
       setState(() => _error = error.message);
     }
@@ -36,7 +42,7 @@ class _NewPasswordScreenState extends State<NewPasswordScreen> {
   @override
   Widget build(BuildContext context) {
     final me = context.me;
-    final currentRequired = me.person.currentPasswordRequired;
+    final currentRequired = me.currentPasswordRequired;
     return PopScope(
       canPop: false,
       child: Scaffold(
@@ -68,11 +74,9 @@ class _NewPasswordScreenState extends State<NewPasswordScreen> {
             PasswordFields(password: _password, confirmation: _repeat, label: 'Contraseña nueva'),
             if (_error != null) Padding(padding: const EdgeInsets.only(top: 12), child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error))),
             const SizedBox(height: 20),
-            BusyButton(onPressed: () => _save(currentRequired), showErrors: false, icon: const Icon(Icons.login), child: const Text('Guardar contraseña y entrar')),
+            BusyButton(onPressed: () => _save(currentRequired), icon: Icons.login, label: 'Guardar y entrar'),
             const SizedBox(height: 8),
             TextButton.icon(onPressed: () => context.session.logout(), icon: const Icon(Icons.logout), label: const Text('Cerrar sesión')),
-            const SizedBox(height: 16),
-            const DeveloperChatButton(),
           ]),
         ),
       ),

@@ -1,239 +1,232 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 
+import '../../core/api_exception.dart';
 import '../../core/json_api.dart';
 import '../../models/models.dart';
-import '../../services/api/roles_api.dart';
+import '../../services/session.dart';
 import '../navigation.dart';
 import '../widgets/actions.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/cards.dart';
 import '../widgets/common.dart';
-import '../widgets/selection.dart';
+import '../widgets/data_view.dart';
+import '../widgets/marks.dart';
 
-/// Nomencladores (tipos de vehículo, tipos de ausencia y motivos de
-/// conversación): denominación, descripción y observación y, en los motivos,
-/// el destinatario (un rol o el desarrollador).
+IconData nomenclatorIcon(String type) => switch (type) {
+      'vehicle-types' => Icons.directions_bus,
+      'absence-types' => Icons.event_busy,
+      'conversation-topics' => Icons.forum_outlined,
+      'denial-reasons' => Icons.block,
+      _ => Icons.report_outlined,
+    };
+
+/// Nomencladores (docs/11 §11.26 y §11.31, maqueta G18 n.º 17): una sección
+/// plegable por nomenclador. Lo que está en uso no se elimina: se propone
+/// desactivarlo (§11.29).
 class NomenclatorsScreen extends StatefulWidget {
-  final String title;
-  final String path;
-  final String type;
-  final String sort;
-
-  /// Nombre de un elemento, para los botones ("Guardar tipo de vehículo").
-  final String singular;
-
-  /// Hint de ejemplo de la denominación.
-  final String example;
-
-  const NomenclatorsScreen._(this.title, this.path, this.type, this.sort, this.singular, this.example);
-
-  factory NomenclatorsScreen.vehicleTypes() =>
-      const NomenclatorsScreen._('Tipos de vehículo', '/vehicle-types', 'vehicle-types', 'name', 'tipo de vehículo', 'p. ej. Ómnibus');
-
-  factory NomenclatorsScreen.absenceTypes() =>
-      const NomenclatorsScreen._('Tipos de ausencia', '/absence-types', 'absence-types', 'name', 'tipo de ausencia', 'p. ej. Vacaciones');
-
-  factory NomenclatorsScreen.conversationTopics() =>
-      const NomenclatorsScreen._('Motivos de conversación', '/conversation-topics', 'conversation-topics', 'name', 'motivo', 'p. ej. Cambio de parada');
+  const NomenclatorsScreen({super.key});
 
   @override
   State<NomenclatorsScreen> createState() => _NomenclatorsScreenState();
 }
 
 class _NomenclatorsScreenState extends State<NomenclatorsScreen> {
-  final _view = GlobalKey<AsyncViewState<List<Named>>>();
-  final _selection = SelectionController();
-  List<Named> _items = const [];
+  final _view = GlobalKey<DataViewState<Map<String, List<NomenclatorItem>>>>();
+  final _marks = Marks();
 
-  bool get _isTopic => widget.type == 'conversation-topics';
-
-  @override
-  void dispose() {
-    _selection.dispose();
-    super.dispose();
+  Future<Map<String, List<NomenclatorItem>>> _load() async {
+    final api = context.read<Session>().api;
+    return {for (final n in Nomenclator.all) n.type: (await api.getAll('/${n.type}')).map(NomenclatorItem.from).toList()};
   }
 
-  Future<List<Named>> _load() async {
-    final items = (await context.api.getAll(widget.path, query: {'sort': widget.sort})).map(Named.from).toList();
-    _items = items;
-    _selection.retain(items.map((i) => i.id));
-    return items;
+  Future<void> _open(Nomenclator n, [NomenclatorItem? item]) async {
+    await push(context, NomenclatorForm(nomenclator: n, item: item));
+    _view.currentState?.reload();
   }
 
-  Future<void> _edit(Named? item) async {
-    final saved = await Navigator.push<bool>(context, MaterialPageRoute(builder: (_) => _NomenclatorForm(screen: widget, item: item)));
-    if (saved == true) _view.currentState?.reload();
-  }
-
-  Future<void> _delete() async {
-    final selected = _selection.selectedOf(_items, (i) => i.id);
-    final api = context.api;
-    if (await runAction(context, () async {
-      for (final i in selected) {
-        await api.delete('${widget.path}/${i.id}');
+  Future<void> _delete(Nomenclator n, List<NomenclatorItem> items) async {
+    if (!await confirmDelete(context, items.length == 1 ? '«${items.first.name}»' : '${items.length} elementos de ${n.title}')) return;
+    if (!mounted) return;
+    final api = context.read<Session>().api;
+    final inUse = <NomenclatorItem>[];
+    for (final item in items) {
+      try {
+        await api.delete('/${n.type}/${item.id}');
+      } on ApiException catch (error) {
+        if (error.hasCode('NOMENCLATOR_IN_USE')) {
+          inUse.add(item);
+        } else {
+          rethrow;
+        }
       }
-    }, success: 'Eliminado.')) {
-      _selection.clear();
-      _view.currentState?.reload();
     }
+    if (inUse.isNotEmpty && mounted) {
+      final deactivate = await confirm(context, 'En uso', '${inUse.map((i) => '«${i.name}»').join(', ')} ${inUse.length == 1 ? 'está' : 'están'} en uso y no se ${inUse.length == 1 ? 'puede' : 'pueden'} eliminar. ¿Desactivar${inUse.length == 1 ? 'lo' : 'los'}?',
+          accept: 'Desactivar', icon: Icons.toggle_off_outlined);
+      if (deactivate) {
+        for (final item in inUse) {
+          await api.patch('/${n.type}/${item.id}', resourceData(n.type, id: item.id, attributes: {'active': false}));
+        }
+      }
+    }
+    _marks.clear();
+    _view.currentState?.reload();
   }
+
+  List<ActionItem> _actions() {
+    final data = _view.currentState?.data ?? const {};
+    if (!_marks.active) return [for (final n in Nomenclator.all) ActionItem(nomenclatorIcon(n.type), 'Crear ${n.singular}', () => _open(n))];
+    final n = Nomenclator.all.firstWhere((n) => n.type == _marks.type);
+    final items = data[n.type] ?? const [];
+    final marked = _marks.of(n.type, items, (i) => i.id);
+    return [
+      ...markActions(_marks, items.map((i) => i.id)),
+      if (marked.length == 1) ActionItem(Icons.edit_outlined, 'Editar', () => _open(n, marked.first)),
+      ActionItem(Icons.delete_outline, 'Eliminar', () => _delete(n, marked), destructive: true),
+    ];
+  }
+
+  String _line(NomenclatorItem i) => switch (i.kind) {
+        'vehicle-types' => '${i.seats} asientos • ${i.standing} de pie • ${i.total} en total',
+        'denial-reasons' => '${switch (i.applicationType) { 'entidad' => 'Solicitudes de Entidad', 'itinerario' => 'Solicitudes de itinerario', _ => 'Todas las solicitudes' }} • usado ${i.usageCount}',
+        _ => '${i.description ?? ''}${i.description == null ? '' : ' • '}usado ${i.usageCount}',
+      };
 
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: _selection,
-      builder: (context, _) => AppScaffold(
-        title: widget.title,
-        tab: MainTab.more,
-        selection: _selection,
-        actions: [
-          ActionItem(icon: Icons.add, label: 'Crear ${widget.singular}', onPressed: () => _edit(null)),
-          const ActionItem.divider(),
-          ActionItem(icon: Icons.edit_outlined, label: 'Editar', needs: ActionNeeds.one, onPressed: () => _edit(_selection.selectedOf(_items, (i) => i.id).first)),
-          ActionItem(
-            icon: Icons.delete_outline,
-            label: 'Eliminar',
-            needs: ActionNeeds.some,
-            destructive: true,
-            confirmation: '¿Eliminar los elementos seleccionados?',
-            onPressed: _delete,
-          ),
-        ],
-        body: AsyncView<List<Named>>(
-          key: _view,
-          load: _load,
-          builder: (context, items, reload) => SelectableCardList<Named>(
-            controller: _selection,
-            sections: [CardSection(items: items)],
-            emptyText: 'Todavía no hay ninguno.',
-            keyOf: (i) => i.id,
-            onOpen: _edit,
-            cardBuilder: (context, item, selected, onTap, onLongPress) => InfoCard(
-              title: item.name,
-              lines: [
-                if (_isTopic) item.extra['recipient'] == 'developer' ? 'Para el desarrollador' : 'Para: ${item.extra['roleName'] ?? 'un rol'}',
-                if ((item.description ?? '').isNotEmpty) item.description!,
-              ],
-              selected: selected,
-              onTap: onTap,
-              onLongPress: onLongPress,
+    return AppScaffold(
+      title: 'Nomencladores',
+      tab: MainTab.more,
+      marks: _marks,
+      actions: _actions,
+      body: DataView<Map<String, List<NomenclatorItem>>>(
+        key: _view,
+        load: _load,
+        builder: (context, data, reload) => ListView(padding: const EdgeInsets.only(bottom: 96), physics: const AlwaysScrollableScrollPhysics(), children: [
+          for (final n in Nomenclator.all)
+            FoldSection<NomenclatorItem>(
+              storageKey: 'nomencladores.${n.type}',
+              title: n.title,
+              items: data[n.type] ?? const [],
+              initiallyOpen: n == Nomenclator.vehicleTypes,
+              builder: (i) => ListenableBuilder(
+                listenable: _marks,
+                builder: (context, _) => InfoCard(
+                  images: [CardImage(icon: nomenclatorIcon(n.type), dim: !i.active)],
+                  title: i.name,
+                  lines: [_line(i)],
+                  chip: i.active ? null : const Chip2('Desactivado', grey),
+                  dim: !i.active,
+                  selected: _marks.isMarked(n.type, i.id),
+                  onTap: () => _marks.active && _marks.type == n.type ? _marks.toggle(n.type, i.id) : _open(n, i),
+                  onLongPress: () => _marks.toggle(n.type, i.id),
+                ),
+              ),
             ),
-          ),
-        ),
+        ]),
       ),
     );
   }
 }
 
-class _NomenclatorForm extends StatefulWidget {
-  final NomenclatorsScreen screen;
-  final Named? item;
+/// Formulario de un elemento de nomenclador.
+class NomenclatorForm extends StatefulWidget {
+  final Nomenclator nomenclator;
+  final NomenclatorItem? item;
 
-  const _NomenclatorForm({required this.screen, this.item});
+  const NomenclatorForm({super.key, required this.nomenclator, this.item});
 
   @override
-  State<_NomenclatorForm> createState() => _NomenclatorFormState();
+  State<NomenclatorForm> createState() => _NomenclatorFormState();
 }
 
-class _NomenclatorFormState extends State<_NomenclatorForm> {
+class _NomenclatorFormState extends State<NomenclatorForm> {
   final _form = GlobalKey<FormState>();
   late final _name = TextEditingController(text: widget.item?.name);
   late final _description = TextEditingController(text: widget.item?.description);
   late final _observation = TextEditingController(text: widget.item?.observation);
-  /// 'developer' o el id del rol al que va dirigido (docs/04-api.md: recipient role + relación role).
-  late String? _recipient = widget.item == null ? null : (widget.item!.extra['recipient'] == 'developer' ? 'developer' : widget.item!.relations['role']);
-  List<Role> _roles = [];
+  late final _seats = TextEditingController(text: '${widget.item?.seats ?? 0}');
+  late final _standing = TextEditingController(text: '${widget.item?.standing ?? 0}');
+  late String? _applicationType = widget.item?.applicationType;
+  late bool _active = widget.item?.active ?? true;
 
-  @override
-  void initState() {
-    super.initState();
-    if (_isTopic) {
-      RolesApi(context.api).all().then((roles) {
-        if (mounted) setState(() => _roles = roles.where((r) => !r.isAdministrator).toList());
-      }).catchError((_) {});
-    }
-  }
-
-  bool get _isTopic => widget.screen.type == 'conversation-topics';
-
-  String? _optional(TextEditingController c) => c.text.trim().isEmpty ? null : c.text.trim();
+  String get _type => widget.nomenclator.type;
 
   Future<void> _save() async {
     if (!_form.currentState!.validate()) return;
-    final item = widget.item;
-    final screen = widget.screen;
-    final toRole = _isTopic && _recipient != 'developer';
-    final body = resourceData(screen.type, id: item?.id, attributes: {
+    String? t(TextEditingController c) => c.text.trim().isEmpty ? null : c.text.trim();
+    final attributes = {
       'name': _name.text.trim(),
-      'description': _optional(_description),
-      'observation': _optional(_observation),
-      if (_isTopic) 'recipient': toRole ? 'role' : 'developer',
-    }, relationships: toRole ? {'role': ResourceId('roles', _recipient!)} : null);
-    await (item == null ? context.api.post(screen.path, body) : context.api.patch('${screen.path}/${item.id}', body));
-    if (mounted) Navigator.pop(context, true);
+      'description': t(_description),
+      'observation': t(_observation),
+      'active': _active,
+      if (_type == 'vehicle-types') ...{'seats': int.tryParse(_seats.text) ?? 0, 'standing': int.tryParse(_standing.text) ?? 0},
+      if (_type == 'denial-reasons') 'applicationType': _applicationType,
+    };
+    final api = context.read<Session>().api;
+    final ok = await runAction(context, () async {
+      if (widget.item == null) {
+        await api.post('/$_type', resourceData(_type, attributes: attributes));
+      } else {
+        await api.patch('/$_type/${widget.item!.id}', resourceData(_type, id: widget.item!.id, attributes: attributes));
+      }
+    }, success: 'Guardado.');
+    if (ok && mounted) Navigator.pop(context, true);
   }
 
   @override
   Widget build(BuildContext context) {
-    final singular = widget.screen.singular;
+    final total = (int.tryParse(_seats.text) ?? 0) + (int.tryParse(_standing.text) ?? 0);
     return AppScaffold(
-      title: widget.item == null ? 'Nuevo $singular' : widget.item!.name,
+      title: widget.nomenclator.title,
       tab: MainTab.more,
-      actions: [
-        ActionItem(icon: Icons.save, label: 'Guardar', onPressed: _save),
-        ActionItem(
-          icon: Icons.delete_outline,
-          label: 'Eliminar',
-          destructive: true,
-          enabled: widget.item != null,
-          confirmation: '¿Eliminar "${widget.item?.name ?? ''}"?',
-          onPressed: () async {
-            if (await runAction(context, () => context.api.delete('${widget.screen.path}/${widget.item!.id}')) && context.mounted) Navigator.pop(context, true);
-          },
-        ),
-      ],
+      actions: () => [ActionItem(Icons.save_outlined, 'Guardar', _save)],
       body: Form(
         key: _form,
-        child: ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 96), children: [
-          TextFormField(
-            controller: _name,
-            autovalidateMode: AutovalidateMode.onUserInteraction,
-            decoration: InputDecoration(labelText: 'Denominación', hintText: widget.screen.example),
-            textCapitalization: TextCapitalization.sentences,
-            validator: (v) => (v ?? '').trim().isEmpty ? 'Escriba la denominación.' : null,
-          ),
-          const SizedBox(height: 12),
-          TextFormField(
-            controller: _description,
-            decoration: const InputDecoration(labelText: 'Descripción (opcional)'),
-            textCapitalization: TextCapitalization.sentences,
-            maxLines: 3,
-            minLines: 1,
-          ),
-          const SizedBox(height: 12),
-          TextFormField(
-            controller: _observation,
-            decoration: const InputDecoration(labelText: 'Observación (opcional)'),
-            textCapitalization: TextCapitalization.sentences,
-            maxLines: 3,
-            minLines: 1,
-          ),
-          if (_isTopic) ...[
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              // Los roles llegan después: hasta entonces no se puede mostrar uno.
-              key: ValueKey(_roles.length),
-              initialValue: _recipient == 'developer' || _roles.any((r) => r.id == _recipient) ? _recipient : null,
-              autovalidateMode: AutovalidateMode.onUserInteraction,
-              decoration: const InputDecoration(labelText: 'Destinatario'),
-              items: [
-                for (final role in _roles) DropdownMenuItem(value: role.id, child: Text(role.name)),
-                const DropdownMenuItem(value: 'developer', child: Text('Desarrollador')),
-              ],
-              onChanged: (value) => setState(() => _recipient = value),
-              validator: (v) => v == null ? 'Elija el destinatario.' : null,
+        child: ListView(padding: const EdgeInsets.only(top: 8, bottom: 96), children: [
+          FormText(controller: _name, label: 'Nombre', validator: (v) => requiredText(v, 'Escriba el nombre')),
+          FormText(controller: _description, label: 'Descripción', maxLines: 2),
+          FormText(controller: _observation, label: 'Observación', maxLines: 2),
+          if (_type == 'vehicle-types') ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+              child: TextFormField(
+                controller: _seats,
+                decoration: const InputDecoration(labelText: 'Asientos'),
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                onChanged: (_) => setState(() {}),
+              ),
             ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+              child: TextFormField(
+                controller: _standing,
+                decoration: const InputDecoration(labelText: 'De pie'),
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                onChanged: (_) => setState(() {}),
+              ),
+            ),
+            FormText(key: ValueKey(total), label: 'Total', value: '$total', readOnly: true),
           ],
+          if (_type == 'denial-reasons')
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+              child: DropdownButtonFormField<String?>(
+                initialValue: _applicationType,
+                decoration: const InputDecoration(labelText: 'Tipo de solicitud'),
+                items: const [
+                  DropdownMenuItem(value: null, child: Text('Las dos')),
+                  DropdownMenuItem(value: 'entidad', child: Text('Entidad')),
+                  DropdownMenuItem(value: 'itinerario', child: Text('Itinerario')),
+                ],
+                onChanged: (v) => setState(() => _applicationType = v),
+              ),
+            ),
+          ActiveSwitch(value: _active, onChanged: (v) => setState(() => _active = v)),
         ]),
       ),
     );

@@ -1,21 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:provider/provider.dart';
 
-import '../../core/api_exception.dart';
+import '../../core/formats.dart';
+import '../../core/json_api.dart';
 import '../../core/username.dart';
 import '../../models/models.dart';
-import '../../services/templates.dart';
-import '../auth/names_fields.dart';
+import '../../services/session.dart';
+import '../auth/password_fields.dart';
+import '../management/forms.dart';
+import '../navigation.dart';
 import '../widgets/actions.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/cards.dart';
 import '../widgets/common.dart';
-import 'account_screens.dart';
 
-/// Perfil (docs/11 §11.18; maqueta pantallas-final.png, 2): foto; nombres,
-/// apellidos, carné y usuario editables; sexo y fecha de nacimiento de solo
-/// lectura (salen del carné). Acciones: Guardar perfil y Cambiar contraseña.
+/// Perfil (docs/11 §11.50, maqueta G18 n.º 12): mismo estilo que el
+/// formulario del trabajador.
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
@@ -25,133 +26,131 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final _form = GlobalKey<FormState>();
-  late final Person _person = context.me.person;
-  late final _firstName = TextEditingController(text: _person.name.firstName);
-  late final _middleName = TextEditingController(text: _person.name.middleName);
-  late final _firstSurname = TextEditingController(text: _person.name.firstSurname);
-  late final _secondSurname = TextEditingController(text: _person.name.secondSurname);
-  late final _identityCard = TextEditingController(text: _person.identityCard ?? '');
-  late final _username = TextEditingController(text: _person.username ?? '');
-  late final _names = NamesFields(firstName: _firstName, middleName: _middleName, firstSurname: _firstSurname, secondSurname: _secondSurname);
-  ApiException? _error;
-
-  @override
-  void dispose() {
-    for (final c in [_firstName, _middleName, _firstSurname, _secondSurname, _identityCard, _username]) {
-      c.dispose();
-    }
-    super.dispose();
-  }
+  late Me _me = context.read<Session>().me!;
+  late final _first = TextEditingController(text: _me.name.firstName);
+  late final _middle = TextEditingController(text: _me.name.middleName);
+  late final _firstSurname = TextEditingController(text: _me.name.firstSurname);
+  late final _secondSurname = TextEditingController(text: _me.name.secondSurname);
+  late final _card = TextEditingController(text: _me.identityCard);
+  late final _username = TextEditingController(text: _me.username);
 
   Future<void> _save() async {
     if (!_form.currentState!.validate()) return;
-    setState(() => _error = null);
-    final card = _identityCard.text.trim();
-    final username = Username.normalize(_username.text);
-    try {
-      await context.session.updateProfile(
-        name: _names.value,
-        identityCard: card == (_person.identityCard ?? '') ? null : card,
-        username: username == _person.username ? null : username,
-      );
-      if (mounted) showMessage(context, 'Perfil guardado');
-    } on ApiException catch (error) {
-      if (mounted) setState(() => _error = error);
-    }
+    await runAction(context, () async {
+      await context.api.patch('/me', resourceData('users', attributes: {
+        ...PersonName(firstName: _first.text, middleName: _middle.text, firstSurname: _firstSurname.text, secondSurname: _secondSurname.text).toAttributes(),
+        'identityCard': _card.text.trim(),
+        'username': Username.normalize(_username.text),
+      }));
+      if (mounted) await context.read<Session>().reloadMe();
+    }, success: 'Perfil guardado.');
   }
 
   Future<void> _photo() async {
-    final me = context.me;
-    final choice = await pickFrom<String>(context, 'Foto de perfil', ['camera', 'gallery', if (me.photoUrl != null) 'delete'],
-        (c) => const {'camera': 'Hacer una foto', 'gallery': 'Elegir de la galería', 'delete': 'Quitar la foto'}[c]!);
-    if (choice == null || !mounted) return;
-    final session = context.session;
-    if (choice == 'delete') {
-      await runAction(context, () => session.api.delete('/me/photo'));
-    } else {
-      final file = await ImagePicker().pickImage(source: choice == 'camera' ? ImageSource.camera : ImageSource.gallery, maxWidth: 800, imageQuality: 85);
-      if (file == null || !mounted) return;
-      await runAction(context, () => session.api.upload('/me/photo', 'photo', file.path), success: 'Foto actualizada');
+    if (await pickAndUpload(context, '/me/photo', 'photo') && mounted) {
+      await context.read<Session>().reloadMe();
+      if (mounted) setState(() => _me = context.read<Session>().me!);
     }
-    await session.reloadMe();
-    if (mounted) setState(() {});
   }
+
+  Future<void> _removePhoto() async {
+    await runAction(context, () async {
+      await context.api.delete('/me/photo');
+      if (mounted) await context.read<Session>().reloadMe();
+    }, success: 'Foto quitada.');
+    if (mounted) setState(() => _me = context.read<Session>().me!);
+  }
+
+  Future<void> _changePassword() => showDialog<void>(context: context, builder: (_) => const _PasswordDialog());
 
   @override
   Widget build(BuildContext context) {
-    final me = context.me;
-    final card = _identityCard.text.trim();
-    final birth = IdentityCard.birthDate(card) ?? (me.person.birthDate == null ? null : DateTime.tryParse(me.person.birthDate!));
-    final sex = IdentityCard.sex(card) ?? me.person.sex;
-    final expires = me.person.passwordExpiresAt;
+    final card = _card.text.trim();
     return AppScaffold(
       title: 'Perfil',
-      actions: [
-        ActionItem(icon: Icons.save, label: 'Guardar perfil', onPressed: _save),
-        ActionItem(
-          icon: Icons.password,
-          label: 'Cambiar contraseña',
-          onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ChangePasswordScreen())),
-        ),
+      tab: MainTab.more,
+      actions: () => [
+        ActionItem(Icons.save_outlined, 'Guardar perfil', _save),
+        ActionItem(Icons.password, 'Cambiar contraseña', _changePassword),
+        ActionItem(Icons.photo_camera_outlined, 'Cambiar foto', _photo),
+        if (_me.photoUrl != null) ActionItem(Icons.hide_image_outlined, 'Quitar foto', _removePhoto, destructive: true),
       ],
       body: Form(
         key: _form,
-        child: ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 96), children: [
-          Center(
-            child: GestureDetector(
-              onTap: _photo,
-              child: Stack(children: [
-                CardImage(url: me.photoUrl, icon: Icons.person, round: true, size: 104),
-                Positioned(
-                  right: 0,
-                  bottom: 0,
-                  child: CircleAvatar(radius: 18, backgroundColor: Theme.of(context).colorScheme.secondary, child: const Icon(Icons.photo_camera, size: 18, color: Colors.black)),
-                ),
-              ]),
-            ),
-          ),
-          const SizedBox(height: 16),
-          _names,
-          TextFormField(
-            controller: _identityCard,
-            decoration: InputDecoration(
-              labelText: 'Carné de identidad',
-              prefixIcon: const Icon(Icons.badge_outlined),
-              errorText: _error?.fieldError('/identityCard'),
-              errorMaxLines: 4,
-            ),
-            keyboardType: TextInputType.number,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(IdentityCard.length)],
-            autovalidateMode: AutovalidateMode.onUserInteraction,
-            onChanged: (_) => setState(() {}),
-            validator: IdentityCard.validate,
-          ),
-          const SizedBox(height: 12),
-          InputDecorator(
-            decoration: const InputDecoration(labelText: 'Sexo y nacimiento', suffixIcon: Icon(Icons.lock_outline, size: 18)),
-            child: Text([sexLabel(sex), if (birth != null) formatShortDate(birth)].where((s) => s.isNotEmpty).join(' • ')),
-          ),
-          const SizedBox(height: 12),
-          TextFormField(
-            controller: _username,
-            decoration: InputDecoration(labelText: 'Usuario', prefixIcon: const Icon(Icons.alternate_email), errorText: _error?.fieldError('/username'), errorMaxLines: 3),
-            keyboardType: TextInputType.visiblePassword,
-            autocorrect: false,
-            enableSuggestions: false,
-            inputFormatters: [LengthLimitingTextInputFormatter(Username.maxLength)],
-            autovalidateMode: AutovalidateMode.onUserInteraction,
-            validator: validateUsername,
-          ),
-          if (expires != null) ...[
-            const SizedBox(height: 12),
-            Text('Su contraseña caduca el ${formatDate(expires)}.', style: Theme.of(context).textTheme.bodySmall),
-          ],
-          if (_error != null && _error!.fieldError('/username') == null && _error!.fieldError('/identityCard') == null) ...[
-            const SizedBox(height: 12),
-            Text(_error!.message, style: TextStyle(color: Theme.of(context).colorScheme.error)),
-          ],
+        child: ListView(padding: const EdgeInsets.only(bottom: 96), children: [
+          PhotoHeader(url: _me.photoUrl, icon: Icons.person, onTap: _photo),
+          FormText(controller: _first, label: 'Primer nombre', capitalization: TextCapitalization.words, validator: (v) => requiredText(v, 'Escriba el primer nombre')),
+          FormText(controller: _middle, label: 'Segundo nombre', capitalization: TextCapitalization.words),
+          FormText(controller: _firstSurname, label: 'Primer apellido', capitalization: TextCapitalization.words, validator: (v) => requiredText(v, 'Escriba el primer apellido')),
+          FormText(controller: _secondSurname, label: 'Segundo apellido', capitalization: TextCapitalization.words, validator: (v) => requiredText(v, 'Escriba el segundo apellido')),
+          FormText(controller: _card, label: 'Carné de identidad', icon: Icons.badge_outlined, keyboard: TextInputType.number,
+              formatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(11)], validator: IdentityCard.validate),
+          FormText(label: 'Sexo y nacimiento', value: sexAndBirth(_me.sex ?? IdentityCard.sex(card), _me.birthDate ?? IdentityCard.birthDate(card)), readOnly: true),
+          FormText(controller: _username, label: 'Usuario', icon: Icons.alternate_email, validator: validateUsername),
+          FormText(label: 'Contraseña', value: _me.passwordExpiresAt == null ? 'Sin caducidad' : 'Caduca el ${formatDate(_me.passwordExpiresAt)}', readOnly: true),
         ]),
       ),
+    );
+  }
+}
+
+class _PasswordDialog extends StatefulWidget {
+  const _PasswordDialog();
+
+  @override
+  State<_PasswordDialog> createState() => _PasswordDialogState();
+}
+
+class _PasswordDialogState extends State<_PasswordDialog> {
+  final _form = GlobalKey<FormState>();
+  final _current = TextEditingController();
+  final _password = TextEditingController();
+  final _repeat = TextEditingController();
+  bool _busy = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Cambiar contraseña'),
+      content: Form(
+        key: _form,
+        child: SingleChildScrollView(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextFormField(
+              controller: _current,
+              obscureText: true,
+              decoration: const InputDecoration(labelText: 'Contraseña actual', prefixIcon: Icon(Icons.lock_clock_outlined)),
+              validator: (v) => (v ?? '').isEmpty ? 'Escriba su contraseña actual' : null,
+            ),
+            const SizedBox(height: 12),
+            PasswordFields(password: _password, confirmation: _repeat, label: 'Contraseña nueva'),
+            const SizedBox(height: 8),
+            const Text('Al cambiarla se cierran sus otras sesiones.'),
+          ]),
+        ),
+      ),
+      actions: [
+        cancelButton(context),
+        FilledButton.icon(
+          onPressed: _busy
+              ? null
+              : () async {
+                  if (!_form.currentState!.validate()) return;
+                  setState(() => _busy = true);
+                  final body = resourceData('users', attributes: {'password': _password.text});
+                  body['meta'] = {'currentPassword': _current.text};
+                  final ok = await runAction(context, () => context.api.patch('/me', body), success: 'Contraseña cambiada.');
+                  if (!context.mounted) return;
+                  if (ok) {
+                    Navigator.pop(context);
+                  } else {
+                    setState(() => _busy = false);
+                  }
+                },
+          icon: const Icon(Icons.save_outlined),
+          label: const Text('Guardar'),
+        ),
+      ],
     );
   }
 }

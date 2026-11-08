@@ -1,24 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../../models/models.dart';
-import '../../services/templates.dart';
-import '../theme.dart';
-import 'common.dart' show plural;
+import '../../core/storage.dart';
+import 'common.dart';
 
-/// Tarjetas modelo de toda la app (docs/11 §11.3, §11.10 y §11.18; maquetas
-/// pantallas-final.png e inicio-propuesta-3.png). Una tarjeta es una vista
-/// resumida y compacta: sin nombres de campos ni botones dentro.
-///
-/// - [InfoCard] es la tarjeta genérica: imágenes a la izquierda (o a la
-///   derecha), un título y líneas que se cortan con «…».
-/// - Las demás (UserCard, ChildCard, EntityCard, ItineraryStopCard,
-///   RoleCard) son la forma acordada de cada objeto. Úselas siempre que se
-///   muestre ese objeto.
-///
-/// Selección: `selected: true` marca la tarjeta con ✓ (modo selección de
-/// [SelectableCardList]); `dim: true` la atenúa (desactivada).
-
-/// Imagen cuadrada (o redonda) de una tarjeta. Sin imagen, un ícono.
+/// Imagen de una tarjeta: foto (si hay) o ícono sobre fondo claro.
 class CardImage extends StatelessWidget {
   final String? url;
   final ImageProvider? image;
@@ -33,7 +18,6 @@ class CardImage extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final provider = image ?? (url == null || url!.isEmpty ? null : NetworkImage(url!));
-    final fallback = Icon(icon, size: size * 0.55, color: scheme.primary);
     return Opacity(
       opacity: dim ? 0.45 : 1,
       child: ClipRRect(
@@ -42,19 +26,21 @@ class CardImage extends StatelessWidget {
           width: size,
           height: size,
           color: scheme.primaryContainer,
-          child: provider == null ? fallback : Image(image: provider, fit: BoxFit.cover, errorBuilder: (_, _, _) => fallback),
+          child: provider != null
+              ? Image(image: provider, fit: BoxFit.cover, errorBuilder: (_, _, _) => Icon(icon, size: size * 0.55, color: scheme.primary))
+              : Icon(icon, size: size * 0.55, color: scheme.primary),
         ),
       ),
     );
   }
 }
 
-/// Etiqueta de estado pequeña junto al título («Pendiente», «En curso»).
-class CardChip extends StatelessWidget {
+/// Etiqueta de estado («Planificado», «Pendiente», «Mi parada»…).
+class Chip2 extends StatelessWidget {
   final String text;
   final Color color;
 
-  const CardChip(this.text, {super.key, this.color = Colors.green});
+  const Chip2(this.text, this.color, {super.key});
 
   @override
   Widget build(BuildContext context) => Container(
@@ -64,47 +50,23 @@ class CardChip extends StatelessWidget {
       );
 }
 
-/// Título pequeño encima de un grupo de tarjetas («Hijos», «Entidad»…).
-class SectionHeader extends StatelessWidget {
-  final String text;
-
-  const SectionHeader(this.text, {super.key});
-
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
-        child: Text(text, style: Theme.of(context).textTheme.titleSmall!.copyWith(color: Theme.of(context).colorScheme.primary)),
-      );
-}
-
-/// Tarjeta genérica.
+/// Tarjeta modelo (docs/11 §11.23): sin botones dentro; tocar = abrir;
+/// mantener = marcar (check naranja arriba a la derecha).
 class InfoCard extends StatelessWidget {
-  /// Una o varias imágenes (normalmente [CardImage]).
   final List<Widget> images;
-
-  /// Imágenes a la derecha (tarjeta de hijo).
-  final bool imagesRight;
   final String title;
   final List<String> lines;
-
-  /// Etiqueta junto al título ([CardChip]).
   final Widget? chip;
-
-  /// Al final (↕ del selector de Entidad, ✓ de la hoja «Mis Entidades»).
   final Widget? trailing;
-
-  /// Atenuada (desactivada).
   final bool dim;
-
-  /// Marcada en modo selección: fondo de color, borde y ✓.
   final bool selected;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
+  final EdgeInsets margin;
 
   const InfoCard({
     super.key,
-    this.images = const [],
-    this.imagesRight = false,
+    required this.images,
     required this.title,
     this.lines = const [],
     this.chip,
@@ -113,6 +75,7 @@ class InfoCard extends StatelessWidget {
     this.selected = false,
     this.onTap,
     this.onLongPress,
+    this.margin = const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
   });
 
   @override
@@ -120,46 +83,195 @@ class InfoCard extends StatelessWidget {
     final t = Theme.of(context);
     final muted = t.textTheme.bodyMedium!.copyWith(color: t.colorScheme.onSurfaceVariant.withValues(alpha: dim ? 0.6 : 1));
     Widget line(String text, TextStyle style) => Text(text, style: style, maxLines: 1, overflow: TextOverflow.ellipsis);
-    Widget media = Row(mainAxisSize: MainAxisSize.min, children: [
-      for (var i = 0; i < images.length; i++) ...[if (i > 0) const SizedBox(width: 6), images[i]],
-    ]);
-    final check = Container(
-      decoration: BoxDecoration(color: t.colorScheme.primary, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2)),
-      child: Icon(Icons.check, size: 18, color: t.colorScheme.onPrimary),
-    );
-    if (selected) {
-      // El ✓ va sobre la imagen; sin imagen, en su lugar.
-      media = images.isEmpty ? check : Stack(clipBehavior: Clip.none, children: [media, Positioned(right: -4, top: -4, child: check)]);
-    }
-    final text = Expanded(
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Flexible(child: line(title, t.textTheme.titleMedium!.copyWith(fontWeight: FontWeight.w600, color: dim ? t.disabledColor : null))),
-          if (chip != null) ...[const SizedBox(width: 6), chip!],
-        ]),
-        const SizedBox(height: 2),
-        for (final l in lines) line(l, muted),
-      ]),
-    );
-    final hasMedia = images.isNotEmpty || selected;
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      clipBehavior: Clip.antiAlias,
+    final card = Card(
+      margin: margin,
       color: selected ? t.colorScheme.primaryContainer : null,
       shape: RoundedRectangleBorder(
         side: BorderSide(color: selected ? t.colorScheme.primary : t.colorScheme.outline, width: selected ? 2 : 1),
         borderRadius: BorderRadius.circular(12),
       ),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
         onLongPress: onLongPress,
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Row(children: [
-            if (hasMedia && !imagesRight) ...[media, const SizedBox(width: 14)],
-            text,
-            if (hasMedia && imagesRight) ...[const SizedBox(width: 12), media],
+            for (var i = 0; i < images.length; i++) ...[if (i > 0) const SizedBox(width: 6), images[i]],
+            if (images.isNotEmpty) const SizedBox(width: 14),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Flexible(child: line(title, t.textTheme.titleMedium!.copyWith(fontWeight: FontWeight.w600, color: dim ? t.disabledColor : null))),
+                  if (chip != null) ...[const SizedBox(width: 6), chip!],
+                ]),
+                const SizedBox(height: 2),
+                for (final l in lines) line(l, muted),
+              ]),
+            ),
             if (trailing != null) ...[const SizedBox(width: 8), trailing!],
+          ]),
+        ),
+      ),
+    );
+    if (!selected) return card;
+    return Stack(clipBehavior: Clip.none, children: [
+      card,
+      Positioned(
+        right: 4,
+        top: -2,
+        child: Container(
+          decoration: BoxDecoration(color: t.colorScheme.secondary, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2)),
+          child: const Icon(Icons.check, size: 20, color: Colors.black),
+        ),
+      ),
+    ]);
+  }
+}
+
+/// Título de un grupo (sin plegar).
+class SectionTitle extends StatelessWidget {
+  final String text;
+
+  const SectionTitle(this.text, {super.key});
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
+        child: Text(text, style: Theme.of(context).textTheme.titleSmall!.copyWith(color: Theme.of(context).colorScheme.primary)),
+      );
+}
+
+Widget separator() => const Padding(padding: EdgeInsets.fromLTRB(12, 10, 12, 0), child: Divider(thickness: 2, height: 2));
+
+/// Selector (docs/11 §11.23): tarjeta con ↕ que solo despliega su lista.
+class SelectorCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final List<String> lines;
+  final VoidCallback? onTap;
+  final bool enabled;
+
+  const SelectorCard({super.key, required this.icon, required this.title, this.lines = const [], this.onTap, this.enabled = true});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context);
+    return InfoCard(
+      images: [CardImage(icon: icon)],
+      title: title,
+      lines: lines,
+      onTap: enabled ? onTap : null,
+      onLongPress: enabled ? onTap : null,
+      trailing: enabled
+          ? Container(
+              decoration: BoxDecoration(color: t.colorScheme.secondaryContainer, borderRadius: BorderRadius.circular(8)),
+              padding: const EdgeInsets.all(4),
+              child: Icon(Icons.unfold_more, color: t.colorScheme.onSecondaryContainer),
+            )
+          : null,
+    );
+  }
+}
+
+/// Botón grande de Inicio (Perfil, Hijos, Mi QR).
+class QuickButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const QuickButton(this.icon, this.label, this.onTap, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context);
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Material(
+          color: t.colorScheme.secondaryContainer,
+          borderRadius: BorderRadius.circular(16),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: onTap,
+            child: SizedBox(
+              height: 72,
+              child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Icon(icon, size: 26, color: t.colorScheme.onSecondaryContainer),
+                const SizedBox(height: 4),
+                Text(label, style: t.textTheme.labelLarge!.copyWith(color: t.colorScheme.onSecondaryContainer)),
+              ]),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Aviso de lo que falta («Aún no tiene Entidad») con su botón.
+class NoticeCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String detail;
+  final IconData? buttonIcon;
+  final String? buttonText;
+  final VoidCallback? onPressed;
+  final Color color;
+
+  const NoticeCard({super.key, required this.icon, required this.title, required this.detail, this.buttonIcon, this.buttonText, this.onPressed, this.color = amber});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context);
+    return Card(
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+      color: color.withValues(alpha: 0.08),
+      shape: RoundedRectangleBorder(side: BorderSide(color: color.withValues(alpha: 0.6)), borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(icon, color: color),
+            const SizedBox(width: 10),
+            Expanded(child: Text(title, style: t.textTheme.titleMedium!.copyWith(fontWeight: FontWeight.w600))),
+          ]),
+          const SizedBox(height: 6),
+          Text(detail, style: t.textTheme.bodyMedium),
+          if (buttonText != null && onPressed != null) ...[
+            const SizedBox(height: 10),
+            Align(alignment: Alignment.centerRight, child: FilledButton.icon(onPressed: onPressed, icon: Icon(buttonIcon ?? Icons.arrow_forward), label: Text(buttonText!))),
+          ],
+        ]),
+      ),
+    );
+  }
+}
+
+/// Foto o imagen del formulario con el botón de la cámara.
+class PhotoHeader extends StatelessWidget {
+  final String? url;
+  final IconData icon;
+  final VoidCallback? onTap;
+
+  const PhotoHeader({super.key, this.url, required this.icon, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: 16, bottom: 8),
+      child: Center(
+        child: GestureDetector(
+          onTap: onTap,
+          child: Stack(children: [
+            CardImage(url: url, icon: icon, round: true, size: 104),
+            if (onTap != null)
+              Positioned(
+                right: 0,
+                bottom: 0,
+                child: CircleAvatar(radius: 18, backgroundColor: t.colorScheme.secondary, child: const Icon(Icons.photo_camera, size: 18, color: Colors.black)),
+              ),
           ]),
         ),
       ),
@@ -167,236 +279,103 @@ class InfoCard extends StatelessWidget {
   }
 }
 
-/// Tarjeta de usuario (docs/11 §11.3): foto (o ícono de persona), nombres y
-/// apellidos y las abreviaturas de sus Entidades separadas por • (o «Sin Entidad»).
-class UserCard extends StatelessWidget {
-  final String fullName;
-  final String? photoUrl;
-  final List<String> entities;
-  final bool selected;
-  final bool dim;
-  final VoidCallback? onTap;
-  final VoidCallback? onLongPress;
+/// Sección plegable con su cantidad que recuerda si estaba plegada
+/// (docs/11 §11.26), paginada de 5 en 5 (salvo [paginate] false).
+class FoldSection<T> extends StatefulWidget {
+  /// Clave para recordar si estaba plegada (p. ej. «gestion.personas»).
+  final String storageKey;
+  final String title;
+  final List<T> items;
+  final Widget Function(T item) builder;
+  final bool paginate;
+  final int pageSize;
 
-  const UserCard({super.key, required this.fullName, this.photoUrl, this.entities = const [], this.selected = false, this.dim = false, this.onTap, this.onLongPress});
+  /// Cantidad total si no son todos los cargados.
+  final int? total;
+  final String? emptyText;
+  final bool initiallyOpen;
 
-  /// De una persona (`users`).
-  UserCard.person(Person person, {super.key, this.selected = false, this.onTap, this.onLongPress})
-      : fullName = person.fullName,
-        photoUrl = person.photoUrl,
-        entities = person.entities,
-        dim = !person.active;
+  /// Contenido en lugar de las tarjetas (p. ej. una lista para arrastrar).
+  final Widget? child;
 
-  /// De una pertenencia (`workers`): la Entidad es la de la pertenencia.
-  UserCard.worker(Worker worker, {super.key, this.selected = false, this.onTap, this.onLongPress})
-      : fullName = worker.fullName,
-        photoUrl = worker.photoUrl,
-        entities = [if (worker.entity != null) worker.entity!.abbreviation],
-        dim = !worker.active;
-
-  @override
-  Widget build(BuildContext context) => InfoCard(
-        images: [CardImage(url: photoUrl, icon: Icons.person, round: true, size: 60, dim: dim)],
-        title: fullName,
-        lines: [entities.isEmpty ? 'Sin Entidad' : entities.join(' • ')],
-        dim: dim,
-        selected: selected,
-        onTap: onTap,
-        onLongPress: onLongPress,
-      );
-}
-
-/// Tarjeta de hijo (docs/11 §11.10): foto a la derecha; nombres y apellidos,
-/// «Nacimiento dd/mm/aa» y «Derecho dd/mm/aa» (o «Desactivado», atenuada).
-class ChildCard extends StatelessWidget {
-  final Child child;
-  final bool selected;
-  final VoidCallback? onTap;
-  final VoidCallback? onLongPress;
-
-  const ChildCard(this.child, {super.key, this.selected = false, this.onTap, this.onLongPress});
-
-  @override
-  Widget build(BuildContext context) {
-    final dim = !child.active;
-    return InfoCard(
-      imagesRight: true,
-      images: [CardImage(url: child.photoUrl, icon: Icons.face, round: true, dim: dim)],
-      title: child.fullName,
-      lines: [
-        'Nacimiento ${formatShortDay(child.birthDate)}',
-        if (!child.active) 'Desactivado' else if (!child.eligible) 'Sin derecho a viajar' else 'Derecho ${formatShortDay(child.eligibleUntil)}',
-      ],
-      dim: dim,
-      selected: selected,
-      onTap: onTap,
-      onLongPress: onLongPress,
-    );
-  }
-}
-
-/// Tarjeta de Entidad (docs/11 §11.10): imagen; abreviatura, nombre y
-/// «N trabajadores». [selector] añade ↕ (abre «Mis Entidades»); [checked]
-/// añade el ✓ verde de la elegida en esa hoja.
-class EntityCard extends StatelessWidget {
-  final Entity? entity;
-  final bool selector;
-  final bool checked;
-
-  /// Línea extra (p. ej. «Solicitada el mar. 03/11/26»).
-  final String? extraLine;
-  final Widget? chip;
-  final bool selected;
-  final VoidCallback? onTap;
-  final VoidCallback? onLongPress;
-
-  const EntityCard(this.entity, {super.key, this.selector = false, this.checked = false, this.extraLine, this.chip, this.selected = false, this.onTap, this.onLongPress});
-
-  @override
-  Widget build(BuildContext context) {
-    final e = entity;
-    return InfoCard(
-      images: [CardImage(url: e?.imageUrl, icon: Icons.apartment)],
-      title: e?.abbreviation ?? 'Sin Entidad',
-      lines: e == null
-          ? ['Toque aquí para solicitar entrar en una Entidad']
-          : [if (e.name.isNotEmpty) e.name, plural(e.workerCount, 'trabajador', 'trabajadores'), ?extraLine],
-      chip: chip,
-      trailing: checked
-          ? const Icon(Icons.check_circle, color: Color(0xFF2E7D32))
-          : (selector && e != null ? const Icon(Icons.unfold_more) : null),
-      selected: selected,
-      onTap: onTap,
-      onLongPress: onLongPress,
-    );
-  }
-}
-
-/// Tarjeta de itinerario y parada (docs/11 §11.10): las dos imágenes juntas;
-/// nombre del itinerario, «calle • punto de referencia» y «N trabajadores».
-/// Sin itinerario: tarjeta «Sin itinerario».
-class ItineraryStopCard extends StatelessWidget {
-  final String? itineraryName;
-  final String? itineraryImageUrl;
-  final String? street;
-  final String? landmark;
-  final String? stopImageUrl;
-  final int? memberCount;
-  final String? extraLine;
-  final Widget? chip;
-  final bool selected;
-  final VoidCallback? onTap;
-  final VoidCallback? onLongPress;
-
-  const ItineraryStopCard({
+  const FoldSection({
     super.key,
-    this.itineraryName,
-    this.itineraryImageUrl,
-    this.street,
-    this.landmark,
-    this.stopImageUrl,
-    this.memberCount,
-    this.extraLine,
-    this.chip,
-    this.selected = false,
-    this.onTap,
-    this.onLongPress,
+    required this.storageKey,
+    required this.title,
+    required this.items,
+    required this.builder,
+    this.paginate = true,
+    this.pageSize = 5,
+    this.total,
+    this.emptyText,
+    this.initiallyOpen = true,
+    this.child,
   });
 
-  /// La de una pertenencia (Inicio, «Itinerario y parada»). Sin itinerario: «Sin itinerario».
-  ItineraryStopCard.membership(Membership? membership, {super.key, this.selected = false, this.onTap, this.onLongPress})
-      : itineraryName = membership?.itinerary?.name,
-        itineraryImageUrl = membership?.itinerary?.imageUrl,
-        street = membership?.stop?.street,
-        landmark = membership?.stop?.landmark,
-        stopImageUrl = membership?.stop?.imageUrl,
-        memberCount = membership?.itinerary?.memberCount,
-        extraLine = null,
-        chip = null;
+  @override
+  State<FoldSection<T>> createState() => _FoldSectionState<T>();
+}
+
+class _FoldSectionState<T> extends State<FoldSection<T>> {
+  static final Map<String, bool> _memory = {};
+  late bool _open = _memory[widget.storageKey] ?? widget.initiallyOpen;
+  int _page = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!_memory.containsKey(widget.storageKey)) {
+      Storage.getString('fold.${widget.storageKey}').then((value) {
+        if (value != null && mounted) setState(() => _open = _memory[widget.storageKey] = value == '1');
+      });
+    }
+  }
+
+  void _toggle() {
+    setState(() => _open = !_open);
+    _memory[widget.storageKey] = _open;
+    Storage.setString('fold.${widget.storageKey}', _open ? '1' : '0');
+  }
 
   @override
   Widget build(BuildContext context) {
-    final none = itineraryName == null;
-    return InfoCard(
-      images: [CardImage(url: itineraryImageUrl, icon: Icons.route), CardImage(url: stopImageUrl, icon: Icons.place)],
-      title: none ? 'Sin itinerario' : itineraryName!,
-      lines: none
-          ? ['Toque aquí para solicitar itinerario y parada']
-          : [
-              [street, landmark].where((s) => s != null && s.isNotEmpty).join(' • '),
-              if (memberCount != null) plural(memberCount!, 'trabajador', 'trabajadores'),
-              ?extraLine,
-            ],
-      chip: chip,
-      selected: selected,
-      onTap: onTap,
-      onLongPress: onLongPress,
-    );
+    final t = Theme.of(context);
+    final count = widget.total ?? widget.items.length;
+    final pages = widget.paginate ? ((widget.items.length + widget.pageSize - 1) ~/ widget.pageSize).clamp(1, 1 << 20) : 1;
+    if (_page >= pages) _page = pages - 1;
+    final visible = widget.paginate ? widget.items.skip(_page * widget.pageSize).take(widget.pageSize).toList() : widget.items;
+    final children = <Widget>[
+      InkWell(
+        onTap: _toggle,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 12, 4),
+          child: Row(children: [
+            Expanded(child: Text('${widget.title} ($count)', style: t.textTheme.titleSmall!.copyWith(color: t.colorScheme.primary, fontWeight: FontWeight.w700))),
+            Icon(_open ? Icons.expand_less : Icons.expand_more, color: t.colorScheme.primary),
+          ]),
+        ),
+      ),
+    ];
+    if (_open) {
+      if (widget.child != null) {
+        children.add(widget.child!);
+      } else if (widget.items.isEmpty) {
+        children.add(Padding(padding: const EdgeInsets.fromLTRB(16, 4, 16, 8), child: Text(widget.emptyText ?? 'No hay nada que mostrar.', style: t.textTheme.bodyMedium)));
+      } else {
+        children.addAll(visible.map(widget.builder));
+        if (widget.paginate && widget.items.length > widget.pageSize) {
+          final first = _page * widget.pageSize + 1;
+          final last = (first + widget.pageSize - 1).clamp(1, widget.items.length);
+          children.add(Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            IconButton(tooltip: 'Primera página', onPressed: _page > 0 ? () => setState(() => _page = 0) : null, icon: const Icon(Icons.first_page)),
+            IconButton(tooltip: 'Anterior', onPressed: _page > 0 ? () => setState(() => _page--) : null, icon: const Icon(Icons.chevron_left)),
+            Text('$first–$last de ${widget.items.length}', style: t.textTheme.titleSmall),
+            IconButton(tooltip: 'Siguiente', onPressed: _page < pages - 1 ? () => setState(() => _page++) : null, icon: const Icon(Icons.chevron_right)),
+            IconButton(tooltip: 'Última página', onPressed: _page < pages - 1 ? () => setState(() => _page = pages - 1) : null, icon: const Icon(Icons.last_page)),
+          ]));
+        }
+      }
+    }
+    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children);
   }
 }
-
-/// Tarjeta de rol (docs/11 §11.10): ícono; el rol y, debajo, el nombre del
-/// itinerario (Jefe de itinerario) o la abreviatura de la Entidad.
-class RoleCard extends StatelessWidget {
-  final String name;
-  final String subtitle;
-  final String? icon;
-  final String? extraLine;
-  final Widget? chip;
-  final bool selected;
-  final VoidCallback? onTap;
-  final VoidCallback? onLongPress;
-
-  const RoleCard({super.key, required this.name, required this.subtitle, this.icon, this.extraLine, this.chip, this.selected = false, this.onTap, this.onLongPress});
-
-  /// La tarjeta «Trabajador» (siempre la primera en Roles).
-  RoleCard.worker(Entity entity, {super.key, this.selected = false, this.onTap, this.onLongPress})
-      : name = 'Trabajador',
-        subtitle = entity.abbreviation,
-        icon = 'badge',
-        extraLine = null,
-        chip = null;
-
-  /// Un rol aprobado en esa Entidad.
-  RoleCard.held(HeldRole role, Entity entity, {super.key, this.selected = false, this.onTap, this.onLongPress})
-      : name = role.name,
-        subtitle = role.itineraryName ?? entity.abbreviation,
-        icon = role.icon,
-        extraLine = null,
-        chip = null;
-
-  @override
-  Widget build(BuildContext context) => InfoCard(
-        images: [CardImage(icon: roleIcon(icon))],
-        title: name,
-        lines: [subtitle, ?extraLine],
-        chip: chip,
-        selected: selected,
-        onTap: onTap,
-        onLongPress: onLongPress,
-      );
-}
-
-/// Ícono Material de un rol a partir de su nombre (`roles.icon`).
-IconData roleIcon(String? name) => const {
-      'badge': Icons.badge_outlined,
-      'route': Icons.groups,
-      'groups': Icons.groups,
-      'directions_bus': Icons.airline_seat_recline_normal,
-      'airline_seat_recline_normal': Icons.airline_seat_recline_normal,
-      'manage_accounts': Icons.manage_accounts,
-      'admin_panel_settings': Icons.admin_panel_settings,
-      'person': Icons.person,
-      'support_agent': Icons.support_agent,
-      'local_shipping': Icons.local_shipping,
-      'engineering': Icons.engineering,
-      'verified_user': Icons.verified_user,
-    }[name] ??
-    Icons.work_outline;
-
-/// Color del estado de una solicitud, para su [CardChip].
-Color applicationStatusColor(String status) => const {
-      ApplicationStatus.pending: orange,
-      ApplicationStatus.approved: Color(0xFF2E7D32),
-      ApplicationStatus.rejected: overloadColor,
-    }[status] ?? Colors.grey;

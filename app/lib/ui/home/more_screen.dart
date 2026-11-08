@@ -1,69 +1,131 @@
 import 'package:flutter/material.dart';
+import 'package:ota_update/ota_update.dart';
 import 'package:provider/provider.dart';
 
-import '../../models/models.dart';
-import '../../services/session.dart';
-import '../admin/admin_menu.dart';
-import '../navigation.dart';
-import '../profile/notices_screen.dart';
-import '../settings/settings_screen.dart';
-import '../stats/statistics_screen.dart';
+import '../../services/app_info.dart';
 import '../../services/app_updates.dart';
+import '../../services/session.dart';
+import '../admin/access_recoveries_screen.dart';
+import '../admin/app_versions_screen.dart';
+import '../admin/maintenance_screen.dart';
+import '../admin/nomenclators_screen.dart';
+import '../admin/settings_screen.dart';
+import '../chat/conversations_screen.dart';
+import '../navigation.dart';
+import '../profile/my_qr_screen.dart';
+import '../profile/profile_screen.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/cards.dart';
 import '../widgets/common.dart';
 
-class MoreScreen extends StatelessWidget {
+/// Más (docs/11 §11.38, maqueta G18 n.º 11).
+class MoreScreen extends StatefulWidget {
   const MoreScreen({super.key});
 
   @override
+  State<MoreScreen> createState() => _MoreScreenState();
+}
+
+class _MoreScreenState extends State<MoreScreen> {
+  String _version = '';
+  AppUpdate? _update;
+  String? _progress;
+
+  @override
+  void initState() {
+    super.initState();
+    AppInfo.label().then((v) {
+      if (mounted) setState(() => _version = v);
+    });
+    AppUpdates.check(context.read<Session>().api).then((u) {
+      if (mounted) setState(() => _update = u);
+    }).catchError((_) {});
+  }
+
+  Future<void> _share() async {
+    final arm64 = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Compartir la app'),
+        content: const Text('¿Para qué tipo de teléfono? La mayoría de los teléfonos actuales son de 64 bits.'),
+        actions: [
+          cancelButton(context),
+          TextButton.icon(onPressed: () => Navigator.pop(context, false), icon: const Icon(Icons.phone_android), label: const Text('32 bits')),
+          FilledButton.icon(onPressed: () => Navigator.pop(context, true), icon: const Icon(Icons.phone_android), label: const Text('64 bits')),
+        ],
+      ),
+    );
+    if (arm64 == null || !mounted) return;
+    await runAction(context, () => AppUpdates.share(context.read<Session>().api, arm64: arm64));
+  }
+
+  void _install(AppUpdate update) {
+    if (update.downloadUrl == null) return;
+    setState(() => _progress = 'Descargando…');
+    AppUpdates.install(update).listen((event) {
+      if (!mounted) return;
+      setState(() => _progress = switch (event.status) {
+            OtaStatus.DOWNLOADING => 'Descargando ${event.value ?? ''} %',
+            OtaStatus.INSTALLING || OtaStatus.INSTALLATION_DONE => 'Abriendo el instalador…',
+            _ => 'No se pudo descargar la actualización.',
+          });
+    }, onError: (Object _) {
+      if (mounted) setState(() => _progress = 'No se pudo descargar la actualización.');
+    });
+  }
+
+  Widget _tile(IconData icon, String title, VoidCallback onTap, [String? subtitle]) =>
+      ListTile(leading: Icon(icon), title: Text(title), subtitle: subtitle == null ? null : Text(subtitle), trailing: const Icon(Icons.chevron_right), onTap: onTap);
+
+  @override
   Widget build(BuildContext context) {
-    final me = context.watch<Session>().me!;
-    void open(Widget screen) => Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
-    final management = allowedManagementEntries(me);
-    return AppScaffold(
+    final session = context.watch<Session>();
+    final me = session.me!;
+    final update = _update;
+    return AppScaffold.list(
       title: 'Más',
       tab: MainTab.more,
-      body: ListView(children: [
-        UserCard.person(me.person, onTap: () => AppRoutes.profile(context)),
-        const Divider(),
-        ListTile(leading: const Icon(Icons.qr_code_2), title: const Text('Mi QR'), onTap: () => AppRoutes.myQr(context)),
-        if (me.canAnywhere(Op.membersAssignByQr))
-          ListTile(leading: const Icon(Icons.qr_code_scanner), title: const Text('Alta en itinerario con QR'), onTap: () => AppRoutes.assignByQr(context)),
-        ListTile(leading: const Icon(Icons.notifications_outlined), title: const Text('Avisos'), onTap: () => open(const NoticesScreen())),
-        ListTile(leading: const Icon(Icons.bar_chart), title: const Text('Estadísticas'), onTap: () => open(const StatisticsScreen())),
-        ListTile(leading: const Icon(Icons.settings_outlined), title: const Text('Ajustes'), onTap: () => open(const SettingsScreen())),
-        BusyListTile(
-          leading: const Icon(Icons.share_outlined),
-          title: const Text('Compartir la app'),
-          onTap: () async {
-            final arm64 = await pickFrom<bool>(context, '¿Para qué tipo de teléfono?', [true, false],
-                (is64) => is64 ? 'La mayoría (64 bits)' : 'Teléfonos antiguos (32 bits)',
-                subtitle: (is64) => is64 ? 'Si al instalarla dice que no es compatible, envíe la otra' : 'Solo si la de 64 bits no se instala');
-            if (arm64 != null && context.mounted) await AppUpdates.share(context.api, arm64: arm64);
-          },
+      children: [
+        InfoCard(
+          images: [CardImage(url: me.photoUrl, icon: Icons.person, round: true)],
+          title: me.fullName,
+          lines: ['${me.username}${me.identityCard == null ? '' : ' • CI ${me.identityCard}'}'],
+          onTap: () => push(context, const ProfileScreen()),
         ),
-        // Solo si tiene alguna entrada de Gestión permitida (meta.permissions de GET /me).
-        if (management.isNotEmpty) ...[
-          const Divider(),
-          ListTile(
-            leading: const Icon(Icons.manage_accounts_outlined),
-            title: const Text('Gestión'),
-            subtitle: Text(me.isAdmin ? 'Administrador' : management.map((e) => e.title).take(3).join(' · ')),
-            onTap: () => AppRoutes.management(context),
+        if (update != null)
+          NoticeCard(
+            icon: Icons.system_update,
+            title: 'Actualización disponible',
+            detail: 'Versión ${update.versionName}${update.sizeBytes > 0 ? ' (${update.sizeLabel})' : ''}.${update.notes == null ? '' : ' ${update.notes}'}${_progress == null ? '' : '\n$_progress'}',
+            buttonIcon: Icons.download,
+            buttonText: 'Descargar e instalar',
+            onPressed: () => _install(update),
+            color: blue2,
           ),
+        const SectionTitle('Para mí'),
+        _tile(Icons.qr_code_2, 'Mi QR', () => push(context, const MyQrScreen())),
+        _tile(Icons.forum_outlined, 'Conversaciones', () => push(context, const ConversationsScreen()), me.isAdmin ? 'Mensajes al desarrollador' : 'Escribir al desarrollador'),
+        _tile(Icons.share_outlined, 'Compartir la app', _share),
+        if (me.isAdmin) ...[
+          const SectionTitle('Administrador'),
+          _tile(Icons.list_alt, 'Nomencladores', () => push(context, const NomenclatorsScreen())),
+          _tile(Icons.settings_applications_outlined, 'Ajustes de la app', () => push(context, const SettingsScreen())),
+          _tile(Icons.lock_reset, 'Olvidé algo', () => push(context, const AccessRecoveriesScreen()), 'Solicitudes de recuperación de acceso'),
+          _tile(Icons.system_update_alt, 'Actualizaciones de la app', () => push(context, const AppVersionsScreen())),
+          _tile(Icons.dns_outlined, 'Mantenimiento del servidor', () => push(context, const MaintenanceScreen())),
         ],
         const Divider(),
         ListTile(
-          leading: const Icon(Icons.logout),
-          title: const Text('Cerrar sesión'),
+          leading: const Icon(Icons.logout, color: red),
+          title: const Text('Cerrar sesión', style: TextStyle(color: red)),
           onTap: () async {
-            final everywhere = await pickFrom<bool>(context, 'Cerrar sesión', [false, true], (all) => all ? 'En todos mis dispositivos' : 'Solo en este teléfono');
-            if (everywhere != null && context.mounted) await context.session.logout(everywhere: everywhere);
+            if (await confirm(context, 'Cerrar sesión', '¿Cerrar la sesión en este teléfono?', accept: 'Cerrar sesión', icon: Icons.logout, destructive: true) && context.mounted) {
+              await context.read<Session>().logout();
+            }
           },
         ),
-        const Padding(padding: EdgeInsets.symmetric(vertical: 16), child: AppVersionText()),
-      ]),
+        Center(child: Padding(padding: const EdgeInsets.all(8), child: Text(_version, style: const TextStyle(color: grey)))),
+      ],
     );
   }
 }

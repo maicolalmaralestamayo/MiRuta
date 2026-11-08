@@ -6,23 +6,21 @@ import 'package:flutter/services.dart';
 import '../../core/api_exception.dart';
 import '../../core/username.dart';
 import '../../models/models.dart';
-import '../../services/api/accounts_api.dart';
-import '../../services/templates.dart';
 import '../widgets/common.dart';
 import 'names_fields.dart';
 import 'password_fields.dart';
 
-/// Registro (docs/11 §11.5, pantalla 1): nombres, apellidos y carné; usuario y
+/// Registro (docs/11 §11.5): nombres, apellidos y carné; usuario y
 /// contraseña ya propuestos por el sistema y modificables. Sin Entidad: se
-/// solicita después, en «Otros datos del registro».
+/// solicita después desde Inicio («Aún no tiene Entidad»).
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
 
   /// Texto exacto si el carné ya está registrado (docs/11 §11.5). El servidor
   /// lo devuelve igual (409 IDENTITY_CARD_TAKEN); este es por si no llega.
   static const identityCardTaken =
-      'Alguien ya se registró con este carné de identidad. Si fue usted, emplee la opción Olvidé algo. '
-      'Si no fue usted, comuníquese con el Administrador de la aplicación, su Jefe de Itinerario o el Jefe de Transporte de su Entidad.';
+      'Alguien ya se registró con este carné de identidad. Si fue usted, emplee la opción Olvidé usuario/contraseña. '
+      'Si no fue usted, comuníquese con el Administrador de la aplicación, o su Jefe de itinerario.';
 
   @override
   State<RegisterScreen> createState() => _RegisterScreenState();
@@ -49,13 +47,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   late final _names = NamesFields(firstName: _firstName, middleName: _middleName, firstSurname: _firstSurname, secondSurname: _secondSurname, onChanged: (_) => _scheduleSuggestion());
 
-  AccountsApi get _accounts => AccountsApi(context.api);
-
   @override
   void initState() {
     super.initState();
-    _accounts.adminExists().then((exists) {
-      if (mounted) setState(() => _adminExists = exists);
+    context.api.get('/registration-status').then((d) {
+      if (mounted) setState(() => _adminExists = d.resource.boolean('adminExists'));
     }).catchError((_) {});
     _suggestPassword();
   }
@@ -71,7 +67,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Future<void> _suggestPassword() async {
     try {
-      final password = await _accounts.passwordSuggestion();
+      final password = (await context.api.get('/password-suggestion')).resource.string('password') ?? '';
       if (!mounted || password.isEmpty) return;
       setState(() {
         _password.text = password;
@@ -93,7 +89,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final name = _names.value;
     if (name.firstName.isEmpty || name.firstSurname.isEmpty) return;
     try {
-      final username = await _accounts.usernameSuggestion(name);
+      final username = (await context.api.get('/username-suggestion', query: {
+        'firstName': name.firstName,
+        'middleName': name.middleName,
+        'firstSurname': name.firstSurname,
+        'secondSurname': name.secondSurname,
+      })).resource.string('username') ?? '';
       if (mounted && !_usernameEdited && username.isNotEmpty) setState(() => _username.text = username);
     } catch (_) {
       // Sin conexión: lo escribe la persona.
@@ -104,10 +105,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (!_form.currentState!.validate()) return;
     setState(() => _error = null);
     try {
-      final route = ModalRoute.of(context);
+      final navigator = Navigator.of(context);
       await context.session.register(name: _names.value, identityCard: _identityCard.text, username: _username.text, password: _password.text);
-      // Se quita esta pantalla (no la de encima: Inicio ya pudo abrir «Otros datos del registro»).
-      if (mounted && route != null && route.isActive) Navigator.of(context).removeRoute(route);
+      if (navigator.mounted) navigator.popUntil((route) => route.isFirst);
     } on ApiException catch (error) {
       setState(() => _error = error);
     }
@@ -131,9 +131,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
       appBar: AppBar(title: const Text('Registrarme')),
       body: Form(
         key: _form,
-        child: ListView(padding: const EdgeInsets.all(16), children: [
+        child: ListView(padding: const EdgeInsets.symmetric(vertical: 16), children: [
           if (_adminExists == false) ...[
             Card(
+              margin: const EdgeInsets.symmetric(horizontal: 16),
               color: Theme.of(context).colorScheme.secondaryContainer,
               child: const ListTile(
                 leading: Icon(Icons.admin_panel_settings),
@@ -144,14 +145,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
             const SizedBox(height: 12),
           ],
           _names,
-          TextFormField(
+          Padding(padding: const EdgeInsets.fromLTRB(16, 6, 16, 6), child: TextFormField(
             controller: _identityCard,
             decoration: InputDecoration(
               labelText: 'Carné de identidad',
               hintText: 'p. ej. 85031512345',
               prefixIcon: const Icon(Icons.badge_outlined),
               // El sexo y la fecha de nacimiento salen del carné (no se escriben).
-              helperText: birth == null ? null : '${sexLabel(IdentityCard.sex(card))} • nacimiento ${formatShortDate(birth)}',
+              helperText: birth == null ? null : sexAndBirth(IdentityCard.sex(card), birth),
               errorText: _error?.hasCode('IDENTITY_CARD_TAKEN') == true ? null : _error?.fieldError('/identityCard'),
               errorMaxLines: 4,
             ),
@@ -163,9 +164,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
               if (_error?.fieldError('/identityCard') != null || _error?.hasCode('IDENTITY_CARD_TAKEN') == true) _error = null;
             }),
             validator: IdentityCard.validate,
-          ),
-          const SizedBox(height: 12),
-          TextFormField(
+          )),
+          Padding(padding: const EdgeInsets.fromLTRB(16, 6, 16, 6), child: TextFormField(
             controller: _username,
             decoration: InputDecoration(
               labelText: 'Nombre de usuario',
@@ -184,9 +184,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
               if (_error?.fieldError('/username') != null) setState(() => _error = null);
             },
             validator: validateUsername,
-          ),
-          const SizedBox(height: 12),
-          PasswordFields(password: _password, confirmation: _confirmation, initiallyVisible: true),
+          )),
+          Padding(padding: const EdgeInsets.fromLTRB(16, 6, 16, 0), child: PasswordFields(password: _password, confirmation: _confirmation, initiallyVisible: true)),
           const SizedBox(height: 4),
           Align(
             alignment: Alignment.centerRight,
@@ -194,12 +193,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
           if (_error != null && (!fieldErrors || _error!.hasCode('IDENTITY_CARD_TAKEN'))) ...[
             const SizedBox(height: 4),
-            Text(_errorText, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            Padding(padding: const EdgeInsets.symmetric(horizontal: 16), child: Text(_errorText, style: TextStyle(color: Theme.of(context).colorScheme.error))),
           ],
           const SizedBox(height: 20),
-          BusyButton(onPressed: _register, showErrors: false, icon: const Icon(Icons.how_to_reg), child: const Text('Registrarme')),
-          const SizedBox(height: 24),
-          const DeveloperChatButton(),
+          Padding(padding: const EdgeInsets.symmetric(horizontal: 16), child: BusyButton(onPressed: _register, icon: Icons.how_to_reg, label: 'Registrarme')),
         ]),
       ),
     );

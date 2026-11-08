@@ -1,21 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:ota_update/ota_update.dart';
+import 'package:provider/provider.dart';
 
-import '../../core/api_client.dart';
 import '../../core/api_exception.dart';
 import '../../core/storage.dart';
+import '../../services/app_info.dart';
+import '../../services/app_updates.dart';
 import '../../services/session.dart';
-import '../theme.dart';
+import '../navigation.dart';
 import '../widgets/app_icon.dart';
 import '../widgets/common.dart';
+import '../widgets/connection_dot.dart';
 import 'access_recovery_screen.dart';
 import 'register_screen.dart';
 import 'server_screen.dart';
 
-/// Estado del servidor en el botón del pie (docs/09-repaso-pantallas.md §1).
-enum _ServerStatus { none, checking, connected, disconnected }
-
-/// Inicio de sesión (docs/09 §1). También se muestra cuando la sesión está
-/// bloqueada y hay que volver a escribir la contraseña.
+/// Inicio de sesión (docs/11 §11.50, §11.51 y §11.54; maqueta G18_login):
+/// botón «Servidor» rojo si no hay servidor (y diálogo «Falta el servidor»
+/// al intentar operar sin él); Entrar, Olvidé usuario/contraseña y
+/// Registrarme. Con una actualización obligatoria pendiente no deja entrar
+/// hasta instalarla (lo recuerda sin conexión).
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -24,169 +28,264 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  static const _green = Color(0xFF2E7D32);
-  static const _red = Color(0xFFC62828);
-
   final _form = GlobalKey<FormState>();
-  final _user = TextEditingController();
+  final _username = TextEditingController();
   final _password = TextEditingController();
+  bool _remember = true;
   bool _hidden = true;
   String? _error;
-  _ServerStatus _server = _ServerStatus.none;
+  AppUpdate? _mandatory;
+  String _version = '';
 
   @override
   void initState() {
     super.initState();
-    final session = context.session;
-    Storage.lastLogin().then((login) {
-      // Las versiones anteriores recordaban el carné: no sirve como usuario.
-      if (login != null && RegExp(r'^\d+$').hasMatch(login)) login = null;
-      // Sesión bloqueada: se muestra el usuario de la sesión aunque no se recuerde.
-      if (login == null && session.state == SessionState.locked) login = session.me?.username;
-      if (login != null && _user.text.isEmpty && mounted) setState(() => _user.text = login!);
+    Storage.lastLogin().then((value) {
+      if (value != null && mounted && _username.text.isEmpty) setState(() => _username.text = value);
     });
-    _checkServer();
+    Storage.getBool(Session.rememberKey, fallback: true).then((v) {
+      if (mounted) setState(() => _remember = v);
+    });
+    AppInfo.label().then((v) {
+      if (mounted) setState(() => _version = v);
+    });
+    _checkUpdate();
+    context.read<Session>().connection.check();
   }
 
-  @override
-  void dispose() {
-    _user.dispose();
-    _password.dispose();
-    super.dispose();
-  }
-
-  /// Comprueba si el servidor guardado responde (al abrir y al volver de Servidor).
-  Future<void> _checkServer() async {
-    final api = context.api;
-    if (!api.hasServer) {
-      setState(() => _server = _ServerStatus.none);
-      return;
-    }
-    setState(() => _server = _ServerStatus.checking);
-    var status = _ServerStatus.connected;
+  /// La obligación guardada y, con conexión, la comprobación en el servidor.
+  Future<void> _checkUpdate() async {
+    final api = context.read<Session>().api;
+    final saved = await AppUpdates.mandatory();
+    if (mounted) setState(() => _mandatory = saved);
+    if (!api.hasServer) return;
     try {
-      await ApiClient.probe(api.baseUrl);
+      final update = await AppUpdates.check(api);
+      if (mounted) setState(() => _mandatory = update != null && update.mandatory ? update : null);
     } catch (_) {
-      status = _ServerStatus.disconnected;
+      // Sin conexión: vale lo guardado.
     }
-    if (mounted) setState(() => _server = status);
   }
 
-  Future<void> _login() async {
-    if (!_form.currentState!.validate()) return;
-    setState(() => _error = null);
-    try {
-      await context.session.login(_user.text.trim(), _password.text);
-    } on ApiException catch (error) {
-      setState(() => _error = error.message);
-    }
+  Future<bool> _needServer() async {
+    if (context.read<Session>().api.hasServer) return false;
+    if (await showMissingServer(context) && mounted) await _openServer();
+    return true;
   }
 
   Future<void> _openServer() async {
-    await Navigator.push(context, MaterialPageRoute(builder: (_) => const ServerScreen()));
-    if (!mounted) return;
-    setState(() => _error = null);
-    await _checkServer();
+    await push(context, const ServerScreen());
+    if (mounted) {
+      setState(() {});
+      _checkUpdate();
+    }
   }
 
-  void _open(Widget screen) => Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
-
-  Widget _serverButton() {
-    final (String label, IconData icon, Color background, Color foreground) = switch (_server) {
-      _ServerStatus.none => ('Indicar servidor', Icons.dns, orange, navy),
-      _ServerStatus.checking => ('Comprobando el servidor…', Icons.dns, Theme.of(context).colorScheme.surfaceContainerHighest, Theme.of(context).colorScheme.onSurface),
-      _ServerStatus.connected => ('Conectado al servidor', Icons.cloud_done_outlined, _green, Colors.white),
-      _ServerStatus.disconnected => ('Desconectado del servidor', Icons.cloud_off_outlined, _red, Colors.white),
-    };
-    return FilledButton.icon(
-      style: FilledButton.styleFrom(backgroundColor: background, foregroundColor: foreground),
-      onPressed: _openServer,
-      icon: _server == _ServerStatus.checking ? const BusyIndicator() : Icon(icon),
-      label: Text(label, overflow: TextOverflow.ellipsis),
-    );
+  Future<void> _login() async {
+    final session = context.read<Session>();
+    if (await _needServer()) return;
+    if (!_form.currentState!.validate()) return;
+    setState(() => _error = null);
+    try {
+      await session.login(_username.text, _password.text, remember: _remember);
+    } on ApiException catch (error) {
+      if (error.statusCode == 426) {
+        await _checkUpdate();
+        return;
+      }
+      if (mounted) setState(() => _error = error.message);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final t = Theme.of(context);
+    final hasServer = context.watch<Session>().api.hasServer;
+    final mandatory = _mandatory;
     return Scaffold(
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Form(
-              key: _form,
-              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                const Center(child: AppIcon(size: 88)),
-                const SizedBox(height: 12),
-                Text('MiRuta', textAlign: TextAlign.center, style: Theme.of(context).textTheme.headlineMedium),
-                const SizedBox(height: 32),
-                TextFormField(
-                  controller: _user,
-                  decoration: const InputDecoration(labelText: 'Nombre de usuario', hintText: 'p. ej. ana.perez', prefixIcon: Icon(Icons.person_outline)),
-                  keyboardType: TextInputType.visiblePassword,
-                  autocorrect: false,
-                  enableSuggestions: false,
-                  textInputAction: TextInputAction.next,
-                  autovalidateMode: AutovalidateMode.onUserInteraction,
-                  validator: (value) => value == null || value.trim().isEmpty ? 'Escriba su nombre de usuario' : null,
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _password,
-                  obscureText: _hidden,
-                  decoration: InputDecoration(
-                    labelText: 'Contraseña',
-                    prefixIcon: const Icon(Icons.lock_outline),
-                    suffixIcon: IconButton(icon: Icon(_hidden ? Icons.visibility : Icons.visibility_off), onPressed: () => setState(() => _hidden = !_hidden)),
-                  ),
-                  autovalidateMode: AutovalidateMode.onUserInteraction,
-                  validator: (value) => value == null || value.isEmpty ? 'Escriba su contraseña' : null,
-                  onFieldSubmitted: (_) => _login(),
-                ),
-                if (_error != null) ...[
-                  const SizedBox(height: 12),
-                  Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
-                ],
-                const SizedBox(height: 20),
-                // Grupo 1: misma línea y mismo tamaño.
-                IntrinsicHeight(
-                  child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-                    Expanded(
-                      child: BusyButton(
-                        onPressed: _login,
-                        showErrors: false,
-                        icon: const Icon(Icons.login),
-                        buttonStyle: FilledButton.styleFrom(backgroundColor: navy, foregroundColor: Colors.white),
-                        child: const Text('Entrar'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: FilledButton.icon(
-                        style: FilledButton.styleFrom(backgroundColor: orange, foregroundColor: navy),
-                        onPressed: () => _open(const AccessRecoveryScreen()),
-                        icon: const Icon(Icons.warning_amber_rounded),
-                        label: const Text('Olvidé algo'),
-                      ),
-                    ),
-                  ]),
-                ),
-                const Divider(height: 32),
-                FilledButton.tonalIcon(
-                  onPressed: () => _open(const RegisterScreen()),
-                  icon: const Icon(Icons.person_add_alt_1_outlined),
-                  label: const Text('Registrarme'),
-                ),
-                const Divider(height: 32),
-                _serverButton(),
-                const SizedBox(height: 8),
-                const DeveloperChatButton(),
-                const SizedBox(height: 16),
-                const AppVersionText(),
+        child: Form(
+          key: _form,
+          child: ListView(padding: const EdgeInsets.only(bottom: 24), children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+              child: Row(children: [
+                const Spacer(),
+                hasServer
+                    ? OutlinedButton.icon(onPressed: _openServer, icon: const Icon(Icons.dns_outlined), label: const Text('Servidor'))
+                    : FilledButton.icon(
+                        onPressed: _openServer, style: FilledButton.styleFrom(backgroundColor: red), icon: const Icon(Icons.dns_outlined), label: const Text('Servidor')),
+                const ConnectionDot(onBar: false),
               ]),
             ),
-          ),
+            const SizedBox(height: 28),
+            const Center(child: AppIcon(size: 110)),
+            const SizedBox(height: 12),
+            Center(child: Text('MiRuta', style: t.textTheme.headlineMedium!.copyWith(fontWeight: FontWeight.w700, color: t.colorScheme.primary))),
+            const SizedBox(height: 20),
+            if (mandatory != null) _MandatoryUpdate(update: mandatory, onChecked: _checkUpdate),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+              child: TextFormField(
+                controller: _username,
+                decoration: const InputDecoration(labelText: 'Usuario', prefixIcon: Icon(Icons.person_outline)),
+                autocorrect: false,
+                enableSuggestions: false,
+                textInputAction: TextInputAction.next,
+                validator: (v) => (v ?? '').trim().isEmpty ? 'Escriba su usuario' : null,
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+              child: TextFormField(
+                controller: _password,
+                obscureText: _hidden,
+                decoration: InputDecoration(
+                  labelText: 'Contraseña',
+                  prefixIcon: const Icon(Icons.lock_outline),
+                  suffixIcon: IconButton(
+                    tooltip: _hidden ? 'Ver la contraseña' : 'Ocultar la contraseña',
+                    icon: Icon(_hidden ? Icons.visibility : Icons.visibility_off),
+                    onPressed: () => setState(() => _hidden = !_hidden),
+                  ),
+                ),
+                onFieldSubmitted: (_) => _login(),
+                validator: (v) => (v ?? '').isEmpty ? 'Escriba su contraseña' : null,
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: CheckboxListTile(
+                value: _remember,
+                onChanged: (v) => setState(() => _remember = v ?? true),
+                title: const Text('Recordar contraseña'),
+                controlAffinity: ListTileControlAffinity.leading,
+              ),
+            ),
+            if (_error != null) Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 8), child: Text(_error!, style: TextStyle(color: t.colorScheme.error))),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: mandatory != null || !hasServer
+                  ? SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: FilledButton.icon(
+                          onPressed: mandatory != null ? null : _needServer, icon: const Icon(Icons.login), label: const Text('Entrar', style: TextStyle(fontSize: 16))))
+                  : BusyButton(onPressed: _login, icon: Icons.login, label: 'Entrar'),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+              child: SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: FilledButton.icon(
+                  onPressed: () async {
+                    if (await _needServer() || !context.mounted) return;
+                    push(context, const AccessRecoveryScreen());
+                  },
+                  style: FilledButton.styleFrom(backgroundColor: t.colorScheme.secondary, foregroundColor: Colors.black),
+                  icon: const Icon(Icons.lock_reset),
+                  label: const Text('Olvidé usuario/contraseña', style: TextStyle(fontSize: 16)),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+              child: SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: OutlinedButton.icon(
+                  onPressed: mandatory != null
+                      ? null
+                      : () async {
+                          if (await _needServer() || !context.mounted) return;
+                          push(context, const RegisterScreen());
+                        },
+                  icon: const Icon(Icons.person_add_alt_1),
+                  label: const Text('Registrarme', style: TextStyle(fontSize: 16)),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Center(child: Text(_version, style: t.textTheme.bodySmall)),
+          ]),
         ),
+      ),
+    );
+  }
+}
+
+/// Aviso de actualización obligatoria con «Descargar e instalar».
+class _MandatoryUpdate extends StatefulWidget {
+  final AppUpdate update;
+  final Future<void> Function() onChecked;
+
+  const _MandatoryUpdate({required this.update, required this.onChecked});
+
+  @override
+  State<_MandatoryUpdate> createState() => _MandatoryUpdateState();
+}
+
+class _MandatoryUpdateState extends State<_MandatoryUpdate> {
+  String? _progress;
+
+  Future<void> _install() async {
+    var update = widget.update;
+    if (update.downloadUrl == null) {
+      try {
+        update = await AppUpdates.check(context.read<Session>().api) ?? update;
+      } catch (error) {
+        if (mounted) showError(context, error);
+        return;
+      }
+    }
+    if (update.downloadUrl == null) {
+      if (mounted) showMessage(context, 'Conéctese al servidor para descargar la versión nueva.');
+      return;
+    }
+    setState(() => _progress = 'Descargando…');
+    AppUpdates.install(update).listen((event) {
+      if (!mounted) return;
+      setState(() {
+        _progress = switch (event.status) {
+          OtaStatus.DOWNLOADING => 'Descargando ${event.value ?? ''} %',
+          OtaStatus.INSTALLING || OtaStatus.INSTALLATION_DONE => 'Abriendo el instalador…',
+          OtaStatus.CHECKSUM_ERROR => 'El archivo descargado no es correcto. Vuelva a intentarlo.',
+          _ => 'No se pudo descargar: ${event.value ?? ''}',
+        };
+      });
+    }, onError: (Object error) {
+      if (mounted) setState(() => _progress = 'No se pudo descargar la actualización.');
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context);
+    final u = widget.update;
+    return Card(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      color: red.withValues(alpha: 0.07),
+      shape: RoundedRectangleBorder(side: const BorderSide(color: red), borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const Icon(Icons.system_update, color: red),
+            const SizedBox(width: 10),
+            Expanded(child: Text('Actualización obligatoria', style: t.textTheme.titleMedium!.copyWith(fontWeight: FontWeight.w600))),
+          ]),
+          const SizedBox(height: 6),
+          Text('Para seguir usando MiRuta instale la versión ${u.versionName.isEmpty ? 'nueva' : u.versionName}${u.sizeBytes > 0 ? ' (${u.sizeLabel})' : ''}. Hasta entonces no puede entrar.'),
+          if (u.notes != null && u.notes!.isNotEmpty) ...[const SizedBox(height: 6), Text(u.notes!, style: t.textTheme.bodySmall)],
+          if (_progress != null) ...[const SizedBox(height: 6), Text(_progress!)],
+          const SizedBox(height: 10),
+          Row(children: [
+            TextButton.icon(onPressed: widget.onChecked, icon: const Icon(Icons.refresh), label: const Text('Comprobar')),
+            const Spacer(),
+            FilledButton.icon(onPressed: _install, icon: const Icon(Icons.download), label: const Text('Descargar e instalar')),
+          ]),
+        ]),
       ),
     );
   }

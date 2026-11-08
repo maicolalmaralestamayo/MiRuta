@@ -34,8 +34,8 @@ String codeOf(void Function() action) {
   return 'OK';
 }
 
-QrCheck verify(String qr, {DateTime? now, bool Function(int, String)? used, ({bool inRoster, int? version}) Function(int)? printed, String key = serverKey}) =>
-    verifyQr(qr, serverPublicKey: key, now: now ?? issuedAt, isNonceUsed: used, printedVersionOf: printed);
+QrCheck verify(String qr, {DateTime? now, bool Function(int, String)? used, String key = serverKey}) =>
+    verifyQr(qr, serverPublicKey: key, now: now ?? issuedAt, isNonceUsed: used);
 
 void main() {
   group('Vectores de la API (OpenSSL)', () {
@@ -67,7 +67,6 @@ void main() {
     test('certificado de otro servidor', () {
       final other = spkiFromPublicKey(generateP256KeyPair().publicKey);
       expect(codeOf(() => verify(dynamicQr, key: other)), 'QR_CERTIFICATE_INVALID');
-      expect(codeOf(() => verify(printedQr, key: other)), 'QR_SIGNATURE_INVALID');
     });
 
     test('payload o firma del teléfono manipulados', () {
@@ -78,23 +77,11 @@ void main() {
       expect(codeOf(() => verify('MR1.$certificate.$payload.${payloadSignature.substring(0, 20)}AAAA')), 'QR_SIGNATURE_INVALID');
     });
 
-    test('MRP1 válido y anulado', () {
-      final check = verify(printedQr, printed: (u) => (inRoster: true, version: 2));
-      expect(check.kind, QrKind.printed);
-      expect(check.userId, 30);
-      expect(check.printedVersion, 2);
-      // Versión distinta o usa el teléfono (null): anulado.
-      expect(codeOf(() => verify(printedQr, printed: (u) => (inRoster: true, version: 3))), 'QR_REVOKED');
-      expect(codeOf(() => verify(printedQr, printed: (u) => (inRoster: true, version: null))), 'QR_REVOKED');
-      // No está en la lista (otra Entidad o alta posterior): lo resuelve el servidor.
-      expect(codeOf(() => verify(printedQr, printed: (u) => (inRoster: false, version: null))), 'OK');
-    });
-
     test('QR que no es de MiRuta', () {
-      for (final text in ['hola', 'MR1.a.b', 'MRP1.a.b.c', 'MR2.$certificate.$payload.$payloadSignature', 'MR1.$certificate.$payload.\$\$\$', 'MRP1.e30.MEUC']) {
+      for (final text in ['hola', 'MR1.a.b', 'MRP1.a.b.c', 'MR2.$certificate.$payload.$payloadSignature', 'MR1.$certificate.$payload.\$\$\$', 'MRP1.e30.MEUC', printedQr]) {
         expect(codeOf(() => verify(text)), anyOf('QR_INVALID', 'QR_SIGNATURE_INVALID'), reason: text);
       }
-      expect(codeOf(() => verify('MRP1.e30.MEUC')), 'QR_INVALID');
+      expect(codeOf(() => verify('MRP1.e30.MEUC')), 'QR_INVALID', reason: 'el QR impreso ya no existe');
     });
 
     test('lee el certificado', () {

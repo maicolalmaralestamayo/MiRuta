@@ -1,32 +1,37 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/formats.dart';
 import '../../services/connection.dart';
-import '../../services/session.dart';
-import '../../services/templates.dart';
 
-/// Punto de conexión de la barra superior (docs/11 §11.14): verde si hay
-/// conexión con el servidor y rojo si no; solo con la sesión iniciada. Al
+/// Punto de conexión de la barra superior (docs/11 §11.14 y §11.50): verde
+/// con conexión al servidor, rojo sin ella y gris si aún no hay servidor. Al
 /// tocarlo: «Conectado a …» o «Sin conexión con el servidor desde las hh:mm».
 class ConnectionDot extends StatelessWidget {
   static const green = Color(0xFF2E7D32);
   static const red = Color(0xFFD32F2F);
+  static const grey = Color(0xFF9E9E9E);
 
-  const ConnectionDot({super.key});
+  /// Borde blanco (sobre la barra azul) o sin borde (pantalla de inicio de sesión).
+  final bool onBar;
+
+  const ConnectionDot({super.key, this.onBar = true});
 
   @override
   Widget build(BuildContext context) {
     final ConnectionMonitor monitor;
     try {
       monitor = Provider.of<ConnectionMonitor>(context);
-      if (Provider.of<Session>(context).state != SessionState.ready) return const SizedBox.shrink();
     } on ProviderNotFoundException {
       return const SizedBox.shrink();
     }
-    final online = monitor.online ?? true;
-    final text = online
-        ? 'Conectado a ${monitor.server}'
-        : 'Sin conexión con el servidor desde las ${formatTime(monitor.offlineSince ?? DateTime.now())}';
+    final hasServer = monitor.api.hasServer;
+    final online = monitor.online ?? hasServer;
+    final text = !hasServer
+        ? 'Aún no ha indicado el servidor'
+        : online
+            ? 'Conectado a ${monitor.server}'
+            : 'Sin conexión con el servidor desde las ${formatTime(monitor.offlineSince ?? DateTime.now())}';
     return IconButton(
       tooltip: text,
       onPressed: () {
@@ -39,9 +44,9 @@ class ConnectionDot extends StatelessWidget {
         width: 12,
         height: 12,
         decoration: BoxDecoration(
-          color: online ? green : red,
+          color: !hasServer ? grey : (online ? green : red),
           shape: BoxShape.circle,
-          border: Border.all(color: Colors.white, width: 1.5),
+          border: onBar ? Border.all(color: Colors.white, width: 1.5) : null,
         ),
       ),
     );

@@ -23,7 +23,7 @@ class NamesFields extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     Widget field(TextEditingController controller, String label, String hint, {String? required}) => Padding(
-          padding: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
           child: TextFormField(
             controller: controller,
             decoration: InputDecoration(labelText: label, hintText: hint),
@@ -36,7 +36,7 @@ class NamesFields extends StatelessWidget {
         );
     return Column(children: [
       field(firstName, 'Primer nombre', 'p. ej. Ana', required: 'Escriba el primer nombre'),
-      field(middleName, 'Segundo nombre (opcional)', 'p. ej. María'),
+      field(middleName, 'Segundo nombre', 'p. ej. María'),
       field(firstSurname, 'Primer apellido', 'p. ej. Pérez', required: 'Escriba el primer apellido'),
       field(secondSurname, 'Segundo apellido', 'p. ej. García', required: 'Escriba el segundo apellido'),
     ]);

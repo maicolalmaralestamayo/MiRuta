@@ -8,10 +8,9 @@ import '../../core/api_exception.dart';
 import '../../core/json_api.dart';
 import '../../core/storage.dart';
 import '../../models/models.dart';
-import '../../services/api/accounts_api.dart';
 import '../widgets/common.dart';
 
-/// «Olvidé algo» (docs/11 §11.7): olvidé el usuario, la contraseña o los dos,
+/// «Olvidé usuario/contraseña» (docs/11 §11.7 y §11.51): olvidé el usuario, la contraseña o los dos,
 /// con el carné de identidad y un teléfono. Solo el Administrador lo aprueba,
 /// tras confirmarlo por una tercera vía. Al aprobarse, aquí se ve una sola vez
 /// solo lo pedido (el usuario y/o una contraseña propuesta, que habrá que
@@ -28,7 +27,7 @@ class _AccessRecoveryScreenState extends State<AccessRecoveryScreen> {
 
   final _form = GlobalKey<FormState>();
   final _identityCard = TextEditingController();
-  final _phone = TextEditingController(text: phonePrefix);
+  final _phone = TextEditingController(text: '+53 ');
   bool _forgotUsername = false;
   bool _forgotPassword = true;
   String? _recoveryId;
@@ -60,7 +59,7 @@ class _AccessRecoveryScreenState extends State<AccessRecoveryScreen> {
 
   Future<void> _refresh() async {
     try {
-      final recovery = await AccountsApi(context.api).accessRecovery(_recoveryId!);
+      final recovery = (await context.api.get('/guest/access-recoveries/$_recoveryId', guest: true)).resource;
       if (mounted) setState(() => _recovery = recovery);
     } on ApiException catch (error) {
       if (error.statusCode == 404) await _forget();
@@ -85,12 +84,12 @@ class _AccessRecoveryScreenState extends State<AccessRecoveryScreen> {
       showMessage(context, 'Marque qué olvidó.');
       return;
     }
-    final recovery = await AccountsApi(context.api).requestAccessRecovery(
-      forgotUsername: _forgotUsername,
-      forgotPassword: _forgotPassword,
-      identityCard: _identityCard.text,
-      phone: _phone.text,
-    );
+    final recovery = (await context.api.post('/guest/access-recoveries', resourceData('access-recoveries', attributes: {
+      'forgotUsername': _forgotUsername,
+      'forgotPassword': _forgotPassword,
+      'identityCard': _identityCard.text.trim(),
+      'phone': _phone.text.trim(),
+    }), guest: true)).resource;
     await Storage.setString(_storageKey, recovery.id);
     if (mounted) {
       setState(() {
@@ -103,7 +102,7 @@ class _AccessRecoveryScreenState extends State<AccessRecoveryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Olvidé algo')),
+      appBar: AppBar(title: const Text('Olvidé usuario/contraseña'), leading: const BackButton()),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : Form(key: _form, child: _recovery == null ? _requestForm() : _status()),
@@ -137,9 +136,7 @@ class _AccessRecoveryScreenState extends State<AccessRecoveryScreen> {
             : 'Escriba un teléfono válido, con el código del país (p. ej. +53 5 123 4567)',
       ),
       const SizedBox(height: 20),
-      BusyButton(onPressed: _request, icon: const Icon(Icons.send), child: const Text('Enviar solicitud')),
-      const SizedBox(height: 24),
-      const DeveloperChatButton(),
+      BusyButton(onPressed: _request, icon: Icons.send, label: 'Enviar solicitud'),
     ]);
   }
 
@@ -159,10 +156,8 @@ class _AccessRecoveryScreenState extends State<AccessRecoveryScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        BusyButton.tonal(onPressed: _refresh, icon: const Icon(Icons.refresh), child: const Text('Comprobar la solicitud')),
+        BusyButton(onPressed: _refresh, icon: Icons.refresh, label: 'Comprobar la solicitud', outlined: true),
         TextButton.icon(onPressed: _forget, icon: const Icon(Icons.add), label: const Text('Hacer otra solicitud')),
-        const SizedBox(height: 24),
-        const DeveloperChatButton(),
       ]);
     }
 
@@ -204,7 +199,7 @@ class _AccessRecoveryScreenState extends State<AccessRecoveryScreen> {
     }
 
     final message = const {
-          'rejected': 'El Administrador rechazó la solicitud. Si cree que es un error, escriba desde «Hablar con el desarrollador».',
+          'rejected': 'El Administrador rechazó la solicitud. Si cree que es un error, hable con el Administrador.',
           'expired': 'La solicitud caducó sin respuesta. Puede hacer otra.',
           'completed': 'Esta solicitud ya terminó.',
         }[status] ??
@@ -213,8 +208,6 @@ class _AccessRecoveryScreenState extends State<AccessRecoveryScreen> {
       Card(child: ListTile(leading: const Icon(Icons.info_outline), title: Text(message))),
       const SizedBox(height: 12),
       FilledButton.icon(onPressed: _forget, icon: const Icon(Icons.add), label: const Text('Hacer otra solicitud')),
-      const SizedBox(height: 24),
-      const DeveloperChatButton(),
     ]);
   }
 }

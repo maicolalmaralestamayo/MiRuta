@@ -1,16 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../../core/formats.dart';
 import '../../core/json_api.dart';
 import '../../models/models.dart';
-import '../../services/templates.dart';
+import '../../services/session.dart';
 import '../navigation.dart';
 import '../widgets/actions.dart';
 import '../widgets/app_scaffold.dart';
+import '../widgets/cards.dart';
 import '../widgets/common.dart';
-import 'chat_screen.dart';
+import '../widgets/data_view.dart';
+import 'conversation_screen.dart';
 
-/// Conversaciones con los Jefes de itinerario, los Jefes de Transporte o el
-/// desarrollador. Se abren eligiendo un motivo.
+/// Conversaciones con el desarrollador (docs/11 §11.46): solo texto y con
+/// motivo. El Administrador ve todas y las responde.
 class ConversationsScreen extends StatefulWidget {
   const ConversationsScreen({super.key});
 
@@ -19,72 +23,56 @@ class ConversationsScreen extends StatefulWidget {
 }
 
 class _ConversationsScreenState extends State<ConversationsScreen> {
-  final _view = GlobalKey<AsyncViewState<List<Conversation>>>();
+  final _view = GlobalKey<DataViewState<List<Conversation>>>();
 
-  Future<List<Conversation>> _load() async {
-    final resources = await context.api.getAll('/conversations', query: {'include': 'topic,openedBy', 'sort': '-lastMessageAt'});
-    return resources.map(Conversation.from).toList();
+  Future<List<Conversation>> _load() async =>
+      (await context.read<Session>().api.getAll('/conversations', query: {'include': 'topic,user'})).map(Conversation.from).toList();
+
+  Future<void> _open(Conversation c) async {
+    await push(context, ConversationScreen(conversationId: c.id, topic: c.topic, person: context.read<Session>().me!.isAdmin ? c.userName : null));
+    _view.currentState?.reload();
   }
 
-  /// A quién va un motivo: el rol al que va dirigido o el desarrollador.
-  static String _recipientOf(Named topic) => topic.extra['recipient'] == 'developer' ? 'Desarrollador' : '${topic.extra['roleName'] ?? 'Rol'}';
-
   Future<void> _new() async {
-    // Motivos dirigidos a un rol (Jefe de itinerario, Jefe de Transporte…) o al desarrollador.
-    final topics = (await context.api.getAll('/conversation-topics', query: {'sort': 'name'})).map(Named.from).toList();
+    final api = context.read<Session>().api;
+    final topics = (await api.getAll('/conversation-topics', query: {'filter[active]': 'true'})).map(NomenclatorItem.from).toList();
     if (!mounted) return;
-    final topic = await pickFrom<Named>(context, '¿Sobre qué desea escribir?', topics, (t) => t.name, subtitle: _recipientOf);
+    final topic = await pickOne<NomenclatorItem>(context, 'Motivo', topics, (t) => t.name, subtitle: (t) => t.description ?? '');
     if (topic == null || !mounted) return;
-    final entityId = context.session.selectedEntityId;
-    try {
-      final conversation = Conversation.from((await context.api.post('/conversations', resourceData('conversations', relationships: {
-        'topic': ResourceId('conversation-topics', topic.id),
-        // Si pertenece a varias Entidades, a la elegida.
-        if (topic.extra['recipient'] != 'developer' && entityId != null) 'entity': ResourceId('entities', entityId),
-      }))).resource);
-      if (!mounted) return;
-      await Navigator.push(context, MaterialPageRoute(builder: (_) => ChatScreen.conversation(conversation: Conversation(
-            id: conversation.id, recipient: '${topic.extra['recipient']}', createdAt: conversation.createdAt, topicName: topic.name, roleName: topic.extra['roleName'] as String?))));
-      _view.currentState?.reload();
-    } catch (error) {
-      if (mounted) showError(context, error);
-    }
+    final body = await promptText(context, 'Mensaje al desarrollador', label: 'Mensaje', required: true, maxLines: 5, accept: 'Enviar', icon: Icons.send);
+    if (body == null || !mounted) return;
+    final created = (await api.post('/conversations', resourceData('conversations', attributes: {'body': body}, relationships: {'topic': ResourceId('conversation-topics', topic.id)}))).resource;
+    if (!mounted) return;
+    await push(context, ConversationScreen(conversationId: created.id, topic: topic.name));
+    _view.currentState?.reload();
   }
 
   @override
   Widget build(BuildContext context) {
-    final meId = context.me.userId;
+    final admin = context.read<Session>().me!.isAdmin;
     return AppScaffold(
-      title: 'Mensajes',
-      tab: MainTab.messages,
-      actions: [ActionItem(icon: Icons.edit, label: 'Escribir mensaje', onPressed: _new)],
-      body: AsyncView<List<Conversation>>(
+      title: 'Conversaciones',
+      tab: MainTab.more,
+      actions: () => [ActionItem(Icons.add_comment_outlined, 'Escribir al desarrollador', _new)],
+      body: DataView<List<Conversation>>(
         key: _view,
+        kinds: const {'conversations'},
         load: _load,
-        builder: (context, conversations, reload) => conversations.isEmpty
-            ? const EmptyView(icon: Icons.forum_outlined, message: 'No tiene conversaciones.\nLas conversaciones se borran pasado un tiempo sin mensajes.')
-            : ListView.builder(
-                padding: const EdgeInsets.only(bottom: 88),
-                itemCount: conversations.length,
-                itemBuilder: (context, index) {
-                  final c = conversations[index];
-                  final incoming = c.guest || (c.openedById != null && c.openedById != meId);
-                  return ListTile(
-                    leading: Icon(c.recipient == 'developer' ? Icons.code : Icons.groups),
-                    title: Text(c.topicName ?? 'Conversación'),
-                    subtitle: Text([
-                      c.recipientLabel,
-                      if (incoming) 'de ${c.guest ? '${c.guestName ?? ''} (sin cuenta)' : c.openedByName ?? ''}',
-                      plural(c.messageCount, 'mensaje', 'mensajes'),
-                      if (c.lastMessageAt != null) formatDateTime(c.lastMessageAt!),
-                    ].join(' · ')),
-                    onTap: () async {
-                      await Navigator.push(context, MaterialPageRoute(builder: (_) => ChatScreen.conversation(conversation: c)));
-                      reload();
-                    },
-                  );
-                },
-              ),
+        builder: (context, list, reload) => ListView(padding: const EdgeInsets.only(bottom: 96), physics: const AlwaysScrollableScrollPhysics(), children: [
+          FoldSection<Conversation>(
+            storageKey: 'conversaciones',
+            title: 'Conversaciones',
+            items: list,
+            emptyText: 'Aún no ha escrito al desarrollador. Use Acciones → Escribir al desarrollador.',
+            builder: (c) => InfoCard(
+              images: const [CardImage(icon: Icons.forum_outlined)],
+              title: admin ? (c.userName ?? 'Persona') : (c.topic ?? 'Conversación'),
+              lines: [if (admin && c.topic != null) 'Motivo: ${c.topic}', c.lastMessage ?? '', formatDateTime(c.updatedAt)],
+              chip: c.unread ? const Chip2('Nuevo', amber) : null,
+              onTap: () => _open(c),
+            ),
+          ),
+        ]),
       ),
     );
   }

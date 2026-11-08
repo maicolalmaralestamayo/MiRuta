@@ -1,183 +1,158 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/storage.dart';
 import '../../models/models.dart';
-import '../../services/api/children_api.dart';
 import '../../services/session.dart';
-import '../../services/sync.dart';
+import '../management/ops.dart';
 import '../navigation.dart';
-import '../profile/notices_screen.dart';
+import '../profile/children_screen.dart';
+import '../profile/my_qr_screen.dart';
+import '../profile/profile_screen.dart';
 import '../trips/trip_card.dart';
-import '../trips/trip_context.dart';
+import '../trips/trip_form_screen.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/cards.dart';
 import '../widgets/common.dart';
-import '../widgets/entity_selector.dart';
+import '../widgets/data_view.dart';
 
-/// Inicio (docs/11 §11.10; maqueta inicio-propuesta-3.png), de arriba abajo:
-/// tarjeta del usuario, los seis botones, Hijos (con derecho), Entidad
-/// (selector), Itinerario y parada, Roles (Trabajador primero) y Viajes de
-/// la Entidad elegida. Al tocar cada tarjeta se abre su pantalla.
-class HomeScreen extends StatelessWidget {
+/// Inicio (docs/11 §11.28, maqueta G18 n.º 3): la persona, los botones
+/// Perfil, Hijos y Mi QR; su Entidad, itinerario y parada, su rol y sus
+/// viajes; y los avisos «Aún no tiene Entidad / itinerario / parada».
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final session = context.watch<Session>();
-    final me = session.me!;
-    final membership = session.selectedMembership;
-    return AppScaffold(
-      title: 'Inicio',
-      appBarActions: [
-        IconButton(
-          tooltip: 'Avisos',
-          icon: const Icon(Icons.notifications_outlined),
-          onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NoticesScreen())),
-        ),
-      ],
-      body: AsyncView<_HomeData>(
-        // Se recarga al elegir otra Entidad o al cambiar sus datos.
-        key: ValueKey('${membership?.entityId}-${membership?.itineraryId}-${me.memberships.length}'),
-        load: () => _HomeData.load(context, me, membership),
-        builder: (context, data, reload) => ListView(padding: const EdgeInsets.only(top: 4, bottom: 24), children: [
-          UserCard.person(me.person, onTap: () => AppRoutes.profile(context)),
-          const HomeButtons(),
-          if (data.children.isNotEmpty) ...[
-            const SectionHeader('Hijos'),
-            for (final child in data.children)
-              ChildCard(child, onTap: () async {
-                await AppRoutes.childForm(context, child);
-                reload();
-              }),
-          ],
-          const SectionHeader('Entidad'),
-          const EntitySelector(),
-          if (membership != null) ...[
-            const SectionHeader('Itinerario y parada'),
-            ItineraryStopCard.membership(membership, onTap: () => AppRoutes.itinerary(context)),
-            const SectionHeader('Roles'),
-            RoleCard.worker(membership.entity, onTap: () => AppRoutes.roles(context)),
-            for (final role in membership.extraRoles) RoleCard.held(role, membership.entity, onTap: () => AppRoutes.roles(context)),
-            if (data.trips.isNotEmpty) ...[
-              const SectionHeader('Viajes'),
-              for (final trip in data.trips)
-                TripCard(
-                  trip: trip,
-                  legs: data.legs[trip.id],
-                  showOverload: me.can(Op.tripsEdit, entityId: trip.entityId, itineraryId: trip.itineraryId),
-                  onTap: () async {
-                    await AppRoutes.tripDetail(context, trip.id);
-                    reload();
-                  },
-                ),
-            ],
-          ],
-          // El Administrador sin Entidad puede entrar en una sin solicitud (docs/11 §11.13).
-          if (me.isAdmin && !me.hasEntity)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-              child: FilledButton.tonalIcon(onPressed: () => joinEntityAsAdmin(context), icon: const Icon(Icons.add_business_outlined), label: const Text('Unirme a una Entidad')),
-            ),
-        ]),
-      ),
-    );
-  }
+  State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeData {
-  final List<Child> children;
-  final List<Trip> trips;
-  final Map<String, List<TripLeg>> legs;
-
-  _HomeData(this.children, this.trips, this.legs);
-
-  /// Hijos con derecho (de la persona, sea cual sea la Entidad) y los viajes
-  /// en curso y confirmados de la Entidad elegida en los que viaja o conduce.
-  static Future<_HomeData> load(BuildContext context, Me me, Membership? membership) async {
-    final api = context.api;
-    final children = (await ChildrenApi(api).mine(me.id, eligible: true, active: true)).where((c) => c.travels).toList();
-    if (membership == null) return _HomeData(children, const [], const {});
-    final now = DateTime.now();
-    final trips = (await api.get('/trips', query: {
-      'include': SyncService.tripInclude,
-      'filter[status]': TripStatus.confirmed,
-      'filter[from]': now.subtract(const Duration(days: 1)).toIso8601String().substring(0, 10),
-      'sort': 'departsAt',
-      'page[size]': 30,
-    }))
-        .resources
-        .map(Trip.from)
-        .where((trip) =>
-            trip.returnsAt.isAfter(now) &&
-            (trip.entityId == null || trip.entityId == membership.entityId) &&
-            (trip.itineraryId == membership.itineraryId || trip.driverId == membership.workerId))
-        .take(10)
-        .toList();
-    final legs = await TripContext.legsOf(api, trips);
-    // En curso primero (docs/11 §11.10: «tarjeta de viaje actual»).
-    bool running(Trip trip) => (legs[trip.id] ?? const []).any((leg) => leg.isActive);
-    trips.sort((a, b) => running(a) == running(b) ? a.departsAt.compareTo(b.departsAt) : (running(a) ? -1 : 1));
-    return _HomeData(children, trips, legs);
-  }
-}
-
-/// Los seis botones de Inicio (docs/11 §11.10 y §11.18): ícono y una palabra,
-/// 3 por fila, centrados y del mismo tamaño.
-class HomeButtons extends StatelessWidget {
-  const HomeButtons({super.key});
+class _HomeScreenState extends State<HomeScreen> {
+  static const _entityKey = 'user.home.entity';
+  String? _entityId;
 
   @override
-  Widget build(BuildContext context) {
-    final buttons = <(IconData, String, VoidCallback)>[
-      (Icons.person_outline, 'Perfil', () => AppRoutes.profile(context)),
-      (Icons.child_care, 'Hijos', () => AppRoutes.children(context)),
-      (Icons.apartment, 'Entidades', () => AppRoutes.entities(context)),
-      (Icons.route, 'Itinerario', () => AppRoutes.itinerary(context)),
-      (Icons.badge_outlined, 'Roles', () => AppRoutes.roles(context)),
-      (Icons.directions_bus, 'Viajes', () => AppRoutes.trips(context)),
-    ];
-    return LayoutBuilder(builder: (context, constraints) {
-      const spacing = 8.0;
-      const padding = 12.0;
-      final width = ((constraints.maxWidth - 2 * padding - 2 * spacing) / 3).clamp(80.0, 140.0);
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(padding, 8, padding, 0),
-        child: Wrap(alignment: WrapAlignment.center, spacing: spacing, runSpacing: spacing, children: [
-          for (final (icon, label, onTap) in buttons) QuickButton(icon: icon, label: label, width: width, onTap: onTap),
-        ]),
-      );
+  void initState() {
+    super.initState();
+    Storage.getString(_entityKey).then((v) {
+      if (mounted) setState(() => _entityId = v);
     });
   }
-}
 
-/// Botón cuadrado con ícono y una palabra debajo.
-class QuickButton extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final double width;
-  final VoidCallback onTap;
+  Future<void> _pickEntity(Me me) async {
+    final m = await pickOne<Membership>(context, 'Entidad', me.memberships, (m) => m.entityAbbreviation, subtitle: (m) => m.entityName,
+        selected: me.membershipIn(_entityId) ?? me.memberships.first);
+    if (m == null) return;
+    setState(() => _entityId = m.entityId);
+    await Storage.setString(_entityKey, m.entityId);
+  }
 
-  const QuickButton({super.key, required this.icon, required this.label, required this.onTap, this.width = 120});
+  Future<void> _request(Future<bool> Function() action) async {
+    try {
+      if (await action() && mounted) await context.read<Session>().reloadMe();
+    } catch (error) {
+      if (mounted) showError(context, error);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final t = Theme.of(context);
-    return SizedBox(
-      width: width,
-      height: 72,
-      child: Material(
-        color: t.colorScheme.secondaryContainer,
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: onTap,
-          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(icon, size: 26, color: t.colorScheme.onSecondaryContainer),
-            const SizedBox(height: 4),
-            Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.textTheme.labelLarge!.copyWith(color: t.colorScheme.onSecondaryContainer)),
+    final me = context.watch<Session>().me!;
+    final m = me.membershipIn(_entityId) ?? me.memberships.firstOrNull;
+    final ops = Ops(context);
+    return AppScaffold.list(
+      title: 'Inicio',
+      tab: MainTab.home,
+      children: [
+        InfoCard(
+          images: [CardImage(url: me.photoUrl, icon: Icons.person, round: true)],
+          title: me.fullName,
+          lines: ['${me.username}${me.identityCard == null ? '' : ' • CI ${me.identityCard}'}'],
+          onTap: () => push(context, const ProfileScreen()),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+          child: Row(children: [
+            QuickButton(Icons.person_outline, 'Perfil', () => push(context, const ProfileScreen())),
+            QuickButton(Icons.child_care, 'Hijos', () => push(context, const ChildrenScreen())),
+            QuickButton(Icons.qr_code_2, 'Mi QR', () => push(context, const MyQrScreen())),
           ]),
         ),
-      ),
+        if (!me.hasEntity)
+          NoticeCard(
+            icon: Icons.apartment,
+            title: 'Aún no tiene Entidad',
+            detail: 'Solicite entrar en la Entidad donde trabaja. Hasta que la acepten no verá itinerarios ni viajes.',
+            buttonIcon: Icons.send,
+            buttonText: 'Solicitar Entidad',
+            onPressed: () => _request(ops.requestEntity),
+          )
+        else if (m != null && m.itineraryId == null)
+          NoticeCard(
+            icon: Icons.route,
+            title: 'Aún no tiene itinerario',
+            detail: 'Solicite su itinerario en ${m.entityAbbreviation}, o muestre «Mi QR» a su Jefe de itinerario.',
+            buttonIcon: Icons.send,
+            buttonText: 'Solicitar Itinerario',
+            onPressed: () => _request(() => ops.requestItinerary(me)),
+          )
+        else if (m != null && m.stopId == null)
+          NoticeCard(
+            icon: Icons.place,
+            title: 'Aún no tiene parada',
+            detail: 'Elija su parada en ${m.itineraryName}: en Gestión, marque la parada y use «Cambiarme a esta parada».',
+            buttonIcon: Icons.where_to_vote_outlined,
+            buttonText: 'Elegir parada',
+            onPressed: () => MainTabs.go(context, MainTab.management),
+          ),
+        if (m != null) ...[
+          const SectionTitle('Entidad'),
+          me.memberships.length > 1
+              ? SelectorCard(icon: Icons.apartment, title: m.entityAbbreviation, lines: ['Entidad', m.entityName], onTap: () => _pickEntity(me))
+              : InfoCard(images: [CardImage(url: m.entityImageUrl, icon: Icons.apartment)], title: m.entityAbbreviation, lines: ['Entidad', m.entityName]),
+          if (m.itineraryId != null) ...[
+            const SectionTitle('Itinerario y parada'),
+            InfoCard(
+              images: const [CardImage(icon: Icons.route), CardImage(icon: Icons.place)],
+              title: m.itineraryName ?? '',
+              lines: [m.stopLandmark == null ? 'Sin parada' : 'Parada: ${m.stopLandmark}', if (m.stopStreet != null) m.stopStreet!],
+              onTap: () => MainTabs.go(context, MainTab.management),
+            ),
+          ],
+        ],
+        const SectionTitle('Roles'),
+        InfoCard(
+          images: const [CardImage(icon: Icons.badge_outlined)],
+          title: roleName(me.role),
+          lines: [
+            switch (me.role) {
+              Role.administrador => 'Todas las Entidades',
+              Role.jefe => me.chiefMembership == null ? 'Su itinerario' : '${me.chiefMembership!.itineraryName} (${me.chiefMembership!.entityAbbreviation})',
+              Role.trabajador => me.memberships.isEmpty ? 'Sin Entidad' : me.memberships.map((m) => m.entityAbbreviation).join(', '),
+            },
+          ],
+        ),
+        if (me.seesTrips) ...[
+          const SectionTitle('Viajes'),
+          SizedBox(
+            height: 210,
+            child: DataView<TripList>(
+              kinds: const {'trips'},
+              cacheKey: 'home.trips',
+              load: () => TripList.load(context.read<Session>().api, {
+                'filter[status]': '${TripStatus.planned},${TripStatus.running}',
+                if (m?.itineraryId != null && !me.isAdmin) 'filter[itinerary]': m!.itineraryId,
+              }),
+              builder: (context, data, reload) {
+                final trips = data.trips.take(2).toList();
+                if (trips.isEmpty) return ListView(children: const [Padding(padding: EdgeInsets.all(16), child: Text('No hay viajes planificados.'))]);
+                return ListView(physics: const NeverScrollableScrollPhysics(), children: [
+                  for (final t in trips) TripCard(trip: t, departure: data.departureOf(t), onTap: () => push(context, TripFormScreen(tripId: t.id))),
+                ]);
+              },
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

@@ -5,7 +5,7 @@ import '../../core/api_exception.dart';
 import '../../core/server_url.dart';
 import '../../core/storage.dart';
 import '../../services/installation.dart';
-import '../admin/server_maintenance_screen.dart';
+import '../admin/maintenance_screen.dart';
 import '../widgets/common.dart';
 
 /// Dirección del servidor (docs/09-repaso-pantallas.md §2). Se abre desde el
@@ -64,13 +64,14 @@ class _ServerScreenState extends State<ServerScreen> {
       setState(() => _error = error.code == 'NOT_MITRANSPORTE' ? error.message : ApiClient.unreachableMessage);
       return;
     }
-    if (url != api.baseUrl) {
+    if (url != api.baseUrl || await Storage.apiUrl() != url) {
       // La instalación quedó registrada en el servidor anterior.
       await Installation.forget();
       await Storage.setApiUrl(url);
       api.setBaseUrl(url);
     }
     if (!mounted) return;
+    context.session.connection.check();
     showMessage(context, ServerUrl.isPlain(url) ? 'Conectado al servidor (sin cifrar, por http).' : 'Conectado al servidor.');
     Navigator.pop(context, true);
   }
@@ -79,7 +80,7 @@ class _ServerScreenState extends State<ServerScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('Servidor')),
+      appBar: AppBar(title: const Text('Servidor'), leading: const BackButton()),
       body: Form(
         key: _form,
         child: ListView(padding: const EdgeInsets.all(24), children: [
@@ -120,7 +121,7 @@ class _ServerScreenState extends State<ServerScreen> {
             Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
           ],
           const SizedBox(height: 20),
-          BusyButton(onPressed: _connect, showErrors: false, icon: const Icon(Icons.cloud_sync_outlined), child: const Text('Conectar al servidor')),
+          BusyButton(onPressed: _connect, icon: Icons.cloud_sync_outlined, label: 'Conectar al servidor'),
           // Para quien administra el servidor: instalarlo o arreglarlo sin
           // iniciar sesión, con la clave de mantenimiento.
           if (context.api.hasServer) ...[
@@ -128,7 +129,7 @@ class _ServerScreenState extends State<ServerScreen> {
             TextButton.icon(
               icon: const Icon(Icons.dns_outlined),
               label: const Text('Mantenimiento del servidor'),
-              onPressed: () => ServerMaintenanceScreen.openWithKey(context, context.api),
+              onPressed: () => MaintenanceScreen.openWithKey(context),
             ),
           ],
         ]),
