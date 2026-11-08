@@ -38,6 +38,6 @@ class RequireJsonApi
 
     private function hasBody(Request $request): bool
     {
-        return in_array($request->getMethod(), ['POST', 'PATCH', 'PUT'], true);
+        return in_array($request->getMethod(), ['POST', 'PATCH', 'PUT'], true) && $request->getContent() !== '';
     }
 }

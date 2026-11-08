@@ -83,7 +83,7 @@ abstract class Controller
 
         return [
             "relationships.{$name}" => [$presence, 'array'],
-            "relationships.{$name}.data" => $nullable ? ['present', 'nullable', 'array'] : [$presence, 'array'],
+            "relationships.{$name}.data" => $nullable ? ["present_with:data.relationships.{$name}", 'nullable', 'array'] : [$presence, 'array'],
             "relationships.{$name}.data.type" => ["required_with:data.relationships.{$name}.data", "in:{$type}"],
             "relationships.{$name}.data.id" => ["required_with:data.relationships.{$name}.data", "exists:{$table},id"],
         ];

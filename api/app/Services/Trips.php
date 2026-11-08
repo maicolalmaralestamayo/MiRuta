@@ -519,9 +519,10 @@ class Trips
     {
         $sensors = $this->activeSensorIds($trip);
         $reports = $sensors ? TripVehicleReport::where('trip_id', $trip->id)->whereIn('user_id', $sensors)->get() : collect();
-        $n = $reports->count();
+        // Cuentan todos los sensores activos, aunque alguno aún no haya informado del vehículo.
+        $n = count($sensors);
 
-        if ($n === 0) {
+        if ($reports->isEmpty()) {
             return;
         }
 
