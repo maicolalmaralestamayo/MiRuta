@@ -1,7 +1,8 @@
 # 12. Resumen de la próxima versión (07/11/2026)
 
 Resumen **consolidado** de lo acordado en `docs/11-acuerdos-registro-qr.md` §11.19–§11.52, con la **última decisión**
-de cada tema (lo sustituido no aparece). Pendiente de implementar.
+de cada tema (lo sustituido no aparece). **Servidor implementado** (Laravel 12; API en `docs/13-api-proxima-version.md`);
+la app, pendiente.
 
 ## 1. Plataforma
 

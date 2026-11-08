@@ -7,21 +7,21 @@ on:
 
 jobs:
   tests:
-    name: Pruebas (PHP 7.2, MariaDB 10.6)
+    name: Pruebas (PHP 8.2, MariaDB 10.3)
     runs-on: ubuntu-latest
 
     services:
       mariadb:
-        image: mariadb:10.6
+        image: mariadb:10.3
         env:
           MARIADB_ROOT_PASSWORD: root
-          MARIADB_DATABASE: mitransporte_test
-          MARIADB_USER: mitransporte
+          MARIADB_DATABASE: miruta_test
+          MARIADB_USER: miruta
           MARIADB_PASSWORD: secret
         ports:
           - 3306:3306
         options: >-
-          --health-cmd="mariadb-admin ping -uroot -proot"
+          --health-cmd="mysqladmin ping -uroot -proot"
           --health-interval=5s
           --health-timeout=5s
           --health-retries=20
@@ -35,17 +35,25 @@ jobs:
 
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: '7.2'
-          extensions: pdo_mysql, mbstring
+          php-version: '8.2'
+          extensions: pdo_mysql, pdo_sqlite, mbstring, zip, gd
           coverage: none
 
       - name: Instalar dependencias
         run: composer install --no-interaction --no-progress --prefer-dist
 
-      - name: PHPUnit
+      - name: PHPUnit (SQLite en memoria)
+        run: vendor/bin/phpunit
+
+      - name: PHPUnit (MariaDB 10.3)
         run: vendor/bin/phpunit
         env:
+          DB_CONNECTION: mysql
           DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: miruta_test
+          DB_USERNAME: miruta
+          DB_PASSWORD: secret
 
   openapi:
     name: Especificación OpenAPI

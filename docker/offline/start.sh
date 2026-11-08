@@ -8,7 +8,7 @@ until php -r 'new PDO("mysql:host=" . getenv("DB_HOST") . ";port=" . getenv("DB_
   echo "Esperando a la base de datos…"; sleep 2
 done
 if [ "$ROLE" = "scheduler" ]; then
-  while true; do php artisan schedule:run; sleep 60; done
+  while true; do php artisan miruta:tareas; sleep 60; done
 fi
 php artisan migrate --force
 php artisan db:seed --force

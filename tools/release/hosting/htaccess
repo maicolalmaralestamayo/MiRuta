@@ -7,7 +7,7 @@ AddType application/vnd.android.package-archive .apk
 
 # Archivos grandes (las APK de las actualizaciones). Solo si PHP corre como
 # módulo de Apache; si no, vale .user.ini.
-<IfModule mod_php7.c>
+<IfModule mod_php.c>
     php_value upload_max_filesize 64M
     php_value post_max_size 70M
     php_value max_execution_time 300

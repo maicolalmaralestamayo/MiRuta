@@ -1,8 +1,12 @@
-# 10. Traspaso de tecnología — MiRuta 2.2.0
+# 10. Traspaso de tecnología — MiRuta
 
-> **Versión 3.0.0:** el modelo de datos cambió (carné, varias Entidades por persona, roles configurables, QR). Los
-> pasos de puesta en marcha son los mismos, pero la base de datos de la 3.0 se instala **desde cero**: no se
-> actualiza sobre una 2.x. Los nombres de archivo con «2.2.0» se refieren a la última entrega hecha.
+> **Versión 4.0.0 (próxima versión, docs/12):** el servidor pasa a **Laravel 12 con PHP 8.2** (el del hospedaje,
+> 8.2.35) y MariaDB 10.3 o superior. El `.zip` del servidor trae **`vendor/` ya instalado** (sin dependencias de
+> desarrollo y con el autoload optimizado): no hace falta Composer ni SSH en el hospedaje. Todo lo que hay que
+> ejecutar en el servidor (instalar o actualizar la base de datos, tareas, limpiezas) se hace con los endpoints de
+> mantenimiento de la API, desde la app (docs/13 §13.13). La base de datos de la 4.0 se instala **desde cero**: no
+> se actualiza sobre una 3.x. Los nombres de archivo con «2.2.0» son de ejemplo (la última entrega hecha); el
+> paquete nuevo se llama `miruta-servidor-4.0.0.zip`.
 
 Qué se entrega y cómo poner en marcha MiRuta en cada entorno: el hospedaje, un ordenador con Docker y un
 ordenador sin Docker. Se da por hecho que Docker, Apache o nginx, PHP y MySQL/MariaDB ya están instalados.
@@ -27,7 +31,7 @@ Contenido de `miruta-servidor-2.2.0.zip`:
 
 | Carpeta o archivo | Para qué |
 |---|---|
-| `htdocs/miruta/` | El servidor completo, listo para copiar dentro de la carpeta pública del sitio web |
+| `htdocs/miruta/` | El servidor completo (código y `servidor/vendor/`), listo para copiar dentro de la carpeta pública del sitio web |
 | `htdocs/miruta/servidor/configuracion.php` | **La configuración**: base de datos, claves y carpetas. Ya trae los datos del hospedaje. |
 | `htdocs/miruta/.htaccess` | Reglas para Apache: protege `servidor/` y pasa todo a la API |
 | `htdocs/miruta/router.php` | Lo mismo que `.htaccess`, para el servidor web de PHP (`php -S`) |
@@ -66,7 +70,7 @@ Sin la clave de firma ninguna versión nueva de la app se instalará encima de e
 
 **Mantenimiento del servidor desde la app:**
 
-- Como Administrador: *Más → Gestión → Mantenimiento del servidor*.
+- Como Administrador: *Más → Mantenimiento del servidor*.
 - Sin sesión: botón del servidor → *Mantenimiento del servidor* → clave de mantenimiento.
 
 **Símbolos (`MiRuta-2.2.0-simbolos.zip`).** La app va ofuscada. Si un usuario envía el texto de un error de la
@@ -149,8 +153,8 @@ php -r "echo 'base64:'.base64_encode(random_bytes(32)), PHP_EOL, bin2hex(random_
 
 Use `miruta-servidor-2.2.0.zip`. Hace falta:
 
-- **PHP de 7.2.5 a 8.0**, con las extensiones `pdo_mysql`, `mbstring`, `openssl`, `json`, `fileinfo`,
-  `tokenizer` y `ctype`;
+- **PHP 8.2 o superior**, con las extensiones `pdo_mysql`, `mbstring`, `openssl`, `fileinfo`, `tokenizer`,
+  `ctype`, `xml` y `dom` (y `zip` para la subida rápida);
 - **MariaDB 10.3+** o **MySQL 5.7+**.
 
 1. **Copiar.** Copie la carpeta `htdocs/miruta` dentro de la carpeta pública de su servidor web: por ejemplo
@@ -171,7 +175,8 @@ Use `miruta-servidor-2.2.0.zip`. Hace falta:
 
    En Windows con XAMPP no hace falta.
 5. **Instalar la base de datos.** Elija una de estas formas:
-   - en la consola: `php miruta/servidor/artisan migrate --seed --force`;
+   - desde la app (*Mantenimiento del servidor → Instalar base de datos*), que usa `POST maintenance-runs`;
+   - en la consola, si la hay: `php miruta/servidor/artisan migrate --seed --force`;
    - desde la app, con la clave de mantenimiento;
    - importando `base-de-datos/miruta-2.2.0-inicial.sql`.
 6. **Servidor web.** Elija uno:
@@ -194,7 +199,7 @@ Use `miruta-servidor-2.2.0.zip`. Hace falta:
    - con cron, ponga `false` y añada:
 
      ```cron
-     * * * * * php /ruta/a/miruta/servidor/artisan schedule:run >/dev/null 2>&1
+     * * * * * php /ruta/a/miruta/servidor/artisan miruta:tareas >/dev/null 2>&1
      ```
 
 ## 10.6 Versiones futuras
@@ -204,9 +209,9 @@ Desde el repositorio (`https://github.com/maicolalmaralestamayo/MiRuta`):
 | Qué | Cómo |
 |---|---|
 | App | Suba la versión en `app/pubspec.yaml`, compile con `app/build_release.sh <dirección-del-servidor>/api/v1` (necesita la clave de firma en `app/android/`) y publíquela en *Gestión → Actualizaciones de la app*. Guarde `app/build/symbols/<versión>`. |
-| Servidor para el hospedaje (primera vez) | `tools/release/build-hosting-package.sh <versión>` con `APP_URL`, `DB_*` y `TEMP_PATH`; genera claves nuevas. |
+| Servidor para el hospedaje (primera vez) | `tools/release/build-hosting-package.sh <versión>` con `APP_URL`, `DB_*` y `TEMP_PATH`; genera claves nuevas e instala `vendor/` con `composer install --no-dev --optimize-autoloader` (o, sin acceso a los `.zip` de GitHub, `VENDOR_METODO=git`). Con `GENERAR_SQL=1` añade el SQL inicial. Queda en `entregas/hosting/`. |
 | Servidor para actualizar uno instalado | `ACTUALIZACION=1 tools/release/build-hosting-package.sh <versión>`: no lleva `configuracion.php`, así que conserva sus claves y datos. Después, en la app: *Mantenimiento del servidor → Actualizar base de datos*. |
-| Imagen Docker | `docker build -f docker/offline/Dockerfile -t miruta-api:<versión> .` y `docker save miruta-api:<versión> mariadb:10.6 \| gzip > miruta-<versión>-imagenes.tar.gz` |
+| Imagen Docker | Por ahora no se entrega (docs/11 §11.55). Si hace falta: `docker build -f docker/offline/Dockerfile -t miruta-api:<versión> .` y `docker save miruta-api:<versión> mariadb:10.3 \| gzip > miruta-<versión>-imagenes.tar.gz` |
 
 Actualice siempre primero el servidor y después la app.
 

@@ -31,11 +31,11 @@ function row(&$rows, $label, $ok, $value)
 
 // PHP
 $version = PHP_VERSION;
-$phpOk = version_compare($version, '7.2.5', '>=') && version_compare($version, '8.1.0', '<');
-row($rows, 'Versión de PHP', $phpOk, $version.($phpOk ? '' : ' (hace falta de 7.2.5 a 8.0)'));
+$phpOk = version_compare($version, '8.2.0', '>=');
+row($rows, 'Versión de PHP', $phpOk, $version.($phpOk ? '' : ' (hace falta PHP 8.2 o superior)'));
 
-foreach (array('pdo_mysql', 'mbstring', 'openssl', 'json', 'fileinfo', 'tokenizer', 'ctype', 'zip', 'gd') as $extension) {
-    $optional = in_array($extension, array('zip', 'gd'), true);
+foreach (array('pdo_mysql', 'mbstring', 'openssl', 'fileinfo', 'tokenizer', 'ctype', 'xml', 'dom', 'filter', 'session', 'zip') as $extension) {
+    $optional = in_array($extension, array('zip'), true);
     $loaded = extension_loaded($extension);
     row($rows, 'Extensión '.$extension, $loaded ? true : ($optional ? null : false), $loaded ? 'sí' : ($optional ? 'no (opcional)' : 'no'));
 }

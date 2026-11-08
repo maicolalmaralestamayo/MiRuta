@@ -27,7 +27,7 @@ return [
     // desde la app (Servidor > Mantenimiento) sin iniciar sesión.
     'MAINTENANCE_KEY' => '__MAINTENANCE_KEY__',
 
-    // Base de datos (MySQL o MariaDB).
+    // Base de datos (MariaDB 10.3 o superior, o MySQL 5.7 / 8).
     'DB_CONNECTION' => 'mysql',
     'DB_HOST' => '__DB_HOST__',
     'DB_PORT' => '3306',
@@ -43,8 +43,7 @@ return [
     // Sin cron: las tareas programadas se ejecutan con las peticiones.
     'TASKS_ON_REQUESTS' => true,
 
-    'CACHE_DRIVER' => 'file',
-    'QUEUE_CONNECTION' => 'sync',
-    'LOG_CHANNEL' => 'stack',
+    'CACHE_STORE' => 'file',
+    'LOG_CHANNEL' => 'single',
     'DOCS_ENABLED' => false,
 ];
