@@ -1,18 +1,16 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- Ubicación para compartirla como sensor durante el recorrido -->
+    <!-- Ubicación: cálculo del estado del trabajador durante el viaje y «Usar mi ubicación actual» -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <!-- Servicio en primer plano del recorrido -->
+    <!-- Servicio en primer plano durante el viaje -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- Avisos locales (y reprogramarlos al reiniciar el teléfono) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
-    <!-- Escanear el QR de subida y hacer la foto de perfil -->
+    <!-- Incluir por QR y hacer fotos -->
     <uses-permission android:name="android.permission.CAMERA" />
     <!-- Instalar las actualizaciones descargadas del propio servidor -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
@@ -45,6 +43,18 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- Ubicación compartida desde WhatsApp, Telegram, Google Maps, OsmAnd… (docs/11 §11.51) -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="geo" />
+            </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
@@ -52,10 +62,10 @@
             android:name="flutterEmbedding"
             android:value="2" />
 
-        <!-- Recorrido en segundo plano (flutter_foreground_task) -->
+        <!-- Cálculo del estado durante el viaje (flutter_foreground_task) -->
         <service
             android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
-            android:foregroundServiceType="location|dataSync"
+            android:foregroundServiceType="location"
             android:exported="false" />
 
         <!-- Actualizaciones de la app (ota_update) -->
@@ -92,10 +102,14 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
-        <!-- Abrir WhatsApp (wa.me) para enviar el código de restablecimiento -->
+        <!-- «Olvidé algo»: abrir WhatsApp (wa.me) o llamar a la persona -->
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.DIAL" />
+            <data android:scheme="tel" />
         </intent>
     </queries>
 </manifest>

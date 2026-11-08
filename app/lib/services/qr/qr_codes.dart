@@ -5,7 +5,6 @@
 /// - Firmas: ECDSA P-256 con SHA-256 en DER, sobre los bytes JSON exactos del
 ///   segmento (no se vuelve a serializar el JSON).
 /// - `MR1.<J>.<firmaServidor(J)>.<P>.<firmaTeléfono(P)>` (dinámico, teléfono).
-/// - `MRP1.<J>.<firmaServidor(J)>` (impreso, sin teléfono).
 library;
 
 import 'dart:convert';
@@ -20,7 +19,7 @@ const qrClockSkewSeconds = 120;
 /// Cada cuánto se renueva el QR en pantalla.
 const qrRefreshSeconds = 15;
 
-enum QrKind { dynamic, printed }
+enum QrKind { dynamic }
 
 /// Error de verificación con el mismo código que la API.
 class QrException implements Exception {
@@ -44,10 +43,8 @@ class QrCheck {
   final String? nonce;
   final DateTime? issuedAt;
 
-  /// Versión del impreso.
-  final int? printedVersion;
 
-  const QrCheck({required this.kind, required this.userId, this.nonce, this.issuedAt, this.printedVersion});
+  const QrCheck({required this.kind, required this.userId, this.nonce, this.issuedAt});
 
   /// Clave del código para «ya usado» (dinámico: persona + nonce).
   String? get nonceKey => nonce == null ? null : '$userId:$nonce';
@@ -229,21 +226,16 @@ Map<String, dynamic>? _json(Uint8List bytes) {
   }
 }
 
-/// Verifica un QR sin conexión (V3-PARTE-B §1, pasos 1–7 del MR1 y 1–2 del MRP1).
+/// Verifica un QR sin conexión (MR1, pasos 1–7).
 ///
 /// - [serverPublicKey]: SPKI base64 guardada al sincronizar.
 /// - [now]: hora del teléfono que escanea.
 /// - [isNonceUsed]: el código ya se usó en este teléfono.
-/// - [printedVersionOf]: versión vigente del impreso de esa persona según la
-///   lista sin conexión (`printedQrVersion`); null = usa el teléfono (anulado).
-///   Si la persona no está en la lista, `notInRoster` (se deja pasar: el
-///   servidor lo resuelve al sincronizar).
 QrCheck verifyQr(
   String text, {
   required String serverPublicKey,
   required DateTime now,
   bool Function(int userId, String nonce)? isNonceUsed,
-  ({bool inRoster, int? version}) Function(int userId)? printedVersionOf,
 }) {
   final parts = text.trim().split('.');
   final server = publicKeyFromSpki(serverPublicKey);
@@ -293,22 +285,6 @@ QrCheck verifyQr(
       throw const QrException('QR_ALREADY_USED', 'Este código QR ya se usó. Cada código vale una sola vez: pida que lo muestre de nuevo.');
     }
     return QrCheck(kind: QrKind.dynamic, userId: userId, nonce: nonce, issuedAt: DateTime.fromMillisecondsSinceEpoch(t * 1000));
-  }
-
-  if (parts.length == 3 && parts[0] == 'MRP1') {
-    final j = base64UrlDecodeStrict(parts[1]);
-    final sig = base64UrlDecodeStrict(parts[2]);
-    if (j == null || sig == null) throw QrException.invalid;
-    final json = _json(j);
-    if (json == null || json['u'] is! int || json['v'] is! int) throw QrException.invalid;
-    if (!verifyEcdsa(server, j, sig)) throw const QrException('QR_SIGNATURE_INVALID', 'La firma del código QR no es válida.');
-    final userId = json['u'] as int;
-    final version = json['v'] as int;
-    final known = printedVersionOf?.call(userId);
-    if (known != null && known.inRoster && known.version != version) {
-      throw const QrException('QR_REVOKED', 'Este QR impreso fue anulado. Si la persona usa la app, debe mostrar el QR de su teléfono.');
-    }
-    return QrCheck(kind: QrKind.printed, userId: userId, printedVersion: version);
   }
 
   throw QrException.invalid;

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:workmanager/workmanager.dart';
 
@@ -6,93 +8,87 @@ import '../core/json_api.dart';
 import '../core/storage.dart';
 import '../core/username.dart';
 import '../models/models.dart';
+import 'app_settings.dart';
+import 'app_updates.dart';
 import 'connection.dart';
 import 'notifications.dart';
 import 'qr/qr_device.dart';
+import 'qr/qr_queue.dart';
 import 'sync.dart';
-import 'tracking_service.dart';
-import 'user_settings.dart';
+import 'tracking/tracking_service.dart';
 
-/// locked = hay sesión, pero hay que volver a escribir la contraseña
-/// ("Recordar contraseña" desactivado o pasados sus días, docs/09 §17).
-enum SessionState { loading, loggedOut, locked, ready }
+enum SessionState { loading, loggedOut, ready }
 
-/// Sesión del usuario: inicio y cierre, contraseña recordada y datos propios.
+/// Sesión del usuario: inicio y cierre, sus datos, ajustes de la app,
+/// sincronización mientras está abierta y actualización obligatoria.
 class Session extends ChangeNotifier {
-  /// Recordar el usuario en este teléfono (la clave conserva su nombre antiguo).
-  static const rememberLoginKey = 'security.remember_card';
-
-  /// Cuándo se escribió la contraseña por última vez en este teléfono. La
-  /// contraseña nunca se guarda: se mantiene la sesión durante los días del
-  /// ajuste remember_password_days.
-  static const passwordEnteredAtKey = 'security.password_entered_at';
-
-  /// Entidad elegida en Inicio (se recuerda en el teléfono, docs/11 §11.10).
-  static const selectedEntityKey = 'user.selected_entity';
+  /// «Recordar contraseña»: sin marcarlo, al volver a abrir la app se pide otra vez.
+  static const rememberKey = 'security.remember_password';
 
   final ApiClient api;
-
-  /// Punto de conexión de la barra superior (docs/11 §11.14).
   late final ConnectionMonitor connection = ConnectionMonitor(api);
   SessionState state = SessionState.loading;
   Me? me;
-  UserSettings settings = UserSettings({});
+  AppSettings settings = const AppSettings({});
+  Map<String, int> counters = const {};
+  NextTrip? nextTrip;
 
-  /// Acaba de registrarse: Inicio abre «Otros datos del registro» (docs/11 §11.5).
-  bool justRegistered = false;
+  /// Aumenta cada vez que hay que recargar los datos de las pantallas
+  /// (botón Actualizar o cambios que avisa GET sync en [lastChanged]).
+  int revision = 0;
+  Set<String> lastChanged = const {};
 
-  String? _selectedEntityId;
+  /// Se cerró la sesión por una actualización obligatoria (la pantalla de
+  /// inicio de sesión lo muestra).
+  bool updateRequired = false;
 
-  /// Entidad que se mira en Gestión (null = todas las de su ámbito). Para el
-  /// Administrador puede ser cualquier Entidad, aunque no pertenezca a ella.
-  Entity? adminEntity;
+  Timer? _timer;
+  Duration? _interval;
 
   Session(this.api) {
     api.onSessionExpired = () {
-      if (state == SessionState.ready || state == SessionState.locked) _clear();
+      if (state == SessionState.ready) _clear();
     };
+    api.onUpdateRequired = (meta) => _onUpdateRequired(meta);
   }
+
+  /// Número de la pestaña Gestión: por resolver (Administrador y Jefe) o
+  /// resueltas sin ver (trabajador).
+  int get managementBadge => (me?.manages ?? false) ? (counters['applicationsToResolve'] ?? 0) + (counters['applicationsResolvedUnseen'] ?? 0) : (counters['applicationsResolvedUnseen'] ?? 0);
 
   Future<void> init() async {
-    if (await Storage.refreshToken() == null) {
+    settings = await AppSettings.cached();
+    if (await AppUpdates.mandatory() != null) updateRequired = true;
+    if (await Storage.refreshToken() == null || updateRequired || !await Storage.getBool(rememberKey, fallback: true)) {
+      if (await Storage.refreshToken() != null) await _clear(notify: false);
       state = SessionState.loggedOut;
-    } else if (await needsPassword()) {
-      state = SessionState.locked;
-    } else {
-      await _enter();
+      notifyListeners();
       return;
     }
-    notifyListeners();
+    try {
+      await _enter();
+    } catch (_) {
+      if (state != SessionState.ready) {
+        state = SessionState.loggedOut;
+        notifyListeners();
+      }
+    }
   }
 
-  /// Inicio de sesión con usuario y contraseña.
-  Future<void> login(String username, String password) async {
+  Future<void> login(String username, String password, {bool remember = true}) async {
     final document = await api.post('/tokens', resourceData('tokens', attributes: {
       'username': Username.normalize(username),
       'password': password,
       'deviceName': 'Android',
     }), auth: false, withInstallation: true);
-    await _start(document);
-  }
-
-  /// Guarda los tokens devueltos por el servidor y entra.
-  Future<void> _start(JsonApiDocument document) async {
     final attributes = document.resource.attributes;
     await Storage.saveTokens(attributes['accessToken'] as String, attributes['refreshToken'] as String);
-    await Storage.setString(passwordEnteredAtKey, DateTime.now().toIso8601String());
-    await SyncService.reset();
+    await Storage.setBool(rememberKey, remember);
+    await Storage.saveLastLogin(Username.normalize(username));
+    updateRequired = false;
     await _enter();
-    await _rememberLogin();
   }
 
-  /// Se recuerda el usuario en el teléfono (si el ajuste está activado).
-  Future<void> _rememberLogin() async {
-    final remember = await Storage.getBool(rememberLoginKey, fallback: true);
-    await Storage.saveLastLogin(remember ? me?.username : null);
-  }
-
-  /// Registro (docs/11 §11.5): sin Entidad. El primero que se registra es el
-  /// Administrador. Después entra y abre «Otros datos del registro».
   Future<void> register({required PersonName name, required String identityCard, required String username, required String password}) async {
     await api.post('/users', resourceData('users', attributes: {
       ...name.toAttributes(),
@@ -100,170 +96,162 @@ class Session extends ChangeNotifier {
       'username': Username.normalize(username),
       'password': password,
     }), auth: false, withInstallation: true);
-    justRegistered = true;
     await login(username, password);
-  }
-
-  /// Ya vio «Otros datos del registro».
-  void finishRegistration() {
-    justRegistered = false;
-  }
-
-  /// Guarda su perfil (docs/11 §11.18): nombres, carné y usuario.
-  Future<void> updateProfile({PersonName? name, String? identityCard, String? username}) async {
-    await api.patch('/me', resourceData('users', attributes: {
-      ...?name?.toAttributes(),
-      if (identityCard != null) 'identityCard': identityCard.trim(),
-      if (username != null) 'username': Username.normalize(username),
-    }));
-    await reloadMe();
-    if (username != null) await _rememberLogin();
-  }
-
-  // Entidades
-
-  /// Pertenencia de la Entidad elegida: la última que eligió o, si ya no
-  /// pertenece a ella, la primera. null si no tiene Entidad.
-  Membership? get selectedMembership {
-    final memberships = me?.memberships ?? const <Membership>[];
-    if (memberships.isEmpty) return null;
-    return me!.membershipIn(_selectedEntityId) ?? memberships.first;
-  }
-
-  String? get selectedEntityId => selectedMembership?.entityId;
-
-  /// Elige la Entidad que se ve (solo cambia lo que se ve: sigue activo en todas).
-  Future<void> selectEntity(String entityId) async {
-    _selectedEntityId = entityId;
-    notifyListeners();
-    await Storage.setString(selectedEntityKey, entityId);
-  }
-
-  /// El Administrador entra en una Entidad sin solicitud (docs/11 §11.13).
-  Future<void> joinEntity(String abbreviation) async {
-    final document = await api.post('/me/entities', resourceData('workers', attributes: {'entityAbbreviation': abbreviation.trim()}));
-    await reloadMe();
-    final entityId = document.resource.relId('entity')?.id;
-    if (entityId != null) await selectEntity(entityId);
-  }
-
-  /// Darse de baja de una Entidad: pierde allí itinerario, parada y roles.
-  Future<void> leaveEntity(String entityId) async {
-    await api.delete('/me/entities/$entityId');
-    await reloadMe();
-  }
-
-  /// Contraseña nueva cuando caducó o tras recuperar el acceso. Si caducó,
-  /// el servidor pide también la actual.
-  Future<void> setNewPassword(String password, {String? currentPassword}) async {
-    final body = resourceData('users', attributes: {'password': password});
-    if (currentPassword != null) body['meta'] = {'currentPassword': currentPassword};
-    await api.patch('/me', body);
-    await reloadMe();
-    settings = await UserSettings.refresh(api);
-    notifyListeners();
-    await scheduleBackgroundSync();
-    SyncService.run(api).catchError((_) {});
   }
 
   Future<void> _enter() async {
     try {
       await reloadMe();
-      _selectedEntityId = await Storage.getString(selectedEntityKey);
-      connection.start();
-      if (me!.mustChangePassword) {
-        // Hasta cambiar la contraseña, la API solo permite el perfil propio.
-        state = SessionState.ready;
-        notifyListeners();
-        return;
-      }
-      settings = await UserSettings.refresh(api);
     } catch (_) {
-      settings = await UserSettings.cached();
-      if (me == null) rethrow;
+      final cached = await Storage.getJson(SyncService.meKey);
+      if (cached['userId'] == null) rethrow;
     }
+    if (me == null) throw StateError('Sin datos de la persona');
     state = SessionState.ready;
+    counters = await SyncService.cachedCounters();
+    nextTrip = await SyncService.cachedNextTrip();
     notifyListeners();
-    await scheduleBackgroundSync();
-    SyncService.run(api).catchError((_) {});
-    // Certificado de la clave del teléfono para el QR (se renueva antes de caducar).
+    connection.start();
+    if (me!.mustChangePassword) return;
+    unawaited(_afterEnter());
+  }
+
+  Future<void> _afterEnter() async {
+    try {
+      settings = (await AppSettings.refresh(api)).$1;
+    } catch (_) {}
+    await sync();
     QrDevice.ensureCertificate(api, me!.userId).then((_) {}, onError: (_) {});
+    if (me!.manages) QrQueue.refreshServerKey(api).catchError((_) {});
   }
 
   Future<void> reloadMe() async {
     me = Me.from((await api.get('/me')).resource);
-    await SyncService.rememberMe(me!);
+    await Storage.setJson(SyncService.meKey, me!.toJson());
     notifyListeners();
   }
 
-  Future<void> reloadSettings() async {
-    settings = await UserSettings.refresh(api);
-    notifyListeners();
-    await scheduleBackgroundSync();
-  }
-
-  /// Una tarea periódica por funcionalidad, cada una con la frecuencia que
-  /// eligió el usuario (Android no permite menos de 15 minutos).
-  Future<void> scheduleBackgroundSync() async {
-    for (final part in SyncPart.values) {
-      if (!settings.boolean('background_sync_enabled', true)) {
-        await Workmanager().cancelByUniqueName(part.task);
-        continue;
+  /// Sincroniza (GET sync) y avisa a las pantallas de lo que cambió.
+  Future<void> sync({bool all = false}) async {
+    if (state != SessionState.ready) return;
+    try {
+      final result = await SyncService.run(api);
+      counters = result.counters;
+      nextTrip = result.nextTrip;
+      if (result.settingsChanged) settings = await AppSettings.cached();
+      if (result.changed.contains('applications')) await reloadMe();
+      if (all || result.changed.isNotEmpty) {
+        lastChanged = all ? const {'all'} : result.changed;
+        revision++;
       }
-      final minutes = part.hours ? settings.integer(part.setting, 24) * 60 : settings.integer(part.setting, 30);
-      await Workmanager().registerPeriodicTask(
-        part.task,
-        part.task,
-        frequency: Duration(minutes: minutes < 15 ? 15 : minutes),
-        constraints: Constraints(networkType: NetworkType.connected),
-        existingWorkPolicy: ExistingPeriodicWorkPolicy.update,
-      );
+      notifyListeners();
+      _schedule();
+      await maybeStartTracking();
+    } catch (_) {
+      // Sin conexión: el punto de conexión lo indica.
     }
   }
 
-  Future<void> logout({bool everywhere = false}) async {
+  /// Botón Actualizar (docs/11 §11.48).
+  Future<void> refresh() async {
     try {
-      await api.delete(everywhere ? '/tokens' : '/tokens/current');
+      await reloadMe();
+    } catch (_) {}
+    await sync(all: true);
+    lastChanged = const {'all'};
+    revision++;
+    notifyListeners();
+  }
+
+  /// Consulta periódica con la app abierta: «Frecuencia día viaje» si hay
+  /// un viaje ese día y «Frecuencia reposo» si no.
+  void _schedule() {
+    final interval = SyncService.frequency(nextTrip, settings);
+    if (_timer != null && interval == _interval) return;
+    _interval = interval;
+    _timer?.cancel();
+    _timer = Timer.periodic(interval < const Duration(seconds: 30) ? const Duration(seconds: 30) : interval, (_) => sync());
+  }
+
+  void pause() {
+    _timer?.cancel();
+    _timer = null;
+    connection.stop();
+  }
+
+  void resume() {
+    if (state != SessionState.ready) return;
+    connection.start();
+    sync();
+  }
+
+  /// Empieza a calcular su estado desde «Anticipación viaje» antes de la
+  /// salida (docs/11 §11.41), si la ubicación está activada.
+  Future<void> maybeStartTracking({bool force = false}) async {
+    final trip = nextTrip;
+    final person = me;
+    if (trip == null || person == null || trip.itineraryId == null) return;
+    if (trip.status != 'planificado' && trip.status != 'en_ejecucion') return;
+    if (!force && DateTime.now().isBefore(trip.departsAt.subtract(settings.duration('anticipacion_viaje')))) return;
+    final membership = person.memberships.where((m) => m.itineraryId == trip.itineraryId && m.stopId != null).firstOrNull;
+    if (membership == null) return;
+    try {
+      if (await TrackingService.runningTripId() == trip.id) return;
+      if (!await TrackingService.locationReady()) return;
+      final full = Trip.from((await api.get('/trips/${trip.id}', query: {'include': 'itinerary'})).resource);
+      final stops = (await api.getAll('/stops', query: {'filter[itinerary]': trip.itineraryId, 'sort': 'position'})).map(Stop.from).toList();
+      await TrackingService.start(trip: full, stops: stops, myStopId: membership.stopId!, settings: settings);
+    } catch (_) {
+      // Se intenta en la siguiente consulta.
+    }
+  }
+
+  void _onUpdateRequired(Map<String, dynamic> meta) {
+    if (updateRequired && state == SessionState.loggedOut) return;
+    updateRequired = true;
+    AppUpdates.rememberMandatory(meta).then((_) async {
+      if (state == SessionState.ready) {
+        try {
+          await api.delete('/tokens/current');
+        } catch (_) {}
+        await _clear();
+      } else {
+        notifyListeners();
+      }
+    });
+  }
+
+  Future<void> logout() async {
+    try {
+      await api.delete('/tokens/current');
     } catch (_) {
       // Aunque falle (sin conexión), se cierra la sesión en el teléfono.
     }
     await _clear();
   }
 
-  /// Hay que volver a escribir la contraseña: "Recordar contraseña" está
-  /// desactivado o pasaron sus días (ajustes del usuario).
-  Future<bool> needsPassword() async {
-    final cached = await UserSettings.cached();
-    if (!cached.boolean('remember_password', true)) return true;
-    final raw = await Storage.getString(passwordEnteredAtKey);
-    final enteredAt = raw == null ? null : DateTime.tryParse(raw);
-    if (enteredAt == null) {
-      // Sesiones de versiones anteriores: se empieza a contar ahora.
-      await Storage.setString(passwordEnteredAtKey, DateTime.now().toIso8601String());
-      return false;
-    }
-    return DateTime.now().difference(enteredAt) > Duration(days: cached.integer('remember_password_days', 7));
-  }
-
-  /// Pide de nuevo la contraseña (sin cerrar la sesión: los avisos siguen llegando).
-  void lock() {
-    if (state != SessionState.ready) return;
-    state = SessionState.locked;
-    notifyListeners();
-  }
-
-  Future<void> _clear() async {
-    await TrackingService.stop();
-    await Workmanager().cancelAll();
-    await Notifications.cancelAll();
+  Future<void> _clear({bool notify = true}) async {
+    _timer?.cancel();
+    _timer = null;
+    try {
+      await TrackingService.stop();
+      await Workmanager().cancelAll();
+    } catch (_) {}
+    try {
+      await Notifications.cancelAll();
+    } catch (_) {}
     await Storage.clearUserData();
-    await Storage.setString(passwordEnteredAtKey, null);
     connection.stop();
     me = null;
-    adminEntity = null;
-    _selectedEntityId = null;
-    justRegistered = false;
+    counters = const {};
+    nextTrip = null;
     state = SessionState.loggedOut;
-    notifyListeners();
+    if (notify) notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
   }
 }

@@ -6,26 +6,23 @@ import 'package:provider/provider.dart';
 import 'package:workmanager/workmanager.dart';
 
 import 'core/api_client.dart';
-import 'services/app_updates.dart';
 import 'services/notifications.dart';
 import 'services/session.dart';
 import 'services/sync.dart';
-import 'services/tracking_service.dart';
 import 'ui/auth/login_screen.dart';
 import 'ui/auth/new_password_screen.dart';
 import 'ui/home/home_shell.dart';
 import 'ui/theme.dart';
-import 'ui/updates/update_screen.dart';
 
-/// Tarea en segundo plano: sincroniza viajes, avisos y mensajes.
+/// Tarea en segundo plano: GET sync con «Frecuencia reposo» o «Frecuencia
+/// día viaje» (docs/11 §11.44), y notificaciones del teléfono.
 @pragma('vm:entry-point')
 void callbackDispatcher() {
   Workmanager().executeTask((task, inputData) async {
     try {
       await Notifications.init();
       await initializeDateFormatting('es');
-      final part = SyncPart.fromTask(task);
-      await SyncService.run(await ApiClient.create(), parts: part == null ? {...SyncPart.values} : {part});
+      await SyncService.run(await ApiClient.create());
     } catch (_) {
       // Sin conexión o sesión cerrada: se intenta en la siguiente ejecución.
     }
@@ -39,12 +36,10 @@ Future<void> main() async {
   await initializeDateFormatting('es');
   await Notifications.init();
   await Workmanager().initialize(callbackDispatcher);
-  TrackingService.init();
 
   final session = Session(await ApiClient.create());
   runApp(MultiProvider(providers: [
     ChangeNotifierProvider.value(value: session),
-    // Punto de conexión de la barra superior (docs/11 §11.14).
     ChangeNotifierProvider.value(value: session.connection),
   ], child: const MiRutaApp()));
   session.init();
@@ -67,62 +62,26 @@ class MiRutaApp extends StatelessWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      home: const WithForegroundTask(child: _Root()),
+      home: const WithForegroundTask(child: Root()),
     );
   }
 }
 
-/// Raíz: comprueba si hay una versión nueva al abrir la app. Si es
-/// obligatoria, no deja seguir (ni siquiera iniciar sesión) hasta instalarla.
-class _Root extends StatefulWidget {
-  const _Root();
-
-  @override
-  State<_Root> createState() => _RootState();
-}
-
-class _RootState extends State<_Root> {
-  AppUpdate? _mandatory;
-
-  @override
-  void initState() {
-    super.initState();
-    _checkUpdate();
-  }
-
-  Future<void> _checkUpdate() async {
-    if (!context.read<Session>().api.hasServer) return;
-    try {
-      final update = await AppUpdates.check(context.read<Session>().api);
-      if (update == null || !mounted) return;
-      if (update.mandatory) {
-        setState(() => _mandatory = update);
-      } else {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) Navigator.push(context, MaterialPageRoute(builder: (_) => UpdateScreen(update: update)));
-        });
-      }
-    } catch (_) {
-      // Sin conexión: se comprobará en otro momento.
-    }
-  }
+/// Raíz: inicio de sesión (con la actualización obligatoria, si la hay),
+/// contraseña nueva obligatoria o la pantalla principal.
+class Root extends StatelessWidget {
+  const Root({super.key});
 
   @override
   Widget build(BuildContext context) {
-    if (_mandatory != null) return UpdateScreen(update: _mandatory!);
-
     final session = context.watch<Session>();
-    if (session.state == SessionState.ready && session.me?.mustChangePassword == true) return const NewPasswordScreen();
-
     switch (session.state) {
       case SessionState.loading:
         return const Scaffold(body: Center(child: CircularProgressIndicator()));
       case SessionState.loggedOut:
         return const LoginScreen();
-      case SessionState.locked:
-        // Hay sesión, pero hay que volver a escribir la contraseña.
-        return const LoginScreen();
       case SessionState.ready:
+        if (session.me?.mustChangePassword == true) return const NewPasswordScreen();
         return const HomeShell();
     }
   }

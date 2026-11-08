@@ -6,24 +6,24 @@ import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest_all.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
 
-import '../models/models.dart';
-import 'templates.dart';
-import 'user_settings.dart';
-
-/// Notificaciones locales: avisos de salida y regreso programados, cambios,
-/// paso por paradas, mensajes y avisos del servidor.
+/// Notificaciones del teléfono (docs/11 §11.37, §11.47 y §11.50). No hay
+/// pantalla de avisos: todo lo que la app avisa va por aquí.
 class Notifications {
   static final _plugin = FlutterLocalNotificationsPlugin();
   static bool _initialized = false;
 
-  static const _trips = AndroidNotificationDetails('trips', 'Viajes',
-      channelDescription: 'Avisos de salida y regreso', importance: Importance.high, priority: Priority.high);
-  static const _changes = AndroidNotificationDetails('changes', 'Cambios en los viajes',
-      channelDescription: 'Cancelaciones y cambios de chofer, transporte u horario', importance: Importance.high, priority: Priority.high);
-  static const _route = AndroidNotificationDetails('route', 'Recorrido',
-      channelDescription: 'Paso del transporte por las paradas', importance: Importance.high, priority: Priority.high);
-  static const _messages = AndroidNotificationDetails('messages', 'Mensajes y avisos',
-      channelDescription: 'Chats, solicitudes y avisos', importance: Importance.defaultImportance);
+  /// Lo que se tocó en una notificación ("trip:15", "gestion",
+  /// "conversation:3", "update"). La pantalla principal lo escucha.
+  static final tapped = ValueNotifier<String?>(null);
+
+  static const _trips = AndroidNotificationDetails('viajes', 'Viajes',
+      channelDescription: 'Viajes planificados, cambios y estado del vehículo', importance: Importance.high, priority: Priority.high);
+  static const _location = AndroidNotificationDetails('ubicacion', 'Ubicación',
+      channelDescription: 'Recordatorios de activar y de quitar la ubicación (GPS)', importance: Importance.high, priority: Priority.high);
+  static const _states = AndroidNotificationDetails('mi_estado', 'Mi estado en el viaje',
+      channelDescription: 'Sus propios estados durante el viaje', importance: Importance.defaultImportance);
+  static const _general = AndroidNotificationDetails('general', 'Solicitudes y mensajes',
+      channelDescription: 'Solicitudes, respuestas del desarrollador y actualizaciones de la app', importance: Importance.defaultImportance);
 
   static Future<void> init() async {
     if (_initialized) return;
@@ -33,104 +33,82 @@ class Notifications {
     } catch (_) {
       // Se queda en UTC si no se conoce la zona del teléfono.
     }
-    await _plugin.initialize(settings: const InitializationSettings(android: AndroidInitializationSettings('@mipmap/ic_launcher')));
+    await _plugin.initialize(
+      settings: const InitializationSettings(android: AndroidInitializationSettings('@mipmap/ic_launcher')),
+      onDidReceiveNotificationResponse: (response) => tapped.value = response.payload,
+    );
+    final launch = await _plugin.getNotificationAppLaunchDetails();
+    if (launch?.didNotificationLaunchApp == true) tapped.value = launch!.notificationResponse?.payload;
     _initialized = true;
   }
 
   static Future<void> requestPermissions() async {
     final android = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
     await android?.requestNotificationsPermission();
-    await android?.requestExactAlarmsPermission();
   }
-
-  static int _tripId(Trip trip, int kind) => (int.tryParse(trip.id) ?? trip.id.hashCode) * 10 + kind;
-
-  /// Programa (o reprograma) los avisos de salida y regreso de un viaje
-  /// confirmado (docs/07-algoritmos.md §7.16).
-  static Future<void> scheduleTrip(Trip trip, UserSettings settings, {Map<String, Stop> stops = const {}, bool absent = false}) async {
-    await cancelTrip(trip);
-    if (!trip.isConfirmed) return;
-    if (absent && !settings.boolean('notify_during_absence', false)) return;
-
-    final variables = tripVariables(trip, stops: stops);
-    for (final kind in ['departure', 'return']) {
-      final event = kind == 'departure' ? trip.departsAt : trip.returnsAt;
-      final at = noticeTime(event, kind, settings);
-      if (at == null || !at.isAfter(DateTime.now())) continue;
-
-      final defaultTemplate = kind == 'departure'
-          ? 'Salida {fecha_salida} a las {hora_salida} desde {punto_salida}.'
-          : 'Regreso {fecha_regreso} a las {hora_regreso} desde {punto_regreso}.';
-      await _plugin.zonedSchedule(
-        id: _tripId(trip, kind == 'departure' ? 1 : 2),
-        title: kind == 'departure' ? 'Salida: ${trip.itineraryName ?? ''}' : 'Regreso: ${trip.itineraryName ?? ''}',
-        body: renderTemplate(settings.string('${kind}_notice_template', defaultTemplate), variables),
-        scheduledDate: tz.TZDateTime.from(at, tz.local),
-        notificationDetails: const NotificationDetails(android: _trips),
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-        payload: 'trip:${trip.id}',
-      );
-    }
-  }
-
-  /// Momento del aviso según el ajuste del usuario; null si no hay que avisar.
-  @visibleForTesting
-  static DateTime? noticeTime(DateTime event, String kind, UserSettings settings) {
-    if (settings.string('${kind}_notice_mode', 'relative') == 'fixed') {
-      final parts = settings.string('${kind}_notice_fixed_time', kind == 'departure' ? '14:00' : '23:00').split(':');
-      final day = event.subtract(Duration(days: settings.integer('${kind}_notice_fixed_days_before', kind == 'departure' ? 0 : 1)));
-      final at = DateTime(day.year, day.month, day.day, int.parse(parts[0]), int.parse(parts[1]));
-      if (!at.isAfter(event)) return at;
-      if (settings.string('${kind}_notice_fallback', 'default') == 'none') return null;
-      return event.subtract(const Duration(hours: 1));
-    }
-    return event.subtract(Duration(minutes: settings.integer('${kind}_notice_minutes_before', 60)));
-  }
-
-  static Future<void> cancelTrip(Trip trip) async {
-    await _plugin.cancel(id: _tripId(trip, 1));
-    await _plugin.cancel(id: _tripId(trip, 2));
-  }
-
-  /// Texto del aviso de saturación (docs/08-version-2.md §8.9).
-  static String saturationText(Trip trip) => trip.overloaded
-      ? '${trip.expectedPassengers - trip.totalCapacity} trabajadores no caben: ${trip.expectedPassengers} trabajadores para ${trip.totalCapacity} plazas.'
-      : '${trip.expectedPassengers - trip.seats} trabajadores irán de pie: ${trip.expectedPassengers} trabajadores, ${trip.seats} asientos.';
-
-  static String saturationTitle(Trip trip) =>
-      '${trip.overloaded ? 'Sobresaturado' : 'Saturado'}: ${trip.itineraryName ?? 'viaje'} ${formatDateTime(trip.departsAt)}';
-
-  static Future<void> showSaturation(Trip trip) => _plugin.show(
-        id: _tripId(trip, 3),
-        title: saturationTitle(trip),
-        body: saturationText(trip),
-        notificationDetails: const NotificationDetails(android: _changes),
-        payload: 'trip:${trip.id}',
-      );
-
-  /// Aviso de saturación a una hora (X minutos antes de la salida).
-  static Future<void> scheduleSaturation(Trip trip, DateTime at) => _plugin.zonedSchedule(
-        id: _tripId(trip, 4),
-        title: saturationTitle(trip),
-        body: saturationText(trip),
-        scheduledDate: tz.TZDateTime.from(at, tz.local),
-        notificationDetails: const NotificationDetails(android: _changes),
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-        payload: 'trip:${trip.id}',
-      );
-
-  static Future<void> cancelSaturation(Trip trip) => _plugin.cancel(id: _tripId(trip, 4));
-
-  static Future<void> cancelAll() => _plugin.cancelAll();
 
   static final _random = Random();
 
-  static Future<void> showChange(String title, String body, {String? payload}) =>
-      _plugin.show(id: _random.nextInt(1 << 30), title: title, body: body, notificationDetails: const NotificationDetails(android: _changes), payload: payload);
+  static int _id() => _random.nextInt(1 << 30);
 
-  static Future<void> showRoute(String title, String body) =>
-      _plugin.show(id: _random.nextInt(1 << 30), title: title, body: body, notificationDetails: const NotificationDetails(android: _route));
+  /// Notificación de GET sync según su `kind` (docs/13 §13.10).
+  static Future<void> showServer(String kind, String title, String body, Map<String, dynamic> data) {
+    final tripId = data['tripId']?.toString();
+    final payload = switch (kind) {
+      'solicitud_recibida' || 'solicitud_resuelta' => 'gestion',
+      'respuesta_desarrollador' => 'conversation:${data['conversationId'] ?? ''}',
+      'olvide_recibida' => 'olvide',
+      _ => tripId == null ? null : 'trip:$tripId',
+    };
+    final details = kind.startsWith('viaje') || kind.startsWith('vehiculo') ? _trips : _general;
+    return _plugin.show(id: _id(), title: title, body: body, notificationDetails: NotificationDetails(android: details), payload: payload);
+  }
 
-  static Future<void> showMessage(String title, String body, {String? payload}) =>
-      _plugin.show(id: _random.nextInt(1 << 30), title: title, body: body, notificationDetails: const NotificationDetails(android: _messages), payload: payload);
+  /// «Actualización disponible» (docs/11 §11.50).
+  static Future<void> showUpdate(String versionName, {bool mandatory = false}) => _plugin.show(
+        id: 7,
+        title: mandatory ? 'Actualización obligatoria' : 'Actualización disponible',
+        body: 'Ya está la versión $versionName de MiRuta. ${mandatory ? 'Instálela para seguir usando la app.' : 'Puede instalarla desde Más.'}',
+        notificationDetails: const NotificationDetails(android: _general),
+        payload: 'update',
+      );
+
+  static int _reminderId(String tripId) => 100000 + (int.tryParse(tripId) ?? tripId.hashCode.abs() % 100000);
+
+  /// Recordatorio de activar la ubicación «Anticipación viaje» antes de la
+  /// salida (docs/11 §11.41). Lo programa el propio teléfono.
+  static Future<void> scheduleLocationReminder({required String tripId, required DateTime at, required String body}) async {
+    await _plugin.cancel(id: _reminderId(tripId));
+    if (!at.isAfter(DateTime.now())) return;
+    await _plugin.zonedSchedule(
+      id: _reminderId(tripId),
+      title: 'Active la ubicación',
+      body: body,
+      scheduledDate: tz.TZDateTime.from(at, tz.local),
+      notificationDetails: const NotificationDetails(android: _location),
+      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      payload: 'trip:$tripId',
+    );
+  }
+
+  static Future<void> cancelLocationReminder(String tripId) => _plugin.cancel(id: _reminderId(tripId));
+
+  /// Al llegar a un estado definitivo o al terminar el viaje.
+  static Future<void> showDisableGps(String body) => _plugin.show(
+        id: 8,
+        title: 'Ya puede quitar la ubicación',
+        body: body,
+        notificationDetails: const NotificationDetails(android: _location),
+      );
+
+  /// Sus propios estados (docs/11 §11.47).
+  static Future<void> showMyState(String tripId, String title, String body) => _plugin.show(
+        id: 9,
+        title: title,
+        body: body,
+        notificationDetails: const NotificationDetails(android: _states),
+        payload: 'trip:$tripId',
+      );
+
+  static Future<void> cancelAll() => _plugin.cancelAll();
 }

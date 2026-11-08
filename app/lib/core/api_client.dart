@@ -16,7 +16,6 @@ import '../services/installation.dart';
 /// con un bloqueo de archivo) y repite la petición.
 class ApiClient {
   static const jsonApi = 'application/vnd.api+json';
-  static const atomic = 'application/vnd.api+json; ext="https://jsonapi.org/ext/atomic"';
 
   final Dio _dio;
 
@@ -27,6 +26,10 @@ class ApiClient {
   /// con un error) y false si no se pudo llegar a él. Lo usa el punto de
   /// conexión (services/connection.dart, docs/11 §11.14).
   void Function(bool reachable)? onReachability;
+
+  /// Se llama al recibir 426 APP_UPDATE_REQUIRED (actualización obligatoria,
+  /// docs/11 §11.54) con el `meta` del error.
+  void Function(Map<String, dynamic> meta)? onUpdateRequired;
 
   Future<void>? _refreshing;
 
@@ -43,8 +46,9 @@ class ApiClient {
       baseUrl: await Storage.apiUrl(),
       connectTimeout: const Duration(seconds: 15),
       receiveTimeout: const Duration(seconds: 30),
-      // La versión instalada: así el Administrador ve quién no ha actualizado.
-      headers: {'Accept': jsonApi, 'X-App-Version-Code': (await PackageInfo.fromPlatform()).buildNumber},
+      // La versión instalada (versionCode): el servidor responde 426 si hay
+      // una actualización obligatoria (docs/13 §13.3).
+      headers: {'Accept': jsonApi, 'X-App-Version': (await PackageInfo.fromPlatform()).buildNumber},
       validateStatus: (status) => status != null && status < 400,
     ));
     return ApiClient._(dio);
@@ -97,7 +101,7 @@ class ApiClient {
 
   /// Aún no se ha indicado a qué servidor conectarse.
   static ApiException noServer() =>
-      _probeError('NO_SERVER', 'Primero indique la dirección del servidor con el botón «Indicar servidor», al pie de la pantalla de inicio de sesión.');
+      _probeError('NO_SERVER', 'Para usar la app indique primero la dirección del servidor con el botón rojo «Servidor», arriba.');
 
   static ApiException _probeError(String code, String detail) =>
       ApiException(null, [JsonApiError(status: '', code: code, title: 'Servidor', detail: detail)]);
@@ -119,7 +123,7 @@ class ApiClient {
       if (header != null) options.headers['X-Installation'] = header;
     }
     if (options.data != null && options.data is! FormData) {
-      options.headers['Content-Type'] = options.extra['atomic'] == true ? atomic : jsonApi;
+      options.headers['Content-Type'] = jsonApi;
     }
     handler.next(options);
   }
@@ -173,17 +177,21 @@ class ApiClient {
   Future<JsonApiDocument> patch(String path, Map<String, dynamic> body) async =>
       _document(await _send(() => _dio.patch(path, data: body)));
 
-  Future<void> delete(String path) async => _send(() => _dio.delete(path));
-
-  /// Operaciones atómicas (JSON:API Atomic Operations).
-  Future<List<Resource>> atomicOperations(List<Map<String, dynamic>> operations) async {
-    final response = await _send(() => _dio.post('/operations', data: {'atomic:operations': operations}, options: Options(extra: {'atomic': true})));
-    final results = (response.data is Map ? response.data['atomic:results'] as List? : null) ?? const [];
-    return results
-        .where((result) => result is Map && result['data'] != null)
-        .map((result) => Resource.fromJson(Map<String, dynamic>.from(result['data'] as Map)))
-        .toList();
+  /// Petición sin la API (p. ej. resolver un enlace corto de Google Maps):
+  /// devuelve la dirección a la que redirige, o null.
+  static Future<String?> resolveRedirect(String url) async {
+    final dio = Dio(BaseOptions(connectTimeout: const Duration(seconds: 10), receiveTimeout: const Duration(seconds: 10), followRedirects: false, validateStatus: (_) => true));
+    var current = url;
+    for (var i = 0; i < 5; i++) {
+      final response = await dio.get<dynamic>(current, options: Options(responseType: ResponseType.plain));
+      final location = response.headers.value('location');
+      if (location == null) return i == 0 ? null : current;
+      current = Uri.parse(current).resolve(location).toString();
+    }
+    return current;
   }
+
+  Future<void> delete(String path) async => _send(() => _dio.delete(path));
 
   /// Subida de un archivo (multipart/form-data), con otros campos opcionales.
   Future<JsonApiDocument> upload(String path, String field, String filePath, {Map<String, dynamic> fields = const {}, void Function(int sent, int total)? onProgress}) =>
@@ -213,6 +221,9 @@ class ApiClient {
     } on DioException catch (error) {
       onReachability?.call(error.response != null);
       final apiError = _toApiException(error);
+      if (apiError.statusCode == 426 || apiError.hasCode('APP_UPDATE_REQUIRED')) {
+        onUpdateRequired?.call(apiError.errors.isEmpty ? const {} : apiError.errors.first.meta);
+      }
       if (!retried && apiError.statusCode == 401 && apiError.hasCode('TOKEN_EXPIRED')) {
         await refreshTokens();
         return _send(request, retried: true);
@@ -248,6 +259,7 @@ class ApiClient {
         await Storage.saveTokens(attributes['accessToken'] as String, attributes['refreshToken'] as String);
       } on DioException catch (error) {
         final apiError = _toApiException(error);
+        if (apiError.statusCode == 426) onUpdateRequired?.call(apiError.errors.isEmpty ? const {} : apiError.errors.first.meta);
         if (apiError.statusCode == 401) {
           await Storage.clearTokens();
           onSessionExpired?.call();

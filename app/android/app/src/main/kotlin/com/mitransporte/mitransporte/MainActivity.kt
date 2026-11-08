@@ -1,5 +1,7 @@
 package com.mitransporte.mitransporte
 
+import android.content.Intent
+import android.os.Bundle
 import android.util.Base64
 import android.view.WindowManager
 import io.flutter.embedding.android.FlutterActivity
@@ -7,8 +9,45 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
+    private var shareChannel: MethodChannel? = null
+    private var pendingShare: String? = null
+
+    /** Texto o enlace compartido (ACTION_SEND) o enlace geo: (ACTION_VIEW). */
+    private fun sharedText(intent: Intent?): String? = when (intent?.action) {
+        Intent.ACTION_SEND -> listOfNotNull(
+            intent.getStringExtra(Intent.EXTRA_SUBJECT),
+            intent.getStringExtra(Intent.EXTRA_TEXT),
+        ).joinToString("\n").ifBlank { null }
+        Intent.ACTION_VIEW -> intent.dataString
+        else -> null
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        pendingShare = sharedText(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        val text = sharedText(intent) ?: return
+        val channel = shareChannel
+        if (channel != null) channel.invokeMethod("shared", text) else pendingShare = text
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        // Ubicación compartida desde otras apps (docs/11 §11.51).
+        shareChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "mitransporte/share").apply {
+            setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "initial" -> {
+                        result.success(pendingShare)
+                        pendingShare = null
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+        }
         // "Compartir la app": dónde está el APK instalado y de qué tipo de procesador es.
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "mitransporte/app").setMethodCallHandler { call, result ->
             when (call.method) {
