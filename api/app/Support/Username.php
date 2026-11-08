@@ -121,16 +121,16 @@ final class Username
             return true;
         }
 
-        $days = app(Settings::class)->int('username_reuse_block_days');
+        $seconds = app(Settings::class)->seconds('reserva_usuario');
         $released = ReleasedUsername::where('username', $username)
-            ->where('released_at', '>', Carbon::now()->subDays($days));
+            ->where('released_at', '>', Carbon::now()->subSeconds($seconds));
 
         if ($userId !== null) {
             // Quien lo dejó puede recuperarlo.
             $released->where('user_id', '<>', $userId);
         }
 
-        return $days > 0 && $released->exists();
+        return $seconds > 0 && $released->exists();
     }
 
     /**

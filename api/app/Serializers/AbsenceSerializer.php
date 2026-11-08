@@ -5,9 +5,6 @@ namespace App\Serializers;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 
-/**
- * Ausencia declarada (sin aprobación).
- */
 class AbsenceSerializer extends Serializer
 {
     public function type(): string
@@ -18,11 +15,10 @@ class AbsenceSerializer extends Serializer
     public function attributes(Model $absence, Request $request): array
     {
         return [
-            'startsOn' => $absence->starts_on ? $absence->starts_on->toDateString() : null,
-            'endsOn' => $absence->ends_on ? $absence->ends_on->toDateString() : null,
-            'indefinite' => (bool) $absence->indefinite,
+            'startsOn' => $this->day($absence->starts_on),
+            'endsOn' => $this->day($absence->ends_on),
+            'indefinite' => $absence->ends_on === null,
             'note' => $absence->note,
-            'createdAt' => $this->date($absence->created_at),
         ];
     }
 

@@ -2,10 +2,12 @@
 
 namespace App\Serializers;
 
+use App\Models\ItineraryStop;
+use App\Models\Worker;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 
-class ItinerarySerializer extends NomenclatorSerializer
+class ItinerarySerializer extends Serializer
 {
     public function type(): string
     {
@@ -14,32 +16,25 @@ class ItinerarySerializer extends NomenclatorSerializer
 
     public function attributes(Model $itinerary, Request $request): array
     {
-        return parent::attributes($itinerary, $request) + [
-            'imageUrl' => $itinerary->image_path ? url($itinerary->image_path) : null,
-        ];
-    }
-
-    public function meta(Model $itinerary, Request $request): array
-    {
-        $departure = $itinerary->departureStop();
-        $return = $itinerary->returnStop();
-
         return [
-            'departurePoint' => $departure ? ['type' => 'stops', 'id' => (string) $departure->id] : null,
-            'returnPoint' => $return ? ['type' => 'stops', 'id' => (string) $return->id] : null,
-            'stopIds' => $itinerary->stops->pluck('id')->map(function ($id) {
-                return (string) $id;
-            })->all(),
-            'memberCount' => $itinerary->members()->count(),
+            'name' => $itinerary->name,
+            'description' => $itinerary->description,
+            'observation' => $itinerary->observation,
+            'imageUrl' => $this->image($itinerary->image_path),
+            'active' => (bool) $itinerary->active,
         ];
     }
 
     public function toOneRelationships(): array
     {
+        return ['entity' => ['entities', 'entity_id', 'entity']];
+    }
+
+    public function meta(Model $itinerary, Request $request): array
+    {
         return [
-            'entity' => ['entities', 'entity_id', 'entity'],
-            'referenceOutboundLeg' => ['trip-legs', 'reference_outbound_leg_id', 'referenceOutboundLeg'],
-            'referenceReturnLeg' => ['trip-legs', 'reference_return_leg_id', 'referenceReturnLeg'],
+            'stopCount' => ItineraryStop::where('itinerary_id', $itinerary->id)->count(),
+            'workerCount' => Worker::where('itinerary_id', $itinerary->id)->count(),
         ];
     }
 }

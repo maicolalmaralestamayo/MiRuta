@@ -2,148 +2,184 @@
 
 namespace App\Http\Controllers;
 
-use App\JsonApi\Document;
 use App\JsonApi\JsonApiException;
-use App\JsonApi\JsonApiResponse;
+use App\JsonApi\QueryParameters;
 use App\Models\Itinerary;
-use App\Models\TripLeg;
-use App\Models\Worker;
-use App\Services\Permissions;
+use App\Services\Access;
+use App\Services\Organization;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
-class ItineraryController extends NomenclatorController
+/**
+ * Itinerarios de una Entidad. Los ve quien pertenece a la Entidad; solo el
+ * Administrador los crea, edita y elimina. El orden de sus paradas lo cambian
+ * el Administrador y sus Jefes (PATCH itineraries/{id}/relationships/stops).
+ */
+class ItineraryController extends Controller
 {
-    protected $model = Itinerary::class;
+    public const SORTABLE = ['id' => 'id', 'name' => 'name', 'createdAt' => 'created_at'];
+    public const INCLUDABLE = ['entity'];
 
-    protected $type = 'itineraries';
-
-    protected $entityScoped = true;
-
-    protected $manageOperation = 'itineraries.manage';
-
-    protected $viewOperation = 'itineraries.view';
-
-    protected $filterable = ['name', 'entity'];
-
-    protected $relationships = [
-        'referenceOutboundLeg' => ['trip-legs', 'reference_outbound_leg_id'],
-        'referenceReturnLeg' => ['trip-legs', 'reference_return_leg_id'],
-    ];
-
-    /**
-     * Marcar el recorrido de referencia (solo eso) lo puede hacer quien tenga
-     * itineraries.reference_route sobre el itinerario; el resto, quien tenga
-     * itineraries.manage en su Entidad.
-     */
-    public function update(Request $request, $id)
+    public function __construct(private Access $access)
     {
-        $user = $request->user();
-        $data = $request->json('data');
-        $onlyReference = is_array($data) && empty($data['attributes'])
-            && ! empty($data['relationships'])
-            && ! array_diff(array_keys($data['relationships']), ['referenceOutboundLeg', 'referenceReturnLeg']);
+    }
 
-        if ($onlyReference && app(Permissions::class)->can($user, 'itineraries.reference_route', null, (int) $id)) {
-            $itinerary = $this->findOrFail($request, $id);
-            $validated = $this->validateResource($request, $this->type, $this->rules($request, $itinerary));
-            DB::transaction(function () use ($itinerary, $validated, $request) {
-                $this->fill($itinerary, $validated);
-                $this->beforeSave($itinerary, $request, false);
-                $itinerary->save();
-            });
+    public function index(Request $request)
+    {
+        $parameters = QueryParameters::fromRequest($request, self::SORTABLE, ['entity', 'search', 'active'], self::INCLUDABLE, 'name');
+        $query = $this->visible($request);
 
-            return JsonApiResponse::make((new Document($request))->resource($itinerary->fresh()));
+        if ($entity = $parameters->filter('entity')) {
+            $query->where('entity_id', (int) $entity);
         }
 
-        return parent::update($request, $id);
+        if ($search = $parameters->filter('search')) {
+            $query->where('name', 'like', '%'.$search.'%');
+        }
+
+        if ($parameters->filter('active') !== null) {
+            $query->where('active', $parameters->filter('active') === 'true');
+        }
+
+        return $this->paginate($request, $query, $parameters, self::SORTABLE);
     }
 
-    protected function newQuery(Request $request): Builder
+    public function show(Request $request, $id)
     {
-        return parent::newQuery($request)->with('stops');
+        return $this->respond($request, $this->visible($request)->findOrFail($id), QueryParameters::readIncludes($request, self::INCLUDABLE));
+    }
+
+    public function store(Request $request)
+    {
+        $this->access->requireAdmin($request->user(), 'Solo el Administrador crea itinerarios.');
+        $data = $this->validateResource($request, 'itineraries', $this->rules(null) + $this->relationshipRules('entity', 'entities', 'entities', true));
+        $itinerary = new Itinerary(['entity_id' => $this->relationshipId($data, 'entity')]);
+        $this->ensureUniqueName($itinerary->entity_id, $data['attributes']['name'], null);
+        $this->fill($itinerary, $data['attributes']);
+        $itinerary->save();
+
+        return $this->created($request, $itinerary->fresh(), 'itineraries');
     }
 
     /**
-     * El nombre es único dentro de la Entidad.
+     * Datos del itinerario y, con relationships.entity, «Cambiar de Entidad»
+     * (sus personas quedan sin itinerario en la Entidad anterior).
      */
-    protected function rules(Request $request, ?Model $model): array
+    public function update(Request $request, Organization $organization, $id)
     {
-        $entityId = self::targetEntityId($request, $model);
+        $this->access->requireAdmin($request->user(), 'Solo el Administrador edita itinerarios.');
+        $itinerary = Itinerary::findOrFail($id);
+        $data = $this->validateResource($request, 'itineraries', $this->rules($itinerary) + $this->relationshipRules('entity', 'entities', 'entities', false));
+        $attributes = $data['attributes'] ?? [];
+        $entityId = $this->relationshipId($data, 'entity') ?? $itinerary->entity_id;
+
+        if (isset($attributes['name']) || $entityId !== $itinerary->entity_id) {
+            $this->ensureUniqueName($entityId, $attributes['name'] ?? $itinerary->name, $itinerary->id);
+        }
+
+        if ($entityId !== $itinerary->entity_id) {
+            \App\Models\Worker::where('itinerary_id', $itinerary->id)->update(['itinerary_id' => null, 'stop_id' => null, 'is_chief' => false]);
+            $itinerary->entity_id = $entityId;
+            $this->access->flush();
+        }
+
+        $this->fill($itinerary, $attributes);
+        $itinerary->save();
+
+        return $this->respond($request, $itinerary->fresh());
+    }
+
+    /**
+     * Elimina el itinerario (con sus viajes y solicitudes); sus personas quedan
+     * sin itinerario ni parada; las paradas se conservan.
+     */
+    public function destroy(Request $request, Organization $organization, $id)
+    {
+        $this->access->requireAdmin($request->user(), 'Solo el Administrador elimina itinerarios.');
+        $organization->deleteItinerary(Itinerary::findOrFail($id));
+
+        return $this->noContent();
+    }
+
+    /**
+     * PATCH itineraries/{id}/relationships/stops: nuevo orden de todas sus
+     * paradas (data = [{type: stops, id}, …], de la primera a la última).
+     */
+    public function reorderStops(Request $request, Organization $organization, $id)
+    {
+        $itinerary = Itinerary::findOrFail($id);
+        $this->access->requireItineraryManager($request->user(), $itinerary->id, 'Solo el Administrador o el Jefe del itinerario ordenan sus paradas.');
+        $data = $request->json('data');
+
+        if (! is_array($data) || ! array_is_list($data)) {
+            throw new JsonApiException(400, 'BAD_REQUEST', 'Petición incorrecta', '"data" debe ser la lista de paradas en orden.', ['pointer' => '/data']);
+        }
+
+        $ids = [];
+
+        foreach ($data as $index => $identifier) {
+            if (! is_array($identifier) || ($identifier['type'] ?? null) !== 'stops' || ! isset($identifier['id'])) {
+                throw JsonApiException::conflict('TYPE_MISMATCH', 'Cada elemento debe ser {"type": "stops", "id": …}.', '/data/'.$index);
+            }
+            $ids[] = (int) $identifier['id'];
+        }
+
+        $organization->reorder($itinerary, $ids);
+
+        return \App\JsonApi\JsonApiResponse::make(['data' => array_map(fn ($id) => ['type' => 'stops', 'id' => (string) $id], $itinerary->stopIds())]);
+    }
+
+    private function rules(?Itinerary $itinerary): array
+    {
+        $presence = $itinerary ? 'sometimes' : 'required';
 
         return [
-            'attributes.name' => [$model ? 'sometimes' : 'required', 'string', 'max:100',
-                \Illuminate\Validation\Rule::unique('itineraries', 'name')->where('entity_id', $entityId)->whereNull('deleted_at')->ignore($model ? $model->id : null)],
-            'attributes.description' => ['sometimes', 'nullable', 'string'],
-            'attributes.observation' => ['sometimes', 'nullable', 'string'],
-            'relationships.referenceOutboundLeg.data' => ['sometimes', 'nullable', 'array'],
-            'relationships.referenceOutboundLeg.data.type' => ['required_with:data.relationships.referenceOutboundLeg.data', 'in:trip-legs'],
-            'relationships.referenceReturnLeg.data' => ['sometimes', 'nullable', 'array'],
-            'relationships.referenceReturnLeg.data.type' => ['required_with:data.relationships.referenceReturnLeg.data', 'in:trip-legs'],
+            'attributes' => [$itinerary ? 'sometimes' : 'required', 'array'],
+            'attributes.name' => [$presence, 'string', 'max:100', 'regex:/\S/'],
+            'attributes.description' => ['sometimes', 'nullable', 'string', 'max:2000'],
+            'attributes.observation' => ['sometimes', 'nullable', 'string', 'max:2000'],
+            'attributes.active' => ['sometimes', 'boolean'],
         ];
     }
 
-    /**
-     * Recorrido de referencia (opción B, docs/09 §8): un viaje de ida o de
-     * regreso ya terminado de un viaje de este itinerario, del mismo sentido.
-     */
-    protected function beforeSave(Model $itinerary, Request $request, bool $creating): void
+    private function fill(Itinerary $itinerary, array $attributes): void
     {
-        parent::beforeSave($itinerary, $request, $creating);
+        if (isset($attributes['name'])) {
+            $itinerary->name = trim($attributes['name']);
+        }
 
-        foreach (['reference_outbound_leg_id' => TripLeg::DIRECTION_OUTBOUND, 'reference_return_leg_id' => TripLeg::DIRECTION_RETURN] as $column => $direction) {
-            if (! $itinerary->isDirty($column) || $itinerary->{$column} === null) {
-                continue;
-            }
-
-            $leg = TripLeg::with('trip')->find($itinerary->{$column});
-
-            if (! $leg || $creating || (int) $leg->trip->itinerary_id !== (int) $itinerary->id || $leg->direction !== $direction || $leg->isActive()) {
-                $name = $direction === TripLeg::DIRECTION_OUTBOUND ? 'referenceOutboundLeg' : 'referenceReturnLeg';
-                throw new JsonApiException(422, 'INVALID_REFERENCE_LEG', 'Recorrido de referencia no válido',
-                    'Tiene que ser un viaje de '.($direction === TripLeg::DIRECTION_OUTBOUND ? 'ida' : 'regreso').' ya terminado de este itinerario.',
-                    ['pointer' => "/data/relationships/{$name}"]);
+        foreach (['description', 'observation'] as $field) {
+            if (array_key_exists($field, $attributes)) {
+                $itinerary->{$field} = self::text($attributes[$field]);
             }
         }
+
+        if (array_key_exists('active', $attributes)) {
+            $itinerary->active = (bool) $attributes['active'];
+        }
     }
 
-    protected function restorable(array $data): ?Model
+    private function ensureUniqueName(int $entityId, string $name, ?int $exceptId): void
     {
-        $entityId = self::targetEntityId(app('request'), null);
+        $exists = Itinerary::where('entity_id', $entityId)->where('name', trim($name))->when($exceptId, fn ($q) => $q->where('id', '<>', $exceptId))->exists();
 
-        return Itinerary::onlyTrashed()->where('entity_id', $entityId)->where('name', trim($data['attributes']['name']))->first();
+        if ($exists) {
+            throw JsonApiException::conflict('ITINERARY_NAME_TAKEN', 'Ya hay un itinerario con ese nombre en la Entidad.', '/data/attributes/name');
+        }
     }
 
-    /**
-     * Entidad en la que se crea o está el recurso.
-     */
-    public static function targetEntityId(Request $request, ?Model $model, string $operation = 'itineraries.manage'): ?int
+    private function visible(Request $request): Builder
     {
-        if ($model) {
-            return (int) $model->entity_id;
+        $user = $request->user();
+        $query = Itinerary::query();
+        $ids = $this->access->visibleEntityIds($user);
+
+        if ($ids !== null) {
+            $chiefOf = $this->access->chiefItineraryId($user);
+            $query->whereIn('entity_id', $ids ?: [0])
+                ->where(fn ($q) => $q->where('active', true)->when($chiefOf !== null, fn ($q) => $q->orWhere('id', $chiefOf)));
         }
 
-        $id = $request->input('data.relationships.entity.data.id');
-
-        if ($id !== null) {
-            return (int) $id;
-        }
-
-        $scope = app(Permissions::class)->scope($request->user(), $operation);
-
-        return ! $scope['all'] && count($scope['entities']) === 1 ? (int) $scope['entities'][0] : null;
-    }
-
-    protected function beforeDelete(Model $itinerary, Request $request): void
-    {
-        if (Worker::where('itinerary_id', $itinerary->id)->exists()) {
-            throw JsonApiException::conflict('ITINERARY_HAS_MEMBERS', 'El itinerario tiene miembros. Primero hay que cambiarlos de itinerario.');
-        }
-
-        if (\App\Models\WorkerRole::where('itinerary_id', $itinerary->id)->exists()) {
-            throw JsonApiException::conflict('ITINERARY_HAS_ROLES', 'Alguien tiene un rol en este itinerario (p. ej. Jefe de itinerario). Primero hay que quitárselo.');
-        }
+        return $query;
     }
 }

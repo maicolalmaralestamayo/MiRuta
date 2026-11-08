@@ -2,129 +2,83 @@
 
 namespace App\Http\Controllers;
 
-use App\JsonApi\Document;
-use App\JsonApi\JsonApiResponse;
 use App\JsonApi\QueryParameters;
+use App\Models\Itinerary;
 use App\Models\ItineraryStop;
-use App\Services\ItineraryStops;
-use App\Services\Permissions;
-use App\Support\Tenancy;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Model;
+use App\Models\Stop;
+use App\Services\Access;
+use App\Services\Organization;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 /**
- * Paradas de un itinerario y su orden. Al añadir, mover o quitar una parada
- * se renumeran las demás.
+ * Paradas de un itinerario («Añadir parada existente», «Quitar del
+ * itinerario», mover). Las gestionan el Administrador y los Jefes del itinerario.
  */
-class ItineraryStopController extends ResourceController
+class ItineraryStopController extends Controller
 {
-    protected $model = ItineraryStop::class;
+    public const INCLUDABLE = ['itinerary', 'stop'];
 
-    protected $type = 'itinerary-stops';
-
-    protected $sortable = ['position' => 'position'];
-
-    protected $filterable = ['itinerary'];
-
-    protected $includable = ['stop', 'itinerary'];
-
-    protected $defaultSort = 'position';
-
-    protected $manageOperation = 'itineraries.manage';
-
-    protected $viewOperation = 'itineraries.view';
-
-    /** @var ItineraryStops */
-    private $itineraryStops;
-
-    public function __construct(ItineraryStops $itineraryStops)
+    public function __construct(private Access $access, private Organization $organization)
     {
-        $this->itineraryStops = $itineraryStops;
     }
 
-    protected function rules(Request $request, ?Model $model): array
+    public function index(Request $request)
     {
-        if ($model) {
-            return ['attributes.position' => ['required', 'integer', 'min:1']];
+        $sortable = ['position' => 'position', 'id' => 'id'];
+        $parameters = QueryParameters::fromRequest($request, $sortable, ['itinerary', 'stop'], self::INCLUDABLE, 'position');
+        $query = ItineraryStop::query();
+        $user = $request->user();
+
+        if (! $this->access->isAdmin($user)) {
+            $query->whereIn('itinerary_id', Itinerary::whereIn('entity_id', $this->access->entityIds($user) ?: [0])->select('id'));
         }
 
-        return array_merge(
-            ['attributes.position' => ['sometimes', 'nullable', 'integer', 'min:1']],
-            $this->relationshipRules('itinerary', 'itineraries', 'itineraries', true),
-            $this->relationshipRules('stop', 'stops', 'stops', true)
-        );
-    }
-
-    protected function applyFilters(Builder $query, QueryParameters $parameters, Request $request): void
-    {
-        if ($itinerary = $parameters->filter('itinerary')) {
-            $query->where('itinerary_id', $itinerary);
+        foreach (['itinerary' => 'itinerary_id', 'stop' => 'stop_id'] as $filter => $column) {
+            if ($value = $parameters->filter($filter)) {
+                $query->where($column, (int) $value);
+            }
         }
+
+        return $this->paginate($request, $query, $parameters, $sortable);
     }
 
-    protected function newQuery(Request $request): Builder
-    {
-        $entities = $this->visibleEntityIds($request);
-
-        return ItineraryStop::query()->whereHas('itinerary', function (Builder $query) use ($entities) {
-            $query->whereIn('entity_id', $entities);
-        });
-    }
-
+    /**
+     * Añade una parada existente al itinerario (attributes.position opcional; por omisión, al final).
+     */
     public function store(Request $request)
     {
-        $data = $this->validateResource($request, $this->type, $this->rules($request, null));
-        $position = isset($data['attributes']['position']) ? (int) $data['attributes']['position'] : null;
-        $itineraryId = (int) $data['relationships']['itinerary']['data']['id'];
+        $data = $this->validateResource($request, 'itinerary-stops', [
+            'attributes.position' => ['sometimes', 'nullable', 'integer', 'min:1'],
+        ] + $this->relationshipRules('itinerary', 'itineraries', 'itineraries', true) + $this->relationshipRules('stop', 'stops', 'stops', true));
+        $itinerary = Itinerary::findOrFail($this->relationshipId($data, 'itinerary'));
+        $this->access->requireItineraryManager($request->user(), $itinerary->id, 'Solo el Administrador o el Jefe del itinerario le añaden paradas.');
+        $link = $this->organization->addStop($itinerary, Stop::findOrFail($this->relationshipId($data, 'stop')),
+            isset($data['attributes']['position']) ? (int) $data['attributes']['position'] : null);
 
-        // Puede gestionar los itinerarios de esa Entidad y la parada es de la misma.
-        app(Permissions::class)->authorize($request->user(), 'itineraries.manage', Tenancy::entityOf('itineraries', $itineraryId));
-        Tenancy::ensureSame(Tenancy::entityOf('itineraries', $itineraryId), 'stops',
-            (int) $data['relationships']['stop']['data']['id'], '/data/relationships/stop');
-
-        $itineraryStop = DB::transaction(function () use ($data, $position) {
-            return $this->itineraryStops->add(
-                (int) $data['relationships']['itinerary']['data']['id'],
-                (int) $data['relationships']['stop']['data']['id'],
-                $position
-            );
-        });
-
-        return JsonApiResponse::make((new Document($request))->resource($itineraryStop), 201, [
-            'Location' => url('api/v1/itinerary-stops/'.$itineraryStop->id),
-        ]);
+        return $this->created($request, $link->fresh(), 'itinerary-stops');
     }
 
+    /**
+     * Mueve la parada a otra posición.
+     */
     public function update(Request $request, $id)
     {
-        $itineraryStop = $this->findOrFail($request, $id);
-        // Ordenar: itineraries.order_stops sobre el itinerario (o gestionar los itinerarios).
-        $permissions = app(Permissions::class);
-        $entityId = Tenancy::entityOf('itineraries', $itineraryStop->itinerary_id);
+        $link = ItineraryStop::findOrFail($id);
+        $this->access->requireItineraryManager($request->user(), $link->itinerary_id, 'Solo el Administrador o el Jefe del itinerario ordenan sus paradas.');
+        $data = $this->validateResource($request, 'itinerary-stops', ['attributes.position' => ['required', 'integer', 'min:1']]);
 
-        if (! $permissions->can($request->user(), 'itineraries.order_stops', $entityId, (int) $itineraryStop->itinerary_id)) {
-            $permissions->authorize($request->user(), 'itineraries.manage', $entityId);
-        }
-        $data = $this->validateResource($request, $this->type, $this->rules($request, $itineraryStop));
-
-        $itineraryStop = DB::transaction(function () use ($itineraryStop, $data) {
-            return $this->itineraryStops->move($itineraryStop, (int) $data['attributes']['position']);
-        });
-
-        return JsonApiResponse::make((new Document($request))->resource($itineraryStop));
+        return $this->respond($request, $this->organization->move($link, (int) $data['attributes']['position']));
     }
 
+    /**
+     * Quita la parada del itinerario (la parada se conserva; quien la tenía queda sin parada).
+     */
     public function destroy(Request $request, $id)
     {
-        $itineraryStop = $this->findOrFail($request, $id);
-        app(Permissions::class)->authorize($request->user(), 'itineraries.manage', Tenancy::entityOf('itineraries', $itineraryStop->itinerary_id));
+        $link = ItineraryStop::findOrFail($id);
+        $this->access->requireItineraryManager($request->user(), $link->itinerary_id, 'Solo el Administrador o el Jefe del itinerario le quitan paradas.');
+        $this->organization->removeStop($link);
 
-        DB::transaction(function () use ($itineraryStop) {
-            $this->itineraryStops->remove($itineraryStop);
-        });
-
-        return response('', 204);
+        return $this->noContent();
     }
 }

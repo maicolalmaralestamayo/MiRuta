@@ -88,8 +88,8 @@ class AppVersionController extends Controller
     public function store(Request $request, Settings $settings, Uploads $uploads)
     {
         $this->ensureAdmin($request);
-        $max = $settings->int('app_max_mb') * 1024;
-        $this->validate($request, [
+        $max = $settings->int('tamano_apk') * 1024;
+        $this->validateRequest($request, [
             'apkArm64' => ['nullable', 'file', 'max:'.$max],
             'apkArm32' => ['nullable', 'file', 'max:'.$max],
             'apkUniversal' => ['nullable', 'file', 'max:'.$max],
@@ -117,7 +117,7 @@ class AppVersionController extends Controller
         }
 
         if ($files === []) {
-            throw new JsonApiException(422, 'APK_REQUIRED', 'Falta el APK', 'Sube al menos un APK (64 bits, 32 bits o universal).', ['pointer' => '/apkArm64']);
+            throw new JsonApiException(422, 'APK_REQUIRED', 'Falta el APK', 'Suba al menos un APK (64 bits, 32 bits o universal).', ['pointer' => '/apkArm64']);
         }
 
         $name = $request->input('versionName');
@@ -143,7 +143,7 @@ class AppVersionController extends Controller
                 'No se pudo leer la versión del APK; escríbala a mano.', ['pointer' => '/versionName']);
         }
 
-        $latest = AppVersion::withTrashed()->max('version_code');
+        $latest = AppVersion::max('version_code');
 
         if ($latest !== null && $code <= $latest) {
             throw new JsonApiException(422, 'VERSION_CODE_TOO_LOW', 'Versión no válida',
@@ -176,6 +176,29 @@ class AppVersionController extends Controller
     }
 
     /**
+     * Cambiar las novedades o si es obligatoria (attributes.notes, attributes.mandatory).
+     */
+    public function update(Request $request, $id)
+    {
+        $this->ensureAdmin($request);
+        $version = AppVersion::findOrFail($id);
+        $data = $this->validateResource($request, 'app-versions', [
+            'attributes.mandatory' => ['sometimes', 'boolean'],
+            'attributes.notes' => ['sometimes', 'nullable', 'string', 'max:5000'],
+        ]);
+
+        foreach (['mandatory' => 'mandatory', 'notes' => 'notes'] as $attribute => $column) {
+            if (array_key_exists($attribute, $data['attributes'] ?? [])) {
+                $version->{$column} = $data['attributes'][$attribute];
+            }
+        }
+
+        $version->save();
+
+        return JsonApiResponse::make((new Document($request))->resource($version->fresh()));
+    }
+
+    /**
      * Retirar una versión (deja de ofrecerse y se borra el archivo).
      */
     public function destroy(Request $request, Uploads $uploads, $id)
@@ -195,8 +218,6 @@ class AppVersionController extends Controller
 
     private function ensureAdmin(Request $request): void
     {
-        if (! app(\App\Services\Permissions::class)->can($request->user(), 'app_versions.manage')) {
-            throw new JsonApiException(403, 'FORBIDDEN', 'Sin permiso', 'No tiene permiso para publicar ni retirar versiones de la app.');
-        }
+        app(\App\Services\Access::class)->requireAdmin($request->user(), 'Solo el Administrador publica y retira versiones de la app.');
     }
 }

@@ -2,44 +2,39 @@
 
 namespace App\Http\Controllers;
 
-use App\JsonApi\Document;
-use App\JsonApi\JsonApiResponse;
 use App\Models\Entity;
 use App\Models\Itinerary;
+use App\Models\ItineraryStop;
 use App\Models\Stop;
-use App\Services\Permissions;
+use App\Services\Access;
 use App\Services\Settings;
 use App\Services\Uploads;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 
 /**
- * Imágenes opcionales de Entidades, itinerarios y paradas (docs/11 §11.10),
- * como las fotos de perfil: multipart con el campo "image". Sin imagen, la
- * app muestra un ícono.
+ * Imagen opcional de una Entidad, un itinerario o una parada (multipart, campo «image»).
  */
 class ImageController extends Controller
 {
-    /** [recurso => [modelo, operación, ¿es de una Entidad?]] */
-    const RESOURCES = [
-        'entities' => [Entity::class, 'entities.manage', false],
-        'itineraries' => [Itinerary::class, 'itineraries.manage', true],
-        'stops' => [Stop::class, 'stops.manage', true],
-    ];
+    public const MODELS = ['entities' => Entity::class, 'itineraries' => Itinerary::class, 'stops' => Stop::class];
+
+    public function __construct(private Access $access)
+    {
+    }
 
     public function upload(Request $request, Settings $settings, Uploads $uploads, string $resource, $id)
     {
         $model = $this->manageable($request, $resource, $id);
-        $this->validate($request, [
-            'image' => ['required', 'file', 'image', 'mimes:jpeg,png', 'max:'.$settings->int('photo_max_kb')],
+        $this->validateRequest($request, [
+            'image' => ['required', 'file', 'image', 'mimes:jpeg,png', 'max:'.$settings->int('tamano_foto')],
         ]);
-
         $previous = $model->image_path;
         $model->image_path = $uploads->store($request->file('image'), 'images');
         $model->save();
         $uploads->delete($previous);
 
-        return JsonApiResponse::make((new Document($request))->resource($model->fresh()));
+        return $this->respond($request, $model->fresh());
     }
 
     public function destroy(Request $request, Uploads $uploads, string $resource, $id)
@@ -49,14 +44,20 @@ class ImageController extends Controller
         $model->image_path = null;
         $model->save();
 
-        return response('', 204);
+        return $this->noContent();
     }
 
     private function manageable(Request $request, string $resource, $id): Model
     {
-        list($class, $operation, $entityScoped) = self::RESOURCES[$resource];
-        $model = $class::findOrFail($id);
-        app(Permissions::class)->authorize($request->user(), $operation, $entityScoped ? (int) $model->entity_id : null);
+        $model = (self::MODELS[$resource])::findOrFail($id);
+        $user = $request->user();
+        $chiefOf = $this->access->chiefItineraryId($user);
+        $allowed = $this->access->isAdmin($user)
+            || ($resource === 'stops' && $chiefOf !== null && ItineraryStop::where('itinerary_id', $chiefOf)->where('stop_id', $model->id)->exists());
+
+        if (! $allowed) {
+            throw Access::forbidden('No puede cambiar esta imagen.');
+        }
 
         return $model;
     }

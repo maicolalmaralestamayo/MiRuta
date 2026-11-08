@@ -6,7 +6,6 @@ use App\JsonApi\Document;
 use App\JsonApi\JsonApiException;
 use App\JsonApi\JsonApiResponse;
 use App\Http\Middleware\AuthenticateInstallation;
-use App\Models\Conversation;
 use App\Models\Installation;
 use App\Models\User;
 use App\Services\TokenService;
@@ -51,25 +50,18 @@ class TokenController extends Controller
             self::linkInstallation($installation, $user);
         }
 
-        // Entró en la app con su teléfono: su QR impreso queda anulado (docs/11 §11.9).
-        app(\App\Services\QrCodes::class)->switchToPhone($user);
-
         $deviceName = isset($attributes['deviceName']) ? $attributes['deviceName'] : null;
 
-        return self::respond($this->tokens->issue($user, $deviceName));
+        return self::respondTokens($this->tokens->issue($user, $deviceName));
     }
 
     /**
-     * La instalación pasa a ser de esa cuenta, y sus conversaciones sin
-     * cuenta pasan a la cuenta (docs/08-version-2.md §8.7).
+     * La instalación pasa a ser de esa cuenta.
      */
     public static function linkInstallation(Installation $installation, User $user): void
     {
         $installation->user_id = $user->id;
         $installation->save();
-
-        Conversation::where('installation_id', $installation->id)->whereNull('opened_by')
-            ->update(['opened_by' => $user->id]);
     }
 
     /**
@@ -85,7 +77,7 @@ class TokenController extends Controller
 
         $pair = $this->tokens->refresh($attributes['refreshToken'], isset($attributes['deviceName']) ? $attributes['deviceName'] : null);
 
-        return self::respond($pair);
+        return self::respondTokens($pair);
     }
 
     /**
@@ -112,7 +104,7 @@ class TokenController extends Controller
         return response('', 204);
     }
 
-    public static function respond(array $pair)
+    public static function respondTokens(array $pair)
     {
         return JsonApiResponse::make(Document::fromArray([
             'type' => 'tokens',

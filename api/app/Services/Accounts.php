@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\JsonApi\JsonApiException;
 use App\Models\Entity;
-use App\Models\Notice;
 use App\Models\ReleasedUsername;
 use App\Models\User;
 use App\Models\Worker;
@@ -27,22 +26,10 @@ class Accounts
 
     /** Texto exacto de docs/11 §11.5. */
     const IDENTITY_CARD_TAKEN = 'Alguien ya se registró con este carné de identidad. Si fue usted, emplee la opción Olvidé algo. '
-        .'Si no fue usted, comuníquese con el Administrador de la aplicación, su Jefe de Itinerario o el Jefe de Transporte de su Entidad.';
+        .'Si no fue usted, comuníquese con el Administrador de la aplicación o con su Jefe de itinerario.';
 
-    /** @var Passwords */
-    private $passwords;
-
-    /** @var Memberships */
-    private $memberships;
-
-    /** @var Notices */
-    private $notices;
-
-    public function __construct(Passwords $passwords, Memberships $memberships, Notices $notices)
+    public function __construct(private Passwords $passwords, private Memberships $memberships)
     {
-        $this->passwords = $passwords;
-        $this->memberships = $memberships;
-        $this->notices = $notices;
     }
 
     /**
@@ -59,13 +46,12 @@ class Accounts
         $this->passwords->validate($password, array_merge([$username], array_values($names)));
 
         return DB::transaction(function () use ($names, $card, $username, $password) {
-            $adminExists = User::withTrashed()->where('is_admin', true)->lockForUpdate()->exists();
+            $adminExists = User::where('is_admin', true)->lockForUpdate()->exists();
             $user = new User();
             $user->forceFill($names + IdentityCard::columns($card) + [
                 'username' => $username,
                 'password' => '',
                 'is_admin' => ! $adminExists,
-                'has_phone' => true,
             ])->save();
             $this->passwords->set($user, $password);
 
@@ -79,33 +65,24 @@ class Accounts
     }
 
     /**
-     * El Administrador (workers.register) registra a una persona en una
+     * El Administrador registra a una persona en una
      * Entidad. Si el carné ya existe no se crea otra cuenta: se le añade la
      * Entidad, ya aprobada. Usuario y contraseña se proponen si faltan; la
      * contraseña hay que cambiarla al entrar.
      *
      * @return array ['worker' => Worker, 'created' => bool, 'username' => ?string, 'password' => ?string]
      */
-    public function registerByAdmin(User $actor, Entity $entity, array $names, string $identityCard, bool $hasPhone, ?string $username, ?string $password): array
+    public function registerByAdmin(Entity $entity, array $names, string $identityCard, ?string $username, ?string $password): array
     {
         $card = IdentityCard::validated($identityCard);
-        $existing = User::findByIdentityCard($card, true);
+        $existing = User::findByIdentityCard($card);
 
         if ($existing) {
-            if ($existing->trashed()) {
-                throw JsonApiException::conflict('ACCOUNT_INACTIVE', 'Esa persona tiene la cuenta desactivada. Reactívela antes de añadirla a la Entidad.', '/data/attributes/identityCard');
-            }
-
-            if ($existing->workerIn($entity->id)) {
+            if (Worker::where('user_id', $existing->id)->where('entity_id', $entity->id)->exists()) {
                 throw JsonApiException::conflict('ALREADY_MEMBER', 'Esa persona ya pertenece a la Entidad.', '/data/attributes/identityCard');
             }
 
-            $worker = $this->memberships->join($existing, $entity, $actor);
-
-            if ($existing->has_phone) {
-                $this->notices->send([(int) $existing->id], Notice::TYPE_ENTITY_ADDED, null, null, (int) $actor->id,
-                    ['entity' => $entity->abbreviation, 'by' => $actor->fullName()]);
-            }
+            $worker = $this->memberships->join($existing, $entity);
 
             return ['worker' => $worker, 'created' => false, 'username' => null, 'password' => null];
         }
@@ -116,18 +93,17 @@ class Accounts
         $password = $password !== null && $password !== '' ? $password : $this->passwords->suggest();
         $this->passwords->validate($password, array_merge([$username], array_values($names)));
 
-        return DB::transaction(function () use ($actor, $entity, $names, $card, $hasPhone, $username, $password) {
+        return DB::transaction(function () use ($entity, $names, $card, $username, $password) {
             $user = new User();
             $user->forceFill($names + IdentityCard::columns($card) + [
                 'username' => $username,
                 'password' => '',
                 'is_admin' => false,
-                'has_phone' => $hasPhone,
             ])->save();
             $this->passwords->set($user, $password);
             // Contraseña puesta por otro: hay que cambiarla al entrar (docs/11 §11.7).
             $user->forceFill(['must_change_password' => true])->save();
-            $worker = $this->memberships->join($user, $entity, $actor);
+            $worker = $this->memberships->join($user, $entity);
 
             return ['worker' => $worker, 'created' => true, 'username' => $username, 'password' => $password];
         });
@@ -138,7 +114,7 @@ class Accounts
      */
     public function ensureIdentityCardFree(string $card, ?User $except = null, string $pointer = '/data/attributes/identityCard'): void
     {
-        $other = User::findByIdentityCard($card, true);
+        $other = User::findByIdentityCard($card);
 
         if ($other && (! $except || (int) $other->id !== (int) $except->id)) {
             throw JsonApiException::conflict('IDENTITY_CARD_TAKEN', self::IDENTITY_CARD_TAKEN, $pointer);

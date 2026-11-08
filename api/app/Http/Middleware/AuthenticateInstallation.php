@@ -9,8 +9,8 @@ use Illuminate\Http\Request;
 
 /**
  * Identifica la instalación de la app sin sesión (cabecera
- * X-Installation: <id>.<secreto>). Sirve para hablar con el desarrollador y
- * recuperar el acceso sin cuenta (docs/08-version-2.md §8.6 y §8.7).
+ * X-Installation: <id>.<secreto>). Sirve para «Olvidé algo» (recuperar
+ * el acceso sin cuenta, docs/11 §11.7).
  *
  * Una instalación bloqueada por el Administrador solo puede leer.
  */
@@ -30,10 +30,10 @@ class AuthenticateInstallation
                 'Este teléfono no puede enviar mensajes ni solicitudes. Si crees que es un error, inicia sesión y escribe al desarrollador.');
         }
 
-        $code = $request->header('X-App-Version-Code');
+        $code = RequireCurrentAppVersion::versionCode($request);
 
-        if ($code !== null && ctype_digit($code) && (int) $code !== (int) $installation->app_version_code) {
-            $installation->app_version_code = (int) $code;
+        if ($code !== null && $code !== (int) $installation->app_version_code) {
+            $installation->app_version_code = $code;
             $installation->save();
         }
 

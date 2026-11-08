@@ -3,19 +3,14 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
 
 class ItineraryStop extends Model
 {
-    use SoftDeletes;
-
     protected $table = 'itinerary_stop';
 
     protected $fillable = ['itinerary_id', 'stop_id', 'position'];
 
-    protected $casts = [
-        'position' => 'integer',
-    ];
+    protected $casts = ['itinerary_id' => 'integer', 'stop_id' => 'integer', 'position' => 'integer'];
 
     public function itinerary()
     {

@@ -12,9 +12,9 @@ class ItineraryStopSerializer extends Serializer
         return 'itinerary-stops';
     }
 
-    public function attributes(Model $itineraryStop, Request $request): array
+    public function attributes(Model $link, Request $request): array
     {
-        return ['position' => $itineraryStop->position];
+        return ['position' => (int) $link->position];
     }
 
     public function toOneRelationships(): array

@@ -9,7 +9,6 @@ use App\JsonApi\QueryParameters;
 use App\Models\AccessRecovery;
 use App\Services\AccessRecoveries;
 use App\Services\TokenService;
-use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\Request;
 
 /**
@@ -18,7 +17,7 @@ use Illuminate\Http\Request;
  * - La instalación (sin sesión) la crea y la consulta: una vez aprobada ve
  *   solo lo que pidió (usuario, contraseña propuesta o ambos) y la
  *   solicitud se da por terminada. Al entrar, debe cambiar la contraseña.
- * - Quien tiene access_recoveries.manage (el Administrador) las lista y las
+ * - El Administrador las lista y las
  *   aprueba o rechaza; al aprobar ve también lo que hay que comunicar.
  */
 class AccessRecoveryController extends Controller
@@ -121,6 +120,6 @@ class AccessRecoveryController extends Controller
 
     private function ensureAdmin(Request $request): void
     {
-        app(\App\Services\Permissions::class)->authorize($request->user(), 'access_recoveries.manage');
+        app(\App\Services\Access::class)->requireAdmin($request->user());
     }
 }

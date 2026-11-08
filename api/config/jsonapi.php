@@ -1,5 +1,8 @@
 <?php
 
+use App\Models;
+use App\Serializers;
+
 return [
 
     /*
@@ -7,54 +10,33 @@ return [
     | Serializadores
     |--------------------------------------------------------------------------
     |
-    | Qué serializador convierte cada modelo en un recurso JSON:API.
+    | Qué serializador convierte cada modelo en un recurso JSON:API. Los
+    | nomencladores usan el mismo serializador con su tipo.
     |
     */
 
     'serializers' => [
-        App\Models\Absence::class => App\Serializers\AbsenceSerializer::class,
-        App\Models\AppVersion::class => App\Serializers\AppVersionSerializer::class,
-        App\Models\Role::class => App\Serializers\RoleSerializer::class,
-        App\Models\WorkerRole::class => App\Serializers\WorkerRoleSerializer::class,
-        App\Models\Application::class => App\Serializers\ApplicationSerializer::class,
-        App\Models\Child::class => App\Serializers\ChildSerializer::class,
-        App\Models\Notice::class => App\Serializers\NoticeSerializer::class,
-        App\Models\AbsenceType::class => App\Serializers\AbsenceTypeSerializer::class,
-        App\Models\ConversationTopic::class => App\Serializers\ConversationTopicSerializer::class,
-        App\Models\Conversation::class => App\Serializers\ConversationSerializer::class,
-        App\Models\ConversationMessage::class => App\Serializers\ConversationMessageSerializer::class,
-        App\Models\TripMessage::class => App\Serializers\TripMessageSerializer::class,
-        App\Models\Itinerary::class => App\Serializers\ItinerarySerializer::class,
-        App\Models\ItineraryStop::class => App\Serializers\ItineraryStopSerializer::class,
-        App\Models\AccessRecovery::class => App\Serializers\AccessRecoverySerializer::class,
-        App\Models\Entity::class => App\Serializers\EntitySerializer::class,
-        App\Models\Installation::class => App\Serializers\InstallationSerializer::class,
-        App\Models\User::class => App\Serializers\UserSerializer::class,
-        App\Models\SettingDefinition::class => App\Serializers\SettingDefinitionSerializer::class,
-        App\Models\Stop::class => App\Serializers\StopSerializer::class,
-        App\Models\Trip::class => App\Serializers\TripSerializer::class,
-        App\Models\TripBoarding::class => App\Serializers\TripBoardingSerializer::class,
-        App\Models\TripCompletion::class => App\Serializers\TripCompletionSerializer::class,
-        App\Models\TripLeg::class => App\Serializers\TripLegSerializer::class,
-        App\Models\TripPosition::class => App\Serializers\TripPositionSerializer::class,
-        App\Models\TripStopPass::class => App\Serializers\TripStopPassSerializer::class,
-        App\Models\Vehicle::class => App\Serializers\VehicleSerializer::class,
-        App\Models\VehicleType::class => App\Serializers\VehicleTypeSerializer::class,
-        App\Models\Worker::class => App\Serializers\WorkerSerializer::class,
-    ],
-
-    /*
-    |--------------------------------------------------------------------------
-    | Operaciones atómicas de otros recursos
-    |--------------------------------------------------------------------------
-    |
-    | "op:tipo" => [clase, método]. El método recibe (data, request, pointer)
-    | y devuelve el modelo creado o modificado.
-    |
-    */
-
-    'operations' => [
-        'add:trip-positions' => [App\Http\Controllers\TripPositionController::class, 'createFromOperation'],
+        Models\User::class => Serializers\UserSerializer::class,
+        Models\Worker::class => Serializers\WorkerSerializer::class,
+        Models\Entity::class => Serializers\EntitySerializer::class,
+        Models\Itinerary::class => Serializers\ItinerarySerializer::class,
+        Models\Stop::class => Serializers\StopSerializer::class,
+        Models\ItineraryStop::class => Serializers\ItineraryStopSerializer::class,
+        Models\Application::class => Serializers\ApplicationSerializer::class,
+        Models\Absence::class => Serializers\AbsenceSerializer::class,
+        Models\Child::class => Serializers\ChildSerializer::class,
+        Models\Trip::class => Serializers\TripSerializer::class,
+        Models\TripPassenger::class => Serializers\TripPassengerSerializer::class,
+        Models\Conversation::class => Serializers\ConversationSerializer::class,
+        Models\ConversationMessage::class => Serializers\ConversationMessageSerializer::class,
+        Models\AppVersion::class => Serializers\AppVersionSerializer::class,
+        Models\AccessRecovery::class => Serializers\AccessRecoverySerializer::class,
+        Models\Installation::class => Serializers\InstallationSerializer::class,
+        Models\VehicleType::class => [Serializers\NomenclatorSerializer::class, 'vehicle-types'],
+        Models\AbsenceType::class => [Serializers\NomenclatorSerializer::class, 'absence-types'],
+        Models\ConversationTopic::class => [Serializers\NomenclatorSerializer::class, 'conversation-topics'],
+        Models\DenialReason::class => [Serializers\NomenclatorSerializer::class, 'denial-reasons'],
+        Models\DetentionCause::class => [Serializers\NomenclatorSerializer::class, 'detention-causes'],
     ],
 
 ];

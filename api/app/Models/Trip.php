@@ -3,65 +3,88 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
- * Viaje: un itinerario con un vehículo y un chofer, con salida y regreso.
+ * Viaje de ida o de regreso de un itinerario (docs/11 §11.42 a §11.47).
  */
 class Trip extends Model
 {
-    use SoftDeletes;
+    public const OUTBOUND = 'ida';
+    public const RETURN = 'regreso';
 
-    const STATUS_UNCONFIRMED = 'unconfirmed';
-    const STATUS_CONFIRMED = 'confirmed';
-    const STATUS_COMPLETED = 'completed';
-    const STATUS_CANCELLED = 'cancelled';
+    public const PLANNED = 'planificado';
+    public const RUNNING = 'en_ejecucion';
+    public const FINISHED = 'terminado';
+    public const CANCELLED = 'cancelado';
 
-    const STATUSES = [self::STATUS_UNCONFIRMED, self::STATUS_CONFIRMED, self::STATUS_COMPLETED, self::STATUS_CANCELLED];
+    public const STOPPED = 'detenido';
+    public const MOVING = 'en_movimiento';
 
-    protected $fillable = ['itinerary_id', 'vehicle_id', 'driver_id', 'departs_at', 'returns_at', 'status', 'created_by'];
+    protected $fillable = [
+        'itinerary_id', 'direction', 'date', 'departure_time', 'departs_at', 'vehicle_type_id', 'observation',
+        'status', 'status_changed_at', 'finish_reason', 'created_by', 'route',
+        'vehicle_state', 'vehicle_state_since', 'vehicle_at_stop', 'next_stop_index', 'detention_cause_id',
+        'long_detention_notified_at', 'arrived_at',
+    ];
 
     protected $casts = [
+        'date' => 'date',
         'departs_at' => 'datetime',
-        'returns_at' => 'datetime',
+        'status_changed_at' => 'datetime',
+        'vehicle_state_since' => 'datetime',
+        'long_detention_notified_at' => 'datetime',
+        'arrived_at' => 'datetime',
+        'vehicle_at_stop' => 'boolean',
+        'next_stop_index' => 'integer',
+        'itinerary_id' => 'integer',
+        'vehicle_type_id' => 'integer',
+        'created_by' => 'integer',
     ];
 
     public function itinerary()
     {
-        return $this->belongsTo(Itinerary::class)->withTrashed();
+        return $this->belongsTo(Itinerary::class);
     }
 
-    public function vehicle()
+    public function vehicleType()
     {
-        return $this->belongsTo(Vehicle::class)->withTrashed();
+        return $this->belongsTo(VehicleType::class);
     }
 
-    /**
-     * Chofer: la pertenencia (worker) de quien conduce. Puede haberse dado
-     * de baja o perdido el rol (viaje pendiente de reasignar).
-     */
-    public function driver()
+    public function detentionCause()
     {
-        return $this->belongsTo(Worker::class, 'driver_id')->withTrashed();
-    }
-
-    public function legs()
-    {
-        return $this->hasMany(TripLeg::class);
+        return $this->belongsTo(DetentionCause::class);
     }
 
     public function creator()
     {
-        return $this->belongsTo(User::class, 'created_by')->withTrashed();
+        return $this->belongsTo(User::class, 'created_by');
     }
 
-    public function completions()
+    public function isOutbound(): bool
     {
-        return $this->hasMany(TripCompletion::class);
+        return $this->direction === self::OUTBOUND;
     }
 
-    public function isPending(): bool
+    public function isOpen(): bool
     {
-        return in_array($this->status, [self::STATUS_UNCONFIRMED, self::STATUS_CONFIRMED], true);
+        return in_array($this->status, [self::PLANNED, self::RUNNING], true);
+    }
+
+    /**
+     * Paradas en el orden del recorrido (ida: 1…N; regreso: N…1). Fijado al
+     * empezar el viaje; antes, el del itinerario.
+     *
+     * @return int[]
+     */
+    public function routeStopIds(): array
+    {
+        if ($this->route) {
+            return array_map('intval', explode(',', $this->route));
+        }
+
+        $ids = Itinerary::find($this->itinerary_id)?->stopIds() ?? [];
+
+        return $this->isOutbound() ? $ids : array_reverse($ids);
     }
 }

@@ -11,8 +11,8 @@ use Illuminate\Support\Str;
 
 /**
  * Instalaciones de la app. La app registra la suya la primera vez que la
- * necesita y guarda el secreto; con él puede hablar con el desarrollador y
- * recuperar el acceso sin sesión. El Administrador puede bloquearlas.
+ * necesita y guarda el secreto; con él puede recuperar el acceso sin sesión
+ * («Olvidé algo»). El Administrador puede bloquearlas.
  */
 class InstallationController extends Controller
 {
@@ -69,6 +69,6 @@ class InstallationController extends Controller
 
     private function authorizeAdmin(Request $request): void
     {
-        app(\App\Services\Permissions::class)->authorize($request->user(), 'access_recoveries.manage');
+        app(\App\Services\Access::class)->requireAdmin($request->user());
     }
 }

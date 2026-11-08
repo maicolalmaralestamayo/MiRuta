@@ -20,7 +20,7 @@ class AuthenticateMaintenance
         $given = (string) $request->header('X-Maintenance-Key');
 
         if ($given !== '') {
-            $key = (string) config('mitransporte.maintenance_key');
+            $key = (string) config('miruta.maintenance_key');
 
             if (strlen($key) < self::MIN_KEY_LENGTH || ! hash_equals($key, $given)) {
                 usleep(500000);
@@ -32,7 +32,7 @@ class AuthenticateMaintenance
         }
 
         return app(Authenticate::class)->handle($request, function (Request $request) use ($next) {
-            if (! app(\App\Services\Permissions::class)->can($request->user(), 'maintenance.run')) {
+            if (! $request->user()->isAdmin()) {
                 throw new JsonApiException(403, 'FORBIDDEN', 'Sin permiso', 'No tiene permiso para hacer el mantenimiento del servidor.');
             }
 

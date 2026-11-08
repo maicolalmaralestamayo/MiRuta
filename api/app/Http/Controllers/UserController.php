@@ -91,7 +91,7 @@ class UserController extends Controller
      */
     public function usernameSuggestion(Request $request)
     {
-        $this->validate($request, [
+        $this->validateRequest($request, [
             'firstName' => ['required', 'string', 'max:50'],
             'middleName' => ['sometimes', 'nullable', 'string', 'max:50'],
             'firstSurname' => ['sometimes', 'nullable', 'string', 'max:50'],

@@ -9,7 +9,7 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\Hash;
 
 /**
- * Política de contraseñas (docs/08-version-2.md §8.4). Todos los valores son
+ * Política de contraseñas (docs/08-version-2.md §8.4; ajustes «Contraseñas» de docs/13). Todos los valores son
  * ajustes de la app. Las contraseñas se guardan con bcrypt; el historial
  * guarda solo hashes.
  */
@@ -49,7 +49,7 @@ class Passwords
         }
 
         $problems = [];
-        $min = $this->settings->int('password_min_length');
+        $min = $this->settings->int('longitud_contrasena');
 
         if (mb_strlen($password) < $min) {
             $problems[] = "Debe tener al menos {$min} caracteres.";
@@ -59,14 +59,14 @@ class Passwords
             $problems[] = 'No puede tener más de '.self::MAX_LENGTH.' caracteres.';
         }
 
-        $required = $this->settings->int('password_required_classes');
+        $required = $this->settings->int('tipos_caracteres');
 
         if (self::classCount($password) < $required) {
             $problems[] = "Debe combinar al menos {$required} de estos tipos: mayúsculas, minúsculas, números y símbolos.";
         }
 
         if ($user && $this->wasUsedBefore($user, $password)) {
-            $count = $this->settings->int('password_history_count');
+            $count = $this->settings->int('historial_contrasenas');
             $problems[] = "No puede ser igual a ninguna de sus {$count} contraseñas anteriores.";
         }
 
@@ -80,7 +80,7 @@ class Passwords
      */
     public function suggest(): string
     {
-        $length = max(10, $this->settings->int('password_min_length'));
+        $length = max(10, $this->settings->int('longitud_contrasena'));
         $sets = ['ABCDEFGHJKLMNPQRSTUVWXYZ', 'abcdefghijkmnopqrstuvwxyz', '23456789', '.-_*#'];
         $pick = function (string $set) {
             return $set[random_int(0, strlen($set) - 1)];
@@ -143,7 +143,7 @@ class Passwords
             return null;
         }
 
-        return Carbon::parse($user->password_changed_at)->addDays($this->settings->int('password_expiry_days'));
+        return Carbon::parse($user->password_changed_at)->addSeconds($this->settings->seconds('caducidad_contrasena'));
     }
 
     /**
@@ -152,11 +152,11 @@ class Passwords
     public function policy(): array
     {
         return [
-            'minLength' => $this->settings->int('password_min_length'),
+            'minLength' => $this->settings->int('longitud_contrasena'),
             'maxLength' => self::MAX_LENGTH,
-            'requiredClasses' => $this->settings->int('password_required_classes'),
-            'historyCount' => $this->settings->int('password_history_count'),
-            'expiryDays' => $this->settings->int('password_expiry_days'),
+            'requiredClasses' => $this->settings->int('tipos_caracteres'),
+            'historyCount' => $this->settings->int('historial_contrasenas'),
+            'expiryDays' => intdiv($this->settings->seconds('caducidad_contrasena'), 86400),
         ];
     }
 
@@ -171,7 +171,7 @@ class Passwords
 
     private function wasUsedBefore(User $user, string $password): bool
     {
-        $count = $this->settings->int('password_history_count');
+        $count = $this->settings->int('historial_contrasenas');
 
         if ($count <= 0) {
             return false;
@@ -195,11 +195,11 @@ class Passwords
 
     private function pruneHistory(User $user): void
     {
-        $keep = max(0, $this->settings->int('password_history_count') - 1);
+        $keep = max(0, $this->settings->int('historial_contrasenas') - 1);
         $ids = PasswordHistory::where('user_id', $user->id)->orderBy('id', 'desc')->pluck('id')->slice($keep)->all();
 
         if ($ids !== []) {
-            PasswordHistory::whereIn('id', $ids)->forceDelete();
+            PasswordHistory::whereIn('id', $ids)->delete();
         }
     }
 

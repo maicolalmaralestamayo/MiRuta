@@ -3,57 +3,28 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
- * Conversación de un trabajador con los Jefes de su itinerario, con los Jefes
- * de Transporte o con el desarrollador (el Administrador).
+ * Conversación con el desarrollador (docs/11 §11.46): la responde el Administrador.
  */
 class Conversation extends Model
 {
-    use SoftDeletes;
+    protected $fillable = ['user_id', 'conversation_topic_id', 'last_message_at', 'unread_by_developer', 'unread_by_user'];
 
-    protected $dates = ['closed_at'];
+    protected $casts = [
+        'last_message_at' => 'datetime',
+        'unread_by_developer' => 'boolean',
+        'unread_by_user' => 'boolean',
+        'user_id' => 'integer',
+    ];
 
-    protected $fillable = ['conversation_topic_id', 'opened_by', 'installation_id', 'guest_name', 'guest_phone_encrypted', 'itinerary_id', 'entity_id', 'closed_at'];
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
 
     public function topic()
     {
-        return $this->belongsTo(ConversationTopic::class, 'conversation_topic_id')->withTrashed();
-    }
-
-    public function opener()
-    {
-        return $this->belongsTo(User::class, 'opened_by')->withTrashed();
-    }
-
-    public function installation()
-    {
-        return $this->belongsTo(Installation::class);
-    }
-
-    public function entity()
-    {
-        return $this->belongsTo(Entity::class)->withTrashed();
-    }
-
-    public function isGuest(): bool
-    {
-        return $this->opened_by === null;
-    }
-
-    public function isClosed(): bool
-    {
-        return $this->closed_at !== null;
-    }
-
-    public function itinerary()
-    {
-        return $this->belongsTo(Itinerary::class)->withTrashed();
-    }
-
-    public function messages()
-    {
-        return $this->hasMany(ConversationMessage::class);
+        return $this->belongsTo(ConversationTopic::class, 'conversation_topic_id');
     }
 }

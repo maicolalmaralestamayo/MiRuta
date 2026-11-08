@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Crypt;
 
 /**
@@ -12,7 +11,6 @@ use Illuminate\Support\Facades\Crypt;
  */
 class AccessRecovery extends Model
 {
-    use SoftDeletes;
 
     const STATUS_PENDING = 'pending';
     const STATUS_APPROVED = 'approved';
@@ -31,9 +29,10 @@ class AccessRecovery extends Model
     protected $casts = [
         'forgot_username' => 'boolean',
         'forgot_password' => 'boolean',
+        'resolved_at' => 'datetime',
+        'expires_at' => 'datetime',
+        'completed_at' => 'datetime',
     ];
-
-    protected $dates = ['resolved_at', 'expires_at', 'completed_at'];
 
     public function installation()
     {
@@ -42,12 +41,12 @@ class AccessRecovery extends Model
 
     public function user()
     {
-        return $this->belongsTo(User::class)->withTrashed();
+        return $this->belongsTo(User::class);
     }
 
     public function resolver()
     {
-        return $this->belongsTo(User::class, 'resolved_by')->withTrashed();
+        return $this->belongsTo(User::class, 'resolved_by');
     }
 
     public function phone(): ?string

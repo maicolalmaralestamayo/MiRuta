@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 /**
- * Mantenimiento del servidor desde la app, para hospedajes sin SSH: ver el
+ * Mantenimiento del servidor desde la app, para hospedajes sin SSH (docs/11 §11.55): ver el
  * estado, instalar o actualizar la base de datos, ejecutar las tareas
  * programadas, limpiar la caché y leer el registro de errores.
  *
@@ -25,7 +25,7 @@ class MaintenanceController extends Controller
 {
     public const COMMANDS = ['install', 'migrate', 'run-tasks', 'clear-cache', 'log'];
 
-    public const EXTENSIONS = ['pdo_mysql', 'mbstring', 'openssl', 'json', 'fileinfo', 'zip', 'gd', 'tokenizer'];
+    public const EXTENSIONS = ['pdo_mysql', 'mbstring', 'openssl', 'fileinfo', 'tokenizer', 'ctype', 'xml', 'dom', 'zip'];
 
     public function status(ScheduledTasks $tasks, Uploads $uploads)
     {
@@ -35,9 +35,9 @@ class MaintenanceController extends Controller
             'type' => 'server-statuses',
             'id' => 'current',
             'attributes' => [
-                'apiVersion' => config('mitransporte.version'),
+                'apiVersion' => config('miruta.version'),
                 'phpVersion' => PHP_VERSION,
-                'phpSupported' => version_compare(PHP_VERSION, '7.2.5', '>=') && version_compare(PHP_VERSION, '8.1.0', '<'),
+                'phpSupported' => version_compare(PHP_VERSION, '8.2.0', '>='),
                 'extensions' => array_combine(self::EXTENSIONS, array_map('extension_loaded', self::EXTENSIONS)),
                 'php' => [
                     'uploadMaxFilesize' => ini_get('upload_max_filesize'),
@@ -51,9 +51,9 @@ class MaintenanceController extends Controller
                 'timezone' => date_default_timezone_get(),
                 'database' => $database,
                 'storage' => $this->folderStatus(storage_path()),
-                'uploads' => $this->folderStatus($uploads->publicPath(config('mitransporte.uploads_directory'))),
+                'uploads' => $this->folderStatus($uploads->publicPath(config('miruta.uploads_directory'))),
                 'tasks' => [
-                    'onRequests' => (bool) config('mitransporte.tasks_on_requests'),
+                    'onRequests' => (bool) config('miruta.tasks_on_requests'),
                     'lastCheck' => $tasks->state()['_lastCheck'] ?? null,
                     'list' => $this->taskList($tasks),
                 ],
@@ -86,8 +86,7 @@ class MaintenanceController extends Controller
                     break;
 
                 case 'migrate':
-                    $output = $this->artisan('migrate', ['--force' => true])
-                        .$this->artisan('db:seed', ['--class' => 'Database\\Seeders\\SettingDefinitionSeeder', '--force' => true]);
+                    $output = $this->artisan('migrate', ['--force' => true]);
                     break;
 
                 case 'run-tasks':
@@ -101,7 +100,7 @@ class MaintenanceController extends Controller
                     break;
 
                 case 'clear-cache':
-                    $output = $this->artisan('cache:clear');
+                    $output = $this->artisan('optimize:clear');
                     break;
 
                 case 'log':
@@ -172,7 +171,7 @@ class MaintenanceController extends Controller
         $state = $tasks->state();
         $list = [];
 
-        foreach (ScheduledTasks::TASKS as $command => $frequency) {
+        foreach (ScheduledTasks::TASKS as $command => [$frequency]) {
             $list[] = [
                 'command' => $command,
                 'frequency' => $frequency,

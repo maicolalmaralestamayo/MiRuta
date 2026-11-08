@@ -19,7 +19,7 @@ class Uploads
      */
     public function store(UploadedFile $file, string $folder, ?string $extension = null): string
     {
-        $relativeFolder = config('mitransporte.uploads_directory').'/'.$folder;
+        $relativeFolder = config('miruta.uploads_directory').'/'.$folder;
         $name = Str::random(32).'.'.strtolower($extension ?: ($file->guessExtension() ?: $file->getClientOriginalExtension()));
 
         $file->move($this->publicPath($relativeFolder), $name);
@@ -36,8 +36,6 @@ class Uploads
 
     public function publicPath(string $relativePath): string
     {
-        $public = config('mitransporte.public_path') ?: base_path('public');
-
-        return rtrim($public, '/').'/'.$relativePath;
+        return rtrim(public_path(), '/').'/'.$relativePath;
     }
 }

@@ -5,13 +5,12 @@ namespace App\Serializers;
 use App\Models\ChildParent;
 use App\Models\User;
 use App\Services\ChildEligibility;
-use App\Services\Permissions;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 
 /**
  * Hijo (docs/11 §11.11). El carné y quién más lo tiene declarado los ven
- * sus padres y quien gestiona los hijos de todos (children.manage «all»).
+ * sus padres y el Administrador.
  */
 class ChildSerializer extends Serializer
 {
@@ -30,11 +29,11 @@ class ChildSerializer extends Serializer
             'secondSurname' => $child->second_surname,
             'fullName' => $child->fullName(),
             'sex' => $child->sex,
-            'birthDate' => $child->birth_date ? $child->birth_date->toDateString() : null,
-            'eligibleUntil' => $eligibility->childEligibleUntil($child)->toDateString(),
-            'eligible' => $eligibility->isChildEligible($child),
+            'birthDate' => $this->day($child->birth_date),
+            'eligibleUntil' => $eligibility->eligibleUntil($child->birth_date)->toDateString(),
+            'eligible' => $eligibility->isEligible($child->birth_date),
             'active' => (bool) $child->active,
-            'photoUrl' => $child->photo_path ? url($child->photo_path) : null,
+            'photoUrl' => $this->image($child->photo_path),
         ];
 
         if (self::canSeePrivateData($child, $request)) {
@@ -50,13 +49,10 @@ class ChildSerializer extends Serializer
             return [];
         }
 
-        // Quién lo tiene declarado (en el formulario del hijo).
-        $parents = User::withTrashed()->whereIn('id', ChildParent::where('child_id', $child->id)->select('user_id'))->get();
+        $parents = User::whereIn('id', ChildParent::where('child_id', $child->id)->select('user_id'))->get();
 
         return [
-            'parents' => $parents->map(function (User $parent) {
-                return ['id' => (string) $parent->id, 'fullName' => $parent->fullName()];
-            })->values()->all(),
+            'parents' => $parents->map(fn (User $parent) => ['id' => (string) $parent->id, 'fullName' => $parent->fullName()])->values()->all(),
         ];
     }
 
@@ -64,11 +60,6 @@ class ChildSerializer extends Serializer
     {
         $viewer = $request->user();
 
-        if (! $viewer) {
-            return false;
-        }
-
-        return ChildParent::where('child_id', $child->id)->where('user_id', $viewer->id)->exists()
-            || app(Permissions::class)->can($viewer, 'children.manage');
+        return $viewer && ($viewer->isAdmin() || ChildParent::where('child_id', $child->id)->where('user_id', $viewer->id)->exists());
     }
 }

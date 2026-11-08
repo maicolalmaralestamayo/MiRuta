@@ -113,8 +113,8 @@ class QueryParameters
     private function readPage(Request $request): void
     {
         $page = $request->query('page', []);
-        $maxSize = (int) config('mitransporte.pagination.max_size');
-        $this->pageSize = (int) config('mitransporte.pagination.default_size');
+        $maxSize = (int) config('miruta.pagination.max_size');
+        $this->pageSize = (int) config('miruta.pagination.default_size');
 
         if (! is_array($page)) {
             throw JsonApiException::badRequest('El parámetro page debe usarse como page[number] y page[size].', 'page');

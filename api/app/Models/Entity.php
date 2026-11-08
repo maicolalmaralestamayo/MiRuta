@@ -3,31 +3,20 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
 
-/**
- * Entidad: empresa que usa la app. Se muestra por su abreviatura.
- */
 class Entity extends Model
 {
-    use SoftDeletes;
+    protected $fillable = ['abbreviation', 'number', 'name', 'description', 'observation', 'image_path', 'active'];
 
-    protected $fillable = ['abbreviation', 'number', 'name', 'description', 'observation', 'image_path'];
+    protected $casts = ['active' => 'boolean'];
 
-    public static function normalizeAbbreviation($value): string
+    public static function findByAbbreviation(string $abbreviation): ?self
     {
-        return is_string($value) ? mb_strtoupper(trim($value), 'UTF-8') : '';
+        return static::where('abbreviation', mb_strtoupper(trim($abbreviation)))->first();
     }
 
-    public static function findByAbbreviation($value): ?self
+    public function itineraries()
     {
-        $abbreviation = self::normalizeAbbreviation($value);
-
-        return $abbreviation === '' ? null : static::where('abbreviation', $abbreviation)->first();
-    }
-
-    public function workers()
-    {
-        return $this->hasMany(Worker::class);
+        return $this->hasMany(Itinerary::class);
     }
 }

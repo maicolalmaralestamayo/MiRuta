@@ -6,27 +6,19 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 
 /**
- * Capa de "vista" del patrón modelo-controlador: convierte un modelo en un
- * objeto de recurso JSON:API.
+ * Convierte un modelo en un objeto de recurso JSON:API.
  */
 abstract class Serializer
 {
-    /**
-     * Tipo de recurso JSON:API (plural, kebab-case).
-     */
+    /** Tipo de recurso JSON:API (plural, kebab-case). */
     abstract public function type(): string;
 
-    /**
-     * Identificador del recurso (por defecto, la clave primaria).
-     */
     public function id(Model $model): string
     {
         return (string) $model->getKey();
     }
 
-    /**
-     * Atributos públicos del recurso, en camelCase.
-     */
+    /** Atributos públicos del recurso, en camelCase. */
     abstract public function attributes(Model $model, Request $request): array;
 
     /**
@@ -37,9 +29,7 @@ abstract class Serializer
         return [];
     }
 
-    /**
-     * Datos calculados que no son atributos.
-     */
+    /** Datos calculados que no son atributos. */
     public function meta(Model $model, Request $request): array
     {
         return [];
@@ -50,11 +40,18 @@ abstract class Serializer
         return url('api/v1/'.$this->type().'/'.$this->id($model));
     }
 
-    /**
-     * Formatea una fecha en ISO 8601 con zona horaria.
-     */
     protected function date($value): ?string
     {
         return $value ? $value->toIso8601String() : null;
+    }
+
+    protected function day($value): ?string
+    {
+        return $value ? $value->toDateString() : null;
+    }
+
+    protected function image(?string $path): ?string
+    {
+        return $path ? url($path) : null;
     }
 }

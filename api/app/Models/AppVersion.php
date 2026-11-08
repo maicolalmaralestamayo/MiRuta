@@ -3,14 +3,12 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
  * Versión de la app publicada por el Administrador.
  */
 class AppVersion extends Model
 {
-    use SoftDeletes;
 
     protected $fillable = ['version_name', 'version_code', 'notes', 'mandatory', 'published_by'];
 
@@ -21,7 +19,7 @@ class AppVersion extends Model
 
     public function publisher()
     {
-        return $this->belongsTo(User::class, 'published_by')->withTrashed();
+        return $this->belongsTo(User::class, 'published_by');
     }
 
     public function files()

@@ -2,9 +2,14 @@
 
 namespace App\Serializers;
 
+use App\Models\ItineraryStop;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 
+/**
+ * Parada (compartida entre itinerarios). meta.itineraries: en qué itinerarios
+ * está y en qué posición (vacía = «Sin itinerario»).
+ */
 class StopSerializer extends Serializer
 {
     public function type(): string
@@ -19,15 +24,28 @@ class StopSerializer extends Serializer
             'street' => $stop->street,
             'crossStreet1' => $stop->cross_street_1,
             'crossStreet2' => $stop->cross_street_2,
-            'latitude' => $stop->latitude,
-            'longitude' => $stop->longitude,
-            'address' => $stop->address(),
-            'imageUrl' => $stop->image_path ? url($stop->image_path) : null,
+            'latitude' => (float) $stop->latitude,
+            'longitude' => (float) $stop->longitude,
+            'imageUrl' => $this->image($stop->image_path),
+            'active' => (bool) $stop->active,
         ];
     }
 
-    public function toOneRelationships(): array
+    public function meta(Model $stop, Request $request): array
     {
-        return ['entity' => ['entities', 'entity_id', 'entity']];
+        $links = ItineraryStop::where('stop_id', $stop->id)
+            ->join('itineraries', 'itineraries.id', '=', 'itinerary_stop.itinerary_id')
+            ->orderBy('itineraries.name')
+            ->get(['itinerary_stop.id', 'itinerary_stop.itinerary_id', 'itinerary_stop.position', 'itineraries.name', 'itineraries.entity_id']);
+
+        return [
+            'itineraries' => $links->map(fn ($link) => [
+                'itineraryStopId' => (string) $link->id,
+                'itineraryId' => (string) $link->itinerary_id,
+                'name' => $link->name,
+                'entityId' => (string) $link->entity_id,
+                'position' => (int) $link->position,
+            ])->values()->all(),
+        ];
     }
 }

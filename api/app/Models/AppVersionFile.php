@@ -3,14 +3,12 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
  * APK de una versión para un tipo de procesador.
  */
 class AppVersionFile extends Model
 {
-    use SoftDeletes;
 
     const ABI_ARM64 = 'arm64-v8a';
     const ABI_ARM32 = 'armeabi-v7a';

@@ -7,139 +7,152 @@ use App\JsonApi\JsonApiException;
 use App\JsonApi\JsonApiResponse;
 use App\JsonApi\QueryParameters;
 use App\Models\Entity;
-use App\Services\Permissions;
+use App\Services\Access;
+use App\Services\Organization;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
 /**
- * Entidades. Las crea, edita y desactiva quien tiene entities.manage (el
- * Administrador); cada uno ve aquellas a las que pertenece y las de su
- * ámbito de entities.view. Para solicitar entrar en una se busca por su
- * abreviatura exacta (lookup), sin mostrar la lista.
+ * Entidades. Las ve quien pertenece a ellas (el Administrador, todas); solo el
+ * Administrador las crea, edita y elimina.
  */
-class EntityController extends ResourceController
+class EntityController extends Controller
 {
-    protected $model = Entity::class;
+    public const SORTABLE = ['id' => 'id', 'abbreviation' => 'abbreviation', 'name' => 'name', 'createdAt' => 'created_at'];
 
-    protected $type = 'entities';
-
-    protected $manageOperation = 'entities.manage';
-
-    protected $viewOperation = 'entities.view';
-
-    protected $attributes = [
-        'abbreviation' => 'abbreviation',
-        'number' => 'number',
-        'name' => 'name',
-        'description' => 'description',
-        'observation' => 'observation',
-    ];
-
-    protected $sortable = ['id' => 'id', 'abbreviation' => 'abbreviation', 'name' => 'name'];
-
-    protected $filterable = ['search', 'active'];
-
-    protected $defaultSort = 'abbreviation';
-
-    protected function rules(Request $request, ?Model $model): array
+    public function __construct(private Access $access)
     {
-        $presence = $model ? 'sometimes' : 'required';
-        $ignore = $model ? $model->id : null;
-
-        return [
-            'attributes.abbreviation' => [$presence, 'string', 'regex:/^[A-Za-z0-9]{2,15}$/',
-                Rule::unique('entities', 'abbreviation')->ignore($ignore)],
-            'attributes.number' => ['sometimes', 'nullable', 'string', 'regex:/^\d{4}$/',
-                Rule::unique('entities', 'number')->ignore($ignore)],
-            'attributes.name' => [$presence, 'string', 'max:150'],
-            'attributes.description' => ['sometimes', 'nullable', 'string'],
-            'attributes.observation' => ['sometimes', 'nullable', 'string'],
-        ];
     }
 
-    protected function beforeSave(Model $model, Request $request, bool $creating): void
+    public function index(Request $request)
     {
-        parent::beforeSave($model, $request, $creating);
-        $model->abbreviation = Entity::normalizeAbbreviation($model->abbreviation);
+        $parameters = QueryParameters::fromRequest($request, self::SORTABLE, ['search', 'active'], [], 'abbreviation');
+        $query = $this->visible($request);
 
-        if ($model->number === '') {
-            $model->number = null;
-        }
-    }
-
-    protected function newQuery(Request $request): Builder
-    {
-        $user = $request->user();
-        $query = Entity::query();
-        $permissions = app(Permissions::class);
-
-        if ($permissions->can($user, 'entities.view') || $permissions->can($user, 'entities.manage')) {
-            $active = $request->input('filter.active');
-
-            if ($active === 'false') {
-                $query->onlyTrashed();
-            } elseif ($active === 'all') {
-                $query->withTrashed();
-            }
-
-            return $query;
-        }
-
-        return $query->whereKey(array_merge($user->entityIds(), $permissions->scope($user, 'entities.view')['entities']) ?: [0]);
-    }
-
-    protected function findOrFail(Request $request, $id): Model
-    {
-        return app(Permissions::class)->can($request->user(), 'entities.manage') && $request->getMethod() !== 'GET'
-            ? Entity::withTrashed()->findOrFail($id)
-            : parent::findOrFail($request, $id);
-    }
-
-    protected function applyFilters(Builder $query, QueryParameters $parameters, Request $request): void
-    {
         if ($search = $parameters->filter('search')) {
-            $query->where(function ($query) use ($search) {
-                $query->where('abbreviation', 'like', '%'.$search.'%')->orWhere('name', 'like', '%'.$search.'%');
-            });
+            $like = '%'.$search.'%';
+            $query->where(fn ($q) => $q->where('abbreviation', 'like', $like)->orWhere('name', 'like', $like));
         }
+
+        if ($parameters->filter('active') !== null) {
+            $query->where('active', $parameters->filter('active') === 'true');
+        }
+
+        return $this->paginate($request, $query, $parameters, self::SORTABLE);
     }
 
-    /**
-     * Reactivar: PATCH con attributes.active = true (o desactivar con false).
-     */
-    public function update(Request $request, $id)
+    public function show(Request $request, $id)
     {
-        if ($request->has('data.attributes.active')) {
-            $entity = Entity::withTrashed()->findOrFail($id);
-            app(Permissions::class)->authorize($request->user(), 'entities.manage');
-            $active = filter_var($request->input('data.attributes.active'), FILTER_VALIDATE_BOOLEAN);
-            $active ? $entity->restore() : $entity->delete();
-
-            return JsonApiResponse::make((new Document($request))->resource(Entity::withTrashed()->find($entity->id)));
-        }
-
-        return parent::update($request, $id);
+        return $this->respond($request, $this->visible($request)->findOrFail($id));
     }
 
     /**
-     * Busca una Entidad activa por su abreviatura exacta (sin distinguir
-     * mayúsculas). Con sesión o con instalación.
+     * Comprobar una abreviatura para solicitar entrar (nunca se muestra la lista
+     * de Entidades): filter[abbreviation]. Con sesión o desde una instalación.
      */
     public function lookup(Request $request)
     {
-        $entity = Entity::findByAbbreviation((string) $request->query('abbreviation', ''));
+        $abbreviation = trim((string) $request->input('filter.abbreviation', ''));
 
-        if (! $entity) {
-            throw new JsonApiException(404, 'ENTITY_NOT_FOUND', 'Entidad no encontrada',
-                'No hay ninguna Entidad con esa abreviatura. Pregúntela a su superior.');
+        if ($abbreviation === '') {
+            throw JsonApiException::badRequest('Indique filter[abbreviation].', 'filter[abbreviation]');
         }
 
-        return JsonApiResponse::make(['data' => [
-            'type' => 'entities',
+        $entity = Entity::findByAbbreviation($abbreviation);
+
+        if (! $entity || ! $entity->active) {
+            throw new JsonApiException(404, 'ENTITY_NOT_FOUND', 'Entidad no encontrada', 'No hay ninguna Entidad con esa abreviatura.');
+        }
+
+        return JsonApiResponse::make(Document::fromArray([
+            'type' => 'entity-lookups',
             'id' => (string) $entity->id,
             'attributes' => ['abbreviation' => $entity->abbreviation, 'name' => $entity->name],
-        ]]);
+        ]));
+    }
+
+    public function store(Request $request)
+    {
+        $this->access->requireAdmin($request->user(), 'Solo el Administrador crea Entidades.');
+        $data = $this->validateResource($request, 'entities', $this->rules(null));
+        $entity = new Entity();
+        $this->fill($entity, $data['attributes']);
+        $entity->save();
+
+        return $this->created($request, $entity->fresh(), 'entities');
+    }
+
+    public function update(Request $request, $id)
+    {
+        $this->access->requireAdmin($request->user(), 'Solo el Administrador edita Entidades.');
+        $entity = Entity::findOrFail($id);
+        $data = $this->validateResource($request, 'entities', $this->rules($entity));
+        $this->fill($entity, $data['attributes'] ?? []);
+        $entity->save();
+
+        return $this->respond($request, $entity->fresh());
+    }
+
+    /**
+     * Elimina la Entidad con sus itinerarios (y sus viajes y solicitudes). Las
+     * personas no se eliminan: quedan sin esa Entidad.
+     */
+    public function destroy(Request $request, Organization $organization, $id)
+    {
+        $this->access->requireAdmin($request->user(), 'Solo el Administrador elimina Entidades.');
+        $organization->deleteEntity(Entity::findOrFail($id));
+
+        return $this->noContent();
+    }
+
+    private function rules(?Entity $entity): array
+    {
+        $presence = $entity ? 'sometimes' : 'required';
+
+        return [
+            'attributes' => [$entity ? 'sometimes' : 'required', 'array'],
+            'attributes.abbreviation' => [$presence, 'string', 'max:15', 'regex:/^[A-Za-z0-9ÁÉÍÓÚÑáéíóúñ._-]+$/u',
+                Rule::unique('entities', 'abbreviation')->ignore($entity?->id)],
+            'attributes.name' => [$presence, 'string', 'max:150', 'regex:/\S/'],
+            'attributes.number' => ['sometimes', 'nullable', 'regex:/^\d{4}$/', Rule::unique('entities', 'number')->ignore($entity?->id)],
+            'attributes.description' => ['sometimes', 'nullable', 'string', 'max:2000'],
+            'attributes.observation' => ['sometimes', 'nullable', 'string', 'max:2000'],
+            'attributes.active' => ['sometimes', 'boolean'],
+        ];
+    }
+
+    private function fill(Entity $entity, array $attributes): void
+    {
+        if (isset($attributes['abbreviation'])) {
+            $entity->abbreviation = mb_strtoupper(trim($attributes['abbreviation']));
+        }
+
+        foreach (['name' => 'name', 'number' => 'number', 'description' => 'description', 'observation' => 'observation'] as $attribute => $column) {
+            if (array_key_exists($attribute, $attributes)) {
+                $entity->{$column} = $attribute === 'name' ? trim($attributes[$attribute]) : self::text($attributes[$attribute]);
+            }
+        }
+
+        if (array_key_exists('active', $attributes)) {
+            $entity->active = (bool) $attributes['active'];
+        }
+    }
+
+    private function visible(Request $request): Builder
+    {
+        $user = $request->user();
+        $ids = $this->access->visibleEntityIds($user);
+        $query = Entity::query();
+
+        if ($ids !== null) {
+            $query->whereIn('id', $ids ?: [0]);
+
+            if (! $this->access->seesInactive($user)) {
+                $query->where('active', true);
+            }
+        }
+
+        return $query;
     }
 }

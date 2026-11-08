@@ -40,7 +40,7 @@ class AccessRecoverySerializer extends Serializer
             $granted['password'] = $password;
         }
 
-        if ($viewer && app(\App\Services\Permissions::class)->can($viewer, 'access_recoveries.manage')) {
+        if ($viewer && $viewer->isAdmin()) {
             return $attributes + [
                 'identityCard' => $recovery->identityCard(),
                 'phone' => $recovery->phone(),

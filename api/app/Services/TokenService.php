@@ -37,8 +37,8 @@ class TokenService
     public function issue(User $user, ?string $deviceName = null): array
     {
         $now = Carbon::now();
-        $accessTtl = $this->settings->int('access_token_ttl_minutes') * 60;
-        $refreshTtl = $this->settings->int('refresh_token_ttl_days') * 86400;
+        $accessTtl = $this->settings->seconds('validez_acceso');
+        $refreshTtl = $this->settings->seconds('validez_sesion');
         $refreshJti = Str::random(40);
 
         $refresh = RefreshToken::create([
@@ -119,8 +119,8 @@ class TokenService
     private function claims(User $user, Carbon $now, int $ttl, string $type, string $jti): array
     {
         return [
-            'iss' => config('mitransporte.jwt.issuer'),
-            'aud' => config('mitransporte.jwt.audience'),
+            'iss' => config('miruta.jwt.issuer'),
+            'aud' => config('miruta.jwt.audience'),
             'sub' => $user->id,
             'iat' => $now->getTimestamp(),
             'exp' => $now->getTimestamp() + $ttl,
@@ -134,14 +134,14 @@ class TokenService
         try {
             $claims = Jwt::decode($token, $this->key());
         } catch (ExpiredJwtException $exception) {
-            throw new JsonApiException(401, 'TOKEN_EXPIRED', 'Token caducado', 'El token caducó. Renuévalo o inicia sesión de nuevo.');
+            throw new JsonApiException(401, 'TOKEN_EXPIRED', 'Token caducado', 'El token caducó. Renuévelo o inicie sesión de nuevo.');
         } catch (UnexpectedValueException $exception) {
             throw $this->invalid();
         }
 
         $valid = isset($claims['typ'], $claims['sub'], $claims['jti'], $claims['aud'])
             && $claims['typ'] === $type
-            && $claims['aud'] === config('mitransporte.jwt.audience');
+            && $claims['aud'] === config('miruta.jwt.audience');
 
         if (! $valid) {
             throw $this->invalid();
@@ -152,7 +152,7 @@ class TokenService
 
     private function key(): string
     {
-        $key = config('mitransporte.jwt.secret');
+        $key = config('miruta.jwt.secret');
 
         if (! $key) {
             throw new RuntimeException('Falta JWT_SECRET en la configuración.');

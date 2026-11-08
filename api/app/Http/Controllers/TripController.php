@@ -7,291 +7,216 @@ use App\JsonApi\JsonApiException;
 use App\JsonApi\JsonApiResponse;
 use App\JsonApi\QueryParameters;
 use App\Models\Trip;
+use App\Models\TripPassenger;
 use App\Models\Worker;
-use App\Services\Memberships;
-use App\Services\Permissions;
+use App\Services\Access;
 use App\Services\Trips;
-use Carbon\Carbon;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
-use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 
+/**
+ * Viajes (docs/11 §11.33, §11.43, §11.47 y §11.53). Cada viaje es de ida o de
+ * regreso; se planifican a mano, uno a uno.
+ *
+ * - Secciones de la pestaña Viajes: filter[status]=planificado, en_ejecucion,
+ *   terminado o cancelado (lista separada por comas).
+ * - PATCH: datos (solo Planificado) y attributes.status para cambiar de estado
+ *   a mano; relationships.detentionCause: causa de la detención.
+ * - GET trips/{id}/live: la línea del recorrido.
+ * - POST trips/{id}/reports: informe del teléfono (estado del trabajador y,
+ *   si es sensor, del vehículo); responde con la línea del recorrido.
+ */
 class TripController extends Controller
 {
-    const SORTABLE = ['departsAt' => 'departs_at', 'returnsAt' => 'returns_at', 'updatedAt' => 'updated_at', 'id' => 'id'];
+    public const SORTABLE = ['id' => 'id', 'departsAt' => 'departs_at', 'createdAt' => 'created_at', 'updatedAt' => 'updated_at'];
+    public const INCLUDABLE = ['itinerary', 'vehicleType', 'detentionCause', 'createdBy'];
 
-    const FILTERABLE = ['itinerary', 'vehicle', 'driver', 'status', 'from', 'to', 'updatedSince', 'overloaded'];
-
-    const INCLUDABLE = ['itinerary', 'vehicle', 'vehicle.vehicleType', 'driver', 'driver.user', 'createdBy'];
-
-    /** @var Trips */
-    private $trips;
-
-    public function __construct(Trips $trips)
+    public function __construct(private Trips $trips, private Access $access)
     {
-        $this->trips = $trips;
     }
 
     public function index(Request $request)
     {
-        $parameters = QueryParameters::fromRequest($request, self::SORTABLE, self::FILTERABLE, self::INCLUDABLE, 'departsAt');
-        $query = $this->trips->visibleTo($request->user())->with('itinerary.stops', 'vehicle', 'driver');
-        $this->applyFilters($query, $parameters);
-        $parameters->applySort($query, self::SORTABLE);
-
-        if ($parameters->filter('overloaded') !== null) {
-            $wanted = $parameters->filter('overloaded') === 'true';
-            $all = $query->get()->filter(function (Trip $trip) use ($wanted) {
-                return $this->trips->occupancy($trip)['overloaded'] === $wanted;
-            })->values();
-            $paginator = new LengthAwarePaginator(
-                $all->forPage($parameters->pageNumber(), $parameters->pageSize())->values(),
-                $all->count(),
-                $parameters->pageSize(),
-                $parameters->pageNumber()
-            );
-        } else {
-            $paginator = $query->paginate($parameters->pageSize(), ['*'], 'page', $parameters->pageNumber());
-        }
-
-        return JsonApiResponse::make((new Document($request))->collection($paginator, $parameters->includes()));
-    }
-
-    public function show(Request $request, $id)
-    {
-        $trip = $this->findVisible($request, $id);
-
-        return JsonApiResponse::make((new Document($request))->resource($trip, QueryParameters::readIncludes($request, self::INCLUDABLE)));
-    }
-
-    public function store(Request $request)
-    {
-        $this->authorizeManagement($request);
-        $data = $this->validateResource($request, 'trips', $this->rules(true));
-        $trip = $this->create($data, $request);
-
-        return JsonApiResponse::make((new Document($request))->resource($trip), 201, ['Location' => url('api/v1/trips/'.$trip->id)]);
-    }
-
-    public function update(Request $request, $id)
-    {
-        $this->authorizeManagement($request);
-        $trip = $this->findVisible($request, $id);
-        $data = $this->validateResource($request, 'trips', $this->rules(false));
-
-        if (isset($data['id']) && (string) $data['id'] !== (string) $trip->id) {
-            throw JsonApiException::conflict('ID_MISMATCH', 'El id del documento no coincide con el de la URL.', '/data/id');
-        }
-
-        return JsonApiResponse::make((new Document($request))->resource($this->modify($trip, $data, $request)));
-    }
-
-    /**
-     * Eliminar un viaje (trips.delete en su Entidad).
-     */
-    public function destroy(Request $request, $id)
-    {
-        $trip = $this->findVisible($request, $id);
-        $this->permissions()->authorize($request->user(), 'trips.delete', $this->trips->entityOf($trip), null, 'No puede eliminar viajes de esta Entidad.');
-
-        if (\App\Models\TripLeg::where('trip_id', $trip->id)->exists()) {
-            throw JsonApiException::conflict('TRIP_STARTED', 'El viaje ya comenzó: no se puede eliminar. Puede cancelarlo.');
-        }
-
-        $trip->delete();
-
-        return response('', 204);
-    }
-
-    /**
-     * Crea un viaje (también desde /operations): trips.plan sobre el itinerario.
-     */
-    public function create(array $data, Request $request): Trip
-    {
-        return DB::transaction(function () use ($data, $request) {
-            $trip = new Trip(['status' => Trip::STATUS_UNCONFIRMED, 'created_by' => $request->user()->id]);
-            $this->fill($trip, $data);
-            $this->authorizeOperation($request, 'trips.plan', $trip, 'Solo puede planificar viajes de los itinerarios de su ámbito.');
-
-            if ($trip->status !== Trip::STATUS_UNCONFIRMED) {
-                $this->authorizeOperation($request, $trip->status === Trip::STATUS_COMPLETED ? 'trips.complete' : 'trips.confirm_cancel', $trip);
-            }
-
-            $this->ensureSameEntity($trip);
-            $this->trips->validate($trip);
-            $trip->save();
-
-            return $trip->fresh();
-        });
-    }
-
-    /**
-     * Modifica un viaje (también desde /operations): vehículo, chofer y horas
-     * con trips.edit; confirmar, desconfirmar y cancelar con
-     * trips.confirm_cancel; marcarlo como realizado con trips.complete.
-     */
-    public function modify(Trip $trip, array $data, Request $request): Trip
-    {
-        return DB::transaction(function () use ($trip, $data, $request) {
-            $trip = Trip::lockForUpdate()->findOrFail($trip->id);
-            $previousStatus = $trip->status;
-            $original = clone $trip;
-            $this->fill($trip, $data);
-
-            if ($trip->isDirty(['itinerary_id', 'vehicle_id', 'driver_id', 'departs_at', 'returns_at'])) {
-                $this->authorizeOperation($request, 'trips.edit', $original);
-                $this->authorizeOperation($request, 'trips.edit', $trip);
-            }
-
-            if ($trip->status !== $previousStatus) {
-                $this->authorizeOperation($request, $trip->status === Trip::STATUS_COMPLETED ? 'trips.complete' : 'trips.confirm_cancel', $trip);
-            }
-
-            $this->ensureSameEntity($trip);
-            $this->trips->applyStatusChange($trip, $previousStatus, $request->user());
-
-            if ($trip->isDirty(['departs_at', 'returns_at', 'vehicle_id', 'driver_id', 'status'])) {
-                $this->trips->validate($trip);
-            }
-
-            $trip->save();
-            $this->trips->afterStatusChange($trip, $previousStatus, $request->user());
-
-            return $trip->fresh();
-        });
-    }
-
-    public function rules(bool $creating): array
-    {
-        $presence = $creating ? 'required' : 'sometimes';
-        $relationship = function (string $name, string $type, string $table) use ($presence) {
-            return [
-                "relationships.{$name}.data.type" => [$presence, "in:{$type}"],
-                "relationships.{$name}.data.id" => [$presence, "exists:{$table},id,deleted_at,NULL"],
-            ];
-        };
-
-        return array_merge([
-            'attributes.departsAt' => [$presence, 'date'],
-            'attributes.returnsAt' => [$presence, 'date'],
-            'attributes.status' => ['sometimes', 'in:'.implode(',', Trip::STATUSES)],
-        ],
-            $relationship('itinerary', 'itineraries', 'itineraries'),
-            $relationship('vehicle', 'vehicles', 'vehicles'),
-            $relationship('driver', 'workers', 'workers')
-        );
-    }
-
-    /**
-     * Tiene alguna operación de gestión de viajes en algún sitio (el detalle
-     * se comprueba con el itinerario de cada viaje).
-     */
-    public function authorizeManagement(Request $request): void
-    {
-        $permissions = $this->permissions();
-
-        foreach (['trips.plan', 'trips.edit', 'trips.confirm_cancel', 'trips.complete'] as $operation) {
-            if ($permissions->canAnywhere($request->user(), $operation)) {
-                return;
-            }
-        }
-
-        throw new JsonApiException(403, 'FORBIDDEN', 'Sin permiso', 'No tiene permiso para planificar ni modificar viajes.');
-    }
-
-    private function authorizeOperation(Request $request, string $operation, Trip $trip, ?string $detail = null): void
-    {
-        if (! $this->permissions()->can($request->user(), $operation, null, (int) $trip->itinerary_id)) {
-            throw new JsonApiException(403, 'FORBIDDEN', 'Sin permiso', $detail ?: 'No tiene permiso para hacer esto con los viajes de ese itinerario.', ['pointer' => '/data/relationships/itinerary']);
-        }
-    }
-
-    private function permissions(): Permissions
-    {
-        return app(Permissions::class);
-    }
-
-    /**
-     * El vehículo y el chofer tienen que ser de la Entidad del itinerario, y el
-     * chofer, una pertenencia que puede conducir (tracking.drive).
-     */
-    private function ensureSameEntity(Trip $trip): void
-    {
-        $entityId = \App\Support\Tenancy::entityOf('itineraries', $trip->itinerary_id);
-        \App\Support\Tenancy::ensureSame($entityId, 'vehicles', $trip->vehicle_id, '/data/relationships/vehicle');
-        \App\Support\Tenancy::ensureSame($entityId, 'workers', $trip->driver_id, '/data/relationships/driver');
-
-        if ($trip->isDirty('driver_id') && ! app(Memberships::class)->canDrive(Worker::find($trip->driver_id))) {
-            throw new JsonApiException(422, 'NOT_A_DRIVER', 'No es chofer', 'Esa persona no tiene permiso para conducir en esta Entidad.', ['pointer' => '/data/relationships/driver']);
-        }
-    }
-
-    private function fill(Trip $trip, array $data): void
-    {
-        $attributes = isset($data['attributes']) ? $data['attributes'] : [];
-        $timezone = config('app.timezone');
-
-        foreach (['departsAt' => 'departs_at', 'returnsAt' => 'returns_at'] as $attribute => $column) {
-            if (isset($attributes[$attribute])) {
-                $trip->{$column} = Carbon::parse($attributes[$attribute])->setTimezone($timezone);
-            }
-        }
-
-        if (isset($attributes['status'])) {
-            $trip->status = $attributes['status'];
-        }
-
-        foreach (['itinerary' => 'itinerary_id', 'vehicle' => 'vehicle_id', 'driver' => 'driver_id'] as $relationship => $column) {
-            if (isset($data['relationships'][$relationship]['data']['id'])) {
-                $trip->{$column} = (int) $data['relationships'][$relationship]['data']['id'];
-            }
-        }
-    }
-
-    private function applyFilters(Builder $query, QueryParameters $parameters): void
-    {
-        foreach (['itinerary' => 'itinerary_id', 'vehicle' => 'vehicle_id', 'driver' => 'driver_id'] as $filter => $column) {
-            if ($value = $parameters->filter($filter)) {
-                $query->where($column, $value);
-            }
-        }
+        $parameters = QueryParameters::fromRequest($request, self::SORTABLE, ['status', 'itinerary', 'direction', 'date', 'from', 'to'], self::INCLUDABLE, 'departsAt');
+        $query = $this->trips->visibleQuery($request->user());
 
         if ($status = $parameters->filter('status')) {
             $query->whereIn('status', explode(',', $status));
         }
 
+        foreach (['itinerary' => 'itinerary_id', 'direction' => 'direction', 'date' => 'date'] as $filter => $column) {
+            if (($value = $parameters->filter($filter)) !== null) {
+                $query->where($column, $value);
+            }
+        }
+
         if ($from = $parameters->filter('from')) {
-            $query->where('departs_at', '>=', $this->date($from, 'from')->startOfDay());
+            $query->where('date', '>=', $from);
         }
 
         if ($to = $parameters->filter('to')) {
-            $query->where('departs_at', '<=', $this->date($to, 'to')->endOfDay());
+            $query->where('date', '<=', $to);
         }
 
-        if ($since = $parameters->filter('updatedSince')) {
-            $query->where('updated_at', '>', $this->date($since, 'updatedSince')->setTimezone(config('app.timezone')));
-        }
+        return $this->paginate($request, $query, $parameters, self::SORTABLE);
     }
 
-    private function date(string $value, string $filter): Carbon
+    public function show(Request $request, $id)
     {
-        try {
-            return Carbon::parse($value);
-        } catch (\Exception $exception) {
-            throw JsonApiException::badRequest("filter[{$filter}] no es una fecha válida.", "filter[{$filter}]");
-        }
+        return $this->respond($request, $this->find($request, $id), QueryParameters::readIncludes($request, self::INCLUDABLE));
     }
 
-    private function findVisible(Request $request, $id): Trip
+    /**
+     * Planifica un viaje: itinerario, sentido (ida o regreso), fecha, hora y
+     * tipo de vehículo. Para la ida y el regreso del mismo día, dos peticiones.
+     */
+    public function store(Request $request)
     {
-        $trip = $this->trips->visibleTo($request->user())->find($id);
+        $data = $this->validateResource($request, 'trips', [
+            'attributes.direction' => ['required', 'in:ida,regreso'],
+            'attributes.date' => ['required', 'date_format:Y-m-d'],
+            'attributes.departureTime' => ['required', 'regex:/^([01]\d|2[0-3]):[0-5]\d$/'],
+            'attributes.observation' => ['sometimes', 'nullable', 'string', 'max:1000'],
+        ] + $this->relationshipRules('itinerary', 'itineraries', 'itineraries', true)
+          + $this->relationshipRules('vehicleType', 'vehicle-types', 'vehicle_types', true));
+        $attributes = $data['attributes'];
+        $trip = $this->trips->create($request->user(), $this->relationshipId($data, 'itinerary'), $attributes['direction'],
+            $attributes['date'], $attributes['departureTime'], $this->relationshipId($data, 'vehicleType'), self::text($attributes['observation'] ?? null));
 
-        if (! $trip) {
-            throw new JsonApiException(404, 'NOT_FOUND', 'No encontrado', 'El viaje no existe o no puede verlo.');
+        return $this->created($request, $trip->fresh(), 'trips');
+    }
+
+    public function update(Request $request, $id)
+    {
+        $trip = $this->find($request, $id);
+        $data = $this->validateResource($request, 'trips', [
+            'attributes.date' => ['sometimes', 'date_format:Y-m-d'],
+            'attributes.departureTime' => ['sometimes', 'regex:/^([01]\d|2[0-3]):[0-5]\d$/'],
+            'attributes.observation' => ['sometimes', 'nullable', 'string', 'max:1000'],
+            'attributes.status' => ['sometimes', 'in:planificado,en_ejecucion,terminado,cancelado'],
+        ] + $this->relationshipRules('vehicleType', 'vehicle-types', 'vehicle_types', false)
+          + $this->relationshipRules('detentionCause', 'detention-causes', 'detention_causes', false, true));
+        $attributes = $data['attributes'] ?? [];
+        $user = $request->user();
+
+        DB::transaction(function () use ($trip, $attributes, $data, $user) {
+            $changes = array_intersect_key($attributes, array_flip(['date', 'departureTime', 'observation']));
+
+            if (array_key_exists('observation', $changes)) {
+                $changes['observation'] = self::text($changes['observation']);
+            }
+
+            if ($this->relationshipId($data, 'vehicleType') !== null) {
+                $changes['vehicleTypeId'] = $this->relationshipId($data, 'vehicleType');
+            }
+
+            if ($changes) {
+                $this->trips->update($user, $trip, $changes);
+            }
+
+            if ($this->hasRelationship($data, 'detentionCause')) {
+                $this->trips->setDetentionCause($user, $trip, $this->relationshipId($data, 'detentionCause'));
+            }
+
+            if (isset($attributes['status'])) {
+                $this->trips->changeStatus($user, $trip, $attributes['status']);
+            }
+        });
+
+        return $this->respond($request, $trip->fresh(), QueryParameters::readIncludes($request, self::INCLUDABLE));
+    }
+
+    /**
+     * Eliminar: el Administrador o el Jefe del itinerario, si no está en ejecución.
+     */
+    public function destroy(Request $request, $id)
+    {
+        $trip = $this->find($request, $id);
+        $this->access->requireItineraryManager($request->user(), $trip->itinerary_id, 'Solo el Administrador o el Jefe del itinerario eliminan sus viajes.');
+
+        if ($trip->status === Trip::RUNNING) {
+            throw JsonApiException::conflict('TRIP_RUNNING', 'Un viaje en ejecución no se elimina: termínelo primero.');
         }
 
-        return $trip;
+        $trip->delete();
+
+        return $this->noContent();
+    }
+
+    public function live(Request $request, $id)
+    {
+        $trip = $this->find($request, $id);
+
+        return JsonApiResponse::make(Document::fromArray($this->trips->live($trip, $request->user())));
+    }
+
+    /**
+     * «Trabajadores» del viaje: los esperados y quienes informaron, con su estado.
+     */
+    public function passengers(Request $request, $id)
+    {
+        $trip = $this->find($request, $id);
+        $states = TripPassenger::where('trip_id', $trip->id)->get()->keyBy('user_id');
+        $expected = $this->trips->expectedQuery($trip)->with('user')->get();
+        $userIds = $expected->pluck('user_id')->merge($states->keys())->unique();
+        $workers = Worker::where('itinerary_id', $trip->itinerary_id)->whereIn('user_id', $userIds)->with('user')->get()->keyBy('user_id');
+        $rows = [];
+
+        foreach ($userIds as $userId) {
+            $worker = $workers[$userId] ?? null;
+            $state = $states[$userId] ?? null;
+            $rows[] = [
+                'type' => 'trip-workers',
+                'id' => $trip->id.'-'.$userId,
+                'attributes' => [
+                    'fullName' => $worker?->user?->fullName(),
+                    'photoUrl' => $worker?->user?->photo_path ? url($worker->user->photo_path) : null,
+                    'expected' => $expected->contains('user_id', $userId),
+                    'state' => $state?->state,
+                    'stateAt' => $state?->state_at?->toIso8601String(),
+                    'childrenCount' => (int) ($state?->children_count ?? 0),
+                    'isChief' => (bool) $worker?->is_chief,
+                ],
+                'relationships' => [
+                    'user' => ['data' => ['type' => 'users', 'id' => (string) $userId]],
+                    'stop' => ['data' => ($state?->stop_id ?? $worker?->stop_id) ? ['type' => 'stops', 'id' => (string) ($state?->stop_id ?? $worker?->stop_id)] : null],
+                ],
+            ];
+        }
+
+        usort($rows, fn ($a, $b) => strcmp((string) $a['attributes']['fullName'], (string) $b['attributes']['fullName']));
+
+        return JsonApiResponse::make(Document::fromArray($rows, ['total' => count($rows)]));
+    }
+
+    /**
+     * Informe del teléfono (con acuse). attributes: workerState, stopId (Dejado
+     * en otra parada), childIds o childrenCount, vehicleState (detenido o
+     * en_movimiento), atStop, nextStopIndex y reportedAt (hora del teléfono).
+     */
+    public function report(Request $request, $id)
+    {
+        $trip = $this->find($request, $id);
+        $data = $this->validateResource($request, 'trip-reports', [
+            'attributes' => ['required', 'array'],
+            'attributes.workerState' => ['sometimes', 'string'],
+            'attributes.stopId' => ['sometimes', 'nullable', 'integer'],
+            'attributes.childIds' => ['sometimes', 'array', 'max:20'],
+            'attributes.childIds.*' => ['integer'],
+            'attributes.childrenCount' => ['sometimes', 'integer', 'min:0', 'max:20'],
+            'attributes.vehicleState' => ['sometimes', 'in:detenido,en_movimiento'],
+            'attributes.atStop' => ['sometimes', 'boolean'],
+            'attributes.nextStopIndex' => ['sometimes', 'integer', 'min:0'],
+            'attributes.reportedAt' => ['sometimes', 'date'],
+        ]);
+        $ack = $this->trips->report($request->user(), $trip, $data['attributes']);
+        $live = $this->trips->live($trip->fresh(), $request->user());
+
+        return JsonApiResponse::make(Document::fromArray($live, ['ack' => true] + $ack));
+    }
+
+    private function find(Request $request, $id): Trip
+    {
+        return $this->trips->visibleQuery($request->user())->findOrFail($id);
     }
 }

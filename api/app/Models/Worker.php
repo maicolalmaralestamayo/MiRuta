@@ -3,33 +3,32 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
- * Pertenencia de una persona a una Entidad (docs/11 §11.6): en cada Entidad
- * tiene itinerario y parada (siempre juntos) y roles. Los nombres, el carné,
- * el usuario y la contraseña están en la persona (`user`). Borrado lógico =
- * baja de la Entidad (o pertenencia desactivada).
+ * La persona en una Entidad: itinerario y parada (opcionales), si es Jefe de
+ * ese itinerario y si está activada.
  */
 class Worker extends Model
 {
-    use SoftDeletes;
-
-    protected $fillable = ['user_id', 'entity_id', 'itinerary_id', 'stop_id', 'itinerary_assigned_at'];
+    protected $fillable = ['user_id', 'entity_id', 'itinerary_id', 'stop_id', 'is_chief', 'active'];
 
     protected $casts = [
+        'is_chief' => 'boolean',
+        'active' => 'boolean',
+        'user_id' => 'integer',
         'entity_id' => 'integer',
-        'itinerary_assigned_at' => 'datetime',
+        'itinerary_id' => 'integer',
+        'stop_id' => 'integer',
     ];
 
     public function user()
     {
-        return $this->belongsTo(User::class)->withTrashed();
+        return $this->belongsTo(User::class);
     }
 
     public function entity()
     {
-        return $this->belongsTo(Entity::class)->withTrashed();
+        return $this->belongsTo(Entity::class);
     }
 
     public function itinerary()
@@ -40,20 +39,5 @@ class Worker extends Model
     public function stop()
     {
         return $this->belongsTo(Stop::class);
-    }
-
-    public function workerRoles()
-    {
-        return $this->hasMany(WorkerRole::class);
-    }
-
-    public function absences()
-    {
-        return $this->hasMany(Absence::class);
-    }
-
-    public function fullName(): string
-    {
-        return $this->user ? $this->user->fullName() : '';
     }
 }

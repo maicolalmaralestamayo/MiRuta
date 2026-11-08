@@ -8,148 +8,94 @@ use App\JsonApi\JsonApiResponse;
 use App\JsonApi\QueryParameters;
 use App\Models\Conversation;
 use App\Models\ConversationMessage;
-use App\Services\Chats;
-use Carbon\Carbon;
-use Illuminate\Database\Eloquent\Builder;
+use App\Services\Conversations;
 use Illuminate\Http\Request;
 
+/**
+ * Conversaciones con el desarrollador (docs/11 §11.46 y §11.50): cada uno ve
+ * las suyas; el Administrador, todas (y las responde).
+ */
 class ConversationController extends Controller
 {
-    const INCLUDABLE = ['topic', 'openedBy', 'itinerary', 'entity', 'installation'];
+    public const SORTABLE = ['id' => 'id', 'lastMessageAt' => 'last_message_at'];
+    public const INCLUDABLE = ['user', 'topic'];
 
-    /** @var Chats */
-    private $chats;
-
-    public function __construct(Chats $chats)
+    public function __construct(private Conversations $conversations)
     {
-        $this->chats = $chats;
     }
 
     public function index(Request $request)
     {
-        $parameters = QueryParameters::fromRequest($request, ['createdAt' => 'created_at', 'lastMessageAt' => 'last_message_at'], ['topic', 'recipient', 'mine'], self::INCLUDABLE, '-lastMessageAt');
-        $query = $this->chats->visibleConversations($request->user())
-            ->select('conversations.*')
-            ->selectSub(ConversationMessage::selectRaw('COALESCE(MAX(created_at), conversations.created_at)')->whereColumn('conversation_id', 'conversations.id'), 'last_message_at');
+        $parameters = QueryParameters::fromRequest($request, self::SORTABLE, ['mine', 'unread'], self::INCLUDABLE, '-lastMessageAt');
+        $user = $request->user();
+        $query = Conversation::query();
 
-        if ($topic = $parameters->filter('topic')) {
-            $query->where('conversation_topic_id', $topic);
+        if (! $user->isAdmin() || $parameters->filter('mine') === 'true') {
+            $query->where('user_id', $user->id);
         }
 
-        if ($recipient = $parameters->filter('recipient')) {
-            $query->whereHas('topic', function (Builder $query) use ($recipient) {
-                $query->where('recipient', $recipient);
-            });
+        if ($parameters->filter('unread') === 'true') {
+            $query->where(fn ($q) => $q->where(fn ($q) => $q->where('user_id', $user->id)->where('unread_by_user', true))
+                ->orWhere(fn ($q) => $q->where('user_id', '<>', $user->id)->where('unread_by_developer', true)));
         }
 
-        if ($parameters->filter('mine') === 'true') {
-            $query->where('opened_by', $request->user()->id);
-        }
-
-        $paginator = $parameters->applySort($query, ['createdAt' => 'created_at', 'lastMessageAt' => 'last_message_at'])
-            ->paginate($parameters->pageSize(), ['*'], 'page', $parameters->pageNumber());
-
-        return JsonApiResponse::make((new Document($request))->collection($paginator, $parameters->includes()));
+        return $this->paginate($request, $query, $parameters, self::SORTABLE);
     }
 
     public function show(Request $request, $id)
     {
-        return JsonApiResponse::make((new Document($request))->resource($this->find($request, $id), QueryParameters::readIncludes($request, self::INCLUDABLE)));
+        return $this->respond($request, $this->find($request, $id), QueryParameters::readIncludes($request, self::INCLUDABLE));
     }
 
+    /**
+     * Abre una conversación: relationships.topic (motivo) y attributes.body (primer mensaje).
+     */
     public function store(Request $request)
     {
         $data = $this->validateResource($request, 'conversations', [
-            'relationships.topic.data.type' => ['required', 'in:conversation-topics'],
-            'relationships.topic.data.id' => ['required', 'exists:conversation_topics,id,deleted_at,NULL'],
-            'relationships.entity.data.type' => ['sometimes', 'in:entities'],
-            'relationships.entity.data.id' => ['sometimes', 'integer'],
-        ]);
-        $conversation = $this->chats->openConversation($request->user(), (int) $data['relationships']['topic']['data']['id'],
-            isset($data['relationships']['entity']['data']['id']) ? (int) $data['relationships']['entity']['data']['id'] : null);
+            'attributes.body' => ['required', 'string'],
+        ] + $this->relationshipRules('topic', 'conversation-topics', 'conversation_topics', true));
+        $conversation = $this->conversations->open($request->user(), $this->relationshipId($data, 'topic'), $data['attributes']['body']);
 
-        return JsonApiResponse::make((new Document($request))->resource($conversation->fresh()), 201);
+        return $this->created($request, $conversation->fresh(), 'conversations');
     }
 
+    /**
+     * Mensajes (del más antiguo al más nuevo; filter[after]=id para los nuevos).
+     * Quien los consulta los da por leídos.
+     */
     public function messages(Request $request, $id)
     {
         $conversation = $this->find($request, $id);
-        $parameters = QueryParameters::fromRequest($request, ['createdAt' => 'created_at'], ['since'], ['author'], 'createdAt');
-        $query = ConversationMessage::where('conversation_id', $conversation->id);
+        $after = $request->input('filter.after');
 
-        if ($since = $parameters->filter('since')) {
-            $query->where('created_at', '>', Carbon::parse($since)->setTimezone(config('app.timezone')));
+        if ($after !== null && ! ctype_digit((string) $after)) {
+            throw JsonApiException::badRequest('filter[after] debe ser un id de mensaje.', 'filter[after]');
         }
 
-        $paginator = $parameters->applySort($query, ['createdAt' => 'created_at'])
-            ->paginate($parameters->pageSize(), ['*'], 'page', $parameters->pageNumber());
+        $messages = ConversationMessage::where('conversation_id', $conversation->id)
+            ->when($after !== null, fn ($q) => $q->where('id', '>', (int) $after))
+            ->orderBy('id')->limit(500)->get();
+        $this->conversations->markRead($conversation, $request->user());
 
-        return JsonApiResponse::make((new Document($request))->collection($paginator, $parameters->includes()));
+        return JsonApiResponse::make((new Document($request))->list($messages));
     }
 
-    public function storeMessage(Request $request)
-    {
-        $data = $this->validateResource($request, 'conversation-messages', array_merge($this->chats->messageRules(), [
-            'relationships.conversation.data.type' => ['required', 'in:conversations'],
-            'relationships.conversation.data.id' => ['required', 'integer'],
-        ]));
-        $conversation = $this->find($request, $data['relationships']['conversation']['data']['id']);
-        $this->chats->ensureOpen($conversation);
-
-        $message = ConversationMessage::create([
-            'conversation_id' => $conversation->id,
-            'user_id' => $request->user()->id,
-            'body' => trim($data['attributes']['body']),
-        ]);
-
-        return JsonApiResponse::make((new Document($request))->resource($message->fresh()), 201);
-    }
-
-    /**
-     * Borrar un mensaje: el propio, o el de otro con chat.delete_messages
-     * sobre la Entidad (o el itinerario) de la conversación.
-     */
-    public function destroyMessage(Request $request, $id)
-    {
-        $user = $request->user();
-        $message = ConversationMessage::whereIn('conversation_id', $this->chats->visibleConversations($user)->select('conversations.id'))->find($id);
-
-        if (! $message) {
-            throw new JsonApiException(404, 'NOT_FOUND', 'No encontrado', 'El mensaje no existe o no puede verlo.');
-        }
-
-        if ((int) $message->user_id !== (int) $user->id) {
-            $conversation = Conversation::find($message->conversation_id);
-            app(\App\Services\Permissions::class)->authorize($user, 'chat.delete_messages',
-                $conversation->entity_id ? (int) $conversation->entity_id : null,
-                $conversation->itinerary_id ? (int) $conversation->itinerary_id : null,
-                'Solo puede borrar sus propios mensajes.');
-        }
-
-        $message->delete();
-
-        return response('', 204);
-    }
-
-    /**
-     * Cerrar o reabrir (attributes.closed). Quien la abrió o quien la recibe.
-     */
-    public function update(Request $request, $id)
+    public function storeMessage(Request $request, $id)
     {
         $conversation = $this->find($request, $id);
-        $data = $this->validateResource($request, 'conversations', ['attributes.closed' => ['required', 'boolean']]);
-        $conversation->closed_at = $data['attributes']['closed'] ? ($conversation->closed_at ?: Carbon::now()) : null;
-        $conversation->save();
+        $data = $this->validateResource($request, 'conversation-messages', ['attributes.body' => ['required', 'string']]);
+        $message = $this->conversations->write($conversation, $request->user(), $data['attributes']['body']);
 
-        return JsonApiResponse::make((new Document($request))->resource($conversation));
+        return $this->created($request, $message, 'conversation-messages');
     }
 
     private function find(Request $request, $id): Conversation
     {
-        $conversation = $this->chats->visibleConversations($request->user())->find($id);
+        $conversation = Conversation::findOrFail($id);
 
-        if (! $conversation) {
-            throw new JsonApiException(404, 'NOT_FOUND', 'No encontrado', 'La conversación no existe o no puede verla.');
+        if (! $this->conversations->canSee($request->user(), $conversation)) {
+            throw new JsonApiException(404, 'NOT_FOUND', 'No encontrado', 'La conversación no existe.');
         }
 
         return $conversation;

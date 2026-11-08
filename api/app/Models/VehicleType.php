@@ -2,12 +2,17 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
-
-class VehicleType extends Model
+/**
+ * Tipo de vehículo: asientos y pasajeros de pie; el total se calcula.
+ */
+class VehicleType extends Nomenclator
 {
-    use SoftDeletes;
+    protected $fillable = ['name', 'description', 'observation', 'active', 'seats', 'standing'];
 
-    protected $fillable = ['name', 'description', 'observation'];
+    protected $casts = ['active' => 'boolean', 'seats' => 'integer', 'standing' => 'integer'];
+
+    public function capacity(): int
+    {
+        return (int) $this->seats + (int) $this->standing;
+    }
 }

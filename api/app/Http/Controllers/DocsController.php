@@ -22,7 +22,7 @@ class DocsController extends Controller
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>MiTransporte API</title>
+  <title>MiRuta API</title>
   <link rel="stylesheet" href="{$cdn}/swagger-ui.css">
 </head>
 <body>
@@ -40,7 +40,7 @@ HTML;
 
     public function spec()
     {
-        $path = config('mitransporte.openapi_path');
+        $path = config('miruta.openapi_path');
 
         if (! is_file($path)) {
             abort(404);

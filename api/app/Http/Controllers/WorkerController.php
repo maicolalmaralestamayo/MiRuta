@@ -9,325 +9,280 @@ use App\JsonApi\QueryParameters;
 use App\Models\Entity;
 use App\Models\User;
 use App\Models\Worker;
+use App\Services\Access;
 use App\Services\Accounts;
 use App\Services\Memberships;
-use App\Services\Permissions;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Pertenencias persona–Entidad (docs/11 §11.6).
+ * La persona en una Entidad (recurso "workers"): sección Personas de Gestión
+ * (con include=user) y sus movimientos (docs/11 §11.26 y §11.30).
  *
- * - Cada uno ve las suyas y, con workers.view, las de su ámbito.
- * - POST: el Administrador (workers.register) registra a una persona en una
- *   Entidad (si el carné ya existe, solo le añade la Entidad); con
- *   relationships.user, quien tenga entities.assign_members añade a una
- *   persona ya registrada.
- * - PATCH: active (workers.deactivate); itinerario y parada
- *   (members.assign); nombres, carné y teléfono de la persona (workers.edit).
- * - DELETE: darse de baja de la Entidad (o quitar a alguien, con
- *   entities.assign_members).
+ * - Administrador: todo (registrar, cambiar de Entidad, itinerario y parada,
+ *   asignar y quitar el rol de Jefe, activar, sacar de la Entidad).
+ * - Jefe de itinerario: en su itinerario, cambia la parada de sus personas,
+ *   las saca de él o pone en él a personas de su Entidad, y las activa o
+ *   desactiva.
+ * - Trabajador: se cambia de parada en su itinerario, sale del itinerario y
+ *   sale de la Entidad.
  */
-class WorkerController extends ResourceController
+class WorkerController extends Controller
 {
-    protected $model = Worker::class;
+    public const INCLUDABLE = ['user', 'entity', 'itinerary', 'stop'];
 
-    protected $type = 'workers';
-
-    protected $sortable = [
-        'id' => 'workers.id',
-        'firstName' => 'users.first_name',
-        'firstSurname' => 'users.first_surname',
-        'createdAt' => 'workers.created_at',
-    ];
-
-    protected $filterable = ['entity', 'itinerary', 'stop', 'active', 'search', 'user'];
-
-    protected $includable = ['user', 'entity', 'itinerary', 'stop'];
-
-    protected $defaultSort = 'firstSurname,firstName';
-
-    /** @var Permissions */
-    private $permissions;
-
-    public function __construct(Permissions $permissions)
+    public function __construct(private Access $access, private Memberships $memberships)
     {
-        $this->permissions = $permissions;
     }
 
-    protected function rules(Request $request, ?Model $model): array
+    public function index(Request $request)
     {
-        return [];
+        $sortable = [
+            'id' => 'id',
+            'createdAt' => 'created_at',
+            'name' => User::select('first_name')->whereColumn('users.id', 'workers.user_id'),
+            'surname' => User::select('first_surname')->whereColumn('users.id', 'workers.user_id'),
+        ];
+        $parameters = QueryParameters::fromRequest($request, $sortable,
+            ['entity', 'itinerary', 'stop', 'user', 'search', 'active', 'chief'], self::INCLUDABLE, 'name,surname');
+        $query = $this->visible($request->user());
+
+        foreach (['entity' => 'entity_id', 'itinerary' => 'itinerary_id', 'stop' => 'stop_id', 'user' => 'user_id'] as $filter => $column) {
+            $value = $parameters->filter($filter);
+
+            if ($value === 'none' && in_array($filter, ['itinerary', 'stop'], true)) {
+                $query->whereNull($column);
+            } elseif ($value !== null) {
+                $query->where($column, (int) $value);
+            }
+        }
+
+        if ($parameters->filter('active') !== null) {
+            $query->where('active', $parameters->filter('active') === 'true');
+        }
+
+        if ($parameters->filter('chief') !== null) {
+            $query->where('is_chief', $parameters->filter('chief') === 'true');
+        }
+
+        if ($search = $parameters->filter('search')) {
+            PersonController::search($query, $search, 'user_id');
+        }
+
+        return $this->paginate($request, $query, $parameters, $sortable);
     }
 
-    public function store(Request $request)
+    public function show(Request $request, $id)
     {
-        $user = $request->user();
+        $worker = $this->visible($request->user())->findOrFail($id);
 
-        if ($request->input('data.relationships.user.data.id') !== null) {
-            return $this->addExistingPerson($request);
-        }
+        return $this->respond($request, $worker, QueryParameters::readIncludes($request, self::INCLUDABLE));
+    }
 
-        $data = $this->validateResource($request, 'workers', UserController::nameRules() + [
-            'attributes.identityCard' => ['required', 'string', 'max:20'],
-            'attributes.hasPhone' => ['sometimes', 'boolean'],
-            'attributes.username' => ['sometimes', 'nullable', 'string', 'max:60'],
-            'attributes.password' => ['sometimes', 'nullable', 'string'],
-            'relationships.entity.data.type' => ['required', 'in:entities'],
-            'relationships.entity.data.id' => ['required', 'exists:entities,id,deleted_at,NULL'],
-            'relationships.itinerary.data.type' => ['sometimes', 'in:itineraries'],
-            'relationships.itinerary.data.id' => ['sometimes', 'exists:itineraries,id,deleted_at,NULL'],
-            'relationships.stop.data.type' => ['sometimes', 'in:stops'],
-            'relationships.stop.data.id' => ['sometimes', 'exists:stops,id,deleted_at,NULL'],
-        ]);
-        $attributes = $data['attributes'];
-        $relationships = $data['relationships'];
-        $entity = Entity::findOrFail($relationships['entity']['data']['id']);
-        $this->permissions->authorize($user, 'workers.register', $entity->id, null, 'No puede registrar trabajadores en esa Entidad.');
-        list($itineraryId, $stopId) = $this->itineraryAndStop($relationships);
+    /**
+     * Solo el Administrador:
+     * - persona existente (relationships.user) en una Entidad (también él mismo);
+     * - persona nueva: nombres, carné y, si quiere, usuario y contraseña (si
+     *   no, se proponen; se devuelven en meta para comunicárselos). Si el carné
+     *   ya existe, no se crea otra cuenta: se le añade la Entidad.
+     * Con relationships.itinerary y relationships.stop se le pone además en ellos.
+     */
+    public function store(Request $request, Accounts $accounts)
+    {
+        $this->access->requireAdmin($request->user(), 'Solo el Administrador registra personas y las añade a una Entidad.');
+        $data = $this->validateResource($request, 'workers', $this->relationshipRules('entity', 'entities', 'entities', true)
+            + $this->relationshipRules('user', 'users', 'users', false)
+            + $this->relationshipRules('itinerary', 'itineraries', 'itineraries', false)
+            + $this->relationshipRules('stop', 'stops', 'stops', false)
+            + UserController::nameRules('attributes.', false) + [
+                'attributes.identityCard' => ['sometimes', 'string', 'max:20'],
+                'attributes.username' => ['sometimes', 'nullable', 'string', 'max:60'],
+                'attributes.password' => ['sometimes', 'nullable', 'string'],
+            ]);
+        $entity = Entity::findOrFail($this->relationshipId($data, 'entity'));
+        $userId = $this->relationshipId($data, 'user');
+        $attributes = $data['attributes'] ?? [];
+        $meta = [];
 
-        if ($itineraryId !== null) {
-            $this->permissions->authorize($user, 'members.assign', $entity->id, $itineraryId, 'No puede asignar ese itinerario.');
-        }
+        $worker = DB::transaction(function () use ($data, $entity, $userId, $attributes, $accounts, &$meta) {
+            if ($userId !== null) {
+                $user = User::findOrFail($userId);
 
-        $result = DB::transaction(function () use ($user, $entity, $attributes, $itineraryId, $stopId) {
-            $result = app(Accounts::class)->registerByAdmin(
-                $user,
-                $entity,
-                UserController::names($attributes),
-                $attributes['identityCard'],
-                array_key_exists('hasPhone', $attributes) ? (bool) $attributes['hasPhone'] : true,
-                isset($attributes['username']) ? $attributes['username'] : null,
-                isset($attributes['password']) ? $attributes['password'] : null
-            );
+                if (Worker::where('user_id', $user->id)->where('entity_id', $entity->id)->exists()) {
+                    throw JsonApiException::conflict('ALREADY_MEMBER', 'Esa persona ya pertenece a la Entidad.', '/data/relationships/user');
+                }
 
-            if ($itineraryId !== null) {
-                $result['worker'] = app(Memberships::class)->assignItinerary($result['worker'], $itineraryId, $stopId);
+                $worker = $this->memberships->join($user, $entity);
+            } else {
+                foreach (['firstName', 'firstSurname', 'secondSurname', 'identityCard'] as $field) {
+                    if (empty($attributes[$field])) {
+                        throw new JsonApiException(422, 'VALIDATION_ERROR', 'Faltan datos',
+                            'Para registrar a una persona hacen falta sus nombres, sus apellidos y su carné (o relationships.user si ya tiene cuenta).',
+                            ['pointer' => '/data/attributes/'.$field]);
+                    }
+                }
+
+                $result = $accounts->registerByAdmin($entity, UserController::names($attributes), $attributes['identityCard'],
+                    $attributes['username'] ?? null, $attributes['password'] ?? null);
+                $worker = $result['worker'];
+                $meta = ['created' => $result['created'], 'username' => $result['username'], 'password' => $result['password']];
             }
 
-            return $result;
+            if ($this->relationshipId($data, 'itinerary') !== null) {
+                $this->memberships->place($worker, $this->relationshipId($data, 'itinerary'), $this->relationshipId($data, 'stop'));
+            }
+
+            return $worker;
         });
 
-        $document = (new Document($request))->resource($result['worker']->fresh(), ['user', 'entity']);
-        // Usuario y contraseña generados: solo en esta respuesta (docs/11 §11.5).
-        $document['data']['meta'] = array_merge(isset($document['data']['meta']) ? $document['data']['meta'] : [], [
-            'accountCreated' => $result['created'],
-            'username' => $result['username'],
-            'password' => $result['password'],
-        ]);
+        $document = (new Document($request))->resource($worker->fresh(), ['user']);
 
-        return JsonApiResponse::make($document, 201, ['Location' => url('api/v1/workers/'.$result['worker']->id)]);
+        if ($meta) {
+            $document['meta'] = $meta;
+        }
+
+        return JsonApiResponse::make($document, 201, ['Location' => url('api/v1/workers/'.$worker->id)]);
     }
 
+    /**
+     * attributes.active, attributes.isChief, relationships.itinerary y
+     * relationships.stop (null = quitar). Cambiar de Entidad: relationships.entity
+     * (solo el Administrador; se le quitan itinerario, parada y jefatura en la anterior).
+     */
     public function update(Request $request, $id)
     {
-        $worker = $this->findOrFail($request, $id);
-        $user = $request->user();
-        $data = $this->validateResource($request, 'workers', UserController::nameRules('attributes.', false) + [
+        $actor = $request->user();
+        $worker = $this->visible($actor)->findOrFail($id);
+        $data = $this->validateResource($request, 'workers', [
             'attributes.active' => ['sometimes', 'boolean'],
-            'attributes.identityCard' => ['sometimes', 'required', 'string', 'max:20'],
-            'attributes.hasPhone' => ['sometimes', 'boolean'],
-            'relationships.itinerary.data.type' => ['sometimes', 'in:itineraries'],
-            'relationships.itinerary.data.id' => ['sometimes', 'exists:itineraries,id,deleted_at,NULL'],
-            'relationships.stop.data.type' => ['sometimes', 'in:stops'],
-            'relationships.stop.data.id' => ['sometimes', 'exists:stops,id,deleted_at,NULL'],
-        ]);
+            'attributes.isChief' => ['sometimes', 'boolean'],
+        ] + $this->relationshipRules('itinerary', 'itineraries', 'itineraries', false, true)
+          + $this->relationshipRules('stop', 'stops', 'stops', false, true)
+          + $this->relationshipRules('entity', 'entities', 'entities', false));
 
         if (isset($data['id']) && (string) $data['id'] !== (string) $worker->id) {
             throw JsonApiException::conflict('ID_MISMATCH', 'El id del documento no coincide con el de la URL.', '/data/id');
         }
 
-        $attributes = isset($data['attributes']) ? $data['attributes'] : [];
-        $relationships = isset($data['relationships']) ? $data['relationships'] : [];
-        $entityId = (int) $worker->entity_id;
-        $currentItinerary = $worker->itinerary_id ? (int) $worker->itinerary_id : null;
-        $person = UserController::names($attributes);
-        $editsPerson = $person || array_key_exists('identityCard', $attributes) || array_key_exists('hasPhone', $attributes);
+        $attributes = $data['attributes'] ?? [];
 
-        if (array_key_exists('active', $attributes)) {
-            $this->permissions->authorize($user, 'workers.deactivate', $entityId);
-        }
-
-        if ($editsPerson && (int) $worker->user_id !== (int) $user->id) {
-            $this->permissions->authorize($user, 'workers.edit', $entityId, $currentItinerary);
-        }
-
-        list($itineraryId, $stopId) = $this->itineraryAndStop($relationships);
-
-        if ($itineraryId !== null) {
-            $this->permissions->authorize($user, 'members.assign', $entityId, $itineraryId, 'No puede asignar ese itinerario.');
-        }
-
-        if (! array_key_exists('active', $attributes) && ! $editsPerson && $itineraryId === null && (int) $worker->user_id !== (int) $user->id) {
-            $this->permissions->authorize($user, 'workers.view', $entityId, $currentItinerary);
-        }
-
-        DB::transaction(function () use ($worker, $user, $attributes, $person, $itineraryId, $stopId) {
-            $memberships = app(Memberships::class);
-            $owner = User::withTrashed()->find($worker->user_id);
-
-            if (array_key_exists('identityCard', $attributes)) {
-                app(Accounts::class)->changeIdentityCard($owner, $attributes['identityCard']);
+        $worker = DB::transaction(function () use ($actor, $worker, $data, $attributes) {
+            if ($this->hasRelationship($data, 'entity') && (int) $this->relationshipId($data, 'entity') !== (int) $worker->entity_id) {
+                $worker = $this->changeEntity($actor, $worker, $this->relationshipId($data, 'entity'));
             }
 
-            if ($person || array_key_exists('hasPhone', $attributes)) {
-                $owner->fill($person);
-
-                if (array_key_exists('hasPhone', $attributes)) {
-                    $owner->has_phone = (bool) $attributes['hasPhone'];
-                }
-
-                $owner->save();
-            }
-
-            if ($itineraryId !== null) {
-                $memberships->assignItinerary($worker, $itineraryId, $stopId, $user);
+            if ($this->hasRelationship($data, 'itinerary') || $this->hasRelationship($data, 'stop')) {
+                $itineraryId = $this->hasRelationship($data, 'itinerary') ? $this->relationshipId($data, 'itinerary') : ($worker->itinerary_id ? (int) $worker->itinerary_id : null);
+                $stopId = $this->hasRelationship($data, 'stop') ? $this->relationshipId($data, 'stop')
+                    : ((int) $itineraryId === (int) $worker->itinerary_id && $worker->stop_id ? (int) $worker->stop_id : null);
+                $this->authorizePlacement($actor, $worker, $itineraryId);
+                $this->memberships->place($worker, $itineraryId, $stopId);
             }
 
             if (array_key_exists('active', $attributes)) {
-                $memberships->setActive($worker, (bool) $attributes['active']);
+                if (! $this->access->isAdmin($actor) && ! ($worker->itinerary_id && $this->access->isChiefOf($actor, $worker->itinerary_id))) {
+                    throw Access::forbidden('Solo el Administrador, o el Jefe de su itinerario, activan o desactivan a una persona.');
+                }
+                $worker->active = (bool) $attributes['active'];
+                $worker->save();
             }
+
+            if (array_key_exists('isChief', $attributes)) {
+                $this->access->requireAdmin($actor, 'Solo el Administrador asigna y quita el rol de Jefe de itinerario.');
+
+                if ($attributes['isChief']) {
+                    if (! $worker->itinerary_id) {
+                        throw new JsonApiException(422, 'ITINERARY_REQUIRED', 'Falta el itinerario',
+                            'Para ser Jefe de itinerario hay que estar en un itinerario (relationships.itinerary).', ['pointer' => '/data/relationships/itinerary']);
+                    }
+                    $this->memberships->makeChief($worker, (int) $worker->itinerary_id);
+                } else {
+                    $this->memberships->removeChief($worker);
+                }
+            }
+
+            return $worker;
         });
 
-        return JsonApiResponse::make((new Document($request))->resource(Worker::withTrashed()->find($worker->id), QueryParameters::readIncludes($request, $this->includable)));
+        return $this->respond($request, $worker->fresh(), QueryParameters::readIncludes($request, self::INCLUDABLE));
     }
 
     /**
-     * Darse de baja de la Entidad, o quitar a alguien (entities.assign_members).
+     * Sacar de la Entidad: el Administrador a cualquiera; cada uno a sí mismo («Salir de la Entidad»).
      */
     public function destroy(Request $request, $id)
     {
-        $worker = $this->findOrFail($request, $id);
-        $user = $request->user();
+        $actor = $request->user();
+        $worker = $this->visible($actor)->findOrFail($id);
 
-        if ((int) $worker->user_id !== (int) $user->id) {
-            $this->permissions->authorize($user, 'entities.assign_members', (int) $worker->entity_id);
+        if (! $this->access->isAdmin($actor) && (int) $worker->user_id !== (int) $actor->id) {
+            throw Access::forbidden('Solo el Administrador saca a otra persona de una Entidad.');
         }
 
-        if ($worker->trashed()) {
-            throw JsonApiException::conflict('NOT_A_MEMBER', 'Esa pertenencia ya no está activa.');
+        $this->memberships->leave($worker);
+
+        return $this->noContent();
+    }
+
+    private function changeEntity(User $actor, Worker $worker, int $entityId): Worker
+    {
+        $this->access->requireAdmin($actor, 'Solo el Administrador cambia a una persona de Entidad.');
+
+        if (Worker::where('user_id', $worker->user_id)->where('entity_id', $entityId)->exists()) {
+            throw JsonApiException::conflict('ALREADY_MEMBER', 'Esa persona ya pertenece a esa Entidad.', '/data/relationships/entity');
         }
 
-        app(Memberships::class)->leave($worker, $user);
+        $worker->forceFill(['entity_id' => $entityId, 'itinerary_id' => null, 'stop_id' => null, 'is_chief' => false])->save();
+        $this->access->flush((int) $worker->user_id);
 
-        return response('', 204);
+        return $worker;
     }
 
     /**
-     * Darse de baja del itinerario (y la parada), o quitárselo a alguien
-     * (members.assign sobre su itinerario).
+     * Quién puede poner o quitar el itinerario y la parada.
      */
-    public function removeItinerary(Request $request, $id)
+    private function authorizePlacement(User $actor, Worker $worker, ?int $itineraryId): void
     {
-        $worker = $this->findOrFail($request, $id);
-        $user = $request->user();
-
-        if ((int) $worker->user_id !== (int) $user->id) {
-            $this->permissions->authorize($user, 'members.assign', (int) $worker->entity_id, $worker->itinerary_id ? (int) $worker->itinerary_id : null);
+        if ($this->access->isAdmin($actor)) {
+            return;
         }
 
-        app(Memberships::class)->removeItinerary($worker, $user);
+        $same = (int) $itineraryId === (int) $worker->itinerary_id;
 
-        return response('', 204);
+        // El propio trabajador: cambiarse de parada en su itinerario o salir del itinerario.
+        if ((int) $worker->user_id === (int) $actor->id && ($same || $itineraryId === null)) {
+            return;
+        }
+
+        // El Jefe: dentro de su itinerario, sacar de él o poner en él.
+        $chiefOf = $this->access->chiefItineraryId($actor);
+
+        if ($chiefOf !== null && (($same && $chiefOf === (int) $itineraryId)
+            || ($itineraryId === null && $chiefOf === (int) $worker->itinerary_id)
+            || ($chiefOf === (int) $itineraryId && $this->access->workerIn($actor, $worker->entity_id)))) {
+            return;
+        }
+
+        throw Access::forbidden($itineraryId === null || $same
+            ? 'No puede cambiar la parada ni el itinerario de esta persona.'
+            : 'Para entrar en otro itinerario hay que solicitarlo (o que lo incluya su Jefe por QR).');
     }
 
-    protected function newQuery(Request $request): Builder
+    private function visible(User $viewer): Builder
     {
-        $user = $request->user();
-        $query = Worker::query()->select('workers.*')->join('users', 'users.id', '=', 'workers.user_id')->whereNull('users.deleted_at');
-        $active = $request->input('filter.active');
+        $query = Worker::query();
 
-        if ($active === 'false') {
-            $query->onlyTrashed();
-        } elseif ($active === 'all' || in_array($request->getMethod(), ['PATCH', 'DELETE'], true)) {
-            $query->withTrashed();
+        if ($this->access->isAdmin($viewer)) {
+            return $query;
         }
 
-        $this->permissions->restrict($query, $user, 'workers.view', 'workers.entity_id', 'workers.itinerary_id', function ($query) use ($user) {
-            $query->orWhere('workers.user_id', $user->id);
-        });
+        $query->whereIn('entity_id', $this->access->entityIds($viewer) ?: [0]);
 
-        return $query;
-    }
+        // Lo desactivado solo lo ven el Administrador y el Jefe (en su itinerario).
+        $chiefOf = $this->access->chiefItineraryId($viewer);
 
-    /**
-     * Para modificar o dar de baja no hace falta poder consultarla: lo
-     * decide el permiso de cada acción.
-     */
-    protected function findOrFail(Request $request, $id): Model
-    {
-        if (in_array($request->getMethod(), ['PATCH', 'DELETE'], true)) {
-            return Worker::withTrashed()->whereHas('user')->findOrFail($id);
-        }
-
-        return parent::findOrFail($request, $id);
-    }
-
-    protected function applyFilters(Builder $query, QueryParameters $parameters, Request $request): void
-    {
-        foreach (['entity' => 'workers.entity_id', 'itinerary' => 'workers.itinerary_id', 'stop' => 'workers.stop_id', 'user' => 'workers.user_id'] as $filter => $column) {
-            if ($value = $parameters->filter($filter)) {
-                $query->where($column, $value);
-            }
-        }
-
-        if ($search = $parameters->filter('search')) {
-            $query->where(function ($query) use ($search) {
-                foreach (['first_name', 'middle_name', 'first_surname', 'second_surname', 'username'] as $column) {
-                    $query->orWhere('users.'.$column, 'like', '%'.$search.'%');
-                }
-
-                // Por carné: solo coincidencia exacta (se guarda cifrado).
-                if (\App\Support\IdentityCard::isValid($search)) {
-                    $query->orWhere('users.identity_card_hash', \App\Support\IdentityCard::hash($search));
-                }
-            });
-        }
-    }
-
-    /**
-     * Añade a una persona ya registrada a la Entidad (entities.assign_members).
-     */
-    private function addExistingPerson(Request $request)
-    {
-        $data = $this->validateResource($request, 'workers', [
-            'relationships.user.data.type' => ['required', 'in:users'],
-            'relationships.user.data.id' => ['required', 'exists:users,id,deleted_at,NULL'],
-            'relationships.entity.data.type' => ['required', 'in:entities'],
-            'relationships.entity.data.id' => ['required', 'exists:entities,id,deleted_at,NULL'],
-        ]);
-        $entity = Entity::findOrFail($data['relationships']['entity']['data']['id']);
-        $this->permissions->authorize($request->user(), 'entities.assign_members', $entity->id);
-        $person = User::findOrFail($data['relationships']['user']['data']['id']);
-        $worker = app(Memberships::class)->join($person, $entity, $request->user());
-        app(\App\Services\Notices::class)->send([(int) $person->id], \App\Models\Notice::TYPE_ENTITY_ADDED, null, null, (int) $request->user()->id,
-            ['entity' => $entity->abbreviation, 'by' => $request->user()->fullName()]);
-
-        return JsonApiResponse::make((new Document($request))->resource($worker->fresh(), ['user', 'entity']), 201, [
-            'Location' => url('api/v1/workers/'.$worker->id),
-        ]);
-    }
-
-    /**
-     * Itinerario y parada van siempre juntos.
-     *
-     * @return array [itineraryId|null, stopId|null]
-     */
-    private function itineraryAndStop(array $relationships): array
-    {
-        $itineraryId = isset($relationships['itinerary']['data']['id']) ? (int) $relationships['itinerary']['data']['id'] : null;
-        $stopId = isset($relationships['stop']['data']['id']) ? (int) $relationships['stop']['data']['id'] : null;
-
-        if ($itineraryId === null && $stopId !== null) {
-            throw new JsonApiException(422, 'VALIDATION_ERROR', 'Falta el itinerario', 'Indique el itinerario de la parada.', ['pointer' => '/data/relationships/itinerary/data/id']);
-        }
-
-        if ($itineraryId !== null && $stopId === null) {
-            throw new JsonApiException(422, 'VALIDATION_ERROR', 'Falta la parada', 'Indique la parada en el itinerario.', ['pointer' => '/data/relationships/stop/data/id']);
-        }
-
-        return [$itineraryId, $stopId];
+        return $query->where(fn ($q) => $q->where('active', true)->orWhere('user_id', $viewer->id)
+            ->when($chiefOf !== null, fn ($q) => $q->orWhere('itinerary_id', $chiefOf)));
     }
 }

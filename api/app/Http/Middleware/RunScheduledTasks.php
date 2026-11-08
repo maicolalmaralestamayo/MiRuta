@@ -20,7 +20,7 @@ class RunScheduledTasks
 
     public function terminate($request, $response): void
     {
-        if (! config('mitransporte.tasks_on_requests') || app()->runningUnitTests()) {
+        if (! config('miruta.tasks_on_requests') || app()->runningUnitTests()) {
             return;
         }
 

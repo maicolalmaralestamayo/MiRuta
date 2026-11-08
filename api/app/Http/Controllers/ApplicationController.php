@@ -2,171 +2,126 @@
 
 namespace App\Http\Controllers;
 
-use App\JsonApi\Document;
 use App\JsonApi\JsonApiException;
-use App\JsonApi\JsonApiResponse;
 use App\JsonApi\QueryParameters;
 use App\Models\Application;
 use App\Models\Entity;
+use App\Models\Itinerary;
+use App\Services\Access;
+use App\Services\Accounts;
 use App\Services\Applications;
 use Illuminate\Http\Request;
 
 /**
- * Solicitudes (docs/11 §11.6 y §11.16): entity_membership,
- * itinerary_membership y role. Las envía la propia persona; las resuelve
- * quien tenga permiso; el solicitante las puede cancelar.
+ * Solicitudes de Entidad y de itinerario (docs/11 §11.23 y §11.26).
+ *
+ * - POST: type «entidad» (relationships.entity o attributes.entityAbbreviation)
+ *   o «itinerario» (relationships.itinerary y, si quiere, relationships.stop).
+ * - PATCH: attributes.status «aprobada» o «rechazada» (con relationships.denialReason
+ *   y attributes.resolutionNote opcional), por quien la resuelve.
+ * - DELETE: quien la hizo (cancelar una pendiente o eliminar una resuelta).
+ * - filter[status]: lista separada por comas (por omisión, todas);
+ *   filter[mine]=true: solo las propias.
  */
 class ApplicationController extends Controller
 {
-    const SORTABLE = ['createdAt' => 'created_at', 'resolvedAt' => 'resolved_at', 'id' => 'id'];
+    public const SORTABLE = ['id' => 'id', 'createdAt' => 'created_at', 'resolvedAt' => 'resolved_at'];
+    public const INCLUDABLE = ['user', 'entity', 'itinerary', 'stop', 'denialReason', 'resolvedBy'];
 
-    const FILTERABLE = ['status', 'type', 'mine', 'toResolve', 'user', 'entity', 'itinerary', 'role'];
-
-    const INCLUDABLE = ['user', 'entity', 'createdBy', 'resolvedBy', 'itinerary', 'stop', 'role'];
-
-    /** @var Applications */
-    private $applications;
-
-    public function __construct(Applications $applications)
+    public function __construct(private Applications $applications, private Access $access)
     {
-        $this->applications = $applications;
     }
 
     public function index(Request $request)
     {
-        $user = $request->user();
-        $parameters = QueryParameters::fromRequest($request, self::SORTABLE, self::FILTERABLE, self::INCLUDABLE, '-createdAt');
-        $query = $this->applications->visibleTo($user);
+        $parameters = QueryParameters::fromRequest($request, self::SORTABLE, ['status', 'type', 'entity', 'itinerary', 'mine'], self::INCLUDABLE, '-createdAt');
+        $query = $this->applications->visibleQuery($request->user());
 
         if ($status = $parameters->filter('status')) {
             $query->whereIn('status', explode(',', $status));
         }
 
         if ($type = $parameters->filter('type')) {
-            $query->whereIn('type', explode(',', $type));
+            $query->where('type', $type);
         }
 
-        foreach (['user' => 'user_id', 'entity' => 'entity_id', 'itinerary' => 'itinerary_id', 'role' => 'role_id'] as $filter => $column) {
+        foreach (['entity' => 'entity_id', 'itinerary' => 'itinerary_id'] as $filter => $column) {
             if ($value = $parameters->filter($filter)) {
-                $query->where($column, $value);
+                $query->where($column, (int) $value);
             }
         }
 
         if ($parameters->filter('mine') === 'true') {
-            $query->where('user_id', $user->id);
+            $query->where('user_id', $request->user()->id);
+        } elseif ($parameters->filter('mine') === 'false') {
+            $query->where('user_id', '<>', $request->user()->id);
         }
 
-        if ($parameters->filter('toResolve') === 'true') {
-            $this->applications->resolvableBy($user, $query);
-        }
-
-        $paginator = $parameters->applySort($query, self::SORTABLE)
-            ->paginate($parameters->pageSize(), ['*'], 'page', $parameters->pageNumber());
-
-        return JsonApiResponse::make((new Document($request))->collection($paginator, $parameters->includes()));
+        return $this->paginate($request, $query, $parameters, self::SORTABLE);
     }
 
     public function show(Request $request, $id)
     {
-        $application = $this->findVisible($request, $id);
-
-        return JsonApiResponse::make((new Document($request))->resource($application, QueryParameters::readIncludes($request, self::INCLUDABLE)));
+        return $this->respond($request, $this->applications->visibleQuery($request->user())->findOrFail($id),
+            QueryParameters::readIncludes($request, self::INCLUDABLE));
     }
 
-    /**
-     * - entity_membership: relationships.entity o attributes.entityAbbreviation.
-     * - itinerary_membership: relationships.itinerary y relationships.stop.
-     * - role: relationships.role, relationships.entity (si pertenece a varias)
-     *   y relationships.itinerary (si el rol es por itinerario).
-     */
-    public function store(Request $request)
+    public function store(Request $request, Accounts $accounts)
     {
-        $relationship = function (string $name, string $jsonType, string $table) {
-            return [
-                "relationships.{$name}.data.type" => ['sometimes', "in:{$jsonType}"],
-                "relationships.{$name}.data.id" => ['sometimes', "exists:{$table},id,deleted_at,NULL"],
-            ];
-        };
-        $data = $this->validateResource($request, 'applications', array_merge(
-            [
-                'attributes.type' => ['required', 'in:'.implode(',', Application::TYPES)],
-                'attributes.entityAbbreviation' => ['sometimes', 'string', 'max:15'],
-            ],
-            $relationship('entity', 'entities', 'entities'),
-            $relationship('itinerary', 'itineraries', 'itineraries'),
-            $relationship('stop', 'stops', 'stops'),
-            $relationship('role', 'roles', 'roles')
-        ));
-
-        $relationships = isset($data['relationships']) ? $data['relationships'] : [];
-        $id = function (string $name) use ($relationships) {
-            return isset($relationships[$name]['data']['id']) ? (int) $relationships[$name]['data']['id'] : null;
-        };
-        $entityId = $id('entity');
-
-        if ($entityId === null && isset($data['attributes']['entityAbbreviation'])) {
-            $entity = Entity::findByAbbreviation($data['attributes']['entityAbbreviation']);
-
-            if (! $entity) {
-                throw new JsonApiException(422, 'ENTITY_NOT_FOUND', 'Entidad no encontrada',
-                    'No hay ninguna Entidad con esa abreviatura. Pregúntela a su superior.', ['pointer' => '/data/attributes/entityAbbreviation']);
-            }
-
-            $entityId = (int) $entity->id;
-        }
-
-        $application = $this->applications->create($request->user(), [
-            'type' => $data['attributes']['type'],
-            'entityId' => $entityId,
-            'itineraryId' => $id('itinerary'),
-            'stopId' => $id('stop'),
-            'roleId' => $id('role'),
-        ]);
-
-        return JsonApiResponse::make((new Document($request))->resource($application->fresh()), 201, [
-            'Location' => url('api/v1/applications/'.$application->id),
-        ]);
-    }
-
-    /**
-     * status = approved o rejected (quien puede resolverla; al rechazar, el
-     * motivo es obligatorio) o cancelled (el solicitante).
-     */
-    public function update(Request $request, $id)
-    {
-        $application = $this->findVisible($request, $id);
+        $data = $this->validateResource($request, 'applications', [
+            'attributes.type' => ['required', 'in:entidad,itinerario'],
+            'attributes.entityAbbreviation' => ['sometimes', 'string', 'max:15'],
+        ] + $this->relationshipRules('entity', 'entities', 'entities', false)
+          + $this->relationshipRules('itinerary', 'itineraries', 'itineraries', false)
+          + $this->relationshipRules('stop', 'stops', 'stops', false, true));
         $user = $request->user();
 
-        $data = $this->validateResource($request, 'applications', [
-            'attributes.status' => ['required', 'in:approved,rejected,cancelled'],
-            'attributes.resolutionNote' => $request->json('data.attributes.status') === Application::STATUS_REJECTED
-                ? ['required', 'string', 'min:3', 'max:1000', 'regex:/\S/']
-                : ['sometimes', 'nullable', 'string', 'max:1000'],
-        ]);
-        $note = isset($data['attributes']['resolutionNote']) ? $data['attributes']['resolutionNote'] : null;
-
-        switch ($data['attributes']['status']) {
-            case Application::STATUS_APPROVED:
-                $application = $this->applications->approve($application, $user, $note);
-                break;
-            case Application::STATUS_REJECTED:
-                $application = $this->applications->reject($application, $user, $note);
-                break;
-            default:
-                $application = $this->applications->cancel($application, $user);
+        if ($data['attributes']['type'] === Application::TYPE_ENTITY) {
+            $entity = $this->relationshipId($data, 'entity') !== null
+                ? Entity::findOrFail($this->relationshipId($data, 'entity'))
+                : $accounts->entityOrFail((string) ($data['attributes']['entityAbbreviation'] ?? ''));
+            $application = $this->applications->requestEntity($user, $entity);
+        } else {
+            if ($this->relationshipId($data, 'itinerary') === null) {
+                throw new JsonApiException(422, 'VALIDATION_ERROR', 'Falta el itinerario', 'Indique el itinerario (relationships.itinerary).', ['pointer' => '/data/relationships/itinerary']);
+            }
+            $application = $this->applications->requestItinerary($user, Itinerary::findOrFail($this->relationshipId($data, 'itinerary')), $this->relationshipId($data, 'stop'));
         }
 
-        return JsonApiResponse::make((new Document($request))->resource($application->fresh()));
+        return $this->created($request, $application->fresh(), 'applications');
     }
 
-    private function findVisible(Request $request, $id): Application
+    public function update(Request $request, $id)
     {
-        $application = $this->applications->visibleTo($request->user())->find($id);
+        $application = $this->applications->visibleQuery($request->user())->findOrFail($id);
+        $data = $this->validateResource($request, 'applications', [
+            'attributes.status' => ['required', 'in:aprobada,rechazada'],
+            'attributes.resolutionNote' => ['sometimes', 'nullable', 'string', 'max:1000'],
+        ] + $this->relationshipRules('denialReason', 'denial-reasons', 'denial_reasons', false));
 
-        if (! $application) {
-            throw new JsonApiException(404, 'NOT_FOUND', 'No encontrado', 'La solicitud no existe o no puede verla.');
+        if ($data['attributes']['status'] === Application::APPROVED) {
+            $this->applications->approve($application, $request->user());
+        } else {
+            if ($this->relationshipId($data, 'denialReason') === null) {
+                throw new JsonApiException(422, 'DENIAL_REASON_REQUIRED', 'Falta el motivo', 'Para rechazar hay que elegir el motivo (relationships.denialReason).', ['pointer' => '/data/relationships/denialReason']);
+            }
+            $this->applications->reject($application, $request->user(), $this->relationshipId($data, 'denialReason'),
+                self::text($data['attributes']['resolutionNote'] ?? null));
         }
 
-        return $application;
+        return $this->respond($request, $application->fresh(), QueryParameters::readIncludes($request, self::INCLUDABLE));
+    }
+
+    public function destroy(Request $request, $id)
+    {
+        $application = $this->applications->visibleQuery($request->user())->findOrFail($id);
+
+        if ((int) $application->user_id !== (int) $request->user()->id) {
+            throw Access::forbidden('Solo quien hizo la solicitud la cancela o la elimina.');
+        }
+
+        $application->delete();
+
+        return $this->noContent();
     }
 }

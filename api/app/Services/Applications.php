@@ -4,397 +4,230 @@ namespace App\Services;
 
 use App\JsonApi\JsonApiException;
 use App\Models\Application;
+use App\Models\DenialReason;
 use App\Models\Entity;
 use App\Models\Itinerary;
-use App\Models\ItineraryStop;
-use App\Models\Notice;
-use App\Models\Role;
-use App\Models\RoleApprover;
 use App\Models\User;
 use App\Models\Worker;
-use App\Models\WorkerRole;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Solicitudes (docs/11 §11.6 y §11.16):
+ * Solicitudes de Entidad y de itinerario (docs/11 §11.23 y §11.26).
  *
- * - entity_membership: entrar en una Entidad; la aprueba quien tenga
- *   entities.approve_membership (por defecto, solo el Administrador).
- * - itinerary_membership: itinerario y parada; la aprueba quien tenga
- *   members.approve sobre ese itinerario.
- * - role: un rol que se pueda solicitar; la aprueban quienes tengan en esa
- *   Entidad alguno de sus roles aprobadores y roles.approve, y el Administrador.
- *
- * Al rechazar, el motivo es obligatorio. Darse de baja no es una solicitud.
+ * - Entidad: la resuelve el Administrador.
+ * - Itinerario (con parada opcional): el Administrador o un Jefe de ese itinerario.
+ * - Quien la hizo ve las suyas y su estado, y puede cancelarlas o eliminarlas.
+ * - Rechazar exige un motivo del nomenclador (y una observación opcional).
  */
 class Applications
 {
-    /** @var Notices */
-    private $notices;
-
-    /** @var Permissions */
-    private $permissions;
-
-    /** @var Memberships */
-    private $memberships;
-
-    public function __construct(Notices $notices, Permissions $permissions, Memberships $memberships)
+    public function __construct(private Access $access, private Memberships $memberships, private Notifier $notifier)
     {
-        $this->notices = $notices;
-        $this->permissions = $permissions;
-        $this->memberships = $memberships;
     }
 
-    /**
-     * Solicitud de la propia persona.
-     *
-     * @param array $input ['type', 'entityId', 'itineraryId', 'stopId', 'roleId']
-     */
-    public function create(User $user, array $input): Application
+    public function requestEntity(User $user, Entity $entity): Application
     {
-        $type = $input['type'];
-        $entityId = $input['entityId'];
-        $itineraryId = $input['itineraryId'];
-        $stopId = $input['stopId'];
-        $roleId = $input['roleId'];
-
-        switch ($type) {
-            case Application::TYPE_ENTITY_MEMBERSHIP:
-                if ($entityId === null || ! Entity::whereKey($entityId)->exists()) {
-                    throw $this->invalid('Indique la Entidad en la que quiere entrar.', '/data/relationships/entity', 'ENTITY_NOT_FOUND');
-                }
-                if ($user->workerIn($entityId)) {
-                    throw JsonApiException::conflict('ALREADY_MEMBER', 'Ya pertenece a esa Entidad.');
-                }
-                $itineraryId = $stopId = $roleId = null;
-                break;
-
-            case Application::TYPE_ITINERARY_MEMBERSHIP:
-                $itinerary = $itineraryId ? Itinerary::find($itineraryId) : null;
-                if (! $itinerary) {
-                    throw $this->invalid('Indique el itinerario.', '/data/relationships/itinerary');
-                }
-                $entityId = (int) $itinerary->entity_id;
-                $worker = $this->workerOrFail($user, $entityId);
-                if (! $stopId || ! ItineraryStop::where('itinerary_id', $itineraryId)->where('stop_id', $stopId)->exists()) {
-                    throw $this->invalid('La parada no pertenece a ese itinerario.', '/data/relationships/stop', 'STOP_NOT_IN_ITINERARY');
-                }
-                if ((int) $worker->itinerary_id === (int) $itineraryId && (int) $worker->stop_id === (int) $stopId) {
-                    throw JsonApiException::conflict('ALREADY_MEMBER', 'Ya viaja en ese itinerario y en esa parada.');
-                }
-                $roleId = null;
-                break;
-
-            case Application::TYPE_ROLE:
-                $role = $roleId ? Role::find($roleId) : null;
-                if (! $role) {
-                    throw $this->invalid('Indique el rol.', '/data/relationships/role');
-                }
-                if (! $role->requestable) {
-                    throw $this->invalid('Ese rol no se puede solicitar: solo lo asigna quien tiene permiso.', '/data/relationships/role', 'ROLE_NOT_REQUESTABLE');
-                }
-                if ($entityId === null && $itineraryId !== null) {
-                    $entityId = (int) Itinerary::whereKey($itineraryId)->value('entity_id') ?: null;
-                }
-                $entityId = $entityId !== null ? $entityId : $user->singleEntityId();
-                if ($entityId === null) {
-                    throw $this->invalid('Indique la Entidad en la que pide el rol.', '/data/relationships/entity');
-                }
-                $worker = $this->workerOrFail($user, $entityId);
-                $this->memberships->validateRoleItinerary($worker, $role, $itineraryId);
-                if (WorkerRole::where('worker_id', $worker->id)->where('role_id', $role->id)->exists()) {
-                    throw JsonApiException::conflict('ALREADY_HAS_ROLE', 'Ya tiene ese rol en esa Entidad.');
-                }
-                $itineraryId = $role->itinerary_scoped ? $itineraryId : null;
-                $stopId = null;
-                break;
-
-            default:
-                throw $this->invalid('Tipo de solicitud no válido.', '/data/attributes/type');
+        if (! $entity->active) {
+            throw JsonApiException::conflict('ENTITY_INACTIVE', 'Esa Entidad está desactivada: no admite solicitudes.', '/data/relationships/entity');
         }
 
-        $this->ensureNoPendingDuplicate($user, $type, $entityId, $roleId);
+        if ($this->access->workerIn($user, $entity->id)) {
+            throw JsonApiException::conflict('ALREADY_MEMBER', 'Ya pertenece a esa Entidad.', '/data/relationships/entity');
+        }
 
-        return DB::transaction(function () use ($user, $type, $entityId, $itineraryId, $stopId, $roleId) {
-            $application = Application::create([
-                'user_id' => $user->id,
-                'entity_id' => $entityId,
-                'type' => $type,
-                'status' => Application::STATUS_PENDING,
-                'itinerary_id' => $itineraryId,
-                'stop_id' => $stopId,
-                'role_id' => $roleId,
-                'created_by' => $user->id,
-            ]);
+        $this->ensureNoPending($user, Application::TYPE_ENTITY, $entity->id, null);
 
-            $this->notices->send($this->resolverIds($application), Notice::TYPE_APPLICATION_RECEIVED, $application->id, null, (int) $user->id);
+        $application = Application::create([
+            'user_id' => $user->id, 'type' => Application::TYPE_ENTITY, 'status' => Application::PENDING, 'entity_id' => $entity->id,
+        ]);
 
-            return $application;
+        $this->notifier->send($this->notifier->adminIds(), Notifier::APPLICATION_RECEIVED, 'Solicitud de Entidad',
+            $user->fullName().' solicita entrar en '.$entity->abbreviation.'.', ['applicationId' => (string) $application->id]);
+
+        return $application;
+    }
+
+    public function requestItinerary(User $user, Itinerary $itinerary, ?int $stopId): Application
+    {
+        if (! $itinerary->active) {
+            throw JsonApiException::conflict('ITINERARY_INACTIVE', 'Ese itinerario está desactivado: no admite solicitudes.', '/data/relationships/itinerary');
+        }
+
+        $worker = $this->access->workerIn($user, $itinerary->entity_id);
+
+        if (! $worker) {
+            throw JsonApiException::conflict('NOT_MEMBER', 'Primero tiene que pertenecer a la Entidad de ese itinerario.', '/data/relationships/itinerary');
+        }
+
+        if ((int) $worker->itinerary_id === (int) $itinerary->id) {
+            throw JsonApiException::conflict('ALREADY_IN_ITINERARY', 'Ya está en ese itinerario. Para cambiar de parada no hace falta solicitud.', '/data/relationships/itinerary');
+        }
+
+        if ($stopId !== null && ! $itinerary->hasStop($stopId)) {
+            throw new JsonApiException(422, 'STOP_NOT_IN_ITINERARY', 'Parada de otro itinerario', 'La parada no es de ese itinerario.', ['pointer' => '/data/relationships/stop']);
+        }
+
+        $this->ensureNoPending($user, Application::TYPE_ITINERARY, $itinerary->entity_id, $itinerary->id);
+
+        $application = Application::create([
+            'user_id' => $user->id, 'type' => Application::TYPE_ITINERARY, 'status' => Application::PENDING,
+            'entity_id' => $itinerary->entity_id, 'itinerary_id' => $itinerary->id, 'stop_id' => $stopId,
+        ]);
+
+        $this->notifier->send(array_merge($this->notifier->adminIds(), $this->notifier->chiefIds($itinerary->id)),
+            Notifier::APPLICATION_RECEIVED, 'Solicitud de itinerario',
+            $user->fullName().' solicita entrar en el itinerario '.$itinerary->name.'.', ['applicationId' => (string) $application->id]);
+
+        return $application;
+    }
+
+    public function canResolve(User $actor, Application $application): bool
+    {
+        return $application->type === Application::TYPE_ENTITY
+            ? $this->access->isAdmin($actor)
+            : $this->access->canManageItinerary($actor, $application->itinerary_id);
+    }
+
+    public function approve(Application $application, User $actor): Application
+    {
+        $this->ensureResolvable($application, $actor);
+
+        DB::transaction(function () use ($application, $actor) {
+            $user = User::findOrFail($application->user_id);
+            $entity = Entity::findOrFail($application->entity_id);
+
+            if ($application->type === Application::TYPE_ENTITY) {
+                $this->memberships->join($user, $entity);
+            } else {
+                $worker = Worker::where('user_id', $user->id)->where('entity_id', $entity->id)->first();
+
+                if (! $worker) {
+                    throw JsonApiException::conflict('NOT_MEMBER', 'La persona ya no pertenece a la Entidad de ese itinerario.');
+                }
+
+                $this->memberships->place($worker, (int) $application->itinerary_id, $application->stop_id ? (int) $application->stop_id : null);
+            }
+
+            $application->forceFill([
+                'status' => Application::APPROVED, 'resolved_by' => $actor->id, 'resolved_at' => Carbon::now(),
+            ])->save();
         });
+
+        $this->notifyResolved($application);
+
+        return $application;
+    }
+
+    public function reject(Application $application, User $actor, int $denialReasonId, ?string $note): Application
+    {
+        $this->ensureResolvable($application, $actor);
+        $reason = DenialReason::find($denialReasonId);
+
+        if (! $reason || ! $reason->active || ($reason->application_type !== null && $reason->application_type !== $application->type)) {
+            throw new JsonApiException(422, 'DENIAL_REASON_INVALID', 'Motivo no válido',
+                'Elija un motivo de denegación activo para este tipo de solicitud.', ['pointer' => '/data/relationships/denialReason']);
+        }
+
+        $application->forceFill([
+            'status' => Application::REJECTED, 'denial_reason_id' => $reason->id, 'resolution_note' => $note,
+            'resolved_by' => $actor->id, 'resolved_at' => Carbon::now(),
+        ])->save();
+
+        $this->notifyResolved($application);
+
+        return $application;
     }
 
     /**
-     * Puede aprobar o rechazar la solicitud (sin mirar si está pendiente).
+     * Solicitudes que ve: las suyas; el Jefe, además, las de su itinerario; el
+     * Administrador, todas.
      */
-    public function canResolve(User $user, Application $application): bool
-    {
-        if ($user->isAdmin()) {
-            return true;
-        }
-
-        if ((int) $application->user_id === (int) $user->id) {
-            return false;
-        }
-
-        switch ($application->type) {
-            case Application::TYPE_ENTITY_MEMBERSHIP:
-                return $this->permissions->can($user, 'entities.approve_membership', (int) $application->entity_id);
-            case Application::TYPE_ITINERARY_MEMBERSHIP:
-                return $this->permissions->can($user, 'members.approve', (int) $application->entity_id, (int) $application->itinerary_id);
-            case Application::TYPE_ROLE:
-                return $this->canApproveRole($user, (int) $application->role_id, (int) $application->entity_id);
-        }
-
-        return false;
-    }
-
-    /**
-     * Aprueba (o asigna directamente) el rol en esa Entidad: tiene roles.approve
-     * (o roles.assign, según $operation) y alguno de los roles aprobadores.
-     */
-    public function canApproveRole(User $user, int $roleId, int $entityId, string $operation = 'roles.approve'): bool
-    {
-        if ($user->isAdmin()) {
-            return true;
-        }
-
-        $scope = $this->permissions->scope($user, $operation);
-
-        if (! $scope['all'] && ! in_array($entityId, $scope['entities'], true)) {
-            return false;
-        }
-
-        $approvers = array_map('intval', RoleApprover::where('role_id', $roleId)->pluck('approver_role_id')->all());
-        $held = $this->permissions->heldRoleIds($user, $scope['all'] ? null : $entityId);
-
-        return (bool) array_intersect($approvers, $held);
-    }
-
-    public function approve(Application $application, User $by, ?string $note = null): Application
-    {
-        return $this->resolve($application, $by, Application::STATUS_APPROVED, $note);
-    }
-
-    public function reject(Application $application, User $by, string $note): Application
-    {
-        return $this->resolve($application, $by, Application::STATUS_REJECTED, $note);
-    }
-
-    /**
-     * Solo el solicitante, mientras esté pendiente.
-     */
-    public function cancel(Application $application, User $by): Application
-    {
-        if ((int) $application->user_id !== (int) $by->id) {
-            throw new JsonApiException(403, 'FORBIDDEN', 'Sin permiso', 'Solo quien envió la solicitud puede cancelarla.');
-        }
-
-        return DB::transaction(function () use ($application) {
-            $application = $this->lockPending($application);
-            $application->status = Application::STATUS_CANCELLED;
-            $application->save();
-
-            return $application;
-        });
-    }
-
-    /**
-     * Solicitudes que puede ver: las suyas y las que puede resolver.
-     */
-    public function visibleTo(User $user): Builder
+    public function visibleQuery(User $user): Builder
     {
         $query = Application::query();
 
-        if ($user->isAdmin()) {
+        if ($this->access->isAdmin($user)) {
             return $query;
         }
 
-        return $query->where(function (Builder $query) use ($user) {
-            $query->where('user_id', $user->id)->orWhere(function (Builder $query) use ($user) {
-                $this->whereResolvable($query, $user);
-            });
+        $itineraryId = $this->access->chiefItineraryId($user);
+
+        return $query->where(function ($q) use ($user, $itineraryId) {
+            $q->where('user_id', $user->id);
+
+            if ($itineraryId !== null) {
+                $q->orWhere(fn ($q) => $q->where('type', Application::TYPE_ITINERARY)->where('itinerary_id', $itineraryId));
+            }
         });
     }
 
     /**
-     * Filtra a las pendientes que puede resolver.
+     * Pendientes que le toca resolver (número en la pestaña Gestión).
      */
-    public function resolvableBy(User $user, Builder $query): Builder
+    public function pendingToResolve(User $user): int
     {
-        $query->where('status', Application::STATUS_PENDING);
-
-        if ($user->isAdmin()) {
-            return $query;
+        if ($this->access->isAdmin($user)) {
+            return Application::where('status', Application::PENDING)->count();
         }
 
-        return $query->where('user_id', '!=', $user->id)->where(function (Builder $query) use ($user) {
-            $this->whereResolvable($query, $user);
-        });
+        $itineraryId = $this->access->chiefItineraryId($user);
+
+        return $itineraryId === null ? 0 : Application::where('status', Application::PENDING)
+            ->where('type', Application::TYPE_ITINERARY)->where('itinerary_id', $itineraryId)->count();
     }
 
     /**
-     * @return int[] personas que pueden resolverla
+     * Las suyas resueltas que aún no vio.
      */
-    public function resolverIds(Application $application): array
+    public function unseenResolved(User $user): int
     {
-        switch ($application->type) {
-            case Application::TYPE_ENTITY_MEMBERSHIP:
-                return $this->permissions->userIdsWith('entities.approve_membership', (int) $application->entity_id);
-            case Application::TYPE_ITINERARY_MEMBERSHIP:
-                return $this->permissions->userIdsWith('members.approve', (int) $application->entity_id, (int) $application->itinerary_id);
-            default:
-                $ids = $this->permissions->userIdsWith('roles.approve', (int) $application->entity_id);
+        return Application::where('user_id', $user->id)->where('status', '<>', Application::PENDING)->whereNull('seen_at')->count();
+    }
 
-                return array_values(array_filter($ids, function ($id) use ($application) {
-                    $user = User::find($id);
+    public function markSeen(User $user): int
+    {
+        return Application::where('user_id', $user->id)->where('status', '<>', Application::PENDING)->whereNull('seen_at')
+            ->update(['seen_at' => Carbon::now()]);
+    }
 
-                    return $user && $this->canApproveRole($user, (int) $application->role_id, (int) $application->entity_id);
-                }));
+    private function ensureResolvable(Application $application, User $actor): void
+    {
+        if (! $this->canResolve($actor, $application)) {
+            throw Access::forbidden($application->type === Application::TYPE_ENTITY
+                ? 'Las solicitudes de Entidad las resuelve el Administrador.'
+                : 'Las solicitudes de itinerario las resuelven el Administrador y los Jefes de ese itinerario.');
+        }
+
+        if ($application->status !== Application::PENDING) {
+            throw JsonApiException::conflict('APPLICATION_NOT_PENDING', 'La solicitud ya está resuelta.');
         }
     }
 
-    private function whereResolvable(Builder $query, User $user): void
+    private function ensureNoPending(User $user, string $type, int $entityId, ?int $itineraryId): void
     {
-        $query->whereRaw('1 = 0');
+        $exists = Application::where('user_id', $user->id)->where('type', $type)->where('status', Application::PENDING)
+            ->where('entity_id', $entityId)
+            ->when($itineraryId !== null, fn ($q) => $q->where('itinerary_id', $itineraryId))
+            ->exists();
 
-        $entity = $this->permissions->scope($user, 'entities.approve_membership');
-        $query->orWhere(function (Builder $query) use ($entity) {
-            $query->where('type', Application::TYPE_ENTITY_MEMBERSHIP);
-            if (! $entity['all']) {
-                $query->whereIn('entity_id', $entity['entities'] ?: [0]);
-            }
-        });
-
-        $members = $this->permissions->scope($user, 'members.approve');
-        $query->orWhere(function (Builder $query) use ($members) {
-            $query->where('type', Application::TYPE_ITINERARY_MEMBERSHIP);
-            if (! $members['all']) {
-                $query->where(function (Builder $query) use ($members) {
-                    $query->whereIn('entity_id', $members['entities'] ?: [0])->orWhereIn('itinerary_id', $members['itineraries'] ?: [0]);
-                });
-            }
-        });
-
-        $roles = $this->permissions->scope($user, 'roles.approve');
-        $entityIds = $roles['all'] ? $user->entityIds() : $roles['entities'];
-
-        foreach ($entityIds as $entityId) {
-            $held = $this->permissions->heldRoleIds($user, $roles['all'] ? null : $entityId);
-            $roleIds = $held ? array_map('intval', RoleApprover::whereIn('approver_role_id', $held)->pluck('role_id')->all()) : [];
-
-            if ($roleIds) {
-                $query->orWhere(function (Builder $query) use ($entityId, $roleIds, $roles) {
-                    $query->where('type', Application::TYPE_ROLE)->whereIn('role_id', $roleIds);
-                    if (! $roles['all']) {
-                        $query->where('entity_id', $entityId);
-                    }
-                });
-            }
+        if ($exists) {
+            throw JsonApiException::conflict('APPLICATION_PENDING', 'Ya tiene una solicitud pendiente igual.');
         }
     }
 
-    private function resolve(Application $application, User $by, string $status, ?string $note): Application
+    private function notifyResolved(Application $application): void
     {
-        if ((int) $application->user_id === (int) $by->id && ! $by->isAdmin()) {
-            throw new JsonApiException(403, 'SELF_APPROVAL', 'Sin permiso', 'No puede resolver sus propias solicitudes.');
-        }
+        $target = $application->type === Application::TYPE_ENTITY
+            ? 'entrar en '.Entity::find($application->entity_id)?->abbreviation
+            : 'entrar en el itinerario '.Itinerary::find($application->itinerary_id)?->name;
+        $approved = $application->status === Application::APPROVED;
+        $reason = $approved ? '' : ' Motivo: '.DenialReason::find($application->denial_reason_id)?->name.'.';
 
-        if (! $this->canResolve($by, $application)) {
-            throw new JsonApiException(403, 'FORBIDDEN', 'Sin permiso', 'No puede resolver esta solicitud.');
-        }
-
-        return DB::transaction(function () use ($application, $by, $status, $note) {
-            $application = $this->lockPending($application);
-            $application->forceFill([
-                'status' => $status,
-                'resolved_by' => $by->id,
-                'resolved_at' => Carbon::now(),
-                'resolution_note' => $note,
-            ])->save();
-
-            if ($status === Application::STATUS_APPROVED) {
-                $this->applyApproval($application);
-            }
-
-            $this->notices->send([(int) $application->user_id], Notice::TYPE_APPLICATION_RESOLVED, $application->id);
-
-            return $application;
-        });
-    }
-
-    private function applyApproval(Application $application): void
-    {
-        $user = User::findOrFail($application->user_id);
-
-        switch ($application->type) {
-            case Application::TYPE_ENTITY_MEMBERSHIP:
-                if (! $user->workerIn($application->entity_id)) {
-                    $this->memberships->join($user, Entity::findOrFail($application->entity_id));
-                }
-                break;
-
-            case Application::TYPE_ITINERARY_MEMBERSHIP:
-                $worker = $this->workerOrFail($user, (int) $application->entity_id);
-                $this->memberships->assignItinerary($worker, (int) $application->itinerary_id, (int) $application->stop_id);
-                break;
-
-            case Application::TYPE_ROLE:
-                $worker = $this->workerOrFail($user, (int) $application->entity_id);
-                $this->memberships->assignRole($worker, Role::findOrFail($application->role_id), $application->itinerary_id ? (int) $application->itinerary_id : null);
-                break;
-        }
-    }
-
-    private function workerOrFail(User $user, int $entityId): Worker
-    {
-        $worker = $user->workerIn($entityId);
-
-        if (! $worker) {
-            throw JsonApiException::conflict('NOT_A_MEMBER', 'Primero hay que pertenecer a esa Entidad.');
-        }
-
-        return $worker;
-    }
-
-    private function ensureNoPendingDuplicate(User $user, string $type, ?int $entityId, ?int $roleId): void
-    {
-        $query = Application::where('user_id', $user->id)->where('type', $type)->where('entity_id', $entityId)
-            ->where('status', Application::STATUS_PENDING);
-
-        if ($type === Application::TYPE_ROLE) {
-            $query->where('role_id', $roleId);
-        }
-
-        if ($query->exists()) {
-            throw JsonApiException::conflict('APPLICATION_ALREADY_PENDING', 'Ya tiene una solicitud igual pendiente. Cancélela si quiere enviar otra.');
-        }
-    }
-
-    private function lockPending(Application $application): Application
-    {
-        $locked = Application::lockForUpdate()->findOrFail($application->id);
-
-        if (! $locked->isPending()) {
-            throw JsonApiException::conflict('APPLICATION_NOT_PENDING', 'La solicitud ya no está pendiente.');
-        }
-
-        return $locked;
-    }
-
-    private function invalid(string $detail, string $pointer, string $code = 'VALIDATION_ERROR'): JsonApiException
-    {
-        return new JsonApiException(422, $code, 'Solicitud no válida', $detail, ['pointer' => $pointer]);
+        $this->notifier->send([(int) $application->user_id], Notifier::APPLICATION_RESOLVED,
+            $approved ? 'Solicitud aprobada' : 'Solicitud rechazada',
+            'Su solicitud de '.$target.' fue '.($approved ? 'aprobada.' : 'rechazada.'.$reason),
+            ['applicationId' => (string) $application->id, 'status' => $application->status]);
     }
 }

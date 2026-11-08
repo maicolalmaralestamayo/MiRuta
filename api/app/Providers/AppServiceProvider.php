@@ -2,22 +2,20 @@
 
 namespace App\Providers;
 
+use App\Services\Access;
+use App\Services\Settings;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
-    /**
-     * Register any application services.
-     *
-     * @return void
-     */
-    public function register()
+    public function register(): void
     {
-        // Lumen 7 busca el seeder "DatabaseSeeder" sin espacio de nombres; los
-        // seeders usan ya el de Laravel 8+ (Database\Seeders).
-        $this->app->bind('DatabaseSeeder', \Database\Seeders\DatabaseSeeder::class);
+        // Se guardan en memoria durante la petición (se vacían al cambiar datos).
+        $this->app->scoped(Settings::class);
+        $this->app->scoped(Access::class);
+    }
 
-        // Permisos leídos: una sola vez por petición (Authenticate los olvida al empezar).
-        $this->app->singleton(\App\Services\Permissions::class);
+    public function boot(): void
+    {
     }
 }

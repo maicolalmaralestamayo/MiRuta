@@ -2,6 +2,7 @@
 
 namespace App\Serializers;
 
+use App\Models\ConversationMessage;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 
@@ -14,42 +15,24 @@ class ConversationSerializer extends Serializer
 
     public function attributes(Model $conversation, Request $request): array
     {
-        $last = $conversation->messages()->max('created_at');
+        $viewer = $request->user();
+        $last = ConversationMessage::where('conversation_id', $conversation->id)->orderByDesc('id')->first();
+        $isOwner = $viewer && (int) $viewer->id === (int) $conversation->user_id;
 
-        $attributes = [
-            'recipient' => $conversation->topic ? $conversation->topic->recipient : null,
-            'guest' => $conversation->isGuest(),
-            'closed' => $conversation->isClosed(),
+        return [
+            'lastMessageAt' => $this->date($conversation->last_message_at),
+            'lastMessage' => $last ? mb_substr($last->body, 0, 120) : null,
+            // Sin leer por quien consulta (el dueño o el desarrollador).
+            'unread' => $isOwner ? (bool) $conversation->unread_by_user : (bool) $conversation->unread_by_developer,
             'createdAt' => $this->date($conversation->created_at),
-            'lastMessageAt' => $last ? \Carbon\Carbon::parse($last)->toIso8601String() : null,
         ];
-
-        if ($conversation->isGuest()) {
-            $attributes['guestName'] = $conversation->guest_name;
-            $viewer = $request->user();
-
-            // El teléfono solo lo ve el Administrador.
-            if ($viewer && $viewer->isAdmin()) {
-                $attributes['guestPhone'] = $conversation->guest_phone_encrypted ? \Illuminate\Support\Facades\Crypt::decryptString($conversation->guest_phone_encrypted) : null;
-            }
-        }
-
-        return $attributes;
     }
 
     public function toOneRelationships(): array
     {
         return [
+            'user' => ['users', 'user_id', 'user'],
             'topic' => ['conversation-topics', 'conversation_topic_id', 'topic'],
-            'openedBy' => ['users', 'opened_by', 'opener'],
-            'itinerary' => ['itineraries', 'itinerary_id', 'itinerary'],
-            'entity' => ['entities', 'entity_id', 'entity'],
-            'installation' => ['installations', 'installation_id', 'installation'],
         ];
-    }
-
-    public function meta(Model $conversation, Request $request): array
-    {
-        return ['messageCount' => $conversation->messages()->count()];
     }
 }

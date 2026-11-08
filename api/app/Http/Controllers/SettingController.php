@@ -5,75 +5,105 @@ namespace App\Http\Controllers;
 use App\JsonApi\Document;
 use App\JsonApi\JsonApiException;
 use App\JsonApi\JsonApiResponse;
-use App\Models\Setting;
-use App\Models\SettingDefinition;
-use App\Models\User;
+use App\Services\Access;
 use App\Services\Settings;
+use App\Support\SettingCatalog;
 use Illuminate\Http\Request;
 
 /**
- * Valores de los ajustes para toda la app. El id es la clave del ajuste.
- * Los cambia quien tiene settings.app; los de nivel Entidad, por Entidad,
- * quien tiene settings.entity (EntitySettingController); por itinerario y
- * parada, settings.itinerary (ItinerarySettingController).
+ * Ajustes de la app (un solo nivel; docs/11 §11.38, §11.40 y §11.44). Todos los
+ * leen (la app los necesita); solo el Administrador los cambia. El id es la clave.
+ *
+ * attributes.value es el texto con unidades («10min», «1km200m», «10km/hor») y
+ * attributes.base, el valor en segundos, metros, metros por segundo o entero.
  */
 class SettingController extends Controller
 {
-    /** @var Settings */
-    private $settings;
-
-    public function __construct(Settings $settings)
+    public function __construct(private Settings $settings)
     {
-        $this->settings = $settings;
     }
 
     public function index(Request $request)
     {
-        $data = [];
+        $group = $request->input('filter.group');
+        $resources = [];
 
-        foreach ($this->settings->definitions() as $definition) {
-            $data[] = $this->resource($definition, $request->user());
+        foreach (array_keys(SettingCatalog::SETTINGS) as $key) {
+            if ($group === null || SettingCatalog::SETTINGS[$key][0] === $group) {
+                $resources[] = $this->resource($key);
+            }
         }
 
-        return JsonApiResponse::make(Document::fromArray($data));
+        return JsonApiResponse::make(Document::fromArray($resources, [
+            'groups' => array_map(fn ($key, $name) => ['key' => $key, 'name' => $name], array_keys(SettingCatalog::GROUPS), SettingCatalog::GROUPS),
+            'version' => $this->settings->version(),
+        ]));
     }
 
-    public function show(Request $request, string $id)
+    public function show($id)
     {
-        return JsonApiResponse::make(Document::fromArray($this->resource($this->settings->definition($id), $request->user())));
+        if (! SettingCatalog::has($id)) {
+            throw new JsonApiException(404, 'NOT_FOUND', 'No encontrado', "No existe el ajuste \"{$id}\".");
+        }
+
+        return JsonApiResponse::make(Document::fromArray($this->resource($id)));
     }
 
-    public function update(Request $request, string $id)
+    /**
+     * attributes.value con el formato de su tipo; null vuelve al valor por omisión.
+     */
+    public function update(Request $request, Access $access, $id)
     {
-        $definition = $this->settings->definition($id);
-        $user = $request->user();
+        $access->requireAdmin($request->user(), 'Solo el Administrador cambia los ajustes de la app.');
 
-        app(\App\Services\Permissions::class)->authorize($user, 'settings.app', null, null, 'No puede cambiar este ajuste.');
+        if (! SettingCatalog::has($id)) {
+            throw new JsonApiException(404, 'NOT_FOUND', 'No encontrado', "No existe el ajuste \"{$id}\".");
+        }
 
-        $data = $this->validateResource($request, 'settings', ['attributes.value' => ['present']]);
-        $value = $this->settings->normalize($definition, $data['attributes']['value']);
+        $data = $this->validateResource($request, 'settings', ['attributes' => ['required', 'array']]);
 
-        $setting = Setting::withTrashed()->firstOrNew(['setting_definition_id' => $definition->id]);
-        $setting->value = $value;
-        $setting->deleted_at = null;
-        $setting->save();
-        $this->settings->flush();
+        if (! array_key_exists('value', $data['attributes'])) {
+            throw new JsonApiException(422, 'VALIDATION_ERROR', 'Falta el valor', 'Indique attributes.value.', ['pointer' => '/data/attributes/value']);
+        }
 
-        return JsonApiResponse::make(Document::fromArray($this->resource($this->settings->definition($id), $user)));
+        $value = $data['attributes']['value'];
+
+        if ($value === null) {
+            \App\Models\Setting::where('key', $id)->delete();
+            $this->settings->flush();
+        } else {
+            $this->settings->set($id, $this->settings->normalize($id, $value));
+        }
+
+        return JsonApiResponse::make(Document::fromArray($this->resource($id)));
     }
 
-    private function resource(SettingDefinition $definition, User $user): array
+    private function resource(string $key): array
     {
+        $definition = SettingCatalog::definition($key);
+
         return [
             'type' => 'settings',
-            'id' => $definition->key,
+            'id' => $key,
             'attributes' => [
-                'value' => $this->settings->effectiveRaw($definition),
-                'editable' => app(\App\Services\Permissions::class)->can($user, 'settings.app'),
+                'name' => $definition['name'],
+                'group' => $definition['group'],
+                'groupName' => $definition['groupName'],
+                'type' => $definition['type'],
+                'value' => $this->settings->raw($key),
+                'base' => $this->settings->value($key),
+                'baseUnit' => match ($definition['type']) {
+                    SettingCatalog::TYPE_DURATION => 'seg',
+                    SettingCatalog::TYPE_DISTANCE => 'm',
+                    SettingCatalog::TYPE_SPEED => 'm/seg',
+                    default => $definition['unit'],
+                },
+                'defaultValue' => (string) $definition['default'],
+                'min' => (string) $definition['min'],
+                'max' => (string) $definition['max'],
+                'description' => $definition['description'],
             ],
-            'relationships' => [
-                'definition' => ['data' => ['type' => 'setting-definitions', 'id' => $definition->key]],
-            ],
+            'links' => ['self' => url('api/v1/settings/'.$key)],
         ];
     }
 }

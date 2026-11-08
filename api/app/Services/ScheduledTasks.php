@@ -3,34 +3,32 @@
 namespace App\Services;
 
 use Carbon\Carbon;
-use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Tareas programadas (docs/02-procesos.md §2.13).
+ * Tareas programadas, sin cron (hospedaje compartido sin SSH):
  *
- * Hay dos formas de ejecutarlas:
- *  - con cron: "php artisan schedule:run" cada minuto (Console\Kernel usa esta lista);
- *  - sin cron (hospedaje compartido sin SSH): con TASKS_ON_REQUESTS=true la API
- *    ejecuta las pendientes al terminar las peticiones, como mucho una vez por
- *    minuto. Las diarias y por hora no se pierden si nadie usa la app a esa
- *    hora: se ejecutan en la primera petición posterior.
+ * - con TASKS_ON_REQUESTS=true la API ejecuta las pendientes al terminar las
+ *   peticiones, como mucho una vez por minuto;
+ * - el Administrador también las ejecuta desde la app (Mantenimiento del
+ *   servidor → «run-tasks»);
+ * - con cron (opcional): php artisan miruta:tareas cada minuto.
+ *
+ * Las diarias y por hora no se pierden si nadie usa la app a esa hora: se
+ * ejecutan en la primera revisión posterior.
  */
 class ScheduledTasks
 {
     /**
-     * Comando => frecuencia: 'minute', 'hour' o una hora del día 'HH:MM'.
+     * Nombre => [frecuencia ('minute', 'hour' o 'HH:MM'), [servicio, método]].
      */
     public const TASKS = [
-        'trips:auto-complete' => 'minute',
-        'trips:notify-delays' => 'minute',
-        'chats:purge-trips' => 'minute',
-        'chats:purge-expired' => '02:10',
-        'workers:inactivity' => '02:20',
-        'access-recoveries:expire' => 'hour',
-        'qr:purge-nonces' => 'hour',
-        'passwords:warn-expiry' => '07:00',
+        'viajes:revisar' => ['minute', [Trips::class, 'review']],
+        'olvide:caducar' => ['hour', [AccessRecoveries::class, 'expireOld']],
+        'qr:limpiar' => ['hour', [QrCodes::class, 'purgeExpiredNonces']],
+        'conversaciones:limpiar' => ['02:10', [Conversations::class, 'purgeOld']],
+        'notificaciones:limpiar' => ['02:20', [Notifier::class, 'purgeOld']],
     ];
 
     public function statePath(): string
@@ -39,8 +37,7 @@ class ScheduledTasks
     }
 
     /**
-     * Estado guardado: comando => ['lastRun' => última vez que terminó bien,
-     * 'lastAttempt' => última vez que se intentó, 'ok' => bool, 'error' => ?string].
+     * Estado guardado: tarea => ['lastRun', 'lastAttempt', 'ok', 'error'].
      */
     public function state(): array
     {
@@ -50,9 +47,6 @@ class ScheduledTasks
         return is_array($data) ? $data : [];
     }
 
-    /**
-     * Si la tarea toca ahora, según cuándo se ejecutó por última vez.
-     */
     public function isDue(string $frequency, ?Carbon $lastRun, Carbon $now): bool
     {
         if ($lastRun === null) {
@@ -78,10 +72,10 @@ class ScheduledTasks
     }
 
     /**
-     * Ejecuta las tareas pendientes. Si otra petición ya las está
-     * ejecutando, no hace nada. Devuelve comando => resultado.
+     * Ejecuta las tareas pendientes (si otra petición ya lo está haciendo, nada).
      *
      * @param bool $onlyIfMinutePassed para las peticiones: como mucho una vez por minuto
+     * @return array tarea => ['ok' => bool, 'error' => ?string, 'result' => mixed]
      */
     public function runDue(bool $onlyIfMinutePassed = false): array
     {
@@ -115,19 +109,20 @@ class ScheduledTasks
                 return [];
             }
 
-            foreach (self::TASKS as $command => $frequency) {
-                $lastRun = isset($state[$command]['lastRun']) ? Carbon::parse($state[$command]['lastRun']) : null;
+            foreach (self::TASKS as $name => [$frequency, $callable]) {
+                $lastRun = isset($state[$name]['lastRun']) ? Carbon::parse($state[$name]['lastRun']) : null;
 
                 if (! $this->isDue($frequency, $lastRun, $now)) {
                     continue;
                 }
 
-                // Si falla, se reintenta en la próxima revisión (lastRun no cambia).
-                $results[$command] = $this->run($command);
-                $state[$command] = [
-                    'lastRun' => $results[$command]['ok'] ? $now->toIso8601String() : ($lastRun ? $lastRun->toIso8601String() : null),
+                $results[$name] = $this->run($callable);
+                $state[$name] = [
+                    'lastRun' => $results[$name]['ok'] ? $now->toIso8601String() : $lastRun?->toIso8601String(),
                     'lastAttempt' => $now->toIso8601String(),
-                ] + $results[$command];
+                    'ok' => $results[$name]['ok'],
+                    'error' => $results[$name]['error'],
+                ];
                 $this->save($state);
             }
 
@@ -138,19 +133,16 @@ class ScheduledTasks
         }
     }
 
-    /**
-     * @return array{ok: bool, error: ?string}
-     */
-    private function run(string $command): array
+    private function run(array $callable): array
     {
         try {
-            Artisan::call($command);
+            $result = app($callable[0])->{$callable[1]}();
 
-            return ['ok' => true, 'error' => null];
+            return ['ok' => true, 'error' => null, 'result' => $result];
         } catch (\Throwable $e) {
-            Log::error('Tarea programada '.$command.': '.$e->getMessage(), ['exception' => $e]);
+            Log::error('Tarea programada '.$callable[0].'::'.$callable[1].': '.$e->getMessage(), ['exception' => $e]);
 
-            return ['ok' => false, 'error' => $e->getMessage()];
+            return ['ok' => false, 'error' => $e->getMessage(), 'result' => null];
         }
     }
 

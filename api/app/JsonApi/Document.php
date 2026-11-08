@@ -230,6 +230,8 @@ class Document
             throw new InvalidArgumentException("No hay serializador JSON:API para {$class}.");
         }
 
-        return app($this->serializers[$class]);
+        $serializer = $this->serializers[$class];
+
+        return is_array($serializer) ? new $serializer[0]($serializer[1]) : app($serializer);
     }
 }

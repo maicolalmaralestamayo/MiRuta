@@ -3,82 +3,60 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
- * Solicitud (docs/11 §11.6 y §11.16): entrar en una Entidad, itinerario y
- * parada, o un rol. Las solicitudes no se borran: son el historial. Darse
- * de baja es una acción directa, sin solicitud.
+ * Solicitud de entrar en una Entidad o en un itinerario (docs/11 §11.23 y §11.26).
  */
 class Application extends Model
 {
-    use SoftDeletes;
+    public const TYPE_ENTITY = 'entidad';
+    public const TYPE_ITINERARY = 'itinerario';
 
-    const STATUS_PENDING = 'pending';
-    const STATUS_APPROVED = 'approved';
-    const STATUS_REJECTED = 'rejected';
-    const STATUS_CANCELLED = 'cancelled';
-
-    const TYPE_ENTITY_MEMBERSHIP = 'entity_membership';
-    const TYPE_ITINERARY_MEMBERSHIP = 'itinerary_membership';
-    const TYPE_ROLE = 'role';
-
-    const TYPES = [self::TYPE_ENTITY_MEMBERSHIP, self::TYPE_ITINERARY_MEMBERSHIP, self::TYPE_ROLE];
+    public const PENDING = 'pendiente';
+    public const APPROVED = 'aprobada';
+    public const REJECTED = 'rechazada';
 
     protected $fillable = [
-        'user_id', 'entity_id', 'type', 'status', 'itinerary_id', 'stop_id', 'role_id',
-        'created_by', 'resolved_by', 'resolved_at', 'resolution_note',
+        'user_id', 'type', 'status', 'entity_id', 'itinerary_id', 'stop_id', 'denial_reason_id',
+        'resolution_note', 'resolved_by', 'resolved_at', 'seen_at',
     ];
 
     protected $casts = [
         'resolved_at' => 'datetime',
+        'seen_at' => 'datetime',
+        'user_id' => 'integer',
+        'entity_id' => 'integer',
+        'itinerary_id' => 'integer',
+        'stop_id' => 'integer',
     ];
 
     public function user()
     {
-        return $this->belongsTo(User::class)->withTrashed();
+        return $this->belongsTo(User::class);
     }
 
     public function entity()
     {
-        return $this->belongsTo(Entity::class)->withTrashed();
+        return $this->belongsTo(Entity::class);
     }
 
     public function itinerary()
     {
-        return $this->belongsTo(Itinerary::class)->withTrashed();
+        return $this->belongsTo(Itinerary::class);
     }
 
     public function stop()
     {
-        return $this->belongsTo(Stop::class)->withTrashed();
+        return $this->belongsTo(Stop::class);
     }
 
-    public function role()
+    public function denialReason()
     {
-        return $this->belongsTo(Role::class)->withTrashed();
-    }
-
-    public function creator()
-    {
-        return $this->belongsTo(User::class, 'created_by')->withTrashed();
+        return $this->belongsTo(DenialReason::class);
     }
 
     public function resolver()
     {
-        return $this->belongsTo(User::class, 'resolved_by')->withTrashed();
-    }
-
-    /**
-     * Pertenencia del solicitante en la Entidad (si ya la tiene).
-     */
-    public function worker(): ?Worker
-    {
-        return Worker::where('user_id', $this->user_id)->where('entity_id', $this->entity_id)->first();
-    }
-
-    public function isPending(): bool
-    {
-        return $this->status === self::STATUS_PENDING;
+        return $this->belongsTo(User::class, 'resolved_by');
     }
 }

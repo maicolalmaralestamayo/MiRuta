@@ -2,12 +2,9 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
-
-class AbsenceType extends Model
+/**
+ * Tipo de ausencia.
+ */
+class AbsenceType extends Nomenclator
 {
-    use SoftDeletes;
-
-    protected $fillable = ['name', 'description', 'observation'];
 }

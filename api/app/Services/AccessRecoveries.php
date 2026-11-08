@@ -5,7 +5,6 @@ namespace App\Services;
 use App\JsonApi\JsonApiException;
 use App\Models\AccessRecovery;
 use App\Models\Installation;
-use App\Models\Notice;
 use App\Models\User;
 use App\Support\IdentityCard;
 use Carbon\Carbon;
@@ -21,20 +20,8 @@ use Illuminate\Support\Facades\DB;
  */
 class AccessRecoveries
 {
-    /** @var Settings */
-    private $settings;
-
-    /** @var Notices */
-    private $notices;
-
-    /** @var Passwords */
-    private $passwords;
-
-    public function __construct(Settings $settings, Notices $notices, Passwords $passwords)
+    public function __construct(private Settings $settings, private Notifier $notifier, private Passwords $passwords)
     {
-        $this->settings = $settings;
-        $this->notices = $notices;
-        $this->passwords = $passwords;
     }
 
     /**
@@ -49,7 +36,7 @@ class AccessRecoveries
 
         $card = IdentityCard::validated($identityCard);
 
-        $limit = $this->settings->int('access_recovery_max_per_hour');
+        $limit = $this->settings->int('limite_olvide');
         $recent = AccessRecovery::where('installation_id', $installation->id)->where('created_at', '>=', Carbon::now()->subHour())->count();
 
         if ($recent >= $limit) {
@@ -73,12 +60,12 @@ class AccessRecoveries
                 'phone_encrypted' => Crypt::encryptString($phone),
                 'user_id' => $user ? $user->id : null,
                 'status' => AccessRecovery::STATUS_PENDING,
-                'expires_at' => Carbon::now()->addHours($this->settings->int('access_recovery_ttl_hours')),
+                'expires_at' => Carbon::now()->addSeconds($this->settings->seconds('validez_olvide')),
             ]);
 
-            foreach ($this->notices->adminIds() as $adminId) {
-                Notice::create(['user_id' => $adminId, 'type' => Notice::TYPE_ACCESS_RECOVERY_REQUESTED, 'access_recovery_id' => $recovery->id]);
-            }
+            $this->notifier->send($this->notifier->adminIds(), Notifier::ACCESS_RECOVERY_RECEIVED, 'Solicitud «Olvidé algo»',
+                'Alguien pidió recuperar su '.($forgotUsername && $forgotPassword ? 'usuario y contraseña' : ($forgotUsername ? 'usuario' : 'contraseña')).'.',
+                ['accessRecoveryId' => (string) $recovery->id]);
 
             return $recovery;
         });
@@ -88,8 +75,8 @@ class AccessRecoveries
     {
         $this->ensurePending($recovery);
 
-        if (! $recovery->user_id || ! $recovery->user || $recovery->user->trashed()) {
-            throw JsonApiException::conflict('RECOVERY_NOT_MATCHED', 'El carné no coincide con ninguna persona con cuenta activa: solo se puede rechazar.');
+        if (! $recovery->user_id || ! $recovery->user) {
+            throw JsonApiException::conflict('RECOVERY_NOT_MATCHED', 'El carné no coincide con ninguna persona con cuenta: solo se puede rechazar.');
         }
 
         return DB::transaction(function () use ($recovery, $admin) {

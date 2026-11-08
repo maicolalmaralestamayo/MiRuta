@@ -8,22 +8,20 @@ use Closure;
 use Illuminate\Http\Request;
 
 /**
- * Exige la negociación de contenido de JSON:API y marca las respuestas con
- * el tipo application/vnd.api+json.
+ * Exige la negociación de contenido de JSON:API y marca las respuestas con el
+ * tipo application/vnd.api+json. Las rutas de subida de archivos (nombre
+ * «subida.*») aceptan además multipart/form-data.
  */
 class RequireJsonApi
 {
-    /**
-     * @param string|null $mode "multipart" para las rutas de subida de archivos,
-     *                          que aceptan multipart/form-data
-     */
-    public function handle(Request $request, Closure $next, ?string $mode = null)
+    public function handle(Request $request, Closure $next)
     {
         if (! MediaType::isAcceptable($request->header('Accept'))) {
             throw new JsonApiException(406, 'NOT_ACCEPTABLE', 'Tipo no aceptable', 'La cabecera Accept debe admitir '.MediaType::JSON_API.'.');
         }
 
-        $isMultipart = $mode === 'multipart' && stripos((string) $request->header('Content-Type'), 'multipart/form-data') === 0;
+        $isUpload = $request->route() && $request->route()->named('subida.*');
+        $isMultipart = $isUpload && stripos((string) $request->header('Content-Type'), 'multipart/form-data') === 0;
 
         if ($this->hasBody($request) && ! $isMultipart && ! MediaType::isValidContentType($request->header('Content-Type'))) {
             throw new JsonApiException(415, 'UNSUPPORTED_MEDIA_TYPE', 'Tipo de contenido no admitido', 'La petición debe enviarse con Content-Type: '.MediaType::JSON_API.'.');
@@ -31,7 +29,6 @@ class RequireJsonApi
 
         $response = $next($request);
 
-        // Se respeta un tipo JSON:API con parámetros (p. ej. la extensión atómica).
         if (stripos((string) $response->headers->get('Content-Type'), MediaType::JSON_API) !== 0) {
             $response->headers->set('Content-Type', MediaType::JSON_API);
         }

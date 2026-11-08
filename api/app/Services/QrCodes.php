@@ -13,14 +13,14 @@ use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Código QR de la persona (docs/11 §11.8 y §11.9; docs/07-algoritmos.md §7.31).
+ * Código QR de la persona (docs/11 §11.19 y §11.27; docs/07-algoritmos.md §7.31):
+ * cambia cada 15 s, es de un solo uso y solo sirve para «Incluir por QR».
  *
  * - Clave del servidor ECDSA P-256 (server_keys, privada cifrada con APP_KEY).
  * - Certificado de dispositivo: base64url(json) "." base64url(firma servidor),
  *   json = {"u":<userId>,"k":"<SPKI DER base64>","e":<unix exp>,"v":1}.
  * - QR dinámico: MR1.<certificado>.<base64url(payload)>.<base64url(firma dispositivo)>,
  *   payload = {"u":<userId>,"t":<unix>,"n":"<8 bytes hex>"}.
- * - QR impreso: MRP1.<base64url(json)>.<base64url(firma servidor)>, json = {"u":<userId>,"v":<versión>}.
  *
  * Todas las firmas: ECDSA P-256 con SHA-256, en DER, sobre los bytes JSON
  * (los que resultan de decodificar el segmento base64url, tal cual).
@@ -28,10 +28,8 @@ use Illuminate\Support\Facades\DB;
 class QrCodes
 {
     const DYNAMIC_PREFIX = 'MR1';
-    const PRINTED_PREFIX = 'MRP1';
 
     const KIND_DYNAMIC = 'dynamic';
-    const KIND_PRINTED = 'printed';
 
     /** Diferencia de hora admitida entre los dos teléfonos (±2 min). */
     const CLOCK_SKEW_SECONDS = 120;
@@ -116,7 +114,7 @@ class QrCodes
 
     /*
     |--------------------------------------------------------------------------
-    | Certificado de dispositivo y QR impreso
+    | Certificado de dispositivo
     |--------------------------------------------------------------------------
     */
 
@@ -144,46 +142,6 @@ class QrCodes
         ];
     }
 
-    /**
-     * Texto del QR impreso de la persona (con su versión actual).
-     */
-    public function printedQr(User $user): string
-    {
-        $json = json_encode(['u' => (int) $user->id, 'v' => (int) $user->printed_qr_version]);
-
-        return self::PRINTED_PREFIX.'.'.self::base64UrlEncode($json).'.'.self::base64UrlEncode($this->sign($json));
-    }
-
-    /**
-     * Anula el QR impreso (sube la versión): las copias dejan de valer.
-     */
-    public function revokePrinted(User $user): User
-    {
-        DB::table('users')->where('id', $user->id)->increment('printed_qr_version');
-
-        return $user->fresh();
-    }
-
-    /**
-     * Al entrar por primera vez en la app con su teléfono, el QR impreso se
-     * anula y pasa a usar el del teléfono (docs/11 §11.9).
-     */
-    public function switchToPhone(User $user): void
-    {
-        if ($user->has_phone) {
-            return;
-        }
-
-        DB::table('users')->where('id', $user->id)->update([
-            'has_phone' => true,
-            'printed_qr_version' => DB::raw('printed_qr_version + 1'),
-            'updated_at' => Carbon::now(),
-        ]);
-        $user->has_phone = true;
-        $user->printed_qr_version = (int) $user->printed_qr_version + 1;
-        $user->syncOriginal();
-    }
-
     /*
     |--------------------------------------------------------------------------
     | Verificación
@@ -194,7 +152,7 @@ class QrCodes
      * Comprueba un QR leído a la hora $scannedAt (la del teléfono que escanea;
      * sin conexión, la que guardó). No gasta el código: ver consume().
      *
-     * @return array ['user' => User, 'kind' => dynamic|printed, 'nonce' => ?string, 'issuedAt' => ?Carbon]
+     * @return array ['user' => User, 'kind' => dynamic, 'nonce' => string, 'issuedAt' => Carbon]
      */
     public function verify(string $qr, ?CarbonInterface $scannedAt = null, string $pointer = '/data/attributes/qr'): array
     {
@@ -212,10 +170,6 @@ class QrCodes
         }
 
         $parts = explode('.', trim($qr));
-
-        if ($parts[0] === self::PRINTED_PREFIX && count($parts) === 3) {
-            return $this->verifyPrinted($parts, $pointer);
-        }
 
         if ($parts[0] === self::DYNAMIC_PREFIX && count($parts) === 5) {
             return $this->verifyDynamic($parts, $scannedAt, $pointer);
@@ -236,7 +190,7 @@ class QrCodes
         }
 
         $userId = (int) $verified['user']->id;
-        $existing = QrNonce::withTrashed()->where('user_id', $userId)->where('nonce', $verified['nonce'])->first();
+        $existing = QrNonce::where('user_id', $userId)->where('nonce', $verified['nonce'])->first();
 
         if (! $existing) {
             try {
@@ -247,7 +201,7 @@ class QrCodes
                     'expires_at' => $verified['issuedAt']->copy()->addSeconds(self::CLOCK_SKEW_SECONDS)->addDays(self::OFFLINE_MAX_AGE_DAYS),
                 ]);
             } catch (QueryException $exception) {
-                $existing = QrNonce::withTrashed()->where('user_id', $userId)->where('nonce', $verified['nonce'])->first();
+                $existing = QrNonce::where('user_id', $userId)->where('nonce', $verified['nonce'])->first();
             }
         }
 
@@ -265,7 +219,7 @@ class QrCodes
      */
     public function purgeExpiredNonces(): int
     {
-        return QrNonce::withTrashed()->where('expires_at', '<', Carbon::now())->forceDelete();
+        return QrNonce::where('expires_at', '<', Carbon::now())->delete();
     }
 
     private function verifyDynamic(array $parts, Carbon $scannedAt, string $pointer): array
@@ -321,36 +275,6 @@ class QrCodes
             'nonce' => $payload['n'],
             'issuedAt' => Carbon::createFromTimestamp($payload['t']),
         ];
-    }
-
-    private function verifyPrinted(array $parts, string $pointer): array
-    {
-        $bytes = self::base64UrlDecode($parts[1]);
-        $signature = self::base64UrlDecode($parts[2]);
-
-        if ($bytes === null || $signature === null) {
-            throw $this->invalid($pointer);
-        }
-
-        $json = json_decode($bytes, true);
-
-        if (! is_array($json) || ! isset($json['u'], $json['v']) || ! is_int($json['u']) || ! is_int($json['v'])) {
-            throw $this->invalid($pointer);
-        }
-
-        if (! $this->verifyServer($bytes, $signature)) {
-            throw new JsonApiException(422, 'QR_SIGNATURE_INVALID', 'Código QR no válido',
-                'La firma del código QR no es válida.', ['pointer' => $pointer]);
-        }
-
-        $user = $this->activeUser($json['u'], $pointer);
-
-        if ($user->has_phone || (int) $user->printed_qr_version !== $json['v']) {
-            throw new JsonApiException(422, 'QR_REVOKED', 'QR impreso anulado',
-                'Este QR impreso fue anulado. Si la persona usa la app, debe mostrar el QR de su teléfono.', ['pointer' => $pointer]);
-        }
-
-        return ['user' => $user, 'kind' => self::KIND_PRINTED, 'nonce' => null, 'issuedAt' => null];
     }
 
     private function activeUser(int $id, string $pointer): User

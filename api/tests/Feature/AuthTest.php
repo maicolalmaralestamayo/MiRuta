@@ -1,274 +1,103 @@
 <?php
 
+namespace Tests\Feature;
+
 use App\Models\RefreshToken;
-use Carbon\Carbon;
-use Laravel\Lumen\Testing\DatabaseMigrations;
+use App\Models\User;
+use Tests\TestCase;
 
 class AuthTest extends TestCase
 {
-    use DatabaseMigrations;
-
-    protected function setUp(): void
+    public function test_el_primer_registro_es_el_administrador_y_el_segundo_no(): void
     {
-        parent::setUp();
-        $this->artisan('db:seed');
-    }
+        $this->jsonApi('GET', '/api/v1/registration-status')->assertOk()->assertJsonPath('data.attributes.adminExists', false);
 
-    protected function tearDown(): void
-    {
-        Carbon::setTestNow();
-        parent::tearDown();
-    }
-
-    private function login(string $username, string $password = self::PASSWORD)
-    {
-        return $this->jsonApi('POST', '/api/v1/tokens', ['data' => ['type' => 'tokens', 'attributes' => [
-            'username' => $username, 'password' => $password, 'deviceName' => 'Teléfono de pruebas',
-        ]]]);
-    }
-
-    private function refresh(string $token)
-    {
-        return $this->jsonApi('POST', '/api/v1/tokens/refresh', ['data' => ['type' => 'tokens', 'attributes' => ['refreshToken' => $token]]]);
-    }
-
-    public function testInicioDeSesion()
-    {
-        $worker = $this->createWorker(['user' => ['username' => 'maria.perez']]);
-
-        $this->login('Maria.Perez');
-
-        $this->assertResponseStatus(201);
-        $attributes = $this->responseJson()['data']['attributes'];
-        $this->assertSame('Bearer', $attributes['tokenType']);
-        $this->assertSame(1800, $attributes['expiresIn']);
-        $this->assertSame(90 * 86400, $attributes['refreshExpiresIn']);
-        $this->assertSame((string) $worker->user_id, $this->responseJson()['data']['relationships']['user']['data']['id']);
-        $this->assertSame('Teléfono de pruebas', RefreshToken::first()->device_name);
-
-        $this->jsonApi('GET', '/api/v1/me', null, ['Authorization' => 'Bearer '.$attributes['accessToken']]);
-        $this->assertResponseOk();
-        $this->seeJson(['username' => 'maria.perez']);
-    }
-
-    /**
-     * @dataProvider wrongCredentials
-     */
-    public function testCredencialesIncorrectas(string $username, string $password)
-    {
-        $this->createWorker(['user' => ['username' => 'maria']]);
-
-        $this->login($username, $password);
-
-        $this->assertJsonApiError(401, 'INVALID_CREDENTIALS');
-    }
-
-    public function wrongCredentials(): array
-    {
-        return [
-            'contraseña incorrecta' => ['maria', 'Otra.Clave1'],
-            'usuario inexistente' => ['mario', self::PASSWORD],
-            'usuario mal formado' => ['1', self::PASSWORD],
-        ];
-    }
-
-    public function testTrabajadorInactivoNoPuedeEntrar()
-    {
-        $worker = $this->createWorker(['user' => ['username' => 'maria']]);
-        $this->userOf($worker)->delete();
-
-        $this->login('maria');
-
-        $this->assertJsonApiError(401, 'INVALID_CREDENTIALS');
-    }
-
-    public function testRutaProtegidaSinToken()
-    {
-        $this->jsonApi('GET', '/api/v1/me');
-
-        $this->assertJsonApiError(401, 'UNAUTHENTICATED');
-    }
-
-    public function testTokenManipulado()
-    {
-        $token = $this->accessTokenFor($this->createWorker());
-        $parts = explode('.', $token);
-        $parts[1] = rtrim(strtr(base64_encode(json_encode(['sub' => 999, 'exp' => time() + 999, 'typ' => 'access'])), '+/', '-_'), '=');
-
-        $this->jsonApi('GET', '/api/v1/me', null, ['Authorization' => 'Bearer '.implode('.', $parts)]);
-
-        $this->assertJsonApiError(401, 'TOKEN_INVALID');
-    }
-
-    public function testTokenDeAccesoCaducado()
-    {
-        $worker = $this->createWorker();
-        $token = $this->accessTokenFor($worker);
-
-        Carbon::setTestNow(Carbon::now()->addMinutes(31));
-        $this->jsonApi('GET', '/api/v1/me', null, ['Authorization' => 'Bearer '.$token]);
-
-        $this->assertJsonApiError(401, 'TOKEN_EXPIRED');
-    }
-
-    public function testElTokenDeRenovacionNoSirveComoAcceso()
-    {
-        $card = 'maria';
-        $this->createWorker(['user' => ['username' => $card]]);
-        $refreshToken = $this->login($card)->responseJson()['data']['attributes']['refreshToken'];
-
-        $this->jsonApi('GET', '/api/v1/me', null, ['Authorization' => 'Bearer '.$refreshToken]);
-
-        $this->assertJsonApiError(401, 'TOKEN_INVALID');
-    }
-
-    public function testRenovacionConRotacion()
-    {
-        $card = 'maria';
-        $this->createWorker(['user' => ['username' => $card]]);
-        $first = $this->login($card)->responseJson()['data']['attributes']['refreshToken'];
-
-        $this->refresh($first);
-        $this->assertResponseStatus(201);
-        $second = $this->responseJson()['data']['attributes']['refreshToken'];
-        $this->assertNotSame($first, $second);
-
-        $old = RefreshToken::orderBy('id')->first();
-        $this->assertNotNull($old->revoked_at);
-        $this->assertSame(RefreshToken::orderBy('id', 'desc')->value('id'), (int) $old->replaced_by_id);
-        $this->assertSame('Teléfono de pruebas', RefreshToken::orderBy('id', 'desc')->value('device_name'));
-    }
-
-    public function testReutilizarUnTokenDeRenovacionRevocaTodasLasSesiones()
-    {
-        $card = 'maria';
-        $this->createWorker(['user' => ['username' => $card]]);
-        $otherDevice = $this->login($card)->responseJson()['data']['attributes']['refreshToken'];
-        $stolen = $this->login($card)->responseJson()['data']['attributes']['refreshToken'];
-        $this->refresh($stolen);
-        $legitimate = $this->responseJson()['data']['attributes']['refreshToken'];
-
-        $this->refresh($stolen);
-        $this->assertJsonApiError(401, 'TOKEN_REVOKED');
-
-        $this->refresh($legitimate);
-        $this->assertJsonApiError(401, 'TOKEN_REVOKED');
-        $this->refresh($otherDevice);
-        $this->assertJsonApiError(401, 'TOKEN_REVOKED');
-    }
-
-    public function testTokenDeRenovacionCaducado()
-    {
-        $card = 'maria';
-        $this->createWorker(['user' => ['username' => $card]]);
-        $token = $this->login($card)->responseJson()['data']['attributes']['refreshToken'];
-
-        Carbon::setTestNow(Carbon::now()->addDays(91));
-        $this->refresh($token);
-
-        $this->assertJsonApiError(401, 'TOKEN_EXPIRED');
-    }
-
-    public function testCerrarSesionEnEsteDispositivo()
-    {
-        $card = 'maria';
-        $this->createWorker(['user' => ['username' => $card]]);
-        $other = $this->login($card)->responseJson()['data']['attributes'];
-        $current = $this->login($card)->responseJson()['data']['attributes'];
-
-        $this->jsonApi('DELETE', '/api/v1/tokens/current', null, ['Authorization' => 'Bearer '.$current['accessToken']]);
-        $this->assertResponseStatus(204);
-
-        $this->refresh($current['refreshToken']);
-        $this->assertJsonApiError(401, 'TOKEN_REVOKED');
-        $this->refresh($other['refreshToken']);
-        $this->assertResponseStatus(201);
-    }
-
-    public function testCerrarSesionEnTodosLosDispositivos()
-    {
-        $card = 'maria';
-        $this->createWorker(['user' => ['username' => $card]]);
-        $other = $this->login($card)->responseJson()['data']['attributes'];
-        $current = $this->login($card)->responseJson()['data']['attributes'];
-
-        $this->jsonApi('DELETE', '/api/v1/tokens', null, ['Authorization' => 'Bearer '.$current['accessToken']]);
-        $this->assertResponseStatus(204);
-
-        $this->refresh($other['refreshToken']);
-        $this->assertJsonApiError(401, 'TOKEN_REVOKED');
-    }
-
-    public function testCuentaDesactivadaConTokenValido()
-    {
-        $worker = $this->createWorker();
-        $token = $this->accessTokenFor($worker);
-        $this->userOf($worker)->delete();
-
-        $this->jsonApi('GET', '/api/v1/me', null, ['Authorization' => 'Bearer '.$token]);
-
-        $this->assertJsonApiError(401, 'TOKEN_REVOKED');
-    }
-
-    public function testLaDuracionDelTokenSaleDeLosAjustes()
-    {
-        \App\Models\Setting::create([
-            'setting_definition_id' => \App\Models\SettingDefinition::where('key', 'access_token_ttl_minutes')->value('id'),
-            'value' => '10',
+        $document = fn (string $username) => self::resource('users', [
+            'firstName' => 'Maicol', 'firstSurname' => 'Almarales', 'secondSurname' => 'Tamayo',
+            'identityCard' => $this->newIdentityCard(), 'username' => $username, 'password' => 'Clave.Segura1',
         ]);
-        $card = 'maria';
-        $this->createWorker(['user' => ['username' => $card]]);
 
-        $this->login($card);
+        $this->jsonApi('POST', '/api/v1/users', $document('maicol'))->assertCreated()
+            ->assertHeader('Content-Type', 'application/vnd.api+json')
+            ->assertJsonPath('data.attributes.isAdmin', true)
+            ->assertJsonPath('data.attributes.username', 'maicol');
 
-        $this->assertSame(600, $this->responseJson()['data']['attributes']['expiresIn']);
+        $this->jsonApi('POST', '/api/v1/users', $document('otro'))->assertCreated()->assertJsonPath('data.attributes.isAdmin', false);
+        $this->jsonApi('GET', '/api/v1/registration-status')->assertJsonPath('data.attributes.adminExists', true);
     }
 
-    public function testCuentaDesactivadaNoPuedeEntrar()
+    public function test_carne_repetido_da_el_texto_acordado(): void
     {
-        $this->createWorker(['user' => ['username' => 'inactiva']]);
-        \App\Models\User::where('username', 'inactiva')->first()->delete();
+        $card = $this->newIdentityCard();
+        $this->createUser(['identity_card' => $card]);
 
-        $this->login('inactiva');
-
-        $this->assertJsonApiError(401, 'INVALID_CREDENTIALS');
+        $this->jsonApi('POST', '/api/v1/users', self::resource('users', [
+            'firstName' => 'Ana', 'firstSurname' => 'Pérez', 'secondSurname' => 'Gil',
+            'identityCard' => $card, 'username' => 'ana.perez', 'password' => 'Clave.Segura1',
+        ]))->assertStatus(409)->assertJsonPath('errors.0.code', 'IDENTITY_CARD_TAKEN');
     }
 
-    public function testContrasenaCaducadaObligaACambiarla()
+    public function test_inicio_de_sesion_renovacion_y_cierre(): void
     {
-        $worker = $this->createWorker(['user' => ['password_changed_at' => Carbon::now()->subDays(366)]]);
+        $user = $this->createUser(['username' => 'pepe']);
 
-        $this->jsonApiAs($worker, 'GET', '/api/v1/trips');
-        $this->assertJsonApiError(403, 'PASSWORD_CHANGE_REQUIRED');
+        $this->jsonApi('POST', '/api/v1/tokens', self::resource('tokens', ['username' => 'pepe', 'password' => 'mala']))
+            ->assertStatus(401)->assertJsonPath('errors.0.code', 'INVALID_CREDENTIALS');
 
-        $this->jsonApiAs($worker, 'GET', '/api/v1/me');
-        $this->assertResponseOk();
-        $this->assertTrue($this->responseJson()['data']['attributes']['mustChangePassword']);
+        $tokens = $this->jsonApi('POST', '/api/v1/tokens', self::resource('tokens', ['username' => 'PEPE', 'password' => self::PASSWORD]))
+            ->assertCreated()->json('data.attributes');
 
-        $this->jsonApiAs($worker, 'PATCH', '/api/v1/me', ['data' => ['type' => 'users', 'attributes' => ['password' => 'Nueva.Clave9']], 'meta' => ['currentPassword' => self::PASSWORD]]);
-        $this->assertResponseOk();
+        $this->jsonApi('GET', '/api/v1/me', null, ['Authorization' => 'Bearer '.$tokens['accessToken']])
+            ->assertOk()->assertJsonPath('data.id', (string) $user->id)->assertJsonPath('data.meta.role', 'trabajador');
 
-        $this->jsonApiAs($worker, 'GET', '/api/v1/trips');
-        $this->assertResponseOk();
+        $renewed = $this->jsonApi('POST', '/api/v1/tokens/refresh', self::resource('tokens', ['refreshToken' => $tokens['refreshToken']]))
+            ->assertCreated()->json('data.attributes');
+
+        // Reutilizar un token de renovación ya usado cierra todas las sesiones.
+        $this->jsonApi('POST', '/api/v1/tokens/refresh', self::resource('tokens', ['refreshToken' => $tokens['refreshToken']]))
+            ->assertStatus(401)->assertJsonPath('errors.0.code', 'TOKEN_REVOKED');
+        $this->assertSame(0, RefreshToken::where('user_id', $user->id)->whereNull('revoked_at')->count());
+
+        $this->jsonApi('GET', '/api/v1/me', null, ['Authorization' => 'Bearer '.$renewed['accessToken']])
+            ->assertStatus(401)->assertJsonPath('errors.0.code', 'TOKEN_REVOKED');
     }
 
-    public function testElLoginEnlazaLaInstalacionYSusConversacionesSinCuenta()
+    public function test_cerrar_sesion_anula_el_token(): void
     {
-        $this->createWorker(['user' => ['username' => 'maria']]);
-        $installation = $this->jsonApi('POST', '/api/v1/installations', ['data' => ['type' => 'installations', 'attributes' => ['deviceModel' => 'Moto G']]])
-            ->responseJson()['data'];
-        $header = $installation['meta']['header'];
-        $topic = \App\Models\ConversationTopic::where('recipient', 'developer')->first();
-        $this->jsonApi('POST', '/api/v1/guest/conversations', ['data' => ['type' => 'conversations',
-            'attributes' => ['guestName' => 'María', 'guestPhone' => '+53 5 123 4567', 'body' => 'Hola'],
-            'relationships' => ['topic' => ['data' => ['type' => 'conversation-topics', 'id' => (string) $topic->id]]]]], ['X-Installation' => $header]);
-        $this->assertResponseStatus(201);
+        $user = $this->createUser();
+        $token = $this->tokenFor($user);
+        $headers = ['Authorization' => 'Bearer '.$token];
 
-        $this->jsonApi('POST', '/api/v1/tokens', ['data' => ['type' => 'tokens', 'attributes' => ['username' => 'maria', 'password' => self::PASSWORD]]], ['X-Installation' => $header]);
-        $this->assertResponseStatus(201);
+        $this->jsonApi('DELETE', '/api/v1/tokens/current', null, $headers)->assertNoContent();
+        $this->jsonApi('GET', '/api/v1/me', null, $headers)->assertStatus(401);
+    }
 
-        $user = \App\Models\User::where('username', 'maria')->first();
-        $this->assertSame($user->id, (int) \App\Models\Installation::find($installation['id'])->user_id);
-        $this->assertSame($user->id, (int) \App\Models\Conversation::first()->opened_by);
+    public function test_sin_token_y_negociacion_jsonapi(): void
+    {
+        $this->jsonApi('GET', '/api/v1/me')->assertStatus(401)->assertJsonPath('errors.0.code', 'UNAUTHENTICATED');
+        $this->call('POST', '/api/v1/tokens', [], [], [], ['HTTP_ACCEPT' => 'application/vnd.api+json', 'CONTENT_TYPE' => 'application/json'], '{}')
+            ->assertStatus(415)->assertJsonPath('errors.0.code', 'UNSUPPORTED_MEDIA_TYPE');
+        $this->jsonApi('GET', '/api/v1/no-existe')->assertStatus(404)->assertJsonPath('errors.0.code', 'NOT_FOUND');
+    }
+
+    public function test_contrasena_puesta_por_otro_obliga_a_cambiarla(): void
+    {
+        $user = $this->createUser(['must_change_password' => true]);
+
+        $this->jsonApiAs($user, 'GET', '/api/v1/entities')->assertStatus(403)->assertJsonPath('errors.0.code', 'PASSWORD_CHANGE_REQUIRED');
+        $this->jsonApiAs($user, 'PATCH', '/api/v1/me', self::resource('users', ['password' => 'Nueva.Clave9']))->assertOk()
+            ->assertJsonPath('data.attributes.mustChangePassword', false);
+        $this->jsonApiAs(User::find($user->id), 'GET', '/api/v1/entities')->assertOk();
+    }
+
+    public function test_cambiar_la_contrasena_exige_la_actual(): void
+    {
+        $user = $this->createUser();
+
+        $this->jsonApiAs($user, 'PATCH', '/api/v1/me', self::resource('users', ['password' => 'Nueva.Clave9']))
+            ->assertStatus(422)->assertJsonPath('errors.0.code', 'CURRENT_PASSWORD_INVALID');
+
+        $document = self::resource('users', ['password' => 'Nueva.Clave9']) + ['meta' => ['currentPassword' => self::PASSWORD]];
+        $this->jsonApiAs($user, 'PATCH', '/api/v1/me', $document)->assertOk();
     }
 }
