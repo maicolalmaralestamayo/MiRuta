@@ -1,6 +1,6 @@
-# MiTransporte — App Android
+# MiRuta — App Android (versión 4.0)
 
-App Flutter de MiTransporte. La documentación funcional está en [`../docs`](../docs/README.md) (pantallas en `05-app.md`).
+App Flutter de MiRuta. La documentación funcional está en [`../docs`](../docs/README.md) (pantallas en `05-app.md`).
 
 ## Requisitos
 
@@ -9,7 +9,7 @@ App Flutter de MiTransporte. La documentación funcional está en [`../docs`](..
 
 ## Ejecutar
 
-La dirección del servidor **no se pide al abrir la app**. Puede venir puesta al compilar (opcional) y el usuario la indica o la cambia con el botón **Servidor** del pie de la pantalla de inicio de sesión (p. ej. `transporte.miempresa.com`). La app **no impone el protocolo**: si no se escribe, prueba `https://` y, si no responde, `http://`; añade `/api/v1`, comprueba que ahí responde MiTransporte y la guarda. Al compartir la app, el mensaje incluye la dirección del servidor.
+La dirección del servidor **no se pide al abrir la app**. Puede venir puesta al compilar (opcional) y el usuario la indica o la cambia con el botón **Servidor** de arriba de la pantalla de inicio de sesión (rojo mientras no hay servidor; p. ej. `transporte.miempresa.com`), eligiendo el protocolo (`https` o `http`). La app añade `/api/v1`, comprueba que ahí responde MiRuta y la guarda. Al compartir la app, el mensaje incluye la dirección del servidor.
 
 > Con `http://` la conexión va sin cifrar: las contraseñas y los datos viajan legibles por la red. Úsalo solo si el servidor no admite HTTPS.
 

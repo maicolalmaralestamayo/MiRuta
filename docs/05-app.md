@@ -1,140 +1,86 @@
-# 5. App móvil (Flutter, Android)
+# 5. App móvil (Flutter, Android) — versión 4.0
 
-La app se llama **MiRuta** en todas partes (lanzador, textos, avisos y APK). Interfaz en **español**, con **trato de usted** en todos los textos (sin exagerar: las etiquetas de los campos dicen el dato a secas, "Nombre", "Teléfono"; el usted va en las frases). Las opciones de menú solo aparecen si los permisos del usuario las permiten (`GET /me` → `meta.permissions`, versión 3.0). Los acuerdos de detalle de cada pantalla están en [09-repaso-pantallas.md](09-repaso-pantallas.md).
+La app se llama **MiRuta** (paquete `com.mitransporte.mitransporte`, versión `4.0.0+10`). Interfaz en **español**,
+con **trato de usted**. Funciona contra la API de la versión 4.0 ([13-api-proxima-version.md](13-api-proxima-version.md));
+lo acordado está resumido en [12-resumen-proxima-version.md](12-resumen-proxima-version.md) y detallado en
+[11-acuerdos-registro-qr.md](11-acuerdos-registro-qr.md) §11.19–§11.55. La versión 3.0 de este documento queda en el
+historial de git.
 
 ## 5.1 Arquitectura
 
-| Aspecto | Decisión |
+| Carpeta | Qué hay |
 |---|---|
-| Estructura | Por funcionalidad (`lib/features/<funcionalidad>/{data,domain,presentation}`) |
-| Cliente HTTP | `dio`, con un interceptor que añade el JWT y renueva el token automáticamente al recibir 401 |
-| JSON:API | Parser propio para `data`, `included`, `relationships` y `errors` |
-| Almacenamiento seguro | `flutter_secure_storage`: token de renovación, último usuario y cuándo se escribió la contraseña por última vez. **Nunca la contraseña** |
-| Base local | `sqflite`: copia de los viajes para comparar cambios y trabajar sin conexión |
-| Tareas en segundo plano | `workmanager` (sincronización y comprobación de actualizaciones) y servicio en primer plano para compartir ubicación |
-| Notificaciones | `flutter_local_notifications` |
-| Mapa | `flutter_map` con las imágenes del **servidor de mapas propio** (`GET /map`, `tools/maps`). La vista no sale de Cuba; cada imagen vista se guarda en el teléfono y se puede descargar la zona de la Entidad para usarla sin conexión. La app no crece: no lleva mapas dentro |
-| Ubicación | `geolocator` |
-| QR | `qr_flutter` (mostrar) y `mobile_scanner` (escanear). **3.0:** clave EC P-256 propia en el almacén seguro de Android (Keystore, no exportable), certificada por el servidor (`POST /me/qr-devices`, 30 días); QR dinámico `MR1…` firmado en el teléfono y renovado cada 15 s con `FLAG_SECURE`; verificación sin conexión con la clave del servidor (`GET /qr-public-key`) y la lista de la Entidad (`GET /entities/{id}/scan-roster`); escaneos sin conexión guardados con su hora y enviados con `POST /offline-scans`. Formato exacto: [07-algoritmos.md §7.36](07-algoritmos.md#736-código-qr-de-la-persona) |
-| Voz | `flutter_tts` |
-| Recordar contraseña | Sustituye al PIN propio de la app, que **se eliminó**. No se guarda la contraseña: se mantiene la sesión `remember_password_days` días (7 por defecto, con el máximo que fija el Administrador); pasado ese plazo, o si el ajuste está desactivado, se pide la contraseña al abrir la app (ver [07-algoritmos.md §7.32](07-algoritmos.md#732-recordar-contraseña-app)) |
-| Servidor | La dirección **no se pide al abrir la app**: puede venir puesta al compilar (`./build_release.sh <dirección>`, opcional) y el usuario la indica en la pantalla **Servidor**, con un **selector de protocolo** (`https` por defecto o `http`). Se guarda en el teléfono. Si el servidor redirige de `http` a `https`, se guarda la dirección `https` |
-| Certificados | `network_security_config`: confía en los certificados **del sistema y del usuario** (opción A del repaso), para servidores con certificados propios. Admite `http` (`usesCleartextTraffic`) |
-| Ícono | El del inicio de sesión se dibuja con las mismas formas y colores que el ícono adaptable de Android (`AppIcon`), así siempre coinciden |
-| Instalación | `device_info_plus`: modelo del teléfono y tipos de procesador admitidos. La instalación se registra en el servidor la primera vez que hace falta (cabecera `X-Installation`) |
-| Actualizaciones | `ota_update` (descarga con verificación SHA-256 e instalación), `package_info_plus`, `file_picker` (publicar los APK), `connectivity_plus` (solo con Wi-Fi), `share_plus` (compartir la app). Comprobación periódica en segundo plano cada `update_check_hours` horas |
-| Gráficos | `fl_chart` (las estadísticas no se exportan) |
-| Indicador de carga | Componentes comunes (`BusyButton`, `BusyIconButton`, `BusyListTile`, `BusySwitchListTile`): mientras se espera al servidor, el control que lanzó la acción muestra el indicador y queda desactivado |
+| `lib/core` | Cliente JSON:API (`dio`, renovación del token, cabecera `X-App-Version` y aviso de `426 APP_UPDATE_REQUIRED`), almacenamiento (`flutter_secure_storage` para los tokens, `shared_preferences` para lo demás), formatos («sáb. 07-11-26», 24 h) y unidades de los ajustes (`12hor30min`, `1km200m`, `10km/hor`) |
+| `lib/models` | Modelos de la API: persona y pertenencias (`GET me`), Entidades, itinerarios, paradas, trabajadores, solicitudes, hijos, nomencladores, viajes, línea del recorrido, ajustes, versiones, conversaciones |
+| `lib/services` | Sesión, sincronización (`GET sync?cursor=N`), notificaciones del teléfono, actualizaciones, ubicación compartida, QR (clave del teléfono MR1 y cola de «Incluir por QR» sin conexión) y `tracking/` (estado del trabajador y del vehículo) |
+| `lib/ui` | Pantallas por pestaña (`home`, `management`, `trips`, `profile`, `chat`, `admin`, `auth`, `shared`) y los componentes comunes (`widgets`) |
 
-### Reglas comunes de la interfaz
+Dependencias (§11.49, solo las necesarias): `dio`, `flutter_secure_storage`, `shared_preferences`, `provider`, `intl`,
+`geolocator`, `flutter_foreground_task`, `flutter_local_notifications` (+ `timezone`, `flutter_timezone`),
+`workmanager`, `qr_flutter`, `mobile_scanner`, `pointycastle`, `image_picker`, `file_picker`, `share_plus`,
+`path_provider`, `ota_update`, `package_info_plus`, `device_info_plus`, `url_launcher`. **Sin mapas.** La ubicación
+compartida desde otras apps usa un canal propio (`mitransporte/share` en `MainActivity.kt`), sin paquetes.
 
-| Regla | Detalle |
-|---|---|
-| Campos | Vacío, el campo dice el dato que pide; al tocarlo, el nombre sube al borde y dentro aparece un ejemplo. Sin ayudas fijas debajo: solo el error en rojo si incumple sus reglas (validación por campo, cuando se ha tocado). Al pulsar el botón principal se marcan los obligatorios vacíos |
-| Contraseñas | La contraseña y su repetición llevan las dos el ojo para verla |
-| Teléfono | Viene relleno con `+53 ` (editable) |
-| Fechas | Con el día de la semana y el año de 2 dígitos: "sáb. 31/10/26 13:51". Los controles de fecha tienen el mismo aspecto que los demás campos, con ícono de calendario que abre el almanaque |
-| Viajes | "Viaje de ida" / "Viaje de regreso" en lugar de "Salida" / "Regreso" en todas las interfaces |
-| Botones | Ícono + texto con acción y objeto ("Guardar vehículo", "Crear viaje") |
-| Eliminar | Ícono de cesto de basura en rojo, siempre con confirmación |
-| Estados | Lista desplegable (p. ej. Estado: Activada / Desactivada), no botones ni íconos |
-| Foto de perfil | Si no hay foto, ícono genérico de persona (no iniciales) |
-| Plurales | Corregidos ("1 asiento", "1 niño", "1 trabajador esperado") |
-| Hablar con el desarrollador | Botón tonal, igual en todas las pantallas donde aparece, al final |
+## 5.2 Reglas comunes de la interfaz
 
-## 5.2 Pantallas comunes
+- Barra principal **Inicio · Gestión (engranaje, con el número de solicitudes) · Viajes · Más** en todas las
+  pantallas. Barra superior con el **botón Actualizar** y el **punto de conexión** (verde, rojo; gris sin servidor).
+- **Tocar** una tarjeta abre su formulario; **mantenerla** la marca (check naranja arriba a la derecha); **un solo
+  tipo** marcado a la vez. El botón naranja **Acciones** muestra solo lo que se puede hacer: sin nada marcado, las
+  acciones generales; con algo marcado, las de lo marcado y **Marcar todo / Desmarcar todo / Invertir selección**;
+  las de un solo objeto (Editar…) solo con una marcada.
+- **Selectores** con ↕ que solo despliegan. **Secciones plegables** con su cantidad, que recuerdan si estaban
+  plegadas, **paginadas de 5 en 5** (salvo las paradas de un itinerario elegido, que se ordenan arrastrando).
+- **Formularios** con los campos propios del objeto (sin datos de otras tablas) y el interruptor **Activado**.
+- Botones siempre con **ícono y texto**; también «Cancelar» en los diálogos. Eliminar siempre pide confirmación y
+  explica qué se borra y qué se conserva.
+- **Sin conexión**: se ve lo último cargado con el aviso «Sin conexión: datos del …»; en Gestión solo queda
+  «Incluir por QR».
+
+## 5.3 Pantallas
 
 | Pantalla | Contenido |
 |---|---|
-| **Inicio de sesión** | Ícono, usuario (recordado en el teléfono) y contraseña. Debajo, en una línea y del mismo tamaño: **Entrar** (azul) y **Olvidé algo** (naranja). Separador; **Registrarme por primera vez** (ya no existe "Me registró un superior"). Separador; **botón de servidor** de tres estados: "Indicar servidor" (naranja, sin dirección), "Conectado al servidor" (verde) o "Desconectado del servidor" (rojo). Al final, **Hablar con el desarrollador** y, al pie, versión · arquitectura. La app **no trae dirección de servidor** por defecto |
-| **Servidor** | "Elija el protocolo de conexión e indique la dirección del servidor que le facilitó el administrador de la aplicación." Selector de protocolo (`https`/`http`) y dirección en la misma línea; si se pega una URL completa, el selector toma su protocolo. La app añade `/api/v1`, comprueba que responde MiRuta y la guarda. Si falla: "Fue imposible conectarse al servidor. Revise el protocolo de conexión que seleccionó, la dirección del servidor que indicó y asegúrese de tener conexión a Internet." Si la dirección cambia, la instalación se vuelve a registrar |
-| **Registrarme por primera vez** | Nombres, apellidos y **carné** (`POST /users`); usuario y contraseña ya propuestos (`GET /username-suggestion`, `GET /password-suggestion`) y modificables. `GET /registration-status` dice si será el Administrador. Carné repetido: `409 IDENTITY_CARD_TAKEN` con su texto |
-| **Otros datos del registro** | Solicitar Entidad (`POST /applications` `entity_membership`; el nombre se confirma con `GET /entities/lookup`), itinerario y parada, añadir hijos (`POST /children`), solicitar roles y **Mi QR**. Sin Pase ni jerarquía |
-| **Olvidé algo** | Arriba, "El Administrador comprobará sus datos…"; después, qué olvidó (usuario, contraseña o los dos), **carné** y teléfono. Luego muestra el estado; al aprobarse, solo lo pedido (usuario y/o contraseña propuesta, que habrá que cambiar al entrar) |
-| **Hablar con el desarrollador (sin cuenta)** | Nombre y apellidos, teléfono, motivo y mensaje; las respuestas llegan a ese teléfono |
-| **Contraseña nueva obligatoria** | Cuando caduca la contraseña (pide también la actual) o tras recuperar el acceso |
-| **Contraseña** (al abrir) | Si "Recordar contraseña" está desactivado o pasaron sus días, se pide la contraseña del usuario de la sesión. Sustituye a la antigua pantalla de PIN |
-| **Actualización** | Al abrir la app y periódicamente se comprueba si hay una versión nueva (notificación). Si es obligatoria, no se puede seguir sin instalarla |
-| **Inicio** | Tarjeta del usuario (nombres y apellidos; abreviaturas de sus Entidades o "Sin Entidad"); seis botones **Perfil, Hijos, Entidades, Itinerario, Roles, Viajes** (3 por fila, ícono y una palabra); y, con título, Hijos con derecho, **Entidad** (tarjeta con ↕: selector de la Entidad que se ve), Itinerario y parada, Roles (Trabajador primero) y Viajes de esa Entidad. Cada tarjeta lleva a su pantalla. Detalle en [11-acuerdos-registro-qr.md §11.10](11-acuerdos-registro-qr.md) |
-| **Viajes** | Selector de Entidad; viajes **En curso** y **Confirmados**; tocar uno abre su detalle |
-| **Detalle del viaje** | Viaje de ida y viaje de regreso (fecha, hora y punto de salida de cada uno), vehículo (matrícula `B 123 456`, "Cap. total · Cap. sentados · Cap. de pie"), chofer, atraso, chat del viaje, **"Ya subí"**, **"Mi QR"**, **"Seguir recorrido"** |
-| **Recorrido en tiempo real** | Título "Viaje de ida · X" / "Viaje de regreso · X". Cabecera con paradas pasadas, **paradas donde no se detuvo y saltadas**, atraso y sensores activos. **Línea con hitos** (línea centrada del mismo alto siempre, paradas como puntos gruesos encima, distancias proporcionales, hora de paso y km junto al nombre) o **mapa** (recorrido de referencia, si existe, y trazado real; nunca líneas rectas entre paradas). Botón **Trabajadores** |
-| **Trabajadores del viaje** | Selector Viaje de ida / Viaje de regreso; por parada y alfabéticamente, con foto (o ícono de persona) y los hijos que subieron (`boardedChildIds`); al final, quienes subieron sin ser esperados (`expected: false`, `outsider`). Sin número de posición ni jerarquía |
-| **Mi código QR** | Un solo QR de la persona (sin trayecto): el dinámico del teléfono, con capturas bloqueadas. Ver [07-algoritmos.md §7.36](07-algoritmos.md#736-código-qr-de-la-persona) |
-| **Escanear** (chofer, quien escanea la subida o da altas con QR) | `POST /qr-scans` (o comprobación local sin conexión) → tarjeta de la persona; si es de otro itinerario o Entidad, pregunta si la deja subir (`allowOutsider`); marcar qué hijos suben (`childIds`); avisar si ya subió (QR impreso: posible copia). Alta en itinerario: elegir parada y `POST /itinerary-assignments` |
-| **Perfil** | Foto, nombres, apellidos, carné y usuario editables; sexo y nacimiento de solo lectura (salen del carné). Acciones: Guardar perfil, Cambiar contraseña |
-| **Hijos** y **formulario del hijo** | Con derecho a viajar y desactivados; crear, agregar ya registrado (por carné), editar, desactivar o reactivar, eliminar. En el formulario: datos del carné de solo lectura, "Derecho a viajar hasta" y quién más lo tiene declarado |
-| **Entidades**, **Itinerario y parada** y **Roles** | Cada una con su selector de Entidad cuando aplica: pertenencias y solicitudes de Entidad; itinerario y parada, ausencias (sin aprobación) y solicitud de itinerario; roles (Trabajador siempre) y solicitud de los roles solicitables. Darse de baja y cancelar solicitudes desde el menú **Acciones**. La pestaña "Solicitudes" desapareció |
-| **Forma común** | Barra principal (Inicio, Viajes, Mensajes, Más) en todas las pantallas y punto de conexión; tarjetas modelo sin botones dentro (tocar = editar; mantener pulsado = selección múltiple); botón naranja **Acciones** con menú flotante, acciones en gris si no aplican. Ver [11 §11.18](11-acuerdos-registro-qr.md) |
-| **Conversaciones** | Con los Jefes de mi itinerario, con los Jefes de Transporte de mi Entidad y con el desarrollador. Al abrir una se elige el motivo |
-| **Avisos** | Avisos del servidor con su texto concreto (`message`): "Se aprobó su solicitud de <tipo> (<detalle>). La aprobó <nombre>", "Se rechazó … Motivo: <motivo>", comienzo y atraso de viajes, caducidad de la contraseña, incidencias del recorrido (jefes) |
-| **Estadísticas** | Las que le corresponden por su rol. Periodo "Últimos" o "Rango de fechas" (un día = inicio y fin iguales). Gráfico con eje en enteros y título que dice qué se mide, más tabla. No se exportan |
-| **Más** | Compartir la app (sin texto de ayuda; 64 bits por defecto o 32 bits). Al pie, "MiRuta · Versión x · 64 bits" |
-| **Ajustes** | Ver 5.4 |
+| **Inicio de sesión** | Botón **Servidor** (rojo sin servidor; diálogo «Falta el servidor» al intentar operar sin él) y punto de conexión; usuario, contraseña, «Recordar contraseña»; **Entrar**, **Olvidé usuario/contraseña** (naranja), **Registrarme** (sin relleno). Con una **actualización obligatoria** pendiente muestra el aviso con «Descargar e instalar» y no deja entrar |
+| **Inicio** | Tarjeta de la persona; **Perfil**, **Hijos**, **Mi QR**; avisos «Aún no tiene Entidad / itinerario / parada» con su botón; Entidad (selector si tiene varias), itinerario y parada, rol, próximos viajes |
+| **Gestión** | Selectores Entidad → Itinerario → Parada («Todas», «Sin Entidad» solo Administrador, «Sin itinerario», «Sin parada»; recuerdan la elección), buscador de personas y secciones **Entidades, Itinerarios, Paradas, Personas, Solicitudes**. Acciones según el rol y lo marcado: registrar trabajador, crear Entidad / itinerario / parada, **Incluir por QR**, entrar en una Entidad (Administrador), solicitar Entidad o itinerario, declarar ausencia, mostrar u ocultar solicitudes aprobadas y rechazadas; editar, eliminar, salir, crear o añadir paradas, cambiar de Entidad, asignar o quitar el rol de Jefe, cambiar de itinerario o de parada, quitar del itinerario, «Cambiarme a esta parada», aprobar o rechazar (motivo del nomenclador), cancelar o eliminar las propias |
+| **Formularios** | Trabajador, Entidad, itinerario y parada (con **«Usar mi ubicación actual»** y latitud y longitud de solo lectura), con imagen y «Activado» |
+| **Incluir por QR** | Escanea el QR, muestra dónde está ya la persona y se elige Entidad, itinerario o parada (el itinerario de la parada, bloqueado). Sin conexión, comprueba el QR en el teléfono y lo envía al volver la conexión |
+| **Ubicación compartida** | MiRuta aparece en «Compartir» (WhatsApp, Telegram, Google Maps, OsmAnd…): entiende `geo:`, enlaces de Google Maps (también los cortos, con conexión), de OpenStreetMap / OsmAnd y coordenadas escritas. Pregunta **Crear parada nueva** o **Cambiar la ubicación de una parada existente** (solo Administrador y Jefe) |
+| **Viajes** | Selectores Entidad e Itinerario; secciones **Planificados, En ejecución, Terminados, Cancelados** (estas dos se muestran u ocultan). Acciones: **Planificar viaje** (casillas Ida y Regreso, cada una con hora y tipo de vehículo); con un viaje marcado: editar, ver recorrido, Trabajadores, empezar, terminar, cancelar, eliminar |
+| **Formulario del viaje** | Itinerario y sentido de solo lectura; fecha, hora y tipo de vehículo editables solo en Planificado; estado y ocupación prevista |
+| **Línea del recorrido** | Requiere la ubicación activada a quien viaja. Paradas en el orden del recorrido, vehículo en su tramo (En movimiento, Detenido, Dejando / Recogiendo), sensores destacados, «Mi estado», cantidades sin ceros y la tarjeta «N esperando en [primera parada]» o Viajando / Recogidos. Opciones del trabajador: «Estoy en la parada …» (con sus hijos), «Me bajé en mi parada», «Estoy en mi parada», «Ya me recogieron», «No voy en este viaje» (en la ida pregunta «¿Tampoco irá en el regreso?») |
+| **Más** | Mi QR, Conversaciones, Compartir la app (64 o 32 bits), Cerrar sesión. Administrador: Nomencladores, Ajustes de la app, Olvidé algo, Actualizaciones de la app (sube los APK de 64 y 32 bits y marca Obligatoria), Mantenimiento del servidor (estado, instalar o actualizar la base de datos, tareas, caché, registro de errores) |
+| **Perfil, Hijos, Mi QR** | Mismo estilo que el formulario del trabajador. Mi QR cambia cada 15 s, sin capturas de pantalla |
+| **Conversación** | Con el desarrollador, estilo WhatsApp, solo texto y con motivo; se consulta cada «Frecuencia chat» |
 
-## 5.3 Gestión (según los permisos de cada rol)
+## 5.4 Tiempo real calculado en el teléfono
 
-En la versión 3.0 los roles son **configurables** ([11 §11.16](11-acuerdos-registro-qr.md)): cada rol es un conjunto de
-operaciones con su ámbito (propio, su itinerario, su Entidad o todas). La app muestra en **Más → Gestión** solo las
-pantallas y acciones que los permisos de `GET /me` permiten, con la misma forma común y un selector de Entidad donde
-aplica. Pantallas:
+`lib/services/tracking/worker_tracker.dart` (código puro, con pruebas) implementa §11.43–§11.44: con la distancia a la
+parada de referencia (la primera en la ida, la suya en el regreso) en dos cálculos seguidos, **Radio parada**,
+**Tolerancia GPS**, **Velocidad humana** y **Distancia abandono** deciden De camino / En la parada / No voy a viajar;
+Viajando (ida) y Recogido (regreso) si sale de la parada más rápido que una persona; **Dejado** tras «Cálculos
+consecutivos» a velocidad humana en el radio de alguna parada; **Botado** y **Dormido** cuando el vehículo ya pasó por
+su parada, y fin del cálculo pasada la «Espera final». Viajando y Recogido hacen del teléfono un **sensor**: Detenido /
+En movimiento, próxima parada (entra en su radio y sale, o la salta) y si está detenido en ella.
 
-- **Trabajadores:** lista por Entidad (activos y desactivados), **registrar persona** (Administrador: nombres,
-  apellidos, carné, ¿tiene teléfono?, usuario y contraseña propuestos que se muestran al guardar para copiarlos o
-  compartirlos; si el carné ya existe se le añade la Entidad), ficha, asignar itinerario y parada o roles,
-  ajustes del trabajador, **QR impreso** (compartir, imprimir, anular), desactivar, dar de baja.
-- **Solicitudes por resolver:** entrada en Entidad, itinerario y parada, roles; aprobar o rechazar (motivo
-  obligatorio), también varias a la vez.
-- **Roles:** Administrador de solo lectura; crear y editar (nombre, ícono, solicitable, por defecto, de itinerario,
-  operaciones con su ámbito, roles que aprueban); eliminar; consultar la tabla fija de operaciones.
-- **Entidades, itinerarios y paradas** (con imagen), orden de paradas, recorrido de referencia.
-- **Vehículos** y **planificación de viajes** (Jefe de Transporte en su Entidad, Jefe de itinerario en su
-  itinerario).
-- **Ajustes** de la app, de la Entidad, por itinerario y por parada.
-- **Estadísticas** (incluye quienes viajan fuera de su itinerario o Entidad y los niños que viajan realmente).
-- **Olvidé algo** (carné y teléfono), **actualizaciones de la app**, **mantenimiento del servidor**,
-  **nomencladores** (tipos de vehículo, tipos de ausencia y motivos de conversación) y **alta en itinerario con QR**.
-- **Recorrido y subida** (chofer y quien escanea): iniciar y finalizar, escanear QR (con o sin conexión), marcar qué
-  hijos suben, dejar subir a quien es de fuera, corregir pasajeros, escaneos sin conexión pendientes.
+`tracking_service.dart` lo ejecuta en un **servicio en primer plano** (`flutter_foreground_task`) desde «Anticipación
+viaje» antes de la salida hasta un estado definitivo o el fin del viaje, cada «Frecuencia cálculo»: envía
+`POST trips/{id}/reports` (el cambio pendiente más antiguo y, si es sensor, el vehículo) y lo reenvía hasta recibir el
+acuse. Notifica sus propios estados y, al terminar, recuerda quitar el GPS. El recordatorio de activar la ubicación lo
+programa el teléfono al conocer el próximo viaje.
 
-## 5.4 Ajustes del usuario
+## 5.5 Sincronización, notificaciones y actualizaciones
 
-Cada ajuste lleva debajo una explicación breve de **una línea** (excepción a la regla de no poner ayudas). Los valores por defecto y los límites están en [06-ajustes.md](06-ajustes.md).
+- `GET sync?cursor=N` con la app abierta («Frecuencia día viaje» si hay viaje ese día, «Frecuencia reposo» si no),
+  en segundo plano (`workmanager`, mínimo 15 min de Android) y con el botón Actualizar. Las notificaciones que llegan
+  se muestran en el teléfono (sin pantalla de avisos); `meta.counters` da el número de Gestión; `meta.changed`, qué
+  pantallas recargar; `settingsVersion`, cuándo recargar los ajustes.
+- **Actualización obligatoria** (§11.54): al recibir `426` la app cierra la sesión (también en el servidor), recuerda
+  la obligación sin conexión y desde el inicio de sesión obliga a descargar e instalar (`ota_update`, con SHA-256).
 
-| Grupo | Ajustes |
-|---|---|
-| **Aviso de viaje de ida** | Forma (tiempo antes u hora fija), minutos antes, hora fija, días antes, qué hacer si la hora fija ya pasó, texto |
-| **Aviso de viaje de regreso** | Igual que el de ida |
-| **Avisos de paso por paradas** | Alcance (ninguna, la anterior o todas las anteriores), seguir después de subir, texto |
-| **Avisos de cambios y cancelaciones** | Texto |
-| **Comienzo y atrasos** | Aviso de comienzo del viaje; aviso de viaje atrasado |
-| **Saturación del transporte** | Recibirlos, nivel (solo sobresaturado o también saturado), de qué viajes (los míos o los que gestiono), cuándo (al cambiar, antes de la salida o las dos) y minutos antes |
-| **Mensajes** | Avisos de mensajes nuevos en el chat del viaje y en las conversaciones |
-| **Ausencias** | Recibir avisos de viaje durante una ausencia |
-| **Seguridad** | Recordar contraseña y días para recordarla; días de aviso antes de que caduque la contraseña; recordar el usuario (solo en el teléfono) |
-| **Recorrido** | Vista (mapa o línea con hitos), voz (según rol), compartir ubicación, frecuencia de envío |
-| **Frecuencias** | Para cada funcionalidad, con la app abierta y en segundo plano: viajes, recorrido, chat del viaje, conversaciones, solicitudes y avisos. Activar o desactivar la sincronización en segundo plano |
-| **Actualizaciones** | Cada cuántas horas comprobar si hay versión nueva; descargar solo con Wi-Fi (solo en el teléfono, desactivado por defecto); buscar ahora |
-| **Mapa sin conexión** (solo en el teléfono) | Descargar la zona de la Entidad (sus paradas con unos 2 km de margen), respetando "solo con Wi-Fi"; fecha de la última descarga |
+## 5.6 Compilar
 
-Cada ajuste vale lo que elija el usuario; si no eligió nada, lo que fije su Entidad; y si tampoco, el valor de la app.
-
-## 5.5 Datos de la API para la app (versión 3.0)
-
-Las pantallas de la 3.0 (tarjetas, Inicio, «Acciones») las define docs/11 §11.3, §11.10 y §11.18; aquí, solo lo que la app pide a la API. Detalle en [04-api.md](04-api.md) y `api/V3-PARTE-B.md`.
-
-| Necesidad | API |
-|---|---|
-| Qué mostrar en Gestión / Más | `GET /me` → `meta.permissions` (`operation`, `scope`, `entityId`, `itineraryId`) |
-| Tarjetas de Inicio (Entidades, itinerario y parada, roles) | `GET /me` → `meta.memberships` |
-| Hijos | `GET/POST/PATCH/DELETE /children` (+ foto) |
-| Entidades, itinerario, roles | `POST /applications` (`entity_membership`, `itinerary_membership`, `role`); bajas: `DELETE /me/entities/{id}`, `DELETE /workers/{id}/itinerary`, `DELETE /worker-roles/{id}` |
-| Ausencias | `GET/POST/PATCH/DELETE /absences` (sin aprobación) |
-| Mi QR | `GET /qr-public-key`, `POST /me/qr-devices` (al iniciar sesión y antes de que caduque el certificado) |
-| Escanear y subir | `POST /qr-scans`, `POST /trip-boardings` (`qr`, `childIds`, `allowOutsider`, `scannedAt`), `PATCH`/`DELETE /trip-boardings/{id}` (corrección) |
-| Sin conexión | `GET /entities/{id}/scan-roster` (al sincronizar), `POST /offline-scans` (al recuperar la conexión) |
-| QR impreso | `GET /workers/{id}/printed-qr`, `POST /workers/{id}/printed-qr/revoke` |
-| Alta con QR | `POST /itinerary-assignments` |
-| Ajustes de otro trabajador | `GET/PATCH/DELETE /users/{id}/settings` (`settings.worker`) |
-| Borrar mensajes | `DELETE /trip-messages/{id}`, `DELETE /conversation-messages/{id}` |
-| Estadísticas nuevas | `outsider-travellers`; `children-transported` con niños que viajan realmente |
+`./build_release.sh` compila los dos APK (64 y 32 bits) por separado con el mismo `versionCode` (sin el desplazamiento
+de `--split-per-abi`, que rompería la comparación de versiones de la API), firmados con la clave de
+`android/key.properties` (no se sube al repositorio).
