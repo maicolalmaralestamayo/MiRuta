@@ -1649,3 +1649,14 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
 - **Solicitudes en las listas** (13/11/2026): la pantalla **Itinerarios** (lista) muestra también una sección
   **«Solicitudes»** con las solicitudes de itinerario (hoy solo aparece la etiqueta «1 solicitud» en la tarjeta).
   Lo mismo en la lista de **Entidades** con las solicitudes de Entidad. Desde ahí se abren y se resuelven.
+- **Prueba del viaje en tiempo real (13/11/2026, ida «XX Aniversario»), problemas observados:**
+  - Con el viaje en ejecución y **0 sensores**, la línea mostraba el vehículo **«En movimiento»**: el servidor pone
+    «En movimiento» por defecto al iniciar el viaje (`Trips::start`). **Debe mostrar «Sin datos del vehículo»**
+    hasta que informen los sensores.
+  - **0 sensores** aunque la compañera tenía el GPS activo: solo es sensor quien está **Viajando** (ida) o
+    **Recogido** (regreso), y en la ida solo se llega a Viajando desde **En la parada de la primera parada**
+    alejándose a más de 10 km/h; además el cálculo solo corre con la app abierta en la línea del recorrido. Revisar
+    y hacer visible por qué un teléfono no cuenta como sensor.
+  - **«Dormido» no apareció:** según lo acordado, Dormido solo existe en el **regreso**; en la ida todos suben en la
+    primera parada y «En la parada» significa estar en la primera parada. Pendiente de decidir qué pasa en la ida con
+    quien espera en **su** parada (no en la primera).
