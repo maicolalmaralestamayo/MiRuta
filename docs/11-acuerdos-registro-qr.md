@@ -1618,3 +1618,9 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
 - **Formulario del Trabajador con hijos** (13/11/2026): además de sus Entidades, itinerarios y paradas, muestra sus
   **hijos** (con su fecha de nacimiento y si tienen derecho a viajar), con **«Añadir hijo»**; tocar un hijo abre su
   formulario.
+
+## 11.60 Pantalla de Inicio como el formulario del Trabajador (13/11/2026)
+
+- **Inicio** pasa a ser prácticamente el **formulario del Trabajador** de la propia persona: sus **datos** y sus
+  **relaciones** (Entidades, con sus itinerarios y paradas, e hijos), con la posibilidad de **hacer solicitudes**
+  (Entidad, itinerario) y **ver sus solicitudes** y su estado.
