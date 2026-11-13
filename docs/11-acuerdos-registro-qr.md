@@ -1565,3 +1565,23 @@ elegir qué hacer** con la ubicación; debe cerrarse.
 
 **Observado en las capturas:** en Inicio la lista queda cortada antes del final (la última tarjeta de viaje no se ve
 entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos botones «Cancelar».
+
+## 11.57 Relaciones en los formularios y en las listas (13/11/2026; sustituye a «formularios sin datos relacionados»)
+
+**Formularios** (muestran y gestionan sus relaciones):
+
+| Formulario | Muestra |
+|---|---|
+| **Entidad** | sus **itinerarios**, sus **trabajadores** y sus **solicitudes** |
+| **Itinerario** | la **Entidad** a la que pertenece, sus **paradas**, sus **trabajadores** y sus **solicitudes** |
+| **Parada** | los **itinerarios** a los que pertenece y sus **trabajadores** |
+
+**Pantallas de gestión de cada tabla** (además de sus registros):
+
+| Pantalla | Muestra también |
+|---|---|
+| **Entidades** | los **trabajadores sin Entidad** |
+| **Itinerarios** | los **trabajadores sin itinerario** y los **itinerarios sin Entidad** |
+| **Paradas** | los **trabajadores sin parada** y las **paradas sin itinerario** |
+
+- Consecuencia: un itinerario **puede no tener Entidad** (la Entidad del itinerario pasa a ser opcional).
