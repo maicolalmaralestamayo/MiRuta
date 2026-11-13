@@ -1646,3 +1646,6 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
   del itinerario, o donde aparezca), quien puede resolverla (Administrador; Jefe en su itinerario) ve en el diálogo
   los botones **Aprobar** y **Rechazar** (con motivo). Si además es una solicitud propia, conserva **Cancelar
   solicitud**. Hoy el diálogo solo ofrece Volver y Cancelar solicitud.
+- **Solicitudes en las listas** (13/11/2026): la pantalla **Itinerarios** (lista) muestra también una sección
+  **«Solicitudes»** con las solicitudes de itinerario (hoy solo aparece la etiqueta «1 solicitud» en la tarjeta).
+  Lo mismo en la lista de **Entidades** con las solicitudes de Entidad. Desde ahí se abren y se resuelven.
