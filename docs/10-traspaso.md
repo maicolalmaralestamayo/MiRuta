@@ -1,12 +1,13 @@
 # 10. Traspaso de tecnología — MiRuta
 
-> **Versión 4.0.0 (próxima versión, docs/12):** el servidor pasa a **Laravel 12 con PHP 8.2** (el del hospedaje,
-> 8.2.35) y MariaDB 10.3 o superior. El `.zip` del servidor trae **`vendor/` ya instalado** (sin dependencias de
-> desarrollo y con el autoload optimizado): no hace falta Composer ni SSH en el hospedaje. Todo lo que hay que
-> ejecutar en el servidor (instalar o actualizar la base de datos, tareas, limpiezas) se hace con los endpoints de
-> mantenimiento de la API, desde la app (docs/13 §13.13). La base de datos de la 4.0 se instala **desde cero**: no
-> se actualiza sobre una 3.x. Los nombres de archivo con «2.2.0» son de ejemplo (la última entrega hecha); el
-> paquete nuevo se llama `miruta-servidor-4.0.0.zip`.
+> **Versión 4.1.0 (docs/12 §15):** servidor **Laravel 12 con PHP 8.2** (el del hospedaje, 8.2.35) y MariaDB 10.3 o
+> superior. El `.zip` del servidor trae **`vendor/` ya instalado** (sin dependencias de desarrollo y con el autoload
+> optimizado): no hace falta Composer ni SSH en el hospedaje. Todo lo que hay que ejecutar en el servidor (instalar o
+> actualizar la base de datos, tareas, limpiezas) se hace con los endpoints de mantenimiento de la API, desde la app
+> (docs/13 §13.13). La base de datos de la 4.1.0 se instala **desde cero** (*Instalar base de datos*) o, sobre una
+> 4.0.0 ya instalada, con *Actualizar base de datos*, que pasa las pertenencias al esquema nuevo (varios itinerarios
+> por Entidad). No se actualiza sobre una 3.x. En esta versión no se entregan imágenes de Docker ni un SQL inicial:
+> la base de datos se instala desde la app.
 
 Qué se entrega y cómo poner en marcha MiRuta en cada entorno: el hospedaje, un ordenador con Docker y un
 ordenador sin Docker. Se da por hecho que Docker, Apache o nginx, PHP y MySQL/MariaDB ya están instalados.
@@ -14,20 +15,14 @@ ordenador sin Docker. Se da por hecho que Docker, Apache o nginx, PHP y MySQL/Ma
 ## 10.1 Qué se entrega
 
 ```
-traspaso-2.2.0/
-├── 1-app/
-│   ├── MiRuta-2.2.0-64bits.apk           App para casi todos los teléfonos (Android 7.0 o superior)
-│   ├── MiRuta-2.2.0-32bits.apk           App para teléfonos antiguos de 32 bits
-│   └── MiRuta-2.2.0-simbolos.zip         Símbolos para leer los errores de esta versión (§10.2)
-├── 2-servidor-docker/
-│   ├── miruta-2.2.0-imagenes.tar.gz      Imágenes para «docker load»: miruta-api:2.2.0 y mariadb:10.6
-│   └── compose.yml                       Arranque de la API, la base de datos y las tareas programadas
-├── 3-servidor-zip/
-│   └── miruta-servidor-2.2.0.zip         Servidor para el hospedaje o para un ordenador sin Docker
-└── GUIA.md                               Esta guía
+4.1.0/
+├── miruta-4.1.0-64bits.apk               App para casi todos los teléfonos (Android 7.0 o superior)
+└── miruta-4.1.0-32bits.apk               App para teléfonos antiguos de 32 bits
+hosting/
+└── miruta-servidor-4.1.0.zip             Servidor para el hospedaje o para un ordenador sin Docker
 ```
 
-Contenido de `miruta-servidor-2.2.0.zip`:
+Contenido de `miruta-servidor-4.1.0.zip`:
 
 | Carpeta o archivo | Para qué |
 |---|---|
@@ -37,9 +32,9 @@ Contenido de `miruta-servidor-2.2.0.zip`:
 | `htdocs/miruta/router.php` | Lo mismo que `.htaccess`, para el servidor web de PHP (`php -S`) |
 | `htdocs/miruta/diagnostico.php` | Comprueba PHP, extensiones, carpetas y base de datos desde el navegador |
 | `subida-rapida/` | Todo `htdocs/miruta` en un solo `.zip` más `desempaquetar.php`, para subir 2 archivos por FTP |
-| `base-de-datos/miruta-2.2.0-inicial.sql` | La base de datos inicial vacía, por si prefiere importarla usted |
 | `otros/nginx-miruta.conf` | Reglas para nginx (equivalen a `.htaccess`) |
 | `CLAVE-DE-MANTENIMIENTO.txt` | La clave para instalar y mantener el servidor desde la app y para el diagnóstico |
+| `GUIA.md` | Esta guía |
 
 **Guarde aparte**, además de esta entrega:
 
@@ -50,7 +45,7 @@ Sin la clave de firma ninguna versión nueva de la app se instalará encima de e
 
 ## 10.2 La app
 
-1. Copie al teléfono **`MiRuta-2.2.0-64bits.apk`**. Use la de 32 bits solo si el teléfono no admite la de 64.
+1. Copie al teléfono **`miruta-4.1.0-64bits.apk`**. Use la de 32 bits solo si el teléfono no admite la de 64.
    Ábrala y permita «instalar apps desconocidas».
 2. La app trae puesta la dirección del hospedaje: `http://www.twintechnology.cu/miruta`. Para usar otro
    servidor, en la pantalla de inicio de sesión pulse el **botón del servidor**, elija el protocolo y escriba la
@@ -73,18 +68,18 @@ Sin la clave de firma ninguna versión nueva de la app se instalará encima de e
 - Como Administrador: *Más → Mantenimiento del servidor*.
 - Sin sesión: botón del servidor → *Mantenimiento del servidor* → clave de mantenimiento.
 
-**Símbolos (`MiRuta-2.2.0-simbolos.zip`).** La app va ofuscada. Si un usuario envía el texto de un error de la
-versión 2.2.0, se traduce a nombres legibles con Flutter:
+**Símbolos.** La app va ofuscada. Si un usuario envía el texto de un error de la versión 4.1.0, se traduce a nombres
+legibles con Flutter y los símbolos que deja la compilación en `app/build/symbols/4.1.0+11/` (guárdelos si los
+necesita; no se entregan aparte):
 
 ```bash
-unzip MiRuta-2.2.0-simbolos.zip
-flutter symbolize -i error.txt -d 2.2.0+8/app.android-arm64.symbols    # app de 64 bits
-flutter symbolize -i error.txt -d 2.2.0+8/app.android-arm.symbols      # app de 32 bits
+flutter symbolize -i error.txt -d 4.1.0+11/app.android-arm64.symbols   # app de 64 bits
+flutter symbolize -i error.txt -d 4.1.0+11/app.android-arm.symbols     # app de 32 bits
 ```
 
 ## 10.3 Entorno 1: el hospedaje (solo FTP)
 
-Use `miruta-servidor-2.2.0.zip`. Su `configuracion.php` ya trae la base de datos, la carpeta temporal y unas
+Use `miruta-servidor-4.1.0.zip`. Su `configuracion.php` ya trae la base de datos, la carpeta temporal y unas
 claves generadas para este servidor.
 
 1. **Subir.** Con FileZilla (FTP explícito sobre TLS, modo pasivo, transferencia binaria, como mucho 2
@@ -98,8 +93,7 @@ claves generadas para este servidor.
    ✔. Si `uploads` no se puede escribir, dele permisos 775 (o 777) con FileZilla. Compruebe también que
    `…/miruta/servidor/composer.json` responde *Forbidden*.
 3. **Instalar la base de datos.** En la app: botón del servidor → *Mantenimiento del servidor* → clave →
-   **Instalar base de datos**. También puede importar `base-de-datos/miruta-2.2.0-inicial.sql` con el gestor de
-   la base de datos del hospedaje.
+   **Instalar base de datos**.
 4. **Crear la cuenta del Administrador** desde la app (§10.2, paso 3).
 
 **Particularidades del hospedaje:**
@@ -110,10 +104,11 @@ claves generadas para este servidor.
 
 ## 10.4 Entorno 2: un ordenador con Docker
 
-Use la carpeta `2-servidor-docker/`. No necesita Internet.
+En esta versión no se entregan imágenes de Docker (docs/11 §11.55); para generarlas, vea §10.6. Con ellas no hace
+falta Internet.
 
 ```bash
-docker load -i miruta-2.2.0-imagenes.tar.gz
+docker load -i miruta-4.1.0-imagenes.tar.gz
 docker compose -f compose.yml up -d
 ```
 
@@ -151,7 +146,7 @@ php -r "echo 'base64:'.base64_encode(random_bytes(32)), PHP_EOL, bin2hex(random_
 
 ## 10.5 Entorno 3: un ordenador sin Docker (Apache o nginx, PHP y MySQL/MariaDB)
 
-Use `miruta-servidor-2.2.0.zip`. Hace falta:
+Use `miruta-servidor-4.1.0.zip`. Hace falta:
 
 - **PHP 8.2 o superior**, con las extensiones `pdo_mysql`, `mbstring`, `openssl`, `fileinfo`, `tokenizer`,
   `ctype`, `xml` y `dom` (y `zip` para la subida rápida);
@@ -177,8 +172,7 @@ Use `miruta-servidor-2.2.0.zip`. Hace falta:
 5. **Instalar la base de datos.** Elija una de estas formas:
    - desde la app (*Mantenimiento del servidor → Instalar base de datos*), que usa `POST maintenance-runs`;
    - en la consola, si la hay: `php miruta/servidor/artisan migrate --seed --force`;
-   - desde la app, con la clave de mantenimiento;
-   - importando `base-de-datos/miruta-2.2.0-inicial.sql`.
+   - desde la app, con la clave de mantenimiento.
 6. **Servidor web.** Elija uno:
    - **Apache** (también XAMPP o WAMP): active `mod_rewrite` y `AllowOverride All` para esa carpeta. El
      `.htaccess` ya hace el resto.

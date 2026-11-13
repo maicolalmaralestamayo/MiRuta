@@ -554,3 +554,6 @@ Con la sesión del Administrador o con `X-Maintenance-Key`:
 - `meta.memberships` (`GET me`, `GET users/{id}`, `qr-scans`) lleva `itineraries` por Entidad.
 - Aprobar una solicitud o incluir por QR **añade** el itinerario en vez de cambiarlo.
 - Nuevo `GET management-summary`; `meta.pendingApplications` en Entidades e itinerarios; `meta.workerCount` en paradas.
+- Base de datos: instalación desde cero, o «Actualizar base de datos» (`maintenance-runs` `migrate`) sobre una 4.0.0
+  (la migración `2026_11_13_000001_upgrade_memberships_4_1` pasa el itinerario, la parada y la jefatura de `workers`
+  a `worker_itineraries` y hace opcional la Entidad del itinerario).
