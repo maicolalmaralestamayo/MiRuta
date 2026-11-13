@@ -1682,3 +1682,7 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
 - **Funcionar en segundo plano** (13/11/2026): el cálculo de estados y el envío de ubicaciones **no deben requerir la
   app abierta**: con la app en segundo plano (o cerrada) debe arrancar sola a la hora (Anticipación viaje) y
   enviar los cambios de estado hasta el estado definitivo.
+  - **Permisos** (13/11/2026): la app pide **ubicación «Permitir todo el tiempo»** y **batería sin restricciones**
+    al entrar en un itinerario, con una pantalla que explica para qué son y lleva a los ajustes del teléfono. Si no se
+    conceden, sigue funcionando **solo con la app abierta** y lo recuerda antes de cada viaje. Mientras calcula,
+    notificación fija de Android («MiRuta: En la parada • 4 sensores») hasta el estado definitivo.
