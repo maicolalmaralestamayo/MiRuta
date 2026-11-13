@@ -1602,3 +1602,6 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
   ninguna); una parada puede estar en **varios itinerarios o en ninguno**. Vuelven a mostrarse «itinerarios sin
   Entidad» y «paradas sin itinerario» en sus pantallas de gestión (§11.57). Quitar una parada de su último itinerario
   o eliminar un itinerario **no elimina** las paradas: quedan sueltas.
+- **Formulario del Trabajador** (13/11/2026): muestra sus **Entidades**, cada una con sus **itinerarios** y la
+  **parada** de cada itinerario; botón **«Asociar Entidad»** y, dentro de cada Entidad, **añadir itinerario** (con
+  parada opcional). Como en la maqueta G19 nº 6.
