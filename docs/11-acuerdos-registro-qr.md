@@ -1525,3 +1525,43 @@ Todas por **notificaciones del teléfono** (no hay pantalla de avisos).
 - **Todo lo que haya que ejecutar en el servidor** (migraciones, tareas, limpiezas…) se hace **mediante endpoints de
   la propia API** (como el mantenimiento actual), nunca por consola.
 - **Por ahora no se entregan los contenedores** (imagen de pruebas).
+
+## 11.56 Problemas y cambios tras probar la 4.0.0 (13/11/2026, pendiente de implementar)
+
+**Para toda la app**
+- **Operaciones con el servidor:** al ejecutar una acción que se conecta al servidor, la app muestra un **spinner que
+  bloquea la app** hasta que la operación termina o se cancela, con un botón para **cancelar** la conexión. Al final,
+  un mensaje **muy escueto**: «Operación cancelada» (si no se llegó al servidor y no se ejecutó) o el resultado
+  («Itinerario creado», «Itinerario actualizado», «Itinerario eliminado»…).
+- **Botón Actualizar:** no actualiza toda la app; solo **los datos de la pantalla visible** y **todas las
+  notificaciones pendientes** del usuario o de la app.
+- **Contraseñas:** la app **ya no propone ni sugiere** contraseñas; solo comprueba que cumplan los requisitos.
+- **Notificaciones:** revisar el sistema; estando dentro de la app, también notifica en el teléfono.
+
+**Formularios**
+- **Entidad:** desde su formulario se puede **adicionar una persona** y **gestionar las solicitudes** de inclusión en
+  la Entidad.
+- **Itinerario:** desde su formulario se puede **adicionar una parada**, **gestionar las solicitudes** de inclusión en
+  el itinerario y **asociarle una Entidad**.
+- **Parada:** se le puede **asociar un itinerario**.
+- **Trabajador:** se le pueden asociar **Entidades**, **itinerarios** de esas Entidades y **paradas** de esos
+  itinerarios.
+- **Salir sin guardar:** al intentar salir de un formulario sin completar la operación (creación, actualización), se
+  avisa de que la operación no se efectuará y los datos se perderán, con botones **Cancelar** (seguir en el
+  formulario) y **Confirmar** (salir). Mismo diseño en toda la app.
+- **Teclado:** en todos los formularios se navega por todos los campos con el teclado (siguiente campo), sin tocar
+  con el dedo.
+
+**Modales:** diseño simple: **ícono, título, pregunta de confirmación y botones**.
+
+**Gestión (cambio de forma; sustituye a la pantalla única de §11.26):**
+- La pantalla Gestión muestra **tarjetas**: Entidades, Itinerarios, Paradas, Trabajadores y **todos los demás
+  nomencladores**.
+- Desde cada tarjeta se navega a la **pantalla de gestión** de ese nomenclador, donde se listan sus registros y se
+  crean, actualizan y eliminan.
+
+**Paradas:** al recibir unas coordenadas compartidas, después de guardar la parada **sigue abierta la pantalla de
+elegir qué hacer** con la ubicación; debe cerrarse.
+
+**Observado en las capturas:** en Inicio la lista queda cortada antes del final (la última tarjeta de viaje no se ve
+entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos botones «Cancelar».
