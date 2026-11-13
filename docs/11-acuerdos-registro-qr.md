@@ -1638,3 +1638,7 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
   **Compartir la app** y las herramientas del **Administrador** (Nomencladores, Ajustes de la app, Olvidé algo,
   Actualizaciones de la app, Mantenimiento del servidor). Desaparecen las pantallas **Perfil** (se ve/edita desde
   Acciones de Inicio), **Hijos** y **Mi QR** como entradas sueltas.
+
+## 11.61 Cambios para la próxima versión (desde 13/11/2026; NO implementar hasta la señal)
+
+- **Ausencias por itinerario:** declarar una ausencia se asocia a **un itinerario** (no a la Entidad).
