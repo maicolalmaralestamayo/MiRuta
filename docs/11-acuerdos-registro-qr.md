@@ -1624,3 +1624,13 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
 - **Inicio** pasa a ser prácticamente el **formulario del Trabajador** de la propia persona: sus **datos** y sus
   **relaciones** (Entidades, con sus itinerarios y paradas, e hijos), con la posibilidad de **hacer solicitudes**
   (Entidad, itinerario) y **ver sus solicitudes** y su estado.
+- **Contenido de Inicio, versión final** (13/11/2026; sustituye lo anterior de esta sección):
+  - **Datos del trabajador**, en una presentación **estética** (no como formulario).
+  - **Su QR.**
+  - **Hijos.**
+  - **Entidades** y sus **solicitudes**.
+  - **Itinerarios** y sus **solicitudes**.
+  - **Paradas.**
+  - **Viajes activos.**
+  - Botón **Acciones** con: **Cerrar sesión**, **Ver o editar el perfil** y las **acciones de las relaciones**
+    (solicitar Entidad o itinerario, cambiar de parada, añadir hijo…).
