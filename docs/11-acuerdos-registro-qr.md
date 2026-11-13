@@ -1641,7 +1641,8 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
 
 ## 11.61 Cambios para la próxima versión (desde 13/11/2026; NO implementar hasta la señal)
 
-- **Ausencias por itinerario:** declarar una ausencia se asocia a **un itinerario** (no a la Entidad).
+- **Ausencias por itinerario:** declarar una ausencia se asocia a **itinerarios** (no a la Entidad): en la misma
+  ausencia se pueden marcar **uno o varios** de sus itinerarios (13/11/2026).
 - **Resolver solicitudes desde su diálogo** (13/11/2026): al tocar una solicitud (en el formulario de la Entidad o
   del itinerario, o donde aparezca), quien puede resolverla (Administrador; Jefe en su itinerario) ve en el diálogo
   los botones **Aprobar** y **Rechazar** (con motivo). Si además es una solicitud propia, conserva **Cancelar
