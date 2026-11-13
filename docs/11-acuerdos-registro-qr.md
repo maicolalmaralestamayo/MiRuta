@@ -1634,3 +1634,7 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
   - **Viajes activos.**
   - Botón **Acciones** con: **Cerrar sesión**, **Ver o editar el perfil** y las **acciones de las relaciones**
     (solicitar Entidad o itinerario, cambiar de parada, añadir hijo…).
+- **Más sin «Mi QR» ni «Cerrar sesión»** (13/11/2026): ya están en Inicio. Más queda con **Conversaciones**,
+  **Compartir la app** y las herramientas del **Administrador** (Nomencladores, Ajustes de la app, Olvidé algo,
+  Actualizaciones de la app, Mantenimiento del servidor). Desaparecen las pantallas **Perfil** (se ve/edita desde
+  Acciones de Inicio), **Hijos** y **Mi QR** como entradas sueltas.
