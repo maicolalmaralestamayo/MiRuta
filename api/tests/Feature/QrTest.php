@@ -68,7 +68,7 @@ class QrTest extends TestCase
             ->assertJsonPath('data.attributes.memberships.0.entity.abbreviation', 'PRUEBA');
     }
 
-    public function test_incluir_en_una_parada_pone_la_entidad_y_el_itinerario_y_cambia_el_anterior(): void
+    public function test_incluir_en_una_parada_pone_la_entidad_y_anade_el_itinerario_sin_quitar_el_anterior(): void
     {
         $admin = $this->createAdmin();
         $entity = $this->createEntity();
@@ -83,11 +83,12 @@ class QrTest extends TestCase
             ->assertStatus(422)->assertJsonPath('errors.0.code', 'VALIDATION_ERROR');
 
         $this->include($admin, $this->qr($device, $person->id), ['itinerary' => ['itineraries', $itinerary->id], 'stop' => ['stops', $stop]])
-            ->assertCreated()->assertJsonPath('data.attributes.previous.itineraryId', (string) $other->id)
+            ->assertCreated()->assertJsonPath('data.attributes.previous.inEntity', true)->assertJsonPath('data.attributes.previous.inItinerary', false)
             ->assertJsonPath('data.relationships.stop.data.id', (string) $stop);
-        $worker = Worker::where('user_id', $person->id)->first();
-        $this->assertSame((int) $itinerary->id, $worker->itinerary_id);
-        $this->assertFalse($worker->is_chief, 'Cambiar de itinerario quita la jefatura.');
+        $this->assertSame($stop, $this->placement($person, $itinerary)->stop_id);
+        $this->assertTrue($this->placement($person, $other)->is_chief, 'Conserva el otro itinerario y su jefatura.');
+        $this->jsonApiAs($admin, 'POST', '/api/v1/qr-scans', self::resource('qr-scans', ['qr' => $this->qr($device, $person->id)]))
+            ->assertJsonCount(2, 'data.attributes.memberships.0.itineraries');
     }
 
     public function test_el_jefe_solo_incluye_en_su_itinerario(): void

@@ -40,8 +40,14 @@ res("users", "User", {**NAMES, "username": STR(), "fullName": STR(**RO), "sex": 
     "password": STR(writeOnly=True), "mustChangePassword": BOOL(**RO), "currentPasswordRequired": BOOL(**RO),
     "passwordExpiresAt": DT(nullable=True, **RO), "appVersionCode": INT(nullable=True, **RO), "createdAt": DT(**RO)},
     desc="Persona. GET /me añade meta.role, meta.chiefItineraryId y meta.memberships.")
-res("workers", "Worker", {"isChief": BOOL(), "active": BOOL(), "createdAt": DT(**RO)},
-    {"user": "users", "entity": "entities", "itinerary": "itineraries", "stop": "stops"}, "La persona en una Entidad.")
+res("workers", "Worker", {"active": BOOL(), "createdAt": DT(**RO)},
+    {"user": "users", "entity": "entities"}, "La persona en una Entidad. meta.itineraries: sus itinerarios en ella.")
+res("worker-itineraries", "WorkerItinerary", {"isChief": BOOL(), "createdAt": DT(**RO)},
+    {"user": "users", "worker": "workers", "itinerary": "itineraries", "stop": "stops"},
+    "La persona en un itinerario de una de sus Entidades (varios por Entidad), con su parada y si es Jefe.")
+res("management-summaries", "ManagementSummary", {"entities": INT(), "itineraries": INT(), "stops": INT(), "workers": INT(),
+    "pendingEntityApplications": INT(), "pendingItineraryApplications": INT(), "nomenclators": OBJ()},
+    desc="Cantidades de las tarjetas de Gestión.")
 res("entities", "Entity", {"abbreviation": STR(maxLength=15), "number": STR(pattern=r"^\d{4}$", nullable=True), "name": STR(maxLength=150),
     "description": STR(nullable=True), "observation": STR(nullable=True), "imageUrl": IMG, "active": BOOL()})
 res("itineraries", "Itinerary", {"name": STR(maxLength=100), "description": STR(nullable=True), "observation": STR(nullable=True),
@@ -222,11 +228,12 @@ paths["/me/applications-seen"] = {"post": op("Cuenta", "Marcar vistas mis solici
 
 # Gestión
 crud("entities", "Gestión", filters=[filt("search", "Abreviatura o nombre"), filt("active", "true o false")],
-     notes={"C": "Administrador.", "U": "Administrador.", "D": "Administrador. Elimina sus itinerarios; las personas quedan sin esa Entidad."})
+     notes={"C": "Administrador.", "U": "Administrador.", "D": "Administrador. Sus itinerarios quedan sin Entidad; las personas quedan sin esa Entidad."})
 paths["/entities/lookup"] = {"get": op("Gestión", "Comprobar una abreviatura", ok(200, "EntityLookupDocument"), "Con sesión o X-Installation.",
                                        [filt("abbreviation", "Abreviatura")], errs=("400", "401", "404", "426"))}
-crud("itineraries", "Gestión", filters=[filt("entity", "Id de Entidad"), filt("search", "Nombre"), filt("active", "true o false")],
-     notes={"C": "Administrador.", "U": "Administrador. Con relationships.entity: cambiar de Entidad.", "D": "Administrador. Sus personas quedan sin itinerario."})
+crud("itineraries", "Gestión", filters=[filt("entity", "Id de Entidad o none"), filt("search", "Nombre"), filt("active", "true o false")],
+     notes={"C": "Administrador. relationships.entity opcional.", "U": "Administrador. relationships.entity (id o null): sus personas pasan con él (o salen de él).",
+            "D": "Administrador. Sus personas salen de él; las paradas se conservan."})
 paths["/itineraries/{id}/relationships/stops"] = {"patch": op("Gestión", "Ordenar las paradas del itinerario",
     {"200": {"description": "Nuevo orden", "content": {JA: {"schema": {"type": "object", "properties": {"data": S("array", items={"$ref": "#/components/schemas/Identifier"})}}}}}},
     "Administrador o Jefe del itinerario. data = todas sus paradas en orden.", [ID],
@@ -248,7 +255,13 @@ crud("users", "Gestión", "LRUD", [filt("entity", "Id de Entidad o none"), filt(
 crud("workers", "Gestión", filters=[filt("entity", "Id de Entidad"), filt("itinerary", "Id o none"), filt("stop", "Id o none"), filt("user", "Id de persona"),
      filt("search", "Nombre, usuario o carné"), filt("active", "true o false"), filt("chief", "true o false")],
      notes={"C": "Administrador: persona existente (relationships.user) o nueva (nombres y carné; meta.username y meta.password).",
-            "U": "active, isChief, relationships itinerary, stop y entity según el rol (docs/13 §13.5).", "D": "Administrador o la propia persona."})
+            "U": "active (Administrador o Jefe de su itinerario).", "D": "Administrador o la propia persona."})
+crud("worker-itineraries", "Gestión", filters=[filt("user", "Id de persona"), filt("itinerary", "Id de itinerario"), filt("entity", "Id de Entidad"),
+     filt("stop", "Id o none"), filt("chief", "true o false"), filt("search", "Nombre, usuario o carné")],
+     notes={"C": "Administrador, o Jefe en su itinerario a personas de su Entidad. Añade el itinerario a los que ya tiene.",
+            "U": "relationships.stop (Administrador, Jefe o la propia persona); isChief (Administrador).",
+            "D": "Salir del itinerario (Administrador, Jefe o la propia persona)."})
+paths["/management-summary"] = {"get": op("Gestión", "Cantidades de las tarjetas de Gestión", ok(200, "ManagementSummaryDocument"), errs=("401", "426"))}
 crud("applications", "Gestión", filters=[filt("status", "Lista: pendiente,aprobada,rechazada"), filt("type", "entidad o itinerario"),
      filt("entity", "Id"), filt("itinerary", "Id"), filt("mine", "true o false")],
      notes={"U": "status aprobada, o rechazada con relationships.denialReason.", "D": "Quien la hizo."})
@@ -332,7 +345,7 @@ spec = {
     "openapi": "3.0.3",
     "info": {
         "title": "MiRuta API",
-        "version": "4.0.0",
+        "version": "4.1.0",
         "description": "API de MiRuta (Laravel 12): gestión del transporte de trabajadores.\n\n"
                        "- Formato [JSON:API 1.1](https://jsonapi.org/format/) (`application/vnd.api+json`).\n"
                        "- Autenticación JWT (RFC 7519) con token de renovación y rotación.\n"

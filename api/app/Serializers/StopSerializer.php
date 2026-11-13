@@ -2,13 +2,16 @@
 
 namespace App\Serializers;
 
+use App\Models\Entity;
 use App\Models\ItineraryStop;
+use App\Models\WorkerItinerary;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 
 /**
  * Parada (compartida entre itinerarios). meta.itineraries: en qué itinerarios
- * está y en qué posición (vacía = «Sin itinerario»).
+ * está y en qué posición (vacía = «Sin itinerario»),
+ * con la Entidad de cada uno (null = sin Entidad); meta.workerCount: quiénes la tienen.
  */
 class StopSerializer extends Serializer
 {
@@ -38,14 +41,18 @@ class StopSerializer extends Serializer
             ->orderBy('itineraries.name')
             ->get(['itinerary_stop.id', 'itinerary_stop.itinerary_id', 'itinerary_stop.position', 'itineraries.name', 'itineraries.entity_id']);
 
+        $entities = Entity::whereIn('id', $links->pluck('entity_id')->filter()->all() ?: [0])->pluck('abbreviation', 'id');
+
         return [
             'itineraries' => $links->map(fn ($link) => [
                 'itineraryStopId' => (string) $link->id,
                 'itineraryId' => (string) $link->itinerary_id,
                 'name' => $link->name,
-                'entityId' => (string) $link->entity_id,
+                'entityId' => $link->entity_id ? (string) $link->entity_id : null,
+                'entityAbbreviation' => $link->entity_id ? ($entities[$link->entity_id] ?? null) : null,
                 'position' => (int) $link->position,
             ])->values()->all(),
+            'workerCount' => WorkerItinerary::where('stop_id', $stop->id)->count(),
         ];
     }
 }

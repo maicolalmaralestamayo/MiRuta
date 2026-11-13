@@ -9,16 +9,19 @@ use App\Models\Itinerary;
 use App\Models\ItineraryStop;
 use App\Models\Stop;
 use App\Models\Worker;
+use App\Models\WorkerItinerary;
 use Illuminate\Support\Facades\DB;
 
 /**
  * Entidades, itinerarios y paradas: eliminaciones en cascada y paradas de un
  * itinerario (docs/11 §11.22 y §11.24).
  *
- * - Entidad: se eliminan sus itinerarios (con sus viajes y solicitudes); las
- *   personas no se eliminan: quedan sin esa Entidad.
- * - Itinerario: sus personas quedan sin itinerario, sin parada y sin jefatura;
- *   las paradas se conservan (pueden estar en otros itinerarios).
+ * - Entidad: sus itinerarios se conservan, «sin Entidad» (docs/11 §11.58);
+ *   las personas no se eliminan: quedan sin esa Entidad y sin sus itinerarios
+ *   en ella; se borran sus solicitudes.
+ * - Itinerario: sus personas salen de él (pierden la parada y la jefatura en
+ *   él); se eliminan sus viajes y solicitudes; las paradas se conservan
+ *   (aunque queden sin itinerario).
  * - Parada: las personas que la tenían quedan sin parada (conservan su itinerario).
  */
 class Organization
@@ -30,12 +33,10 @@ class Organization
     public function deleteEntity(Entity $entity): void
     {
         DB::transaction(function () use ($entity) {
-            foreach (Itinerary::where('entity_id', $entity->id)->get() as $itinerary) {
-                $this->deleteItinerary($itinerary);
-            }
-
             Application::where('entity_id', $entity->id)->delete();
+            WorkerItinerary::whereIn('worker_id', Worker::where('entity_id', $entity->id)->select('id'))->delete();
             Worker::where('entity_id', $entity->id)->delete();
+            Itinerary::where('entity_id', $entity->id)->update(['entity_id' => null]);
             $entity->delete();
         });
         $this->access->flush();
@@ -44,7 +45,7 @@ class Organization
     public function deleteItinerary(Itinerary $itinerary): void
     {
         DB::transaction(function () use ($itinerary) {
-            Worker::where('itinerary_id', $itinerary->id)->update(['itinerary_id' => null, 'stop_id' => null, 'is_chief' => false]);
+            WorkerItinerary::where('itinerary_id', $itinerary->id)->delete();
             $itinerary->delete();
         });
         $this->access->flush();
@@ -54,7 +55,7 @@ class Organization
     {
         DB::transaction(function () use ($stop) {
             $itineraryIds = ItineraryStop::where('stop_id', $stop->id)->pluck('itinerary_id')->all();
-            Worker::where('stop_id', $stop->id)->update(['stop_id' => null]);
+            WorkerItinerary::where('stop_id', $stop->id)->update(['stop_id' => null]);
             $stop->delete();
 
             foreach ($itineraryIds as $itineraryId) {
@@ -82,13 +83,14 @@ class Organization
     }
 
     /**
-     * Quita la parada del itinerario (la parada se conserva). Quien la tenía
+     * Quita la parada del itinerario (la parada se conserva, aunque quede sin
+     * ningún itinerario). Quien la tenía
      * en ese itinerario queda sin parada.
      */
     public function removeStop(ItineraryStop $link): void
     {
         DB::transaction(function () use ($link) {
-            Worker::where('itinerary_id', $link->itinerary_id)->where('stop_id', $link->stop_id)->update(['stop_id' => null]);
+            WorkerItinerary::where('itinerary_id', $link->itinerary_id)->where('stop_id', $link->stop_id)->update(['stop_id' => null]);
             Application::where('itinerary_id', $link->itinerary_id)->where('stop_id', $link->stop_id)
                 ->where('status', Application::PENDING)->update(['stop_id' => null]);
             $link->delete();

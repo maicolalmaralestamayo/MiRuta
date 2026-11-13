@@ -82,8 +82,37 @@ class ApplicationsTest extends TestCase
             ['itinerary' => ['itineraries', $itinerary->id], 'stop' => ['stops', $stop]]))->json('data.id');
         $this->jsonApiAs($chief, 'GET', '/api/v1/sync')->assertJsonPath('meta.counters.applicationsToResolve', 1);
         $this->jsonApiAs($chief, 'PATCH', "/api/v1/applications/{$id}", self::resource('applications', ['status' => 'aprobada']))->assertOk();
-        $worker->refresh();
-        $this->assertSame([(int) $itinerary->id, $stop], [$worker->itinerary_id, $worker->stop_id]);
+        $this->assertSame($stop, $this->placement($worker, $itinerary)->stop_id);
+    }
+
+    public function test_aprobar_anade_otro_itinerario_y_otra_entidad_sin_quitar_los_que_tenia(): void
+    {
+        $admin = $this->createAdmin();
+        $entity = $this->createEntity();
+        $other = $this->createEntity('OTRA');
+        $first = $this->createItinerary($entity);
+        $second = $this->createItinerary($entity);
+        $worker = $this->createWorker($entity, $first, $first->stopIds()[0]);
+
+        $id = $this->jsonApiAs($worker, 'POST', '/api/v1/applications', self::resource('applications', ['type' => 'itinerario'],
+            ['itinerary' => ['itineraries', $second->id]]))->assertCreated()->json('data.id');
+        $this->jsonApiAs($worker, 'POST', '/api/v1/applications', self::resource('applications', ['type' => 'itinerario'],
+            ['itinerary' => ['itineraries', $first->id]]))->assertStatus(409)->assertJsonPath('errors.0.code', 'ALREADY_IN_ITINERARY');
+        $this->jsonApiAs($admin, 'PATCH', "/api/v1/applications/{$id}", self::resource('applications', ['status' => 'aprobada']))->assertOk();
+        $this->assertNotNull($this->placement($worker, $first));
+        $this->assertNotNull($this->placement($worker, $second));
+        $this->assertNull($this->placement($worker, $second)->stop_id);
+
+        $id = $this->jsonApiAs($worker, 'POST', '/api/v1/applications', self::resource('applications', ['type' => 'entidad'],
+            ['entity' => ['entities', $other->id]]))->assertCreated()->json('data.id');
+        $this->jsonApiAs($admin, 'PATCH', "/api/v1/applications/{$id}", self::resource('applications', ['status' => 'aprobada']))->assertOk();
+        $this->assertSame(2, Worker::where('user_id', $worker->user_id)->count());
+        $this->assertSame(2, \App\Models\WorkerItinerary::where('user_id', $worker->user_id)->count());
+
+        // Un itinerario sin Entidad no admite solicitudes.
+        $loose = \App\Models\Itinerary::create(['name' => 'Suelto']);
+        $this->jsonApiAs($worker, 'POST', '/api/v1/applications', self::resource('applications', ['type' => 'itinerario'],
+            ['itinerary' => ['itineraries', $loose->id]]))->assertStatus(409)->assertJsonPath('errors.0.code', 'ITINERARY_WITHOUT_ENTITY');
     }
 
     public function test_cada_uno_ve_las_suyas_y_las_cancela_o_elimina(): void

@@ -2,6 +2,7 @@
 
 namespace App\Serializers;
 
+use App\Models\Application;
 use App\Models\Worker;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -31,6 +32,9 @@ class EntitySerializer extends Serializer
         return [
             'workerCount' => Worker::where('entity_id', $entity->id)->count(),
             'itineraryCount' => $entity->itineraries()->count(),
+            // Solicitudes de entrar en la Entidad pendientes (las resuelve el Administrador).
+            'pendingApplications' => Application::where('type', Application::TYPE_ENTITY)->where('entity_id', $entity->id)
+                ->where('status', Application::PENDING)->count(),
         ];
     }
 }

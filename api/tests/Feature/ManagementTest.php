@@ -8,6 +8,7 @@ use App\Models\ItineraryStop;
 use App\Models\Stop;
 use App\Models\User;
 use App\Models\Worker;
+use App\Models\WorkerItinerary;
 use Tests\TestCase;
 
 /**
@@ -42,7 +43,7 @@ class ManagementTest extends TestCase
         $this->jsonApiAs($user, 'GET', '/api/v1/entities/lookup?filter[abbreviation]=NADA')->assertNotFound();
     }
 
-    public function test_al_eliminar_una_entidad_se_van_sus_itinerarios_y_las_personas_quedan_sin_ella(): void
+    public function test_al_eliminar_una_entidad_sus_itinerarios_quedan_sin_entidad_y_las_personas_sin_ella(): void
     {
         $admin = $this->createAdmin();
         $entity = $this->createEntity();
@@ -55,25 +56,32 @@ class ManagementTest extends TestCase
         $this->jsonApiAs($admin, 'DELETE', "/api/v1/entities/{$entity->id}")->assertNoContent();
 
         $this->assertNull(Entity::find($entity->id));
-        $this->assertNull(Itinerary::find($itinerary->id));
+        // El itinerario se conserva, suelto (docs/11 §11.58), y sin sus personas.
+        $this->assertNull(Itinerary::find($itinerary->id)->entity_id);
+        $this->assertSame(0, WorkerItinerary::where('itinerary_id', $itinerary->id)->count());
         $this->assertNotNull(User::find($worker->user_id));
         $this->assertSame([(int) $other->id], Worker::where('user_id', $worker->user_id)->pluck('entity_id')->all());
-        // Las paradas se conservan (pueden estar en otros itinerarios).
         $this->assertSame(3, Stop::whereIn('id', $stopIds)->count());
+        $this->assertSame([(string) $itinerary->id], collect($this->jsonApiAs($admin, 'GET', '/api/v1/itineraries?filter[entity]=none')->json('data'))->pluck('id')->all());
     }
 
-    public function test_al_eliminar_un_itinerario_sus_personas_quedan_sin_itinerario_parada_ni_jefatura(): void
+    public function test_al_eliminar_un_itinerario_sus_personas_salen_de_el_y_las_paradas_quedan_sueltas(): void
     {
         $admin = $this->createAdmin();
         $entity = $this->createEntity();
         $itinerary = $this->createItinerary($entity);
+        $other = $this->createItinerary($entity);
         $chief = $this->createChief($itinerary, $itinerary->stopIds()[0]);
+        $this->placeIn($chief, $other, $other->stopIds()[0]);
+        $stopIds = $itinerary->stopIds();
 
         $this->jsonApiAs($admin, 'DELETE', "/api/v1/itineraries/{$itinerary->id}")->assertNoContent();
-        $chief->refresh();
-        $this->assertNull($chief->itinerary_id);
-        $this->assertNull($chief->stop_id);
-        $this->assertFalse($chief->is_chief);
+        $this->assertNull($this->placement($chief, $itinerary));
+        $this->assertNotNull($this->placement($chief, $other), 'Conserva sus otros itinerarios.');
+        $this->jsonApiAs($chief, 'GET', '/api/v1/me')->assertJsonPath('data.meta.role', 'trabajador');
+        $this->assertSame(3, Stop::whereIn('id', $stopIds)->count());
+        $loose = collect($this->jsonApiAs($admin, 'GET', '/api/v1/stops?filter[itinerary]=none')->json('data'))->pluck('id')->all();
+        $this->assertEqualsCanonicalizing(array_map('strval', $stopIds), $loose);
     }
 
     public function test_al_eliminar_una_parada_o_quitarla_del_itinerario_quedan_sin_parada(): void
@@ -86,15 +94,16 @@ class ManagementTest extends TestCase
         $b = $this->createWorker($entity, $itinerary, $third);
 
         $this->jsonApiAs($admin, 'DELETE', "/api/v1/stops/{$second}")->assertNoContent();
-        $this->assertNull($a->fresh()->stop_id);
-        $this->assertSame((int) $itinerary->id, $a->fresh()->itinerary_id);
+        $this->assertNull($this->placement($a, $itinerary)->stop_id);
         $this->assertSame([$first, $third], Itinerary::find($itinerary->id)->stopIds());
         $this->assertSame([1, 2], ItineraryStop::where('itinerary_id', $itinerary->id)->orderBy('position')->pluck('position')->all());
 
+        // Quitar la parada de su último itinerario no la elimina: queda suelta.
         $link = ItineraryStop::where('itinerary_id', $itinerary->id)->where('stop_id', $third)->first();
         $this->jsonApiAs($admin, 'DELETE', "/api/v1/itinerary-stops/{$link->id}")->assertNoContent();
-        $this->assertNull($b->fresh()->stop_id);
+        $this->assertNull($this->placement($b, $itinerary)->stop_id);
         $this->assertNotNull(Stop::find($third));
+        $this->assertSame(0, ItineraryStop::where('stop_id', $third)->count());
     }
 
     public function test_itinerarios_paradas_compartidas_y_orden(): void
@@ -194,7 +203,7 @@ class ManagementTest extends TestCase
         $this->jsonApiAs($this->createUser(), 'POST', '/api/v1/workers', self::resource('workers', [], ['entity' => ['entities', $entity->id]]))->assertForbidden();
     }
 
-    public function test_jefe_de_itinerario_lo_asigna_el_administrador_y_lo_pierde_al_cambiar_de_itinerario(): void
+    public function test_jefe_de_itinerario_lo_asigna_el_administrador_y_lo_es_de_uno_solo(): void
     {
         $admin = $this->createAdmin();
         $entity = $this->createEntity();
@@ -202,16 +211,48 @@ class ManagementTest extends TestCase
         $other = $this->createItinerary($entity);
         $worker = $this->createWorker($entity);
 
-        $this->jsonApiAs($worker, 'PATCH', "/api/v1/workers/{$worker->id}", self::resource('workers', ['isChief' => true]))->assertForbidden();
-
-        // Al nombrarlo Jefe se le pone en ese itinerario.
-        $this->jsonApiAs($admin, 'PATCH', "/api/v1/workers/{$worker->id}", self::resource('workers', ['isChief' => true], ['itinerary' => ['itineraries', $itinerary->id]]))
-            ->assertOk()->assertJsonPath('data.attributes.isChief', true)->assertJsonPath('data.relationships.itinerary.data.id', (string) $itinerary->id);
+        // El Administrador lo pone en el itinerario como Jefe.
+        $first = $this->jsonApiAs($admin, 'POST', '/api/v1/worker-itineraries', self::resource('worker-itineraries', ['isChief' => true],
+            ['user' => ['users', $worker->user_id], 'itinerary' => ['itineraries', $itinerary->id]]))
+            ->assertCreated()->assertJsonPath('data.attributes.isChief', true)->json('data.id');
         $this->jsonApiAs($worker, 'GET', '/api/v1/me')->assertJsonPath('data.meta.role', 'jefe')->assertJsonPath('data.meta.chiefItineraryId', (string) $itinerary->id);
+        $this->jsonApiAs($worker, 'PATCH', "/api/v1/worker-itineraries/{$first}", self::resource('worker-itineraries', ['isChief' => false]))->assertForbidden();
 
-        // Si se le cambia de itinerario, deja de ser Jefe.
-        $this->jsonApiAs($admin, 'PATCH', "/api/v1/workers/{$worker->id}", self::resource('workers', [], ['itinerary' => ['itineraries', $other->id]]))
-            ->assertOk()->assertJsonPath('data.attributes.isChief', false);
+        // Otro itinerario en la misma Entidad: se AÑADE; al nombrarlo Jefe de él deja de serlo del primero.
+        $second = $this->jsonApiAs($admin, 'POST', '/api/v1/worker-itineraries', self::resource('worker-itineraries', [],
+            ['user' => ['users', $worker->user_id], 'itinerary' => ['itineraries', $other->id], 'stop' => ['stops', $other->stopIds()[1]]]))
+            ->assertCreated()->assertJsonPath('data.relationships.stop.data.id', (string) $other->stopIds()[1])->json('data.id');
+        $this->assertSame(2, WorkerItinerary::where('user_id', $worker->user_id)->count());
+        $this->jsonApiAs($admin, 'PATCH', "/api/v1/worker-itineraries/{$second}", self::resource('worker-itineraries', ['isChief' => true]))->assertOk();
+        $this->assertFalse(WorkerItinerary::find($first)->is_chief);
+        $this->jsonApiAs($worker, 'GET', '/api/v1/me')->assertJsonPath('data.meta.chiefItineraryId', (string) $other->id)
+            ->assertJsonCount(1, 'data.meta.memberships')->assertJsonCount(2, 'data.meta.memberships.0.itineraries');
+
+        // Repetir el mismo itinerario: conflicto.
+        $this->jsonApiAs($admin, 'POST', '/api/v1/worker-itineraries', self::resource('worker-itineraries', [],
+            ['user' => ['users', $worker->user_id], 'itinerary' => ['itineraries', $other->id]]))->assertStatus(409)->assertJsonPath('errors.0.code', 'ALREADY_IN_ITINERARY');
+
+        // Salir del itinerario del que es Jefe quita la jefatura.
+        $this->jsonApiAs($worker, 'DELETE', "/api/v1/worker-itineraries/{$second}")->assertNoContent();
+        $this->jsonApiAs($worker, 'GET', '/api/v1/me')->assertJsonPath('data.meta.role', 'trabajador');
+    }
+
+    public function test_el_administrador_anade_un_itinerario_de_otra_entidad_y_la_persona_entra_en_ella(): void
+    {
+        $admin = $this->createAdmin();
+        $entity = $this->createEntity();
+        $other = $this->createEntity('OTRA');
+        $itinerary = $this->createItinerary($other);
+        $worker = $this->createWorker($entity);
+
+        $this->jsonApiAs($admin, 'POST', '/api/v1/worker-itineraries', self::resource('worker-itineraries', [],
+            ['user' => ['users', $worker->user_id], 'itinerary' => ['itineraries', $itinerary->id]]))->assertCreated();
+        $this->assertEqualsCanonicalizing([(int) $entity->id, (int) $other->id], Worker::where('user_id', $worker->user_id)->pluck('entity_id')->all());
+
+        // Un itinerario sin Entidad no admite personas.
+        $loose = Itinerary::create(['name' => 'Suelto']);
+        $this->jsonApiAs($admin, 'POST', '/api/v1/worker-itineraries', self::resource('worker-itineraries', [],
+            ['user' => ['users', $worker->user_id], 'itinerary' => ['itineraries', $loose->id]]))->assertStatus(409)->assertJsonPath('errors.0.code', 'ITINERARY_WITHOUT_ENTITY');
     }
 
     public function test_cada_uno_se_cambia_de_parada_y_sale_del_itinerario_pero_no_entra_en_otro(): void
@@ -221,15 +262,18 @@ class ManagementTest extends TestCase
         $other = $this->createItinerary($entity);
         [$first, $second] = $itinerary->stopIds();
         $worker = $this->createWorker($entity, $itinerary, $first);
+        $placement = $this->placement($worker, $itinerary);
 
-        $this->jsonApiAs($worker, 'PATCH', "/api/v1/workers/{$worker->id}", self::resource('workers', [], ['stop' => ['stops', $second]]))
-            ->assertOk()->assertJsonPath("data.relationships.stop.data.id", (string) $second);
-        $this->jsonApiAs($worker, 'PATCH', "/api/v1/workers/{$worker->id}", self::resource('workers', [], ['stop' => ['stops', $other->stopIds()[0]]]))
+        $this->jsonApiAs($worker, 'PATCH', "/api/v1/worker-itineraries/{$placement->id}", self::resource('worker-itineraries', [], ['stop' => ['stops', $second]]))
+            ->assertOk()->assertJsonPath('data.relationships.stop.data.id', (string) $second);
+        $this->jsonApiAs($worker, 'PATCH', "/api/v1/worker-itineraries/{$placement->id}", self::resource('worker-itineraries', [], ['stop' => ['stops', $other->stopIds()[0]]]))
             ->assertStatus(422)->assertJsonPath('errors.0.code', 'STOP_NOT_IN_ITINERARY');
-        $this->jsonApiAs($worker, 'PATCH', "/api/v1/workers/{$worker->id}", self::resource('workers', [], ['itinerary' => ['itineraries', $other->id]]))
-            ->assertForbidden();
-        $this->jsonApiAs($worker, 'PATCH', "/api/v1/workers/{$worker->id}", self::resource('workers', [], ['itinerary' => null]))
-            ->assertOk()->assertJsonPath('data.relationships.itinerary.data', null)->assertJsonPath('data.relationships.stop.data', null);
+        $this->jsonApiAs($worker, 'PATCH', "/api/v1/worker-itineraries/{$placement->id}", self::resource('worker-itineraries', [], ['stop' => null]))
+            ->assertOk()->assertJsonPath('data.relationships.stop.data', null);
+        $this->jsonApiAs($worker, 'POST', '/api/v1/worker-itineraries', self::resource('worker-itineraries', [],
+            ['user' => ['users', $worker->user_id], 'itinerary' => ['itineraries', $other->id]]))->assertForbidden();
+        $this->jsonApiAs($worker, 'DELETE', "/api/v1/worker-itineraries/{$placement->id}")->assertNoContent();
+        $this->assertSame(1, Worker::count(), 'Sigue en la Entidad.');
 
         // Salir de la Entidad.
         $this->jsonApiAs($worker, 'DELETE', "/api/v1/workers/{$worker->id}")->assertNoContent();
@@ -246,11 +290,21 @@ class ManagementTest extends TestCase
         $outsider = $this->createWorker($entity, $other, $other->stopIds()[0]);
         $foreign = $this->createWorker($this->createEntity('OTRA'));
 
-        $this->jsonApiAs($chief, 'PATCH', "/api/v1/workers/{$member->id}", self::resource('workers', ['active' => false], ['stop' => ['stops', $itinerary->stopIds()[2]]]))
+        $this->jsonApiAs($chief, 'PATCH', "/api/v1/workers/{$member->id}", self::resource('workers', ['active' => false]))
             ->assertOk()->assertJsonPath('data.attributes.active', false);
-        $this->jsonApiAs($chief, 'PATCH', "/api/v1/workers/{$outsider->id}", self::resource('workers', [], ['itinerary' => ['itineraries', $itinerary->id]]))->assertOk();
-        $this->jsonApiAs($chief, 'PATCH', "/api/v1/workers/{$outsider->id}", self::resource('workers', [], ['itinerary' => ['itineraries', $other->id]]))->assertForbidden();
-        $this->jsonApiAs($chief, 'PATCH', "/api/v1/workers/{$foreign->id}", self::resource('workers', [], ['itinerary' => ['itineraries', $itinerary->id]]))->assertNotFound();
+        $this->jsonApiAs($chief, 'PATCH', "/api/v1/worker-itineraries/{$this->placement($member, $itinerary)->id}",
+            self::resource('worker-itineraries', [], ['stop' => ['stops', $itinerary->stopIds()[2]]]))->assertOk();
+        $this->jsonApiAs($chief, 'PATCH', "/api/v1/workers/{$outsider->id}", self::resource('workers', ['active' => false]))->assertForbidden();
+
+        // Pone en su itinerario a personas de su Entidad (sin quitarles el otro), no en otro.
+        $add = fn (Worker $w, Itinerary $i) => $this->jsonApiAs($chief, 'POST', '/api/v1/worker-itineraries', self::resource('worker-itineraries', [],
+            ['user' => ['users', $w->user_id], 'itinerary' => ['itineraries', $i->id]]));
+        $add($outsider, $itinerary)->assertCreated();
+        $this->assertNotNull($this->placement($outsider, $other));
+        $add($member, $other)->assertForbidden();
+        $add($foreign, $itinerary)->assertForbidden();
+        $this->jsonApiAs($chief, 'DELETE', "/api/v1/worker-itineraries/{$this->placement($outsider, $other)->id}")->assertForbidden();
+        $this->jsonApiAs($chief, 'DELETE', "/api/v1/worker-itineraries/{$this->placement($outsider, $itinerary)->id}")->assertNoContent();
     }
 
     public function test_quien_ve_que_personas_y_quien_ve_el_carne(): void
@@ -285,20 +339,72 @@ class ManagementTest extends TestCase
         $this->assertSame((string) $member->user_id, $this->jsonApiAs($admin, 'GET', "/api/v1/workers?filter[itinerary]={$itinerary->id}&filter[stop]={$itinerary->stopIds()[0]}&include=user")->json('included.0.id'));
     }
 
-    public function test_el_administrador_cambia_a_una_persona_de_entidad_y_la_elimina(): void
+    public function test_el_administrador_asocia_otra_entidad_y_elimina_a_la_persona(): void
     {
         $admin = $this->createAdmin();
         $entity = $this->createEntity();
         $other = $this->createEntity('OTRA');
-        $itinerary = $this->createItinerary($entity);
-        $worker = $this->createWorker($entity, $itinerary, $itinerary->stopIds()[0], null, ['is_chief' => true]);
+        $itinerary = $this->createItinerary($other);
+        $worker = $this->createWorker($entity, null, null, null);
 
-        $this->jsonApiAs($admin, 'PATCH', "/api/v1/workers/{$worker->id}", self::resource('workers', [], ['entity' => ['entities', $other->id]]))
-            ->assertOk()->assertJsonPath('data.relationships.entity.data.id', (string) $other->id)
-            ->assertJsonPath('data.relationships.itinerary.data', null)->assertJsonPath('data.attributes.isChief', false);
+        // «Asociar Entidad» con un itinerario de ella: se añade sin quitar la anterior.
+        $this->jsonApiAs($admin, 'POST', '/api/v1/workers', self::resource('workers', [],
+            ['entity' => ['entities', $other->id], 'user' => ['users', $worker->user_id], 'itinerary' => ['itineraries', $itinerary->id], 'stop' => ['stops', $itinerary->stopIds()[0]]]))
+            ->assertCreated()->assertJsonPath('data.meta.itineraries.0.stop.id', (string) $itinerary->stopIds()[0]);
+        $this->jsonApiAs($admin, 'GET', "/api/v1/users/{$worker->user_id}")->assertOk()->assertJsonCount(2, 'data.meta.memberships')
+            ->assertJsonPath('data.meta.memberships.1.itineraries.0.itinerary.id', (string) $itinerary->id);
 
         $this->jsonApiAs($admin, 'DELETE', "/api/v1/users/{$worker->user_id}")->assertNoContent();
         $this->assertSame(0, Worker::count());
+        $this->assertSame(0, WorkerItinerary::count());
         $this->jsonApiAs($admin, 'DELETE', "/api/v1/users/{$admin->id}")->assertStatus(409);
+    }
+
+    public function test_itinerario_sin_entidad_y_cambio_de_entidad_con_sus_personas(): void
+    {
+        $admin = $this->createAdmin();
+        $entity = $this->createEntity();
+        $other = $this->createEntity('OTRA');
+
+        $id = $this->jsonApiAs($admin, 'POST', '/api/v1/itineraries', self::resource('itineraries', ['name' => 'Suelto'], ['entity' => null]))
+            ->assertCreated()->assertJsonPath('data.relationships.entity.data', null)->json('data.id');
+        $this->jsonApiAs($admin, 'PATCH', "/api/v1/itineraries/{$id}", self::resource('itineraries', [], ['entity' => ['entities', $entity->id]]))
+            ->assertOk()->assertJsonPath('data.relationships.entity.data.id', (string) $entity->id);
+        $worker = $this->createWorker($entity, Itinerary::find($id));
+
+        // Pasa a otra Entidad: sus personas pasan con él (entran en la nueva).
+        $this->jsonApiAs($admin, 'PATCH', "/api/v1/itineraries/{$id}", self::resource('itineraries', [], ['entity' => ['entities', $other->id]]))->assertOk();
+        $placement = $this->placement($worker, (int) $id);
+        $this->assertSame((int) $other->id, Worker::find($placement->worker_id)->entity_id);
+
+        // Sin Entidad: salen de él.
+        $this->jsonApiAs($admin, 'PATCH', "/api/v1/itineraries/{$id}", self::resource('itineraries', [], ['entity' => null]))->assertOk();
+        $this->assertNull($this->placement($worker, (int) $id));
+
+        // Sueltos y gestión.
+        $this->jsonApiAs($this->createUser(), 'GET', '/api/v1/itineraries?filter[entity]=none')->assertForbidden();
+        $summary = $this->jsonApiAs($admin, 'GET', '/api/v1/management-summary')->assertOk();
+        $this->assertSame(1, $summary->json('data.attributes.itineraries'));
+        $this->assertSame(2, $summary->json('data.attributes.entities'));
+    }
+
+    public function test_listas_de_sueltos_trabajadores_sin_itinerario_y_sin_parada(): void
+    {
+        $admin = $this->createAdmin();
+        $entity = $this->createEntity();
+        $itinerary = $this->createItinerary($entity);
+        $withStop = $this->createWorker($entity, $itinerary, $itinerary->stopIds()[0]);
+        $noStop = $this->createWorker($entity, $itinerary);
+        $noItinerary = $this->createWorker($entity);
+
+        $ids = fn (string $uri) => collect($this->jsonApiAs($admin, 'GET', $uri)->json('data'))->pluck('id')->all();
+        $this->assertSame([(string) $noItinerary->id], $ids('/api/v1/workers?filter[itinerary]=none'));
+        $this->assertSame([(string) $this->placement($noStop, $itinerary)->id], $ids('/api/v1/worker-itineraries?filter[stop]=none'));
+        $this->assertCount(2, $ids("/api/v1/worker-itineraries?filter[itinerary]={$itinerary->id}"));
+        $this->jsonApiAs($admin, 'GET', "/api/v1/worker-itineraries?filter[stop]={$itinerary->stopIds()[0]}")
+            ->assertJsonPath('data.0.meta.itineraryName', $itinerary->name)->assertJsonPath('data.0.meta.entityAbbreviation', 'PRUEBA')
+            ->assertJsonPath('data.0.relationships.user.data.id', (string) $withStop->user_id);
+        $this->assertContains((string) $noItinerary->user_id, $ids('/api/v1/users?filter[itinerary]=none'));
+        $this->jsonApiAs($admin, 'GET', "/api/v1/itineraries/{$itinerary->id}")->assertJsonPath('data.meta.workerCount', 2);
     }
 }

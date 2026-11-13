@@ -8,13 +8,14 @@ use App\Models\Entity;
 use App\Models\Itinerary;
 use App\Models\User;
 use App\Models\Worker;
+use App\Models\WorkerItinerary;
 use Illuminate\Support\Facades\DB;
 
 /**
- * La persona en las Entidades (docs/11 §11.23 a §11.30): un solo itinerario
- * por Entidad y una sola parada por itinerario, los dos opcionales. Un Jefe
- * lo es de un solo itinerario y viaja en él: si se le cambia (o se le saca)
- * de su itinerario, deja de ser Jefe.
+ * La persona en las Entidades y en sus itinerarios (docs/11 §11.58): puede
+ * estar en varias Entidades y, en cada una, en varios itinerarios, cada uno
+ * con su parada (opcional). Un Jefe lo es de un solo itinerario y viaja en él:
+ * si sale de ese itinerario, deja de ser Jefe.
  */
 class Memberships
 {
@@ -34,84 +35,131 @@ class Memberships
     }
 
     /**
-     * Pone (o quita, con null) el itinerario y la parada. El itinerario tiene
-     * que ser de la Entidad de la pertenencia y la parada, del itinerario.
+     * Añade a la persona a un itinerario (y a su Entidad, si no estaba), con
+     * parada opcional. Si ya estaba, solo cambia la parada (si se indica).
      */
-    public function place(Worker $worker, ?int $itineraryId, ?int $stopId): Worker
+    public function addItinerary(User $user, Itinerary $itinerary, ?int $stopId = null): WorkerItinerary
     {
-        if ($itineraryId !== null) {
-            $itinerary = Itinerary::find($itineraryId);
-
-            if (! $itinerary || (int) $itinerary->entity_id !== (int) $worker->entity_id) {
-                throw new JsonApiException(422, 'ITINERARY_NOT_IN_ENTITY', 'Itinerario de otra Entidad',
-                    'El itinerario no es de la Entidad de esta persona.', ['pointer' => '/data/relationships/itinerary']);
-            }
-
-            if ($stopId !== null && ! $itinerary->hasStop($stopId)) {
-                throw new JsonApiException(422, 'STOP_NOT_IN_ITINERARY', 'Parada de otro itinerario',
-                    'La parada no es de ese itinerario.', ['pointer' => '/data/relationships/stop']);
-            }
-        } elseif ($stopId !== null) {
-            throw new JsonApiException(422, 'STOP_WITHOUT_ITINERARY', 'Falta el itinerario',
-                'Para tener parada hay que estar en un itinerario.', ['pointer' => '/data/relationships/stop']);
+        if (! $itinerary->entity_id) {
+            throw JsonApiException::conflict('ITINERARY_WITHOUT_ENTITY',
+                'Ese itinerario no tiene Entidad: asóciele una antes de añadirle personas.', '/data/relationships/itinerary');
         }
 
-        $changedItinerary = (int) $worker->itinerary_id !== (int) $itineraryId;
-        $worker->itinerary_id = $itineraryId;
-        $worker->stop_id = $stopId;
+        $this->checkStop($itinerary, $stopId);
 
-        // Cambiar de itinerario (o salir de él) quita la jefatura (docs/11 §11.30).
-        if ($changedItinerary) {
-            $worker->is_chief = false;
-        }
+        return DB::transaction(function () use ($user, $itinerary, $stopId) {
+            $worker = $this->join($user, Entity::findOrFail($itinerary->entity_id));
+            $placement = WorkerItinerary::where('user_id', $user->id)->where('itinerary_id', $itinerary->id)->first();
 
-        $worker->save();
-        $this->access->flush((int) $worker->user_id);
-
-        return $worker;
-    }
-
-    /**
-     * Nombra Jefe de ese itinerario (lo pone en él si no lo estaba). Deja de
-     * ser Jefe de cualquier otro.
-     */
-    public function makeChief(Worker $worker, int $itineraryId): Worker
-    {
-        return DB::transaction(function () use ($worker, $itineraryId) {
-            Worker::where('user_id', $worker->user_id)->where('id', '<>', $worker->id)->update(['is_chief' => false]);
-
-            if ((int) $worker->itinerary_id !== $itineraryId) {
-                $this->place($worker, $itineraryId, null);
+            if (! $placement) {
+                $placement = WorkerItinerary::create([
+                    'worker_id' => $worker->id, 'user_id' => $user->id, 'itinerary_id' => $itinerary->id, 'stop_id' => $stopId,
+                ]);
+            } elseif ($stopId !== null && (int) $placement->stop_id !== $stopId) {
+                $placement->stop_id = $stopId;
+                $placement->save();
             }
 
-            $worker->is_chief = true;
-            $worker->save();
-            $this->access->flush((int) $worker->user_id);
+            $this->access->flush($user->id);
 
-            return $worker;
+            return $placement;
         });
     }
 
-    public function removeChief(Worker $worker): Worker
+    /**
+     * Pone (o quita, con null) la parada de la persona en ese itinerario.
+     */
+    public function setStop(WorkerItinerary $placement, ?int $stopId): WorkerItinerary
     {
-        $worker->is_chief = false;
-        $worker->save();
-        $this->access->flush((int) $worker->user_id);
+        $this->checkStop(Itinerary::findOrFail($placement->itinerary_id), $stopId);
+        $placement->stop_id = $stopId;
+        $placement->save();
+        $this->access->flush((int) $placement->user_id);
 
-        return $worker;
+        return $placement;
     }
 
     /**
-     * Sale de la Entidad (o lo sacan): se borran su itinerario, su parada, su
-     * jefatura y sus ausencias allí, y sus solicitudes de itinerario pendientes.
+     * Nombra Jefe de ese itinerario; deja de serlo de cualquier otro.
+     */
+    public function makeChief(WorkerItinerary $placement): WorkerItinerary
+    {
+        DB::transaction(function () use ($placement) {
+            WorkerItinerary::where('user_id', $placement->user_id)->where('id', '<>', $placement->id)->update(['is_chief' => false]);
+            $placement->is_chief = true;
+            $placement->save();
+        });
+        $this->access->flush((int) $placement->user_id);
+
+        return $placement;
+    }
+
+    public function removeChief(WorkerItinerary $placement): WorkerItinerary
+    {
+        $placement->is_chief = false;
+        $placement->save();
+        $this->access->flush((int) $placement->user_id);
+
+        return $placement;
+    }
+
+    /**
+     * Sale del itinerario (con su parada y su jefatura en él). Sigue en la Entidad.
+     */
+    public function leaveItinerary(WorkerItinerary $placement): void
+    {
+        $placement->delete();
+        $this->access->flush((int) $placement->user_id);
+    }
+
+    /**
+     * Sale de la Entidad (o lo sacan): se borran sus itinerarios allí (con su
+     * parada y su jefatura), sus ausencias y sus solicitudes pendientes en ella.
      */
     public function leave(Worker $worker): void
     {
         DB::transaction(function () use ($worker) {
             Application::where('user_id', $worker->user_id)->where('entity_id', $worker->entity_id)
                 ->where('status', Application::PENDING)->delete();
+            WorkerItinerary::where('worker_id', $worker->id)->delete();
             $worker->delete();
         });
         $this->access->flush((int) $worker->user_id);
+    }
+
+    /**
+     * El itinerario cambió de Entidad (o se quedó sin ella): sus personas pasan
+     * con él a la nueva Entidad (se las añade si no estaban); sin Entidad, salen
+     * del itinerario. Sus solicitudes pendientes siguen al itinerario (o se borran).
+     */
+    public function itineraryMoved(Itinerary $itinerary, ?int $entityId): void
+    {
+        DB::transaction(function () use ($itinerary, $entityId) {
+            $placements = WorkerItinerary::where('itinerary_id', $itinerary->id)->get();
+
+            if ($entityId === null) {
+                WorkerItinerary::where('itinerary_id', $itinerary->id)->delete();
+                Application::where('itinerary_id', $itinerary->id)->where('status', Application::PENDING)->delete();
+            } else {
+                $entity = Entity::findOrFail($entityId);
+
+                foreach ($placements as $placement) {
+                    $worker = $this->join(User::findOrFail($placement->user_id), $entity);
+                    $placement->worker_id = $worker->id;
+                    $placement->save();
+                }
+
+                Application::where('itinerary_id', $itinerary->id)->update(['entity_id' => $entityId]);
+            }
+        });
+        $this->access->flush();
+    }
+
+    private function checkStop(Itinerary $itinerary, ?int $stopId): void
+    {
+        if ($stopId !== null && ! $itinerary->hasStop($stopId)) {
+            throw new JsonApiException(422, 'STOP_NOT_IN_ITINERARY', 'Parada de otro itinerario',
+                'La parada no es de ese itinerario.', ['pointer' => '/data/relationships/stop']);
+        }
     }
 }

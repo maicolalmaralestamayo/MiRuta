@@ -2,11 +2,13 @@
 
 namespace App\Serializers;
 
+use App\Models\WorkerItinerary;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 
 /**
- * La persona en una Entidad (tarjeta de persona en Gestión: include=user).
+ * La persona en una Entidad (tarjeta de persona: include=user).
+ * meta.itineraries: sus itinerarios en esa Entidad, con la parada de cada uno.
  */
 class WorkerSerializer extends Serializer
 {
@@ -18,7 +20,6 @@ class WorkerSerializer extends Serializer
     public function attributes(Model $worker, Request $request): array
     {
         return [
-            'isChief' => (bool) $worker->is_chief,
             'active' => (bool) $worker->active,
             'createdAt' => $this->date($worker->created_at),
         ];
@@ -29,8 +30,14 @@ class WorkerSerializer extends Serializer
         return [
             'user' => ['users', 'user_id', 'user'],
             'entity' => ['entities', 'entity_id', 'entity'],
-            'itinerary' => ['itineraries', 'itinerary_id', 'itinerary'],
-            'stop' => ['stops', 'stop_id', 'stop'],
+        ];
+    }
+
+    public function meta(Model $worker, Request $request): array
+    {
+        return [
+            'itineraries' => WorkerItinerary::where('worker_id', $worker->id)->with('itinerary', 'stop')->orderBy('id')->get()
+                ->map(fn (WorkerItinerary $p) => WorkerItinerarySerializer::summary($p))->values()->all(),
         ];
     }
 }

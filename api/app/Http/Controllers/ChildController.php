@@ -160,7 +160,7 @@ class ChildController extends Controller
         }
 
         $chiefOf = $this->access->chiefItineraryId($user);
-        $parents = \App\Models\Worker::where('itinerary_id', $chiefOf ?? 0)->select('user_id');
+        $parents = \App\Models\WorkerItinerary::where('itinerary_id', $chiefOf ?? 0)->select('user_id');
 
         return $query->whereIn('id', ChildParent::where('user_id', $user->id)
             ->when($chiefOf !== null, fn ($q) => $q->orWhereIn('user_id', $parents))->select('child_id'));

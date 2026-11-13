@@ -1,7 +1,7 @@
 # 13. API de la próxima versión (servidor Laravel 12)
 
-Referencia para construir la app contra el servidor nuevo. Implementa lo acordado en `docs/11` §11.19–§11.55 y
-resumido en `docs/12`. Lo que no está aquí (pantallas, textos de la interfaz) sigue en esos documentos.
+Referencia para construir la app contra el servidor nuevo (versión **4.1.0**). Implementa lo acordado en `docs/11`
+§11.19–§11.60 y resumido en `docs/12`. Lo que no está aquí (pantallas, textos de la interfaz) sigue en esos documentos.
 
 - **Base:** `https://<servidor>/api/v1` (en el hospedaje, `http://<dominio>/miruta/api/v1`).
 - **Formato:** JSON:API 1.1, igual que en la versión 3.0: mismos documentos, errores, `include`, paginación y
@@ -70,12 +70,13 @@ Tres roles fijos (docs/11 §11.30), con los permisos en el código (`App\Service
 | Rol | Cómo se sabe | Puede |
 |---|---|---|
 | **Administrador** | `users.isAdmin = true` (el primero que se registra) | Todo, en todas las Entidades: Entidades, itinerarios, paradas, personas, roles, solicitudes, viajes, nomencladores, ajustes, versiones, «Olvidé algo», mantenimiento, responder conversaciones |
-| **Jefe de itinerario** | `workers.isChief = true` en la pertenencia de su itinerario (uno solo) | Ve sus Entidades. En **su itinerario**: paradas (crear, editar aunque las usen otros, quitar, ordenar; eliminar solo si no las usa otro itinerario), personas (cambiar parada, sacar, poner en él a personas de su Entidad, activar/desactivar), solicitudes de itinerario, Incluir por QR, planificar y cambiar el estado de los viajes (cancelar solo los que planificó él) |
+| **Jefe de itinerario** | `worker-itineraries.isChief = true` en su itinerario (uno solo por persona) | Ve sus Entidades. En **su itinerario**: paradas (crear, editar aunque las usen otros, quitar, ordenar; eliminar solo si no las usa otro itinerario), personas (cambiar parada, sacar, poner en él a personas de su Entidad, activar/desactivar), solicitudes de itinerario, Incluir por QR, planificar y cambiar el estado de los viajes (cancelar solo los que planificó él) |
 | **Trabajador** | Pertenece a una Entidad | Consulta sus Entidades (lo activo). Solicita Entidad e itinerario, sale de ellos, se cambia de parada en su itinerario, gestiona sus solicitudes, ausencias, hijos y perfil |
 
 `GET me` devuelve `meta.role` (`administrador`, `jefe` o `trabajador`) y `meta.chiefItineraryId`.
 
-- **Viajes:** los ve quien tiene itinerario **y parada** en él (el Jefe, aunque no tenga parada); el Administrador, todos.
+- **Viajes:** cada uno ve los de **todos sus itinerarios** en los que tiene parada (el Jefe, el suyo aunque no tenga
+  parada); el Administrador, todos.
 - **Lo desactivado** (`active: false`) solo lo ven el Administrador y el Jefe (en su itinerario).
 - **Carné** (`identityCard`): la propia persona, el Administrador y el Jefe (miembros y solicitantes de su itinerario).
 
@@ -110,9 +111,11 @@ Tres roles fijos (docs/11 §11.30), con los permisos en el código (`App\Service
 | `POST me/qr-devices` | Sesión | Certifica la clave del teléfono para Mi QR (§13.9) |
 | `POST me/applications-seen` | Sesión | Marca vistas sus solicitudes resueltas (al abrir la sección Solicitudes) |
 
-`meta.memberships` (una por Entidad): `workerId`, `active`, `isChief`, `entity {id, abbreviation, name, imageUrl,
-active, workerCount}`, `itinerary {id, name, imageUrl, active, workerCount} | null`, `stop {id, landmark, street,
-imageUrl, latitude, longitude} | null`. Sirve para Inicio y los avisos «Aún no tiene Entidad / itinerario / parada».
+`meta.memberships` (una por Entidad): `workerId`, `active`, `entity {id, abbreviation, name, imageUrl, active,
+workerCount}` e `itineraries` (sus itinerarios en esa Entidad, varios): `[{id, isChief, itinerary {id, name, imageUrl,
+active, workerCount}, stop {id, landmark, street, imageUrl, latitude, longitude} | null}]` (`id` es el de
+`worker-itineraries`). Sirve para Inicio (docs/11 §11.60); `GET users/{id}` devuelve lo mismo para el formulario del
+Trabajador.
 
 Recurso **`users`** (persona): `username`*, `firstName`, `middleName`, `firstSurname`, `secondSurname`, `fullName`,
 `sex`, `photoUrl`, `isAdmin`, `entities` (abreviaturas; vacía = «Sin Entidad»), `identityCard`/`birthDate` (si puede
@@ -127,32 +130,35 @@ Mientras `mustChangePassword` (contraseña caducada o puesta por otro), todo da 
 ### Entidades — `entities`
 
 Atributos: `abbreviation` (única, en mayúsculas), `number?` (4 dígitos), `name`, `description?`, `observation?`,
-`imageUrl` (solo lectura), `active`. `meta`: `workerCount`, `itineraryCount`.
+`imageUrl` (solo lectura), `active`. `meta`: `workerCount`, `itineraryCount`, `pendingApplications` (solicitudes de
+entrar pendientes).
 
 | Ruta | Quién | Notas |
 |---|---|---|
 | `GET entities` | Todos (las suyas; Administrador todas) | Filtros `search`, `active`; orden `abbreviation`, `name`, `id`, `createdAt` |
 | `GET entities/{id}` | Ídem | |
 | `GET entities/lookup?filter[abbreviation]=UMIM` | Sesión o instalación | Comprueba una abreviatura (`entity-lookups`: `abbreviation`, `name`) sin ver la lista |
-| `POST`, `PATCH`, `DELETE entities[/{id}]` | Administrador | Eliminar: se eliminan sus itinerarios (y sus viajes y solicitudes); las personas quedan sin esa Entidad; las paradas se conservan |
+| `POST`, `PATCH`, `DELETE entities[/{id}]` | Administrador | Eliminar: sus itinerarios se conservan **sin Entidad**; las personas quedan sin esa Entidad (y sin sus itinerarios en ella); se borran sus solicitudes |
 | `POST/DELETE entities/{id}/image` | Administrador | Imagen (multipart `image`) |
 
 ### Itinerarios — `itineraries`
 
-Atributos: `name` (único en su Entidad), `description?`, `observation?`, `imageUrl`, `active`. Relación `entity`.
-`meta`: `stopCount`, `workerCount`.
+Atributos: `name` (único en su Entidad), `description?`, `observation?`, `imageUrl`, `active`. Relación `entity`
+(**opcional**: un itinerario está como mucho en una Entidad; `null` = «Sin Entidad», docs/11 §11.58). `meta`:
+`stopCount`, `workerCount`, `pendingApplications`.
 
 | Ruta | Quién | Notas |
 |---|---|---|
-| `GET itineraries` | Todos (de sus Entidades) | Filtros `entity`, `search`, `active`; `include=entity` |
-| `POST`, `PATCH`, `DELETE itineraries[/{id}]` | Administrador | `PATCH` con `relationships.entity` = «Cambiar de Entidad» (sus personas quedan sin itinerario). Eliminar: sus personas quedan sin itinerario, parada ni jefatura |
+| `GET itineraries` | Todos (de sus Entidades) | Filtros `entity` (id o `none` = sin Entidad, solo Administrador), `search`, `active`; `include=entity` |
+| `POST`, `PATCH`, `DELETE itineraries[/{id}]` | Administrador | `relationships.entity` (id o `null`). Cambiar de Entidad: sus personas pasan con él a la nueva (entran en ella si no estaban) y sus solicitudes le siguen; sin Entidad: sus personas salen de él y se borran sus solicitudes pendientes. Eliminar: sus personas salen de él (pierden parada y jefatura en él), se eliminan sus viajes y solicitudes; **las paradas se conservan**, aunque queden sin itinerario |
 | `PATCH itineraries/{id}/relationships/stops` | Administrador o Jefe | Orden completo (arrastrar): `{"data": [{"type": "stops", "id": "7"}, …]}` de la 1.ª a la última; deben ser todas las paradas (`422 STOP_ORDER_INVALID`) |
 
 ### Paradas — `stops` (compartidas entre itinerarios y Entidades)
 
 Atributos: `landmark` (punto de referencia), `street`, `crossStreet1?`, `crossStreet2?`, `latitude`, `longitude`,
-`imageUrl`, `active`. `meta.itineraries`: `[{itineraryStopId, itineraryId, name, entityId, position}]` (vacía = «Sin
-itinerario»).
+`imageUrl`, `active`. `meta.itineraries`: `[{itineraryStopId, itineraryId, name, entityId, entityAbbreviation,
+position}]` (vacía = «Sin itinerario»: una parada puede estar en varios itinerarios o en ninguno); `meta.workerCount`
+(personas que la tienen en alguno de sus itinerarios).
 
 | Ruta | Quién | Notas |
 |---|---|---|
@@ -171,34 +177,42 @@ Atributo `position` (1 = primera). Relaciones `itinerary`, `stop`.
 | `GET itinerary-stops?filter[itinerary]=` | Todos | |
 | `POST itinerary-stops` | Administrador o Jefe del itinerario | «Añadir parada existente» (`position?`; por omisión, al final). Repetida: `409 STOP_ALREADY_IN_ITINERARY` |
 | `PATCH itinerary-stops/{id}` | Ídem | Mover a `position` |
-| `DELETE itinerary-stops/{id}` | Ídem | «Quitar del itinerario»: la parada se conserva; quien la tenía en ese itinerario queda sin parada |
+| `DELETE itinerary-stops/{id}` | Ídem | «Quitar del itinerario»: la parada se conserva (aunque fuera su último itinerario); quien la tenía en ese itinerario queda sin parada |
 
-### Personas — `users` y `workers`
+### Personas — `users`, `workers` y `worker-itineraries`
 
-`users` es la persona; **`workers`** es la persona en una Entidad (sección Personas de Gestión, con `include=user`).
+`users` es la persona; **`workers`** es la persona en una Entidad; **`worker-itineraries`** es la persona en un
+itinerario de una de sus Entidades. Una persona puede estar en **varias Entidades** y, en cada una, en **varios
+itinerarios**, cada uno con su **parada** (opcional). Puede estar suelta (sin Entidad o sin itinerario). Es Jefe de un
+solo itinerario (docs/11 §11.58).
 
-`workers`: atributos `isChief`, `active`, `createdAt`; relaciones `user`, `entity`, `itinerary` (opcional), `stop`
-(opcional). Un solo itinerario por Entidad y una sola parada por itinerario.
+`workers`: atributos `active`, `createdAt`; relaciones `user`, `entity`; `meta.itineraries` (sus itinerarios en esa
+Entidad, como en `meta.memberships`).
+
+`worker-itineraries`: atributo `isChief`, `createdAt`; relaciones `user`, `worker`, `itinerary`, `stop` (opcional);
+`meta`: `userName`, `photoUrl`, `active`, `itineraryName`, `entityId`, `entityAbbreviation`, `stopLandmark` (para las
+tarjetas sin `include`).
 
 | Ruta | Quién | Notas |
 |---|---|---|
-| `GET users` | Todos (los de sus Entidades) | Filtros `entity` (id o `none` = «Sin Entidad», solo Administrador), `itinerary` (id o `none`), `stop` (id o `none`), `search` (nombre, usuario o carné) |
+| `GET users` | Todos (los de sus Entidades) | Filtros `entity` (id o `none` = «Sin Entidad», solo Administrador), `itinerary` (id o `none` = en ningún itinerario), `stop` (id o `none` = algún itinerario sin parada), `search` (nombre, usuario o carné) |
+| `GET users/{id}` | Ídem | Con `meta.memberships` (sus Entidades que ve quien consulta, con itinerarios y paradas): formulario del Trabajador |
 | `PATCH users/{id}` · `DELETE users/{id}` | Administrador | Nombres, carné, usuario · eliminar (no al Administrador) |
-| `GET workers` | Todos | Filtros `entity`, `itinerary` (id o `none`), `stop` (id o `none`), `user`, `search`, `active`, `chief`; `include=user,entity,itinerary,stop`; orden `name`, `surname`, `id`, `createdAt` |
-| `POST workers` | Administrador | Persona existente: `relationships.user` + `entity` (también él mismo, «entrar sin solicitud»). Persona nueva («Registrar trabajador»): `firstName`, `middleName?`, `firstSurname`, `secondSurname`, `identityCard`, `username?`, `password?` + `entity`; responde `meta.created`, `meta.username`, `meta.password` para comunicárselos (deberá cambiar la contraseña). Si el carné ya existe, solo se le añade la Entidad (`meta.created=false`). Con `itinerary` y `stop` se le pone además en ellos |
-| `PATCH workers/{id}` | Según la tabla de abajo | `active`, `isChief`, `relationships.itinerary`, `relationships.stop`, `relationships.entity` |
-| `DELETE workers/{id}` | Administrador; la propia persona («Salir de la Entidad») | Se borran su itinerario, parada, jefatura, ausencias allí y solicitudes pendientes |
+| `GET workers` | Todos | Filtros `entity`, `itinerary` (id o `none` = sin ningún itinerario en esa Entidad: «Trabajadores sin itinerario»), `stop` (id o `none`), `user`, `search`, `active`, `chief`; `include=user,entity`; orden `name`, `surname`, `id`, `createdAt` |
+| `POST workers` | Administrador | Persona existente: `relationships.user` + `entity` («Asociar Entidad», «Adicionar persona»; también él mismo). Persona nueva («Registrar trabajador»): `firstName`, `middleName?`, `firstSurname`, `secondSurname`, `identityCard`, `username?`, `password?` + `entity`; responde `meta.created`, `meta.username`, `meta.password`. La app pide usuario y contraseña (no los propone); si faltan, los genera el servidor. Si el carné ya existe, solo se le añade la Entidad (`meta.created=false`). Con `itinerary` (de esa Entidad) y `stop` se le añade además ese itinerario |
+| `PATCH workers/{id}` | Administrador; Jefe (si está en su itinerario) | `active` |
+| `DELETE workers/{id}` | Administrador; la propia persona («Salir de la Entidad») | Se borran sus itinerarios allí (con parada y jefatura), sus ausencias allí y sus solicitudes pendientes |
+| `GET worker-itineraries` | Todos (los de sus Entidades) | Filtros `user`, `itinerary`, `entity`, `stop` (id o `none` = «Trabajadores sin parada»), `chief`, `search`; `include=user,worker,itinerary,stop` |
+| `POST worker-itineraries` | Administrador (a cualquiera; si no estaba en la Entidad del itinerario, entra en ella); Jefe (en su itinerario, a personas de su Entidad) | `relationships.user`, `itinerary`, `stop?`; `isChief?` (Administrador). **Añade** el itinerario a los que ya tiene. Errores: `409 ALREADY_IN_ITINERARY`, `409 ITINERARY_WITHOUT_ENTITY`, `422 STOP_NOT_IN_ITINERARY`. El trabajador lo solicita |
+| `PATCH worker-itineraries/{id}` | `relationships.stop` («Cambiar de parada»): Administrador, Jefe del itinerario o la propia persona. `isChief` («Asignar rol» / «Quitar rol de Jefe»): Administrador | Al nombrarlo Jefe deja de serlo de cualquier otro itinerario |
+| `DELETE worker-itineraries/{id}` | Administrador, Jefe del itinerario o la propia persona («Salir del itinerario») | Pierde la parada y la jefatura en él; sigue en la Entidad |
 
-| Cambio (`PATCH workers/{id}`) | Quién |
-|---|---|
-| `relationships.stop` («Cambiar de parada», «Cambiarme a esta parada») | Administrador; Jefe (miembros de su itinerario); la propia persona (en su itinerario) |
-| `relationships.itinerary: null` («Salir del itinerario») | Administrador; Jefe (de su itinerario); la propia persona |
-| `relationships.itinerary` = otro («Cambiar de itinerario») | Administrador; Jefe solo hacia su itinerario y a personas de su Entidad. El trabajador lo solicita |
-| `relationships.entity` («Cambiar de Entidad») | Administrador (pierde itinerario, parada y jefatura) |
-| `isChief` («Asignar rol» / «Quitar rol de Jefe») | Administrador. Al asignar, se le pone en ese itinerario (con `relationships.itinerary`) y deja de ser Jefe de cualquier otro |
-| `active` | Administrador; Jefe (miembros de su itinerario) |
+### Gestión — `management-summary`
 
-**Cambiar de itinerario quita la jefatura** (el Jefe viaja en su itinerario).
+`GET management-summary` (sesión): cantidades de las tarjetas de Gestión (docs/11 §11.59) que ve quien consulta:
+`entities`, `itineraries`, `stops`, `workers`, `pendingEntityApplications`, `pendingItineraryApplications` (las que le
+toca resolver) y, para el Administrador, `nomenclators {vehicle-types, absence-types, conversation-topics,
+denial-reasons, detention-causes}`.
 
 ### Solicitudes — `applications`
 
@@ -212,13 +226,14 @@ Atributos: `type` (`entidad` o `itinerario`), `status` (`pendiente`, `aprobada`,
 | `PATCH applications/{id}` | Entidad: Administrador. Itinerario: Administrador o Jefe de ese itinerario | `status: aprobada`, o `status: rechazada` con `relationships.denialReason` (obligatorio, del tipo de la solicitud) y `resolutionNote?` |
 | `DELETE applications/{id}` | Quien la hizo | Cancelar (pendiente) o eliminar (resuelta) |
 
-Al aprobar: Entidad → entra en ella; itinerario → queda en el itinerario (y la parada, si la indicó).
+Al aprobar: Entidad → entra en ella; itinerario → se le **añade** ese itinerario (y la parada, si la indicó), sin
+quitarle los que tenía. Un itinerario sin Entidad no admite solicitudes (`409 ITINERARY_WITHOUT_ENTITY`).
 
 ### Ausencias — `absences`
 
 `startsOn`, `endsOn?` (`null` = indefinida), `indefinite` (solo lectura), `note?`; relaciones `worker` (su pertenencia)
 y `absenceType`. Las declara la propia persona (también el Administrador o el Jefe de su itinerario). Mientras dura, no
-es pasajero esperado. Filtros `worker`, `current=true`.
+es pasajero esperado en los viajes de los itinerarios de esa Entidad. Filtros `worker`, `current=true`.
 
 ### Hijos — `children`
 
@@ -361,11 +376,11 @@ nada en 3 × «Frecuencia cálculo» (30 s). Durante el viaje la app envía cada
 - El QR es `MR1.<certificado>.<base64url(payload)>.<base64url(firma)>`, payload `{"u": userId, "t": unix, "n":
   "<16 hex>"}`, firmado con la clave del teléfono; cambia cada 15 s; un solo uso. Igual que en la versión 3.0.
 - `POST qr-scans` (Administrador y Jefes) con `qr`, `scannedAt?` → `qr-scans`: `fullName`, `photoUrl`, `sex`,
-  `memberships` (dónde está ya: Entidad, itinerario, parada, si es Jefe). No gasta el código.
+  `memberships` (dónde está ya: como `meta.memberships` de `GET me`). No gasta el código.
 - `POST qr-inclusions` con `qr`, `scannedAt?` y **dónde**: `relationships.entity`, o `itinerary` (con `stop?`), o `stop`
   (con su `itinerary`, bloqueado en la interfaz). Responde `201` (`qr-inclusions`: `fullName`, `previous {inEntity,
-  itineraryId, stopId}`; relaciones `worker`, `user`, `entity`, `itinerary`, `stop`). El Jefe solo en su itinerario.
-  Incluir en otro itinerario de la misma Entidad le cambia el itinerario (y le quita la jefatura).
+  inItinerary, stopId}`; relaciones `worker`, `user`, `entity`, `itinerary`, `stop`). El Jefe solo en su itinerario.
+  Incluir **añade** la Entidad o el itinerario a los que ya tiene; si ya estaba en el itinerario, solo le pone la parada.
 - **Sin conexión:** la app guarda el QR leído con su `scannedAt` y lo envía al volver la conexión (hasta 7 días). Un
   reintento de la misma inclusión responde `200` con `meta.repeated: true`.
 - Errores: `422 QR_INVALID`, `QR_EXPIRED`, `QR_SIGNATURE_INVALID`, `QR_CERTIFICATE_INVALID`, `QR_CERTIFICATE_EXPIRED`,
@@ -529,3 +544,13 @@ Con la sesión del Administrador o con `X-Maintenance-Key`:
 - `stops` ya no tiene Entidad; `workers` lleva `isChief` y `active`; `applications` usa `type`/`status` en español;
   `trips` es un solo sentido con `vehicleType`; los ajustes son `settings` con texto con unidades.
 - Cabecera nueva `X-App-Version` y error `426 APP_UPDATE_REQUIRED`.
+
+## 13.15 Qué cambió en la 4.1.0 (docs/11 §11.56–§11.60)
+
+- `itineraries.entity` es opcional (`filter[entity]=none`); eliminar una Entidad deja sus itinerarios sin Entidad.
+- Una persona puede estar en varios itinerarios de cada Entidad: nuevo recurso `worker-itineraries` (parada y
+  jefatura por itinerario). `workers` pierde `isChief` y las relaciones `itinerary` y `stop` (lleva `meta.itineraries`);
+  `PATCH workers/{id}` solo cambia `active`; ya no hay «Cambiar de Entidad» (se asocia otra Entidad con `POST workers`).
+- `meta.memberships` (`GET me`, `GET users/{id}`, `qr-scans`) lleva `itineraries` por Entidad.
+- Aprobar una solicitud o incluir por QR **añade** el itinerario en vez de cambiarlo.
+- Nuevo `GET management-summary`; `meta.pendingApplications` en Entidades e itinerarios; `meta.workerCount` en paradas.

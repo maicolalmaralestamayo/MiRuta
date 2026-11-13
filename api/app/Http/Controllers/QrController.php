@@ -95,6 +95,7 @@ class QrController extends Controller
         $result = $this->inclusions->include($data['attributes']['qr'], $request->user(), $this->scannedAt($data['attributes']),
             $this->relationshipId($data, 'entity'), $this->relationshipId($data, 'itinerary'), $this->relationshipId($data, 'stop'));
         $worker = $result['worker'];
+        $placement = $result['placement'];
 
         return JsonApiResponse::make(Document::fromArray([
             'type' => 'qr-inclusions',
@@ -107,8 +108,8 @@ class QrController extends Controller
                 'worker' => ['data' => ['type' => 'workers', 'id' => (string) $worker->id]],
                 'user' => ['data' => ['type' => 'users', 'id' => (string) $worker->user_id]],
                 'entity' => ['data' => ['type' => 'entities', 'id' => (string) $worker->entity_id]],
-                'itinerary' => ['data' => $worker->itinerary_id ? ['type' => 'itineraries', 'id' => (string) $worker->itinerary_id] : null],
-                'stop' => ['data' => $worker->stop_id ? ['type' => 'stops', 'id' => (string) $worker->stop_id] : null],
+                'itinerary' => ['data' => $placement ? ['type' => 'itineraries', 'id' => (string) $placement->itinerary_id] : null],
+                'stop' => ['data' => $placement && $placement->stop_id ? ['type' => 'stops', 'id' => (string) $placement->stop_id] : null],
             ],
         ], $result['repeated'] ? ['repeated' => true] : []), $result['repeated'] ? 200 : 201);
     }

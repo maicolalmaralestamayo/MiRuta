@@ -10,6 +10,7 @@ use App\Models\Stop;
 use App\Models\User;
 use App\Models\VehicleType;
 use App\Models\Worker;
+use App\Models\WorkerItinerary;
 use App\Services\Access;
 use App\Services\TokenService;
 use App\Support\IdentityCard;
@@ -153,21 +154,45 @@ abstract class TestCase extends BaseTestCase
     }
 
     /**
-     * Persona (nueva o dada) en la Entidad, con itinerario y parada opcionales.
+     * Persona (nueva o dada) en la Entidad, con itinerario y parada opcionales
+     * ($attributes: active de la pertenencia e is_chief del itinerario).
      */
     protected function createWorker(Entity $entity, ?Itinerary $itinerary = null, ?int $stopId = null, ?User $user = null, array $attributes = []): Worker
     {
         $user = $user ?: $this->createUser();
-        $worker = Worker::create(array_merge([
-            'user_id' => $user->id,
-            'entity_id' => $entity->id,
-            'itinerary_id' => $itinerary?->id,
-            'stop_id' => $stopId,
-            'active' => true,
-        ], $attributes));
+        $worker = Worker::firstOrCreate(['user_id' => $user->id, 'entity_id' => $entity->id], ['active' => $attributes['active'] ?? true]);
+
+        if ($itinerary) {
+            $this->placeIn($worker, $itinerary, $stopId, (bool) ($attributes['is_chief'] ?? false));
+        }
+
         app(Access::class)->flush();
 
         return $worker->fresh();
+    }
+
+    /**
+     * Añade un itinerario (con parada y jefatura opcionales) a la pertenencia.
+     */
+    protected function placeIn(Worker $worker, Itinerary $itinerary, ?int $stopId = null, bool $chief = false): WorkerItinerary
+    {
+        $placement = WorkerItinerary::create([
+            'worker_id' => $worker->id, 'user_id' => $worker->user_id, 'itinerary_id' => $itinerary->id,
+            'stop_id' => $stopId, 'is_chief' => $chief,
+        ]);
+        app(Access::class)->flush();
+
+        return $placement;
+    }
+
+    /**
+     * El itinerario de la persona en ese itinerario (o null).
+     */
+    protected function placement(User|Worker $who, Itinerary|int $itinerary): ?WorkerItinerary
+    {
+        $userId = $who instanceof Worker ? $who->user_id : $who->id;
+
+        return WorkerItinerary::where('user_id', $userId)->where('itinerary_id', $itinerary instanceof Itinerary ? $itinerary->id : $itinerary)->first();
     }
 
     protected function createChief(Itinerary $itinerary, ?int $stopId = null): Worker

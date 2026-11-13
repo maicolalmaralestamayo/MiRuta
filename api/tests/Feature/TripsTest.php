@@ -42,6 +42,34 @@ class TripsTest extends TestCase
         $this->assertSame(2, Notification::where('user_id', $worker->user_id)->where('kind', 'viaje_creado')->count());
     }
 
+    public function test_quien_esta_en_varios_itinerarios_ve_los_viajes_de_todos_y_cuenta_en_cada_uno(): void
+    {
+        $admin = $this->createAdmin();
+        $entity = $this->createEntity();
+        $other = $this->createEntity('OTRA');
+        $a = $this->createItinerary($entity);
+        $b = $this->createItinerary($entity);
+        $c = $this->createItinerary($other);
+        $worker = $this->createWorker($entity, $a, $a->stopIds()[1]);
+        $this->placeIn($worker, $b, $b->stopIds()[2]);
+        $this->createWorker($other, $c, $c->stopIds()[0], \App\Models\User::find($worker->user_id));
+
+        $this->plan($admin, $a)->assertJsonPath('data.meta.expectedPassengers', 1);
+        $this->plan($admin, $b)->assertJsonPath('data.meta.expectedPassengers', 1);
+        $tripC = $this->plan($admin, $c)->json('data.id');
+        $this->jsonApiAs($worker, 'GET', '/api/v1/trips')->assertJsonCount(3, 'data');
+
+        // En la línea del recorrido su parada es la de ese itinerario.
+        $this->jsonApiAs($worker, 'GET', "/api/v1/trips/{$tripC}/live")->assertJsonPath('data.attributes.stops.0.mine', true);
+
+        // La ausencia en una Entidad no afecta a los viajes de la otra.
+        $type = AbsenceType::create(['name' => 'Vacaciones']);
+        Absence::create(['worker_id' => $worker->id, 'absence_type_id' => $type->id, 'starts_on' => Carbon::today()->toDateString()]);
+        $this->jsonApiAs($admin, 'GET', "/api/v1/trips/{$tripC}")->assertJsonPath('data.meta.expectedPassengers', 1);
+        $tripA = Trip::where('itinerary_id', $a->id)->first();
+        $this->jsonApiAs($admin, 'GET', "/api/v1/trips/{$tripA->id}")->assertJsonPath('data.meta.expectedPassengers', 0);
+    }
+
     public function test_quien_ve_los_viajes(): void
     {
         $entity = $this->createEntity();

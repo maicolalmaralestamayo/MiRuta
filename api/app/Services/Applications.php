@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\DB;
  *
  * - Entidad: la resuelve el Administrador.
  * - Itinerario (con parada opcional): el Administrador o un Jefe de ese itinerario.
+ * - Aprobar añade la Entidad o el itinerario a los que ya tiene la persona.
  * - Quien la hizo ve las suyas y su estado, y puede cancelarlas o eliminarlas.
  * - Rechazar exige un motivo del nomenclador (y una observación opcional).
  */
@@ -55,13 +56,15 @@ class Applications
             throw JsonApiException::conflict('ITINERARY_INACTIVE', 'Ese itinerario está desactivado: no admite solicitudes.', '/data/relationships/itinerary');
         }
 
-        $worker = $this->access->workerIn($user, $itinerary->entity_id);
+        if (! $itinerary->entity_id) {
+            throw JsonApiException::conflict('ITINERARY_WITHOUT_ENTITY', 'Ese itinerario no tiene Entidad: no admite solicitudes.', '/data/relationships/itinerary');
+        }
 
-        if (! $worker) {
+        if (! $this->access->workerIn($user, $itinerary->entity_id)) {
             throw JsonApiException::conflict('NOT_MEMBER', 'Primero tiene que pertenecer a la Entidad de ese itinerario.', '/data/relationships/itinerary');
         }
 
-        if ((int) $worker->itinerary_id === (int) $itinerary->id) {
+        if ($this->access->placementIn($user, $itinerary->id)) {
             throw JsonApiException::conflict('ALREADY_IN_ITINERARY', 'Ya está en ese itinerario. Para cambiar de parada no hace falta solicitud.', '/data/relationships/itinerary');
         }
 
@@ -96,18 +99,18 @@ class Applications
 
         DB::transaction(function () use ($application, $actor) {
             $user = User::findOrFail($application->user_id);
-            $entity = Entity::findOrFail($application->entity_id);
 
+            // Aprobar añade la Entidad o el itinerario a los que ya tiene (docs/11 §11.58).
             if ($application->type === Application::TYPE_ENTITY) {
-                $this->memberships->join($user, $entity);
+                $this->memberships->join($user, Entity::findOrFail($application->entity_id));
             } else {
-                $worker = Worker::where('user_id', $user->id)->where('entity_id', $entity->id)->first();
+                $itinerary = Itinerary::findOrFail($application->itinerary_id);
 
-                if (! $worker) {
+                if (! $itinerary->entity_id || ! Worker::where('user_id', $user->id)->where('entity_id', $itinerary->entity_id)->exists()) {
                     throw JsonApiException::conflict('NOT_MEMBER', 'La persona ya no pertenece a la Entidad de ese itinerario.');
                 }
 
-                $this->memberships->place($worker, (int) $application->itinerary_id, $application->stop_id ? (int) $application->stop_id : null);
+                $this->memberships->addItinerary($user, $itinerary, $application->stop_id ? (int) $application->stop_id : null);
             }
 
             $application->forceFill([

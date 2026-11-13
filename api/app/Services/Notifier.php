@@ -6,6 +6,7 @@ use App\Models\Notification;
 use App\Models\Trip;
 use App\Models\User;
 use App\Models\Worker;
+use App\Models\WorkerItinerary;
 use Carbon\Carbon;
 
 /**
@@ -76,7 +77,7 @@ class Notifier
     /** @return int[] Jefes de ese itinerario */
     public function chiefIds(int $itineraryId): array
     {
-        return array_map('intval', Worker::where('itinerary_id', $itineraryId)->where('is_chief', true)->pluck('user_id')->all());
+        return array_map('intval', WorkerItinerary::where('itinerary_id', $itineraryId)->where('is_chief', true)->pluck('user_id')->all());
     }
 
     /**
@@ -86,7 +87,8 @@ class Notifier
      */
     public function tripAudience(Trip $trip): array
     {
-        return array_map('intval', Worker::where('itinerary_id', $trip->itinerary_id)->where('active', true)->pluck('user_id')->all());
+        return array_map('intval', WorkerItinerary::where('itinerary_id', $trip->itinerary_id)
+            ->whereIn('worker_id', Worker::where('active', true)->select('id'))->pluck('user_id')->all());
     }
 
     /**

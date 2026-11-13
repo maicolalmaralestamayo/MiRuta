@@ -5,20 +5,17 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * La persona en una Entidad: itinerario y parada (opcionales), si es Jefe de
- * ese itinerario y si está activada.
+ * La persona en una Entidad (activada o no). Sus itinerarios en ella, con la
+ * parada de cada uno y la jefatura, están en worker_itineraries.
  */
 class Worker extends Model
 {
-    protected $fillable = ['user_id', 'entity_id', 'itinerary_id', 'stop_id', 'is_chief', 'active'];
+    protected $fillable = ['user_id', 'entity_id', 'active'];
 
     protected $casts = [
-        'is_chief' => 'boolean',
         'active' => 'boolean',
         'user_id' => 'integer',
         'entity_id' => 'integer',
-        'itinerary_id' => 'integer',
-        'stop_id' => 'integer',
     ];
 
     public function user()
@@ -31,13 +28,8 @@ class Worker extends Model
         return $this->belongsTo(Entity::class);
     }
 
-    public function itinerary()
+    public function placements()
     {
-        return $this->belongsTo(Itinerary::class);
-    }
-
-    public function stop()
-    {
-        return $this->belongsTo(Stop::class);
+        return $this->hasMany(WorkerItinerary::class);
     }
 }

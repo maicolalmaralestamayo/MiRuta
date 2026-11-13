@@ -18,6 +18,7 @@ return [
     'serializers' => [
         Models\User::class => Serializers\UserSerializer::class,
         Models\Worker::class => Serializers\WorkerSerializer::class,
+        Models\WorkerItinerary::class => Serializers\WorkerItinerarySerializer::class,
         Models\Entity::class => Serializers\EntitySerializer::class,
         Models\Itinerary::class => Serializers\ItinerarySerializer::class,
         Models\Stop::class => Serializers\StopSerializer::class,

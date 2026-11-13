@@ -8,6 +8,8 @@ use App\JsonApi\JsonApiResponse;
 use App\Models\RefreshToken;
 use App\Models\User;
 use App\Models\Worker;
+use App\Models\WorkerItinerary;
+use App\Serializers\WorkerItinerarySerializer;
 use App\Services\Access;
 use App\Services\Accounts;
 use App\Services\Applications;
@@ -26,7 +28,7 @@ class MeController extends Controller
 {
     /**
      * meta.role (administrador, jefe o trabajador), meta.chiefItineraryId y
-     * meta.memberships (sus Entidades con itinerario y parada).
+     * meta.memberships (sus Entidades, cada una con sus itinerarios y paradas).
      */
     public function show(Request $request)
     {
@@ -117,40 +119,31 @@ class MeController extends Controller
     }
 
     /**
-     * Sus Entidades con itinerario y parada (tarjetas de Inicio).
+     * Sus Entidades, cada una con sus itinerarios y la parada de cada uno
+     * (Inicio y formulario del Trabajador; docs/11 §11.58 y §11.60).
+     *
+     * @param int[]|null $entityIds Solo esas Entidades (null = todas)
      */
-    public static function memberships(User $user): array
+    public static function memberships(User $user, ?array $entityIds = null): array
     {
         $image = fn ($path) => $path ? url($path) : null;
 
-        return Worker::where('user_id', $user->id)->with('entity', 'itinerary', 'stop')->orderBy('id')->get()->map(fn (Worker $worker) => [
-            'workerId' => (string) $worker->id,
-            'active' => (bool) $worker->active,
-            'isChief' => (bool) $worker->is_chief,
-            'entity' => [
-                'id' => (string) $worker->entity_id,
-                'abbreviation' => $worker->entity->abbreviation,
-                'name' => $worker->entity->name,
-                'imageUrl' => $image($worker->entity->image_path),
-                'active' => (bool) $worker->entity->active,
-                'workerCount' => Worker::where('entity_id', $worker->entity_id)->count(),
-            ],
-            'itinerary' => $worker->itinerary ? [
-                'id' => (string) $worker->itinerary_id,
-                'name' => $worker->itinerary->name,
-                'imageUrl' => $image($worker->itinerary->image_path),
-                'active' => (bool) $worker->itinerary->active,
-                'workerCount' => Worker::where('itinerary_id', $worker->itinerary_id)->count(),
-            ] : null,
-            'stop' => $worker->stop ? [
-                'id' => (string) $worker->stop_id,
-                'landmark' => $worker->stop->landmark,
-                'street' => $worker->stop->street,
-                'imageUrl' => $image($worker->stop->image_path),
-                'latitude' => (float) $worker->stop->latitude,
-                'longitude' => (float) $worker->stop->longitude,
-            ] : null,
-        ])->all();
+        return Worker::where('user_id', $user->id)->with('entity')->orderBy('id')
+            ->when($entityIds !== null, fn ($q) => $q->whereIn('entity_id', $entityIds ?: [0]))
+            ->get()->map(fn (Worker $worker) => [
+                'workerId' => (string) $worker->id,
+                'active' => (bool) $worker->active,
+                'entity' => [
+                    'id' => (string) $worker->entity_id,
+                    'abbreviation' => $worker->entity->abbreviation,
+                    'name' => $worker->entity->name,
+                    'imageUrl' => $image($worker->entity->image_path),
+                    'active' => (bool) $worker->entity->active,
+                    'workerCount' => Worker::where('entity_id', $worker->entity_id)->count(),
+                ],
+                'itineraries' => WorkerItinerary::where('worker_id', $worker->id)->with('itinerary', 'stop')->orderBy('id')->get()
+                    ->map(fn (WorkerItinerary $p) => WorkerItinerarySerializer::summary($p))->values()->all(),
+            ])->all();
     }
 
     private function changePassword(Request $request, User $user, string $password, Passwords $passwords): void

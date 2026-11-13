@@ -8,6 +8,7 @@ use App\Models\Absence;
 use App\Models\AbsenceType;
 use App\Models\User;
 use App\Models\Worker;
+use App\Models\WorkerItinerary;
 use App\Services\Access;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
@@ -123,11 +124,21 @@ class AbsenceController extends Controller
     {
         $allowed = (int) $worker->user_id === (int) $actor->id
             || $this->access->isAdmin($actor)
-            || ($worker->itinerary_id && $this->access->isChiefOf($actor, $worker->itinerary_id));
+            || $this->chiefOfWorker($actor, $worker);
 
         if (! $allowed) {
             throw Access::forbidden('Cada uno declara sus ausencias (o el Administrador, o el Jefe de su itinerario).');
         }
+    }
+
+    /**
+     * El actor es Jefe de alguno de los itinerarios de esa persona en esa Entidad.
+     */
+    private function chiefOfWorker(User $actor, Worker $worker): bool
+    {
+        $chiefOf = $this->access->chiefItineraryId($actor);
+
+        return $chiefOf !== null && WorkerItinerary::where('worker_id', $worker->id)->where('itinerary_id', $chiefOf)->exists();
     }
 
     private function visible(User $user): Builder
@@ -140,7 +151,7 @@ class AbsenceController extends Controller
 
         $chiefOf = $this->access->chiefItineraryId($user);
 
-        return $query->whereIn('worker_id', Worker::where('user_id', $user->id)
-            ->when($chiefOf !== null, fn ($q) => $q->orWhere('itinerary_id', $chiefOf))->select('id'));
+        return $query->where(fn ($q) => $q->whereIn('worker_id', Worker::where('user_id', $user->id)->select('id'))
+            ->when($chiefOf !== null, fn ($q) => $q->orWhereIn('worker_id', WorkerItinerary::where('itinerary_id', $chiefOf)->select('worker_id'))));
     }
 }

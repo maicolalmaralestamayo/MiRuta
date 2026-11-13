@@ -6,14 +6,15 @@ use App\JsonApi\JsonApiException;
 use App\Models\Application;
 use App\Models\User;
 use App\Models\Worker;
+use App\Models\WorkerItinerary;
 
 /**
  * Tres roles fijos con sus permisos en el código (docs/11 §11.30):
  *
  * - Administrador (users.is_admin): todo, en todas las Entidades.
- * - Jefe de itinerario (workers.is_chief): gestiona su itinerario (paradas,
- *   personas, solicitudes e Incluir por QR) y ve sus Entidades. Cada persona es
- *   Jefe de un solo itinerario, y viaja en él.
+ * - Jefe de itinerario (worker_itineraries.is_chief): gestiona su itinerario
+ *   (paradas, personas, solicitudes e Incluir por QR) y ve sus Entidades. Cada
+ *   persona es Jefe de un solo itinerario, y viaja en él.
  * - Trabajador: consulta sus Entidades; solicita, sale y gestiona lo suyo.
  *
  * Lo leído se guarda durante la petición; flush() tras cambiar pertenencias.
@@ -22,6 +23,9 @@ class Access
 {
     /** @var array<int, \Illuminate\Support\Collection> [id de persona => pertenencias] */
     private array $workers = [];
+
+    /** @var array<int, \Illuminate\Support\Collection> [id de persona => itinerarios] */
+    private array $placements = [];
 
     public function isAdmin(?User $user): bool
     {
@@ -44,10 +48,25 @@ class Access
         return $this->workersOf($user)->pluck('entity_id')->map(fn ($id) => (int) $id)->all();
     }
 
+    /**
+     * Sus itinerarios (con parada y jefatura), de todas sus Entidades.
+     *
+     * @return \Illuminate\Support\Collection<int, WorkerItinerary>
+     */
+    public function placementsOf(User $user)
+    {
+        return $this->placements[$user->id] ??= WorkerItinerary::where('user_id', $user->id)->orderBy('id')->get();
+    }
+
     /** @return int[] Itinerarios en los que está */
     public function itineraryIds(User $user): array
     {
-        return $this->workersOf($user)->pluck('itinerary_id')->filter()->map(fn ($id) => (int) $id)->values()->all();
+        return $this->placementsOf($user)->pluck('itinerary_id')->map(fn ($id) => (int) $id)->values()->all();
+    }
+
+    public function placementIn(User $user, $itineraryId): ?WorkerItinerary
+    {
+        return $this->placementsOf($user)->firstWhere('itinerary_id', (int) $itineraryId);
     }
 
     public function workerIn(User $user, $entityId): ?Worker
@@ -56,18 +75,18 @@ class Access
     }
 
     /**
-     * La pertenencia en la que es Jefe (con su itinerario), o null.
+     * El itinerario del que es Jefe (con su parada), o null.
      */
-    public function chiefWorker(User $user): ?Worker
+    public function chiefPlacement(User $user): ?WorkerItinerary
     {
-        return $this->workersOf($user)->first(fn (Worker $w) => $w->is_chief && $w->itinerary_id);
+        return $this->placementsOf($user)->first(fn (WorkerItinerary $p) => $p->is_chief);
     }
 
     public function chiefItineraryId(User $user): ?int
     {
-        $worker = $this->chiefWorker($user);
+        $placement = $this->chiefPlacement($user);
 
-        return $worker ? (int) $worker->itinerary_id : null;
+        return $placement ? (int) $placement->itinerary_id : null;
     }
 
     public function isChief(User $user): bool
@@ -131,7 +150,7 @@ class Access
             return false;
         }
 
-        return Worker::where('user_id', $person->id)->where('itinerary_id', $itineraryId)->exists()
+        return WorkerItinerary::where('user_id', $person->id)->where('itinerary_id', $itineraryId)->exists()
             || Application::where('user_id', $person->id)->where('itinerary_id', $itineraryId)->exists();
     }
 
@@ -166,8 +185,9 @@ class Access
     {
         if ($userId === null) {
             $this->workers = [];
+            $this->placements = [];
         } else {
-            unset($this->workers[$userId]);
+            unset($this->workers[$userId], $this->placements[$userId]);
         }
     }
 }

@@ -2,10 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\JsonApi\Document;
 use App\JsonApi\JsonApiException;
+use App\JsonApi\JsonApiResponse;
 use App\JsonApi\QueryParameters;
 use App\Models\User;
 use App\Models\Worker;
+use App\Models\WorkerItinerary;
 use App\Services\Access;
 use App\Services\Accounts;
 use App\Support\IdentityCard;
@@ -16,7 +19,9 @@ use Illuminate\Support\Facades\DB;
 /**
  * Personas (recurso "users"). Cada uno ve a las personas de sus Entidades; el
  * Administrador, a todas (también a las que no tienen Entidad:
- * filter[entity]=none). Solo el Administrador las edita y elimina.
+ * filter[entity]=none). filter[itinerary]=none: en ningún itinerario;
+ * filter[stop]=none: en algún itinerario sin parada. Solo el Administrador las
+ * edita y elimina.
  */
 class PersonController extends Controller
 {
@@ -34,21 +39,30 @@ class PersonController extends Controller
         $parameters = QueryParameters::fromRequest($request, self::SORTABLE, ['entity', 'itinerary', 'stop', 'search'], [], 'firstName,firstSurname,secondSurname');
         $query = $this->visible($request->user());
 
-        foreach (['entity' => 'entity_id', 'itinerary' => 'itinerary_id', 'stop' => 'stop_id'] as $filter => $column) {
-            $value = $parameters->filter($filter);
+        $entity = $parameters->filter('entity');
 
-            if ($value === null) {
-                continue;
-            }
+        if ($entity === 'none') {
+            $this->access->requireAdmin($request->user(), 'Solo el Administrador ve a las personas sin Entidad.');
+            $query->whereNotIn('id', Worker::select('user_id'));
+        } elseif ($entity !== null) {
+            $query->whereIn('id', Worker::where('entity_id', (int) $entity)->select('user_id'));
+        }
 
-            if ($value === 'none' && $filter === 'entity') {
-                $this->access->requireAdmin($request->user(), 'Solo el Administrador ve a las personas sin Entidad.');
-                $query->whereNotIn('id', Worker::select('user_id'));
-            } elseif ($value === 'none') {
-                $query->whereIn('id', Worker::whereNull($column)->select('user_id'));
-            } else {
-                $query->whereIn('id', Worker::where($column, (int) $value)->select('user_id'));
-            }
+        // Sin itinerario: en ningún itinerario; sin parada: en algún itinerario sin parada.
+        $itinerary = $parameters->filter('itinerary');
+
+        if ($itinerary === 'none') {
+            $query->whereNotIn('id', WorkerItinerary::select('user_id'));
+        } elseif ($itinerary !== null) {
+            $query->whereIn('id', WorkerItinerary::where('itinerary_id', (int) $itinerary)->select('user_id'));
+        }
+
+        $stop = $parameters->filter('stop');
+
+        if ($stop === 'none') {
+            $query->whereIn('id', WorkerItinerary::whereNull('stop_id')->select('user_id'));
+        } elseif ($stop !== null) {
+            $query->whereIn('id', WorkerItinerary::where('stop_id', (int) $stop)->select('user_id'));
         }
 
         if ($search = $parameters->filter('search')) {
@@ -58,9 +72,17 @@ class PersonController extends Controller
         return $this->paginate($request, $query, $parameters, self::SORTABLE);
     }
 
+    /**
+     * meta.memberships: sus Entidades (las que ve quien consulta), cada una con
+     * sus itinerarios y paradas (formulario del Trabajador; docs/11 §11.58).
+     */
     public function show(Request $request, $id)
     {
-        return $this->respond($request, $this->visible($request->user())->findOrFail($id));
+        $user = $this->visible($request->user())->findOrFail($id);
+        $document = (new Document($request))->resource($user);
+        $document['data']['meta'] = ['memberships' => MeController::memberships($user, $this->access->visibleEntityIds($request->user()))];
+
+        return JsonApiResponse::make($document);
     }
 
     /**

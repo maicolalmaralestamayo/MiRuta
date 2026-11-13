@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: MiRuta API
-  version: 4.0.0
+  version: 4.1.0
   description: 'API de MiRuta (Laravel 12): gestión del transporte de trabajadores.
 
 
@@ -517,7 +517,7 @@ paths:
           $ref: '#/components/responses/Conflict'
         '426':
           $ref: '#/components/responses/UpdateRequired'
-      description: Administrador. Elimina sus itinerarios; las personas quedan sin esa Entidad.
+      description: Administrador. Sus itinerarios quedan sin Entidad; las personas quedan sin esa Entidad.
       parameters:
       - $ref: '#/components/parameters/Id'
   /entities/lookup:
@@ -572,7 +572,7 @@ paths:
       - name: filter[entity]
         in: query
         required: false
-        description: Id de Entidad
+        description: Id de Entidad o none
         schema:
           type: string
       - name: filter[search]
@@ -618,7 +618,7 @@ paths:
           $ref: '#/components/responses/Unprocessable'
         '426':
           $ref: '#/components/responses/UpdateRequired'
-      description: Administrador.
+      description: Administrador. relationships.entity opcional.
       requestBody:
         required: true
         content:
@@ -674,7 +674,7 @@ paths:
           $ref: '#/components/responses/Unprocessable'
         '426':
           $ref: '#/components/responses/UpdateRequired'
-      description: 'Administrador. Con relationships.entity: cambiar de Entidad.'
+      description: 'Administrador. relationships.entity (id o null): sus personas pasan con él (o salen de él).'
       parameters:
       - $ref: '#/components/parameters/Id'
       requestBody:
@@ -700,7 +700,7 @@ paths:
           $ref: '#/components/responses/Conflict'
         '426':
           $ref: '#/components/responses/UpdateRequired'
-      description: Administrador. Sus personas quedan sin itinerario.
+      description: Administrador. Sus personas salen de él; las paradas se conservan.
       parameters:
       - $ref: '#/components/parameters/Id'
   /itineraries/{id}/relationships/stops:
@@ -1419,7 +1419,7 @@ paths:
           $ref: '#/components/responses/Unprocessable'
         '426':
           $ref: '#/components/responses/UpdateRequired'
-      description: active, isChief, relationships itinerary, stop y entity según el rol (docs/13 §13.5).
+      description: active (Administrador o Jefe de su itinerario).
       parameters:
       - $ref: '#/components/parameters/Id'
       requestBody:
@@ -1448,6 +1448,195 @@ paths:
       description: Administrador o la propia persona.
       parameters:
       - $ref: '#/components/parameters/Id'
+  /worker-itineraries:
+    get:
+      tags:
+      - Gestión
+      summary: Listar worker-itineraries
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/WorkerItineraryCollection'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '426':
+          $ref: '#/components/responses/UpdateRequired'
+      parameters:
+      - name: filter[user]
+        in: query
+        required: false
+        description: Id de persona
+        schema:
+          type: string
+      - name: filter[itinerary]
+        in: query
+        required: false
+        description: Id de itinerario
+        schema:
+          type: string
+      - name: filter[entity]
+        in: query
+        required: false
+        description: Id de Entidad
+        schema:
+          type: string
+      - name: filter[stop]
+        in: query
+        required: false
+        description: Id o none
+        schema:
+          type: string
+      - name: filter[chief]
+        in: query
+        required: false
+        description: true o false
+        schema:
+          type: string
+      - name: filter[search]
+        in: query
+        required: false
+        description: Nombre, usuario o carné
+        schema:
+          type: string
+      - $ref: '#/components/parameters/PageNumber'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/Sort'
+      - $ref: '#/components/parameters/Include'
+    post:
+      tags:
+      - Gestión
+      summary: Crear worker-itineraries
+      responses:
+        '201':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/WorkerItineraryDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '426':
+          $ref: '#/components/responses/UpdateRequired'
+      description: Administrador, o Jefe en su itinerario a personas de su Entidad. Añade el itinerario a los que ya tiene.
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/WorkerItineraryDocument'
+  /worker-itineraries/{id}:
+    get:
+      tags:
+      - Gestión
+      summary: Ver worker-itineraries
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/WorkerItineraryDocument'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '426':
+          $ref: '#/components/responses/UpdateRequired'
+      parameters:
+      - $ref: '#/components/parameters/Id'
+    patch:
+      tags:
+      - Gestión
+      summary: Modificar worker-itineraries
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/WorkerItineraryDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '426':
+          $ref: '#/components/responses/UpdateRequired'
+      description: relationships.stop (Administrador, Jefe o la propia persona); isChief (Administrador).
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/WorkerItineraryDocument'
+    delete:
+      tags:
+      - Gestión
+      summary: Eliminar worker-itineraries
+      responses:
+        '204':
+          description: Hecho, sin contenido
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '426':
+          $ref: '#/components/responses/UpdateRequired'
+      description: Salir del itinerario (Administrador, Jefe o la propia persona).
+      parameters:
+      - $ref: '#/components/parameters/Id'
+  /management-summary:
+    get:
+      tags:
+      - Gestión
+      summary: Cantidades de las tarjetas de Gestión
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/ManagementSummaryDocument'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '426':
+          $ref: '#/components/responses/UpdateRequired'
   /applications:
     get:
       tags:
@@ -4034,7 +4223,7 @@ components:
           $ref: '#/components/schemas/Links'
     Worker:
       type: object
-      description: La persona en una Entidad.
+      description: 'La persona en una Entidad. meta.itineraries: sus itinerarios en ella.'
       required:
       - type
       properties:
@@ -4048,8 +4237,6 @@ components:
         attributes:
           type: object
           properties:
-            isChief:
-              type: boolean
             active:
               type: boolean
             createdAt:
@@ -4078,20 +4265,6 @@ components:
                   allOf:
                   - $ref: '#/components/schemas/Identifier'
                   nullable: true
-            itinerary:
-              type: object
-              properties:
-                data:
-                  allOf:
-                  - $ref: '#/components/schemas/Identifier'
-                  nullable: true
-            stop:
-              type: object
-              properties:
-                data:
-                  allOf:
-                  - $ref: '#/components/schemas/Identifier'
-                  nullable: true
     WorkerDocument:
       type: object
       properties:
@@ -4114,6 +4287,164 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Worker'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        meta:
+          type: object
+          additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+    WorkerItinerary:
+      type: object
+      description: La persona en un itinerario de una de sus Entidades (varios por Entidad), con su parada y si es Jefe.
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - worker-itineraries
+        id:
+          type: string
+          readOnly: true
+        attributes:
+          type: object
+          properties:
+            isChief:
+              type: boolean
+            createdAt:
+              type: string
+              format: date-time
+              readOnly: true
+        meta:
+          type: object
+          additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+        relationships:
+          type: object
+          properties:
+            user:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/Identifier'
+                  nullable: true
+            worker:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/Identifier'
+                  nullable: true
+            itinerary:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/Identifier'
+                  nullable: true
+            stop:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/Identifier'
+                  nullable: true
+    WorkerItineraryDocument:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/WorkerItinerary'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        meta:
+          type: object
+          additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+    WorkerItineraryCollection:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkerItinerary'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        meta:
+          type: object
+          additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+    ManagementSummary:
+      type: object
+      description: Cantidades de las tarjetas de Gestión.
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - management-summaries
+        id:
+          type: string
+          readOnly: true
+        attributes:
+          type: object
+          properties:
+            entities:
+              type: integer
+            itineraries:
+              type: integer
+            stops:
+              type: integer
+            workers:
+              type: integer
+            pendingEntityApplications:
+              type: integer
+            pendingItineraryApplications:
+              type: integer
+            nomenclators:
+              type: object
+              additionalProperties: true
+        meta:
+          type: object
+          additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+    ManagementSummaryDocument:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/ManagementSummary'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        meta:
+          type: object
+          additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+    ManagementSummaryCollection:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ManagementSummary'
         included:
           type: array
           items:

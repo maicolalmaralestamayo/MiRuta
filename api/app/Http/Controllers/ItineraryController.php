@@ -6,13 +6,15 @@ use App\JsonApi\JsonApiException;
 use App\JsonApi\QueryParameters;
 use App\Models\Itinerary;
 use App\Services\Access;
+use App\Services\Memberships;
 use App\Services\Organization;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 
 /**
- * Itinerarios de una Entidad. Los ve quien pertenece a la Entidad; solo el
- * Administrador los crea, edita y elimina. El orden de sus paradas lo cambian
+ * Itinerarios. Cada uno es como mucho de una Entidad (docs/11 §11.58; sin
+ * Entidad = suelto, filter[entity]=none, solo el Administrador). Los ve quien
+ * pertenece a su Entidad; solo el Administrador los crea, edita y elimina. El orden de sus paradas lo cambian
  * el Administrador y sus Jefes (PATCH itineraries/{id}/relationships/stops).
  */
 class ItineraryController extends Controller
@@ -29,7 +31,11 @@ class ItineraryController extends Controller
         $parameters = QueryParameters::fromRequest($request, self::SORTABLE, ['entity', 'search', 'active'], self::INCLUDABLE, 'name');
         $query = $this->visible($request);
 
-        if ($entity = $parameters->filter('entity')) {
+        $entity = $parameters->filter('entity');
+
+        if ($entity === 'none') {
+            $query->whereNull('entity_id');
+        } elseif ($entity !== null) {
             $query->where('entity_id', (int) $entity);
         }
 
@@ -52,7 +58,7 @@ class ItineraryController extends Controller
     public function store(Request $request)
     {
         $this->access->requireAdmin($request->user(), 'Solo el Administrador crea itinerarios.');
-        $data = $this->validateResource($request, 'itineraries', $this->rules(null) + $this->relationshipRules('entity', 'entities', 'entities', true));
+        $data = $this->validateResource($request, 'itineraries', $this->rules(null) + $this->relationshipRules('entity', 'entities', 'entities', false, true));
         $itinerary = new Itinerary(['entity_id' => $this->relationshipId($data, 'entity')]);
         $this->ensureUniqueName($itinerary->entity_id, $data['attributes']['name'], null);
         $this->fill($itinerary, $data['attributes']);
@@ -62,25 +68,25 @@ class ItineraryController extends Controller
     }
 
     /**
-     * Datos del itinerario y, con relationships.entity, «Cambiar de Entidad»
-     * (sus personas quedan sin itinerario en la Entidad anterior).
+     * Datos del itinerario y, con relationships.entity, su Entidad (null =
+     * «Sin Entidad»). Sus personas pasan con él a la nueva Entidad; si se queda
+     * sin Entidad, salen de él.
      */
-    public function update(Request $request, Organization $organization, $id)
+    public function update(Request $request, Memberships $memberships, $id)
     {
         $this->access->requireAdmin($request->user(), 'Solo el Administrador edita itinerarios.');
         $itinerary = Itinerary::findOrFail($id);
-        $data = $this->validateResource($request, 'itineraries', $this->rules($itinerary) + $this->relationshipRules('entity', 'entities', 'entities', false));
+        $data = $this->validateResource($request, 'itineraries', $this->rules($itinerary) + $this->relationshipRules('entity', 'entities', 'entities', false, true));
         $attributes = $data['attributes'] ?? [];
-        $entityId = $this->relationshipId($data, 'entity') ?? $itinerary->entity_id;
+        $entityId = $this->hasRelationship($data, 'entity') ? $this->relationshipId($data, 'entity') : $itinerary->entity_id;
 
         if (isset($attributes['name']) || $entityId !== $itinerary->entity_id) {
             $this->ensureUniqueName($entityId, $attributes['name'] ?? $itinerary->name, $itinerary->id);
         }
 
         if ($entityId !== $itinerary->entity_id) {
-            \App\Models\Worker::where('itinerary_id', $itinerary->id)->update(['itinerary_id' => null, 'stop_id' => null, 'is_chief' => false]);
+            $memberships->itineraryMoved($itinerary, $entityId);
             $itinerary->entity_id = $entityId;
-            $this->access->flush();
         }
 
         $this->fill($itinerary, $attributes);
@@ -90,8 +96,8 @@ class ItineraryController extends Controller
     }
 
     /**
-     * Elimina el itinerario (con sus viajes y solicitudes); sus personas quedan
-     * sin itinerario ni parada; las paradas se conservan.
+     * Elimina el itinerario (con sus viajes y solicitudes); sus personas salen
+     * de él; las paradas se conservan (aunque queden sin itinerario).
      */
     public function destroy(Request $request, Organization $organization, $id)
     {
@@ -159,7 +165,7 @@ class ItineraryController extends Controller
         }
     }
 
-    private function ensureUniqueName(int $entityId, string $name, ?int $exceptId): void
+    private function ensureUniqueName(?int $entityId, string $name, ?int $exceptId): void
     {
         $exists = Itinerary::where('entity_id', $entityId)->where('name', trim($name))->when($exceptId, fn ($q) => $q->where('id', '<>', $exceptId))->exists();
 
@@ -175,6 +181,10 @@ class ItineraryController extends Controller
         $ids = $this->access->visibleEntityIds($user);
 
         if ($ids !== null) {
+            if ($request->input('filter.entity') === 'none') {
+                $this->access->requireAdmin($user, 'Solo el Administrador ve los itinerarios sin Entidad.');
+            }
+
             $chiefOf = $this->access->chiefItineraryId($user);
             $query->whereIn('entity_id', $ids ?: [0])
                 ->where(fn ($q) => $q->where('active', true)->when($chiefOf !== null, fn ($q) => $q->orWhere('id', $chiefOf)));

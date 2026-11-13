@@ -80,6 +80,8 @@ Route::middleware('auth.token')->group(function () {
     $resource('itinerary-stops', C\ItineraryStopController::class, ['index', 'store', 'update', 'destroy']);
     $resource('users', C\PersonController::class, ['index', 'show', 'update', 'destroy']);
     $resource('workers', C\WorkerController::class);
+    $resource('worker-itineraries', C\WorkerItineraryController::class);
+    Route::get('management-summary', [C\ManagementSummaryController::class, 'show']);
     $resource('applications', C\ApplicationController::class);
     $resource('absences', C\AbsenceController::class);
     $resource('children', C\ChildController::class);

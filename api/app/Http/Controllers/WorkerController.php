@@ -7,8 +7,10 @@ use App\JsonApi\JsonApiException;
 use App\JsonApi\JsonApiResponse;
 use App\JsonApi\QueryParameters;
 use App\Models\Entity;
+use App\Models\Itinerary;
 use App\Models\User;
 use App\Models\Worker;
+use App\Models\WorkerItinerary;
 use App\Services\Access;
 use App\Services\Accounts;
 use App\Services\Memberships;
@@ -17,20 +19,23 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 /**
- * La persona en una Entidad (recurso "workers"): sección Personas de Gestión
- * (con include=user) y sus movimientos (docs/11 §11.26 y §11.30).
+ * La persona en una Entidad (recurso "workers"): listas de Gestión (con
+ * include=user) y sus movimientos (docs/11 §11.26, §11.30 y §11.58). Sus
+ * itinerarios en la Entidad, con parada y jefatura, son el recurso
+ * "worker-itineraries" (WorkerItineraryController).
  *
- * - Administrador: todo (registrar, cambiar de Entidad, itinerario y parada,
- *   asignar y quitar el rol de Jefe, activar, sacar de la Entidad).
- * - Jefe de itinerario: en su itinerario, cambia la parada de sus personas,
- *   las saca de él o pone en él a personas de su Entidad, y las activa o
- *   desactiva.
- * - Trabajador: se cambia de parada en su itinerario, sale del itinerario y
- *   sale de la Entidad.
+ * - Administrador: registrar, añadir a una Entidad («Asociar Entidad»),
+ *   activar y sacar de la Entidad.
+ * - Jefe de itinerario: activa o desactiva a las personas de su itinerario.
+ * - Trabajador: sale de la Entidad.
+ *
+ * filter[itinerary]=none: las pertenencias sin ningún itinerario en su Entidad
+ * («Trabajadores sin itinerario»); filter[itinerary]=N y filter[stop]=N|none,
+ * las que tienen ese itinerario / esa parada (o alguno sin parada).
  */
 class WorkerController extends Controller
 {
-    public const INCLUDABLE = ['user', 'entity', 'itinerary', 'stop'];
+    public const INCLUDABLE = ['user', 'entity'];
 
     public function __construct(private Access $access, private Memberships $memberships)
     {
@@ -48,14 +53,26 @@ class WorkerController extends Controller
             ['entity', 'itinerary', 'stop', 'user', 'search', 'active', 'chief'], self::INCLUDABLE, 'name,surname');
         $query = $this->visible($request->user());
 
-        foreach (['entity' => 'entity_id', 'itinerary' => 'itinerary_id', 'stop' => 'stop_id', 'user' => 'user_id'] as $filter => $column) {
-            $value = $parameters->filter($filter);
-
-            if ($value === 'none' && in_array($filter, ['itinerary', 'stop'], true)) {
-                $query->whereNull($column);
-            } elseif ($value !== null) {
+        foreach (['entity' => 'entity_id', 'user' => 'user_id'] as $filter => $column) {
+            if (($value = $parameters->filter($filter)) !== null) {
                 $query->where($column, (int) $value);
             }
+        }
+
+        $itinerary = $parameters->filter('itinerary');
+
+        if ($itinerary === 'none') {
+            $query->whereNotIn('id', WorkerItinerary::select('worker_id'));
+        } elseif ($itinerary !== null) {
+            $query->whereIn('id', WorkerItinerary::where('itinerary_id', (int) $itinerary)->select('worker_id'));
+        }
+
+        $stop = $parameters->filter('stop');
+
+        if ($stop === 'none') {
+            $query->whereIn('id', WorkerItinerary::whereNull('stop_id')->select('worker_id'));
+        } elseif ($stop !== null) {
+            $query->whereIn('id', WorkerItinerary::where('stop_id', (int) $stop)->select('worker_id'));
         }
 
         if ($parameters->filter('active') !== null) {
@@ -63,7 +80,8 @@ class WorkerController extends Controller
         }
 
         if ($parameters->filter('chief') !== null) {
-            $query->where('is_chief', $parameters->filter('chief') === 'true');
+            $chiefs = WorkerItinerary::where('is_chief', true)->select('worker_id');
+            $parameters->filter('chief') === 'true' ? $query->whereIn('id', $chiefs) : $query->whereNotIn('id', $chiefs);
         }
 
         if ($search = $parameters->filter('search')) {
@@ -86,7 +104,9 @@ class WorkerController extends Controller
      * - persona nueva: nombres, carné y, si quiere, usuario y contraseña (si
      *   no, se proponen; se devuelven en meta para comunicárselos). Si el carné
      *   ya existe, no se crea otra cuenta: se le añade la Entidad.
-     * Con relationships.itinerary y relationships.stop se le pone además en ellos.
+     * Con relationships.itinerary (de esa Entidad) y relationships.stop se le
+     * añade además ese itinerario. Sin usuario o contraseña, el sistema los
+     * genera (se devuelven en meta).
      */
     public function store(Request $request, Accounts $accounts)
     {
@@ -130,7 +150,14 @@ class WorkerController extends Controller
             }
 
             if ($this->relationshipId($data, 'itinerary') !== null) {
-                $this->memberships->place($worker, $this->relationshipId($data, 'itinerary'), $this->relationshipId($data, 'stop'));
+                $itinerary = Itinerary::findOrFail($this->relationshipId($data, 'itinerary'));
+
+                if ((int) $itinerary->entity_id !== (int) $entity->id) {
+                    throw new JsonApiException(422, 'ITINERARY_NOT_IN_ENTITY', 'Itinerario de otra Entidad',
+                        'El itinerario no es de esa Entidad.', ['pointer' => '/data/relationships/itinerary']);
+                }
+
+                $this->memberships->addItinerary(User::findOrFail($worker->user_id), $itinerary, $this->relationshipId($data, 'stop'));
             }
 
             return $worker;
@@ -146,64 +173,30 @@ class WorkerController extends Controller
     }
 
     /**
-     * attributes.active, attributes.isChief, relationships.itinerary y
-     * relationships.stop (null = quitar). Cambiar de Entidad: relationships.entity
-     * (solo el Administrador; se le quitan itinerario, parada y jefatura en la anterior).
+     * attributes.active: el Administrador o el Jefe de uno de sus itinerarios en esa Entidad.
      */
     public function update(Request $request, $id)
     {
         $actor = $request->user();
         $worker = $this->visible($actor)->findOrFail($id);
-        $data = $this->validateResource($request, 'workers', [
-            'attributes.active' => ['sometimes', 'boolean'],
-            'attributes.isChief' => ['sometimes', 'boolean'],
-        ] + $this->relationshipRules('itinerary', 'itineraries', 'itineraries', false, true)
-          + $this->relationshipRules('stop', 'stops', 'stops', false, true)
-          + $this->relationshipRules('entity', 'entities', 'entities', false));
+        $data = $this->validateResource($request, 'workers', ['attributes.active' => ['sometimes', 'boolean']]);
 
         if (isset($data['id']) && (string) $data['id'] !== (string) $worker->id) {
             throw JsonApiException::conflict('ID_MISMATCH', 'El id del documento no coincide con el de la URL.', '/data/id');
         }
 
-        $attributes = $data['attributes'] ?? [];
+        if (array_key_exists('active', $data['attributes'] ?? [])) {
+            $chiefOf = $this->access->chiefItineraryId($actor);
 
-        $worker = DB::transaction(function () use ($actor, $worker, $data, $attributes) {
-            if ($this->hasRelationship($data, 'entity') && (int) $this->relationshipId($data, 'entity') !== (int) $worker->entity_id) {
-                $worker = $this->changeEntity($actor, $worker, $this->relationshipId($data, 'entity'));
+            if (! $this->access->isAdmin($actor)
+                && ! ($chiefOf !== null && WorkerItinerary::where('worker_id', $worker->id)->where('itinerary_id', $chiefOf)->exists())) {
+                throw Access::forbidden('Solo el Administrador, o el Jefe de su itinerario, activan o desactivan a una persona.');
             }
 
-            if ($this->hasRelationship($data, 'itinerary') || $this->hasRelationship($data, 'stop')) {
-                $itineraryId = $this->hasRelationship($data, 'itinerary') ? $this->relationshipId($data, 'itinerary') : ($worker->itinerary_id ? (int) $worker->itinerary_id : null);
-                $stopId = $this->hasRelationship($data, 'stop') ? $this->relationshipId($data, 'stop')
-                    : ((int) $itineraryId === (int) $worker->itinerary_id && $worker->stop_id ? (int) $worker->stop_id : null);
-                $this->authorizePlacement($actor, $worker, $itineraryId);
-                $this->memberships->place($worker, $itineraryId, $stopId);
-            }
-
-            if (array_key_exists('active', $attributes)) {
-                if (! $this->access->isAdmin($actor) && ! ($worker->itinerary_id && $this->access->isChiefOf($actor, $worker->itinerary_id))) {
-                    throw Access::forbidden('Solo el Administrador, o el Jefe de su itinerario, activan o desactivan a una persona.');
-                }
-                $worker->active = (bool) $attributes['active'];
-                $worker->save();
-            }
-
-            if (array_key_exists('isChief', $attributes)) {
-                $this->access->requireAdmin($actor, 'Solo el Administrador asigna y quita el rol de Jefe de itinerario.');
-
-                if ($attributes['isChief']) {
-                    if (! $worker->itinerary_id) {
-                        throw new JsonApiException(422, 'ITINERARY_REQUIRED', 'Falta el itinerario',
-                            'Para ser Jefe de itinerario hay que estar en un itinerario (relationships.itinerary).', ['pointer' => '/data/relationships/itinerary']);
-                    }
-                    $this->memberships->makeChief($worker, (int) $worker->itinerary_id);
-                } else {
-                    $this->memberships->removeChief($worker);
-                }
-            }
-
-            return $worker;
-        });
+            $worker->active = (bool) $data['attributes']['active'];
+            $worker->save();
+            $this->access->flush((int) $worker->user_id);
+        }
 
         return $this->respond($request, $worker->fresh(), QueryParameters::readIncludes($request, self::INCLUDABLE));
     }
@@ -225,50 +218,6 @@ class WorkerController extends Controller
         return $this->noContent();
     }
 
-    private function changeEntity(User $actor, Worker $worker, int $entityId): Worker
-    {
-        $this->access->requireAdmin($actor, 'Solo el Administrador cambia a una persona de Entidad.');
-
-        if (Worker::where('user_id', $worker->user_id)->where('entity_id', $entityId)->exists()) {
-            throw JsonApiException::conflict('ALREADY_MEMBER', 'Esa persona ya pertenece a esa Entidad.', '/data/relationships/entity');
-        }
-
-        $worker->forceFill(['entity_id' => $entityId, 'itinerary_id' => null, 'stop_id' => null, 'is_chief' => false])->save();
-        $this->access->flush((int) $worker->user_id);
-
-        return $worker;
-    }
-
-    /**
-     * Quién puede poner o quitar el itinerario y la parada.
-     */
-    private function authorizePlacement(User $actor, Worker $worker, ?int $itineraryId): void
-    {
-        if ($this->access->isAdmin($actor)) {
-            return;
-        }
-
-        $same = (int) $itineraryId === (int) $worker->itinerary_id;
-
-        // El propio trabajador: cambiarse de parada en su itinerario o salir del itinerario.
-        if ((int) $worker->user_id === (int) $actor->id && ($same || $itineraryId === null)) {
-            return;
-        }
-
-        // El Jefe: dentro de su itinerario, sacar de él o poner en él.
-        $chiefOf = $this->access->chiefItineraryId($actor);
-
-        if ($chiefOf !== null && (($same && $chiefOf === (int) $itineraryId)
-            || ($itineraryId === null && $chiefOf === (int) $worker->itinerary_id)
-            || ($chiefOf === (int) $itineraryId && $this->access->workerIn($actor, $worker->entity_id)))) {
-            return;
-        }
-
-        throw Access::forbidden($itineraryId === null || $same
-            ? 'No puede cambiar la parada ni el itinerario de esta persona.'
-            : 'Para entrar en otro itinerario hay que solicitarlo (o que lo incluya su Jefe por QR).');
-    }
-
     private function visible(User $viewer): Builder
     {
         $query = Worker::query();
@@ -283,6 +232,6 @@ class WorkerController extends Controller
         $chiefOf = $this->access->chiefItineraryId($viewer);
 
         return $query->where(fn ($q) => $q->where('active', true)->orWhere('user_id', $viewer->id)
-            ->when($chiefOf !== null, fn ($q) => $q->orWhere('itinerary_id', $chiefOf)));
+            ->when($chiefOf !== null, fn ($q) => $q->orWhereIn('id', WorkerItinerary::where('itinerary_id', $chiefOf)->select('worker_id'))));
     }
 }

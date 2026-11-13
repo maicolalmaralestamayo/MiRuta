@@ -15,6 +15,7 @@ use App\Models\TripVehicleReport;
 use App\Models\User;
 use App\Models\VehicleType;
 use App\Models\Worker;
+use App\Models\WorkerItinerary;
 use App\Support\SpanishDate;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
@@ -62,8 +63,10 @@ class Trips
             return $query;
         }
 
-        $itineraryIds = $this->access->workersOf($user)
-            ->filter(fn (Worker $w) => $w->itinerary_id && $w->active && ($w->stop_id || $w->is_chief))
+        // Todos sus itinerarios (de todas sus Entidades) en los que está activo y con parada (o es Jefe).
+        $activeWorkers = $this->access->workersOf($user)->where('active', true)->pluck('id')->map(fn ($id) => (int) $id)->all();
+        $itineraryIds = $this->access->placementsOf($user)
+            ->filter(fn (WorkerItinerary $p) => in_array((int) $p->worker_id, $activeWorkers, true) && ($p->stop_id || $p->is_chief))
             ->pluck('itinerary_id')->map(fn ($id) => (int) $id)->values()->all();
 
         return $query->whereIn('itinerary_id', $itineraryIds ?: [0]);
@@ -75,15 +78,17 @@ class Trips
     }
 
     /**
-     * Pasajeros esperados: los activos del itinerario con parada y sin una
-     * ausencia ese día (docs/11 §11.33).
+     * Pasajeros esperados: los activos del itinerario con parada en él y sin
+     * una ausencia ese día en su Entidad (docs/11 §11.33). Cada persona cuenta
+     * en cada uno de sus itinerarios.
      */
     public function expectedQuery(Trip $trip): Builder
     {
         $date = $trip->date->toDateString();
 
-        return Worker::where('itinerary_id', $trip->itinerary_id)->where('active', true)->whereNotNull('stop_id')
-            ->whereNotIn('id', Absence::covering($date)->select('worker_id'));
+        return WorkerItinerary::where('itinerary_id', $trip->itinerary_id)->whereNotNull('stop_id')
+            ->whereIn('worker_id', Worker::where('active', true)->select('id'))
+            ->whereNotIn('worker_id', Absence::covering($date)->select('worker_id'));
     }
 
     /*
@@ -297,7 +302,7 @@ class Trips
      */
     public function report(User $user, Trip $trip, array $report): array
     {
-        $worker = Worker::where('user_id', $user->id)->where('itinerary_id', $trip->itinerary_id)->first();
+        $worker = WorkerItinerary::where('user_id', $user->id)->where('itinerary_id', $trip->itinerary_id)->first();
 
         if (! $worker) {
             throw Access::forbidden('Solo informan su estado los trabajadores del itinerario del viaje.');
@@ -348,7 +353,7 @@ class Trips
     /**
      * @return array{0: bool, 1: ?string}
      */
-    private function applyWorkerState(Trip $trip, Worker $worker, ?TripPassenger $passenger, array $report, Carbon $now, Carbon $reportedAt): array
+    private function applyWorkerState(Trip $trip, WorkerItinerary $worker, ?TripPassenger $passenger, array $report, Carbon $now, Carbon $reportedAt): array
     {
         $state = $report['workerState'];
         $allowed = $trip->isOutbound() ? TripPassenger::OUTBOUND_STATES : TripPassenger::RETURN_STATES;
@@ -404,7 +409,7 @@ class Trips
      * Hijos que suben con él: el trabajador elige cuáles (childIds); si no,
      * solo cuántos (childrenCount). Cada niño cuenta una sola vez por viaje.
      */
-    private function applyChildren(Worker $worker, TripPassenger $passenger, array $report): void
+    private function applyChildren(WorkerItinerary $worker, TripPassenger $passenger, array $report): void
     {
         if (isset($report['childIds']) && is_array($report['childIds'])) {
             $eligible = $this->children->eligibleChildrenOf((int) $worker->user_id)->pluck('id')->map(fn ($id) => (int) $id)->all();

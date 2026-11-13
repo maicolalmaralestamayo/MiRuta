@@ -8,7 +8,7 @@ use App\JsonApi\JsonApiResponse;
 use App\JsonApi\QueryParameters;
 use App\Models\Trip;
 use App\Models\TripPassenger;
-use App\Models\Worker;
+use App\Models\WorkerItinerary;
 use App\Services\Access;
 use App\Services\Trips;
 use Illuminate\Http\Request;
@@ -159,7 +159,7 @@ class TripController extends Controller
         $states = TripPassenger::where('trip_id', $trip->id)->get()->keyBy('user_id');
         $expected = $this->trips->expectedQuery($trip)->with('user')->get();
         $userIds = $expected->pluck('user_id')->merge($states->keys())->unique();
-        $workers = Worker::where('itinerary_id', $trip->itinerary_id)->whereIn('user_id', $userIds)->with('user')->get()->keyBy('user_id');
+        $workers = WorkerItinerary::where('itinerary_id', $trip->itinerary_id)->whereIn('user_id', $userIds)->with('user')->get()->keyBy('user_id');
         $rows = [];
 
         foreach ($userIds as $userId) {

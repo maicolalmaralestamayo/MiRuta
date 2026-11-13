@@ -8,6 +8,8 @@ use App\Models\Itinerary;
 use App\Models\QrNonce;
 use App\Models\User;
 use App\Models\Worker;
+use App\Models\WorkerItinerary;
+use App\Http\Controllers\MeController;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
 
@@ -21,9 +23,9 @@ use Illuminate\Support\Facades\DB;
  * - en una parada (con su itinerario, que se muestra bloqueado): queda en la
  *   Entidad y el itinerario de esa parada.
  *
- * Un solo itinerario por Entidad y una sola parada por itinerario: incluir en
- * otro itinerario de la misma Entidad le cambia el itinerario (y pierde la
- * jefatura del anterior). El Jefe solo incluye en su itinerario; el
+ * Incluir AÑADE la Entidad o el itinerario a los que ya tiene (docs/11 §11.58:
+ * varios itinerarios por Entidad, cada uno con su parada); si ya estaba en el
+ * itinerario, solo se le pone la parada indicada. El Jefe solo incluye en su itinerario; el
  * Administrador, en cualquiera. Funciona sin conexión: la app guarda el
  * escaneo y lo envía después con su hora (scannedAt).
  */
@@ -60,7 +62,7 @@ class QrInclusions
     }
 
     /**
-     * @return array{worker: Worker, previous: array, repeated: bool}
+     * @return array{worker: Worker, placement: ?WorkerItinerary, previous: array, repeated: bool}
      */
     public function include(string $qr, User $scanner, ?CarbonInterface $scannedAt, ?int $entityId, ?int $itineraryId, ?int $stopId): array
     {
@@ -73,19 +75,20 @@ class QrInclusions
         $verified = $this->codes->verify($qr, $scannedAt);
         $person = $verified['user'];
         $worker = Worker::where('user_id', $person->id)->where('entity_id', $entity->id)->first();
+        $placement = $itinerary ? WorkerItinerary::where('user_id', $person->id)->where('itinerary_id', $itinerary->id)->first() : null;
 
         // Reintento de la misma inclusión (p. ej. al sincronizar sin conexión).
         $used = QrNonce::where('user_id', $person->id)->where('nonce', $verified['nonce'])->first();
 
         if ($used && $used->purpose === self::PURPOSE && $worker && (int) $used->reference_id === (int) $worker->id
-            && (! $itinerary || (int) $worker->itinerary_id === (int) $itinerary->id)
-            && ($stopId === null || (int) $worker->stop_id === $stopId)) {
-            return ['worker' => $worker, 'previous' => $this->previous($worker), 'repeated' => true];
+            && (! $itinerary || $placement)
+            && ($stopId === null || ($placement && (int) $placement->stop_id === $stopId))) {
+            return ['worker' => $worker, 'placement' => $placement, 'previous' => $this->previous($worker, $placement), 'repeated' => true];
         }
 
-        $previous = $this->previous($worker);
+        $previous = $this->previous($worker, $placement);
 
-        $worker = DB::transaction(function () use ($person, $entity, $itinerary, $stopId, $verified) {
+        [$worker, $placement] = DB::transaction(function () use ($person, $entity, $itinerary, $stopId, $verified) {
             $worker = $this->memberships->join($person, $entity);
 
             if (! $worker->active) {
@@ -93,19 +96,15 @@ class QrInclusions
                 $worker->save();
             }
 
-            if ($itinerary) {
-                $sameItinerary = (int) $worker->itinerary_id === (int) $itinerary->id;
-                $stop = $stopId ?? ($sameItinerary ? ($worker->stop_id ? (int) $worker->stop_id : null) : null);
-                $this->memberships->place($worker, (int) $itinerary->id, $stop);
-            }
+            $placement = $itinerary ? $this->memberships->addItinerary($person, $itinerary, $stopId) : null;
 
             $nonce = $this->codes->consume($verified, self::PURPOSE);
             $nonce?->forceFill(['reference_id' => $worker->id])->save();
 
-            return $worker;
+            return [$worker, $placement];
         });
 
-        return ['worker' => $worker->fresh(), 'previous' => $previous, 'repeated' => false];
+        return ['worker' => $worker->fresh(), 'placement' => $placement?->fresh(), 'previous' => $previous, 'repeated' => false];
     }
 
     /**
@@ -122,6 +121,10 @@ class QrInclusions
 
         if ($itineraryId !== null && ! $itinerary) {
             throw new JsonApiException(404, 'NOT_FOUND', 'No encontrado', 'El itinerario no existe.', ['pointer' => '/data/relationships/itinerary']);
+        }
+
+        if ($itinerary && ! $itinerary->entity_id) {
+            throw JsonApiException::conflict('ITINERARY_WITHOUT_ENTITY', 'Ese itinerario no tiene Entidad: asóciele una antes de incluir personas.', '/data/relationships/itinerary');
         }
 
         if ($itinerary && $entityId !== null && (int) $itinerary->entity_id !== $entityId) {
@@ -144,26 +147,20 @@ class QrInclusions
         return [$entity, $itinerary];
     }
 
-    private function previous(?Worker $worker): array
+    private function previous(?Worker $worker, ?WorkerItinerary $placement): array
     {
         return [
             'inEntity' => $worker !== null,
-            'itineraryId' => $worker && $worker->itinerary_id ? (string) $worker->itinerary_id : null,
-            'stopId' => $worker && $worker->stop_id ? (string) $worker->stop_id : null,
+            'inItinerary' => $placement !== null,
+            'stopId' => $placement && $placement->stop_id ? (string) $placement->stop_id : null,
         ];
     }
 
     /**
-     * Dónde está ya la persona: «Ya está en la Entidad…, en el itinerario…, en la parada…».
+     * Dónde está ya la persona: sus Entidades, cada una con sus itinerarios y paradas.
      */
     private function placesOf(User $person): array
     {
-        return Worker::where('user_id', $person->id)->with('entity', 'itinerary', 'stop')->get()->map(fn (Worker $w) => [
-            'workerId' => (string) $w->id,
-            'entity' => ['id' => (string) $w->entity_id, 'abbreviation' => $w->entity?->abbreviation, 'name' => $w->entity?->name],
-            'itinerary' => $w->itinerary ? ['id' => (string) $w->itinerary_id, 'name' => $w->itinerary->name] : null,
-            'stop' => $w->stop ? ['id' => (string) $w->stop_id, 'landmark' => $w->stop->landmark] : null,
-            'isChief' => (bool) $w->is_chief,
-        ])->values()->all();
+        return MeController::memberships($person);
     }
 }
