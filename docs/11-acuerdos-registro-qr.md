@@ -1615,3 +1615,6 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
    Esa pantalla muestra también los sueltos que correspondan (§11.57).
 3. **Al tocar un objeto:** se abre su **formulario**, que es donde se muestran y gestionan sus **relaciones**
    (§11.57, §11.58).
+- **Formulario del Trabajador con hijos** (13/11/2026): además de sus Entidades, itinerarios y paradas, muestra sus
+  **hijos** (con su fecha de nacimiento y si tienen derecho a viajar), con **«Añadir hijo»**; tocar un hijo abre su
+  formulario.
