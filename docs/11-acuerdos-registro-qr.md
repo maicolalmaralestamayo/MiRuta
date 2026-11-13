@@ -1664,3 +1664,10 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
   - **Decisión** (13/11/2026): en la **ida todos suben en la primera parada**, como estaba acordado. Se corrigen el
     «En movimiento» sin datos y se muestra en la app **por qué un teléfono no es sensor** (p. ej. «No está Viajando»,
     «App cerrada», «Sin GPS», «Sin enviar desde hh:mm»).
+- **Dormido y Botado también en la ida** (13/11/2026), **solo respecto a la primera parada**:
+  - **Dormido:** llega a la primera parada (En la parada) **después** de que el vehículo salió de ella.
+  - **Botado:** estaba **En la parada** (la primera) cuando salió el vehículo y **no subió** (sigue a velocidad
+    humana tras la salida, Cálculos consecutivos).
+  - Igual que en el regreso: después pueden pasar a **No voy a viajar** si se alejan, o la app deja de calcular tras
+    **Espera final**; la línea muestra cuántos Dormidos y Botados hay en la primera parada. (Sustituye, para la ida,
+    a «quien no va Viajando al salir el vehículo pasa a No voy definitivo» cuando estaba o llega a la primera parada.)
