@@ -1676,3 +1676,6 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
   - **Dormido:** alcanza **En la parada** **después** de que el vehículo pasó por su parada.
   - **Botado:** había alcanzado **En la parada antes** de que el vehículo pasara por su parada y, cuando el vehículo
     ya pasó, **no está Recogido** (ida: no está Viajando).
+- **Paso por la parada a mano** (13/11/2026): el **Jefe del itinerario** o el **Administrador** pueden marcar
+  **«Pasó por la parada X»** desde la línea del recorrido; cuenta igual que la confirmación de los sensores (hora de
+  paso, Dormido/Botado, avance de la próxima parada).
