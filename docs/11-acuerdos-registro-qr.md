@@ -1671,3 +1671,8 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
   - Igual que en el regreso: después pueden pasar a **No voy a viajar** si se alejan, o la app deja de calcular tras
     **Espera final**; la línea muestra cuántos Dormidos y Botados hay en la primera parada. (Sustituye, para la ida,
     a «quien no va Viajando al salir el vehículo pasa a No voy definitivo» cuando estaba o llega a la primera parada.)
+- **Detección de Dormido y Botado, simplificada** (13/11/2026; ida respecto a la primera parada, regreso respecto
+  a su parada; sustituye a la regla de los «Cálculos consecutivos» para Botado):
+  - **Dormido:** alcanza **En la parada** **después** de que el vehículo pasó por su parada.
+  - **Botado:** había alcanzado **En la parada antes** de que el vehículo pasara por su parada y, cuando el vehículo
+    ya pasó, **no está Recogido** (ida: no está Viajando).
