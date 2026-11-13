@@ -1605,3 +1605,13 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
 - **Formulario del Trabajador** (13/11/2026): muestra sus **Entidades**, cada una con sus **itinerarios** y la
   **parada** de cada itinerario; botón **«Asociar Entidad»** y, dentro de cada Entidad, **añadir itinerario** (con
   parada opcional). Como en la maqueta G19 nº 6.
+
+## 11.59 Navegación de Gestión (13/11/2026)
+
+1. **Gestión:** tarjetas de las tablas (Entidades, Itinerarios, Paradas, Trabajadores y nomencladores).
+2. **Al tocar una tabla:** pantalla con el **listado de sus objetos en tarjetas**, **paginado** (de 5 en 5) y con el
+   **mecanismo de selección** de siempre (mantener para marcar, check naranja, un solo tipo, Marcar todo / Desmarcar
+   todo / Invertir selección). Las **operaciones de esa tabla** están en el botón **Acciones** (según lo marcado).
+   Esa pantalla muestra también los sueltos que correspondan (§11.57).
+3. **Al tocar un objeto:** se abre su **formulario**, que es donde se muestran y gestionan sus **relaciones**
+   (§11.57, §11.58).
