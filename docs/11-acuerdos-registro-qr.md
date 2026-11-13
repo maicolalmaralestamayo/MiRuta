@@ -1679,3 +1679,6 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
 - **Paso por la parada a mano** (13/11/2026): el **Jefe del itinerario** o el **Administrador** pueden marcar
   **«Pasó por la parada X»** desde la línea del recorrido; cuenta igual que la confirmación de los sensores (hora de
   paso, Dormido/Botado, avance de la próxima parada).
+- **Funcionar en segundo plano** (13/11/2026): el cálculo de estados y el envío de ubicaciones **no deben requerir la
+  app abierta**: con la app en segundo plano (o cerrada) debe arrancar sola a la hora (Anticipación viaje) y
+  enviar los cambios de estado hasta el estado definitivo.
