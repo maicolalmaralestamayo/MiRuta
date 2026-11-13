@@ -1585,3 +1585,15 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
 | **Paradas** | los **trabajadores sin parada** y las **paradas sin itinerario** |
 
 - Consecuencia: un itinerario **puede no tener Entidad** (la Entidad del itinerario pasa a ser opcional).
+
+## 11.58 Reglas de pertenencia (13/11/2026; corrige §11.57 y anteriores)
+
+- **Itinerario:** pertenece **obligatoriamente a una Entidad** y **solo a una**. No hay itinerarios sueltos (se quita
+  «itinerarios sin Entidad» de la pantalla Itinerarios).
+- **Parada:** puede pertenecer a **varios itinerarios**, pero **siempre al menos a uno**. No hay paradas sin
+  asociación (se quita «paradas sin itinerario» de la pantalla Paradas; sustituye a «paradas sin itinerario se
+  conservan»).
+- **Persona:** puede pertenecer a **varias Entidades** y, en cada Entidad, a **varios itinerarios** (deja de valer
+  «un único itinerario por Entidad»). Las personas **sí pueden estar sueltas** (sin Entidad o sin itinerario): para
+  eso están las solicitudes. El Administrador puede aprobar **más de una Entidad y más de un itinerario** para la
+  misma persona.
