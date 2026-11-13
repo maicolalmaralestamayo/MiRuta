@@ -77,6 +77,22 @@ class Storage {
 
   static Future<void> setJson(String key, Map<String, dynamic> value) async => (await _prefs).setString(key, jsonEncode(value));
 
+  /// La app está abierta en primer plano (docs/11 §11.56): la tarea en
+  /// segundo plano no consulta mientras tanto, para no repetir en el
+  /// teléfono las notificaciones que la app ya muestra dentro.
+  static Future<void> setForeground(bool value) async {
+    final prefs = await _prefs;
+    value ? await prefs.setInt('app.foreground_at', DateTime.now().millisecondsSinceEpoch) : await prefs.remove('app.foreground_at');
+  }
+
+  /// Si la app estuvo en primer plano en los últimos [within] (lo lee la tarea en segundo plano).
+  static Future<bool> isForeground({Duration within = const Duration(minutes: 3)}) async {
+    final prefs = await _prefs;
+    await prefs.reload();
+    final at = prefs.getInt('app.foreground_at');
+    return at != null && DateTime.now().millisecondsSinceEpoch - at < within.inMilliseconds;
+  }
+
   /// Borra lo que pertenece al usuario (al cerrar sesión).
   static Future<void> clearUserData() async {
     await clearTokens();

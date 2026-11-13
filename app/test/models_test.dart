@@ -18,10 +18,34 @@ void main() {
             {
               'workerId': '2',
               'active': true,
-              'isChief': true,
               'entity': {'id': '1', 'abbreviation': 'UMIM', 'name': 'Unidad Militar', 'workerCount': 2},
-              'itinerary': {'id': '1', 'name': 'Ruta Playa', 'workerCount': 2},
-              'stop': {'id': '2', 'landmark': 'Cine', 'street': 'Calle 1', 'latitude': 23.01, 'longitude': -82.0},
+              'itineraries': [
+                {
+                  'id': '7',
+                  'isChief': true,
+                  'itinerary': {'id': '1', 'name': 'Ruta Playa', 'workerCount': 2},
+                  'stop': {'id': '2', 'landmark': 'Cine', 'street': 'Calle 1', 'latitude': 23.01, 'longitude': -82.0},
+                },
+                {
+                  'id': '8',
+                  'isChief': false,
+                  'itinerary': {'id': '3', 'name': 'Ruta Este', 'workerCount': 5},
+                  'stop': null,
+                },
+              ],
+            },
+            {
+              'workerId': '4',
+              'active': true,
+              'entity': {'id': '2', 'abbreviation': 'ESM', 'name': 'Ministerio', 'workerCount': 9},
+              'itineraries': [
+                {
+                  'id': '9',
+                  'isChief': false,
+                  'itinerary': {'id': '5', 'name': 'XX Aniversario', 'workerCount': 30},
+                  'stop': {'id': '6', 'landmark': 'Banco', 'street': 'Calle 51', 'latitude': 23.02, 'longitude': -82.1},
+                },
+              ],
             },
           ],
         },
@@ -30,9 +54,15 @@ void main() {
     expect(me.role, Role.jefe);
     expect(me.manages, isTrue);
     expect(me.isChiefOf('1'), isTrue);
-    expect(me.chiefMembership!.itineraryName, 'Ruta Playa');
+    expect(me.chiefPlacement!.itineraryName, 'Ruta Playa');
+    expect(me.chiefPlacement!.entityAbbreviation, 'UMIM');
+    // Varias Entidades y varios itinerarios por Entidad (docs/11 §11.58).
+    expect(me.memberships, hasLength(2));
+    expect(me.placements.map((p) => p.itineraryId), ['1', '3', '5']);
+    expect(me.placementIn('5')!.stopLandmark, 'Banco');
+    expect(me.placementIn('3')!.stopId, isNull);
     expect(me.seesTrips, isTrue);
-    expect(me.toJson()['travelItineraryIds'], ['1']);
+    expect(me.toJson()['travelItineraryIds'], ['1', '5']);
   });
 
   test('sin Entidad no ve viajes', () {

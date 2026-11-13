@@ -10,6 +10,7 @@ import '../navigation.dart';
 import '../widgets/actions.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/cards.dart';
+import '../widgets/busy.dart';
 import '../widgets/common.dart';
 import '../widgets/data_view.dart';
 
@@ -26,11 +27,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _view = GlobalKey<DataViewState<List<Setting>>>();
   final Map<String, TextEditingController> _controllers = {};
   final Map<String, String?> _errors = {};
+  final Map<String, String> _loaded = {};
+
+  /// Hay valores cambiados sin guardar («Salir sin guardar»).
+  bool get _dirty => _loaded.entries.any((e) => (_controllers[e.key]?.text.trim() ?? e.value) != e.value);
 
   Future<List<Setting>> _load() async {
     final list = (await AppSettings.refresh(context.read<Session>().api)).$2;
     for (final s in list) {
       (_controllers[s.key] ??= TextEditingController()).text = s.value;
+      _loaded[s.key] = s.value;
     }
     _errors.clear();
     return list;
@@ -56,7 +62,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (_errors.isNotEmpty) {
       showMessage(context, 'Revise los valores marcados en rojo.');
     } else {
-      showMessage(context, changed == 0 ? 'No hay cambios.' : 'Ajustes guardados.');
+      showResult(ScaffoldMessenger.of(context), changed == 0 ? 'No hay cambios' : 'Ajustes actualizados');
       await _view.currentState?.reload();
       if (mounted) await context.read<Session>().sync(all: true);
     }
@@ -64,7 +70,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return AppScaffold(
+    return LeaveGuard(
+      dirty: () => _dirty,
+      child: AppScaffold(
       title: 'Ajustes de la app',
       tab: MainTab.more,
       actions: () => [ActionItem(Icons.save_outlined, 'Guardar cambios', _save)],
@@ -88,6 +96,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
                   child: TextField(
                     controller: _controllers[s.key],
+                    textInputAction: TextInputAction.next,
                     decoration: InputDecoration(
                       labelText: s.name,
                       helperText: s.description,
@@ -107,6 +116,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ]);
         },
       ),
+    ),
     );
   }
 }

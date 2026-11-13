@@ -15,6 +15,7 @@ import '../navigation.dart';
 import '../widgets/actions.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/cards.dart';
+import '../widgets/busy.dart';
 import '../widgets/common.dart';
 import '../widgets/data_view.dart';
 import '../widgets/marks.dart';
@@ -131,6 +132,7 @@ class _PublishScreenState extends State<_PublishScreen> {
   final Map<String, (String, String)> _files = {};
   double? _progress;
   String? _error;
+  bool _published = false;
 
   Future<void> _pick(String field) async {
     final files = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: ['apk']);
@@ -159,8 +161,9 @@ class _PublishScreenState extends State<_PublishScreen> {
       for (final f in _files.values) {
         await File(f.$1).delete().catchError((_) => File(f.$1));
       }
+      _published = true;
       if (mounted) {
-        showMessage(context, 'Versión publicada.');
+        showResult(ScaffoldMessenger.of(context), 'Versión publicada');
         Navigator.pop(context, true);
       }
     } on ApiException catch (error) {
@@ -180,7 +183,9 @@ class _PublishScreenState extends State<_PublishScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return AppScaffold.list(
+    return LeaveGuard(
+      dirty: () => _progress == null && !_published && (_files.isNotEmpty || _notes.text.trim().isNotEmpty),
+      child: AppScaffold.list(
       title: 'Publicar versión',
       tab: MainTab.more,
       actions: () => [if (_progress == null) ActionItem(Icons.upload, 'Publicar', _publish)],
@@ -188,7 +193,7 @@ class _PublishScreenState extends State<_PublishScreen> {
         const Padding(padding: EdgeInsets.all(16), child: Text('La versión y su código se leen del APK. Suba los dos: 64 y 32 bits.')),
         _apk('apkArm64', 'APK de 64 bits'),
         _apk('apkArm32', 'APK de 32 bits'),
-        FormText(controller: _notes, label: 'Novedades', maxLines: 3),
+        FormText(controller: _notes, label: 'Novedades', maxLines: 3, last: true),
         SwitchListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 16),
           value: _mandatory,
@@ -199,6 +204,7 @@ class _PublishScreenState extends State<_PublishScreen> {
         if (_progress != null) Padding(padding: const EdgeInsets.all(16), child: LinearProgressIndicator(value: _progress)),
         if (_error != null) Padding(padding: const EdgeInsets.all(16), child: Text(_error!, style: const TextStyle(color: red))),
       ],
+    ),
     );
   }
 }

@@ -84,15 +84,26 @@ void main() {
     expect(find.text('Indicar servidor'), findsOneWidget);
   });
 
-  testWidgets('Inicio: aviso «Aún no tiene Entidad» y botones Perfil, Hijos y Mi QR', (tester) async {
+  testWidgets('Inicio (G22): datos de la persona, Mi QR, secciones y Acciones aunque no haya servidor', (tester) async {
     final session = newSession()
       ..state = SessionState.ready
       ..me = const Me(userId: '3', username: 'rosa', fullName: 'Rosa Martínez Gil', role: Role.trabajador);
+    tester.view.physicalSize = const Size(412, 2000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
     await tester.pumpWidget(app(session, const HomeScreen()));
     await tester.pumpAndSettle();
     expect(find.text('Rosa Martínez Gil'), findsOneWidget);
-    for (final label in ['Perfil', 'Hijos', 'Mi QR', 'Aún no tiene Entidad', 'Solicitar Entidad', 'Inicio', 'Gestión', 'Viajes', 'Más']) {
+    expect(find.text('@rosa'), findsOneWidget);
+    for (final label in ['Mi QR', 'Viajes activos (0)', 'Entidades (0)', 'Itinerarios (0)', 'Inicio', 'Gestión', 'Viajes', 'Más']) {
       expect(find.text(label), findsWidgets, reason: label);
+    }
+    // Sin Perfil, Hijos ni Mi QR como botones sueltos: están en Acciones y en la tarjeta del QR.
+    expect(find.text('Perfil'), findsNothing);
+    await tester.tap(find.text('Acciones'));
+    await tester.pumpAndSettle();
+    for (final label in ['Ver o editar el perfil', 'Solicitar Entidad', 'Añadir hijo', 'Cerrar sesión']) {
+      expect(find.text(label), findsOneWidget, reason: label);
     }
   });
 }

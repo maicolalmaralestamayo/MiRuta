@@ -143,3 +143,16 @@ ajustes por Entidad / itinerario / parada / usuario.
 - El **código del servidor con `vendor/` incluido**, listo para subir por FTP; todo lo que haya que ejecutar en el
   servidor, por **endpoints de la API**.
 - Sin contenedores por ahora.
+
+## 15. Versión 4.1.0 (13/11/2026, docs/11 §11.56–§11.60)
+
+- **Pertenencias:** un itinerario está como mucho en una Entidad (puede no tener); una parada, en varios itinerarios o
+  en ninguno; una persona, en varias Entidades y en **varios itinerarios de cada una**, cada uno con su parada. Aprobar
+  o incluir por QR **añade** el itinerario. Cada uno ve los viajes de todos sus itinerarios.
+- **Gestión:** tarjetas de las tablas → pantalla de cada tabla (con los sueltos) → formulario con sus relaciones.
+- **Inicio:** como el formulario del Trabajador de la propia persona (datos, Mi QR, viajes activos, Entidades,
+  itinerarios y sus solicitudes, paradas, hijos) con sus Acciones; Más se queda con Conversaciones, Compartir la app y
+  las herramientas del Administrador.
+- **Toda la app:** spinner con «Cancelar» en las operaciones con el servidor y mensajes escuetos; Actualizar solo la
+  pantalla visible y las notificaciones; sin contraseñas propuestas; notificaciones dentro de la app si está abierta;
+  «Salir sin guardar» y teclado en todos los formularios; modales con ícono, título, pregunta y botones.

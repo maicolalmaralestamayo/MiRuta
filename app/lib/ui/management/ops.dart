@@ -4,11 +4,14 @@ import '../../core/api_client.dart';
 import '../../core/formats.dart';
 import '../../core/json_api.dart';
 import '../../models/models.dart';
+import '../widgets/busy.dart';
 import '../widgets/common.dart';
 
-/// Operaciones de Gestión que se usan desde varias pantallas (Inicio,
-/// Gestión, formularios): solicitudes, cambios de Entidad / itinerario /
-/// parada, rol de Jefe, ausencias y rechazos (docs/11 §11.26 y docs/13 §13.5).
+/// Operaciones de Gestión que se usan desde varias pantallas (Inicio, listas
+/// de Gestión y formularios): solicitudes, Entidades, itinerarios y paradas
+/// de una persona, rol de Jefe, ausencias y rechazos (docs/11 §11.56 a
+/// §11.60 y docs/13 §13.5). Se llaman dentro de una operación con spinner
+/// (runAction o el menú Acciones) y terminan con su mensaje escueto.
 class Ops {
   final BuildContext context;
 
@@ -16,24 +19,38 @@ class Ops {
 
   ApiClient get api => context.api;
 
+  /// Mensaje escueto del resultado («Itinerario añadido»…).
+  void done(String message) {
+    if (context.mounted) showResult(ScaffoldMessenger.of(context), message);
+  }
+
   Future<List<Entity>> entities() async => (await api.getAll('/entities')).map(Entity.from).toList();
 
+  /// Itinerarios (de una Entidad, si se indica).
   Future<List<Itinerary>> itineraries({String? entityId}) async =>
       (await api.getAll('/itineraries', query: {'include': 'entity', 'filter[entity]': ?entityId})).map(Itinerary.from).toList();
 
   Future<List<Stop>> stopsOf(String itineraryId) async =>
       (await api.getAll('/stops', query: {'filter[itinerary]': itineraryId, 'sort': 'position'})).map(Stop.from).toList();
 
-  /// Parada opcional de un itinerario (null = sin parada; cancelar = [cancelled]).
-  Future<({bool cancelled, Stop? stop})> _pickStop(String itineraryId, {bool optional = true, String title = 'Elegir parada'}) async {
+  /// Parada de un itinerario (null = sin parada; cancelar = [cancelled]).
+  Future<({bool cancelled, Stop? stop})> pickStopOf(String itineraryId, {bool optional = true, String title = 'Elegir parada', String? current}) async {
     final stops = await stopsOf(itineraryId);
     if (!context.mounted) return (cancelled: true, stop: null);
     const none = Stop(id: '', landmark: 'Sin parada');
     final options = [if (optional) none, ...stops];
     final picked = await pickOne<Stop>(context, title, options, (s) => s.id.isEmpty ? 'Sin parada (la elegirá después)' : '${s.positionIn(itineraryId) ?? ''}. ${s.landmark}',
-        subtitle: (s) => s.address);
+        subtitle: (s) => s.address, selected: options.where((s) => s.id == (current ?? '')).firstOrNull, search: stops.length > 8);
     if (picked == null) return (cancelled: true, stop: null);
     return (cancelled: false, stop: picked.id.isEmpty ? null : picked);
+  }
+
+  /// Elegir una persona (búsqueda por nombre, usuario o carné).
+  Future<Person?> pickPerson(String title, {Map<String, dynamic> query = const {}, Set<String> exclude = const {}}) async {
+    final people = (await api.getAll('/users', query: query)).map(Person.from).where((p) => !exclude.contains(p.id)).toList();
+    if (!context.mounted) return null;
+    return pickOne<Person>(context, title, people, (p) => p.fullName,
+        subtitle: (p) => [p.username ?? '', if (p.identityCard != null) 'CI ${p.identityCard}'].where((s) => s.isNotEmpty).join(' • '), search: true);
   }
 
   // Solicitudes
@@ -45,13 +62,15 @@ class Ops {
     final lookup = await api.get('/entities/lookup', query: {'filter[abbreviation]': abbreviation.toUpperCase()});
     final name = lookup.resource.string('name') ?? abbreviation;
     if (!context.mounted) return false;
-    if (!await confirm(context, 'Solicitar Entidad', '¿Solicitar entrar en ${abbreviation.toUpperCase()} ($name)?', accept: 'Solicitar', icon: Icons.send)) return false;
+    if (!await confirm(context, 'Solicitar Entidad', '¿Solicitar entrar en ${abbreviation.toUpperCase()} ($name)?', accept: 'Solicitar', icon: Icons.send, headerIcon: Icons.add_business_outlined)) {
+      return false;
+    }
     await api.post('/applications', resourceData('applications', attributes: {'type': 'entidad', 'entityAbbreviation': abbreviation.toUpperCase()}));
-    if (context.mounted) showMessage(context, 'Solicitud enviada. Le avisaremos cuando la resuelvan.');
+    done('Solicitud enviada');
     return true;
   }
 
-  /// «Solicitar Itinerario» (con parada opcional) en una de sus Entidades.
+  /// «Solicitar itinerario» (con parada opcional) en una de sus Entidades.
   Future<bool> requestItinerary(Me me, {Itinerary? itinerary}) async {
     var target = itinerary;
     if (target == null) {
@@ -65,18 +84,23 @@ class Ops {
         if (m == null) return false;
         entityId = m.entityId;
       }
-      final list = await itineraries(entityId: entityId);
+      final mine = me.placements.map((p) => p.itineraryId).toSet();
+      final list = (await itineraries(entityId: entityId)).where((i) => i.active && !mine.contains(i.id)).toList();
       if (!context.mounted) return false;
-      target = await pickOne<Itinerary>(context, 'Elegir itinerario', list.where((i) => i.active).toList(), (i) => i.name, subtitle: (i) => '${plural(i.stopCount, 'parada', 'paradas')} • ${plural(i.workerCount, 'trabajador', 'trabajadores')}');
+      if (list.isEmpty) {
+        showMessage(context, 'No hay otros itinerarios en esa Entidad.');
+        return false;
+      }
+      target = await pickOne<Itinerary>(context, 'Elegir itinerario', list, (i) => i.name, subtitle: (i) => '${plural(i.stopCount, 'parada', 'paradas')} • ${plural(i.workerCount, 'trabajador', 'trabajadores')}');
       if (target == null) return false;
     }
-    final stop = await _pickStop(target.id);
+    final stop = await pickStopOf(target.id);
     if (stop.cancelled) return false;
     await api.post('/applications', resourceData('applications', attributes: {'type': 'itinerario'}, relationships: {
       'itinerary': ResourceId('itineraries', target.id),
       if (stop.stop != null) 'stop': ResourceId('stops', stop.stop!.id),
     }));
-    if (context.mounted) showMessage(context, 'Solicitud enviada. Le avisaremos cuando la resuelvan.');
+    done('Solicitud enviada');
     return true;
   }
 
@@ -97,133 +121,198 @@ class Ops {
         if (note.isNotEmpty) 'resolutionNote': note,
       }, relationships: {'denialReason': ResourceId('denial-reasons', reason.id)}));
     }
+    done(applications.length == 1 ? 'Solicitud rechazada' : 'Solicitudes rechazadas');
     return true;
   }
 
-  Future<void> approve(List<Application> applications) async {
+  Future<bool> approve(List<Application> applications) async {
     for (final a in applications) {
       await api.patch('/applications/${a.id}', resourceData('applications', id: a.id, attributes: {'status': 'aprobada'}));
     }
-  }
-
-  // Personas
-
-  /// «Cambiar de parada»: el itinerario se muestra (solo lectura) en el título.
-  Future<bool> changeStop(Worker worker) async {
-    if (worker.itineraryId == null) {
-      showMessage(context, 'Esa persona no tiene itinerario: use «Cambiar de itinerario».');
-      return false;
-    }
-    final stop = await _pickStop(worker.itineraryId!, title: 'Parada en ${worker.itineraryName ?? 'su itinerario'}');
-    if (stop.cancelled) return false;
-    await api.patch('/workers/${worker.id}', resourceData('workers', id: worker.id, relationships: {'stop': stop.stop == null ? null : ResourceId('stops', stop.stop!.id)}));
+    done(applications.length == 1 ? 'Solicitud aprobada' : 'Solicitudes aprobadas');
     return true;
   }
 
-  /// «Cambiar de itinerario» (con parada opcional). El Jefe solo hacia el suyo.
-  Future<bool> changeItinerary(Me me, List<Worker> workers) async {
-    final entityIds = workers.map((w) => w.entityId).toSet();
-    if (entityIds.length != 1 || entityIds.first == null) {
-      showMessage(context, 'Marque personas de una misma Entidad.');
-      return false;
+  /// Cancelar una solicitud propia pendiente (o eliminar una resuelta).
+  Future<bool> withdraw(Application a) async {
+    final ok = a.pending
+        ? await confirm(context, 'Cancelar solicitud', '¿Cancelar su solicitud de entrar en ${a.isEntity ? a.entityAbbreviation ?? 'la Entidad' : a.itineraryName ?? 'el itinerario'}?',
+            accept: 'Cancelar solicitud', icon: Icons.check, destructive: true, headerIcon: Icons.cancel_outlined, cancel: 'Volver', cancelIcon: Icons.arrow_back)
+        : await confirm(context, 'Eliminar solicitud', '¿Quitar de la lista esta solicitud ya resuelta?',
+            accept: 'Eliminar', icon: Icons.delete_outline, destructive: true, headerIcon: Icons.delete_outline, cancel: 'Volver', cancelIcon: Icons.arrow_back);
+    if (!ok) return false;
+    await api.delete('/applications/${a.id}');
+    done(a.pending ? 'Solicitud cancelada' : 'Solicitud eliminada');
+    return true;
+  }
+
+  /// Detalle de una solicitud con lo que se puede hacer con ella: resolverla
+  /// ([canResolve]) o, si es suya, cancelarla o eliminarla. Devuelve true si cambió.
+  Future<bool> showApplication(Application a, {required bool mine, required bool canResolve}) async {
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        icon: Icon(a.isEntity ? Icons.apartment : Icons.route, size: 32),
+        title: Text('Solicitud de ${a.isEntity ? 'Entidad' : 'itinerario'}', textAlign: TextAlign.center),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          if (!mine) Text('Persona: ${a.userName ?? ''}'),
+          Text('Solicita: ${a.what}'),
+          Text('Fecha: ${formatDateTime(a.createdAt)}'),
+          Text('Estado: ${a.statusName}'),
+          if (a.resolvedAt != null) Text('Resuelta: ${formatDateTime(a.resolvedAt)}${a.resolvedBy == null ? '' : ' por ${a.resolvedBy}'}'),
+          if (a.denialReason != null) Text('Motivo: ${a.denialReason}'),
+          if (a.resolutionNote != null && a.resolutionNote!.isNotEmpty) Text('Observación: ${a.resolutionNote}'),
+        ]),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          cancelButton(context, label: 'Volver', icon: Icons.arrow_back),
+          if (canResolve && a.pending && !mine) ...[
+            TextButton.icon(onPressed: () => Navigator.pop(context, 'reject'), icon: const Icon(Icons.block, color: red), label: const Text('Rechazar', style: TextStyle(color: red))),
+            FilledButton.icon(onPressed: () => Navigator.pop(context, 'approve'), icon: const Icon(Icons.check), label: const Text('Aprobar')),
+          ],
+          if (mine)
+            FilledButton.icon(
+              style: FilledButton.styleFrom(backgroundColor: red, foregroundColor: Colors.white),
+              onPressed: () => Navigator.pop(context, 'withdraw'),
+              icon: Icon(a.pending ? Icons.cancel_outlined : Icons.delete_outline),
+              label: Text(a.pending ? 'Cancelar solicitud' : 'Eliminar'),
+            ),
+        ],
+      ),
+    );
+    if (!context.mounted) return false;
+    return switch (choice) {
+      'approve' => await approve([a]),
+      'reject' => await reject([a]),
+      'withdraw' => await withdraw(a),
+      _ => false,
+    };
+  }
+
+  // Pertenencias de una persona
+
+  /// «Asociar Entidad» (Administrador): añade las personas a una Entidad.
+  Future<bool> associateEntity(List<String> userIds, {Set<String> exclude = const {}}) async {
+    final list = (await entities()).where((e) => !exclude.contains(e.id)).toList();
+    if (!context.mounted) return false;
+    final entity = await pickOne<Entity>(context, 'Asociar Entidad', list, (e) => e.abbreviation, subtitle: (e) => e.name, search: list.length > 8);
+    if (entity == null || !context.mounted) return false;
+    for (final id in userIds) {
+      await api.post('/workers', resourceData('workers', relationships: {'entity': ResourceId('entities', entity.id), 'user': ResourceId('users', id)}));
     }
-    var list = await itineraries(entityId: entityIds.first);
+    done('Entidad asociada');
+    return true;
+  }
+
+  /// «Añadir itinerario»: a la persona, en un itinerario (de esa Entidad, si
+  /// se indica), con parada opcional. El Jefe solo en el suyo.
+  Future<bool> addItinerary(Me me, String userId, {String? entityId, Set<String> exclude = const {}}) async {
+    var list = (await itineraries(entityId: entityId)).where((i) => i.entityId != null && !exclude.contains(i.id)).toList();
     if (!me.isAdmin) list = list.where((i) => i.id == me.chiefItineraryId).toList();
     if (!context.mounted) return false;
-    const none = Itinerary(id: '', name: 'Sin itinerario');
-    final target = await pickOne<Itinerary>(context, 'Cambiar de itinerario', [if (me.isAdmin) none, ...list], (i) => i.id.isEmpty ? 'Sin itinerario (sacar del itinerario)' : i.name);
-    if (target == null || !context.mounted) return false;
-    if (workers.any((w) => w.isChief && w.itineraryId != target.id)) {
-      if (!await confirm(context, 'Cambiar de itinerario', 'Quien es Jefe de itinerario y cambia de itinerario pierde el rol de Jefe. ¿Seguir?', accept: 'Cambiar', icon: Icons.swap_horiz)) return false;
-    }
-    Stop? stop;
-    if (target.id.isNotEmpty) {
-      final picked = await _pickStop(target.id);
-      if (picked.cancelled) return false;
-      stop = picked.stop;
-    }
-    for (final w in workers) {
-      await api.patch('/workers/${w.id}', resourceData('workers', id: w.id, relationships: {
-        'itinerary': target.id.isEmpty ? null : ResourceId('itineraries', target.id),
-        'stop': stop == null ? null : ResourceId('stops', stop.id),
-      }));
-    }
-    return true;
-  }
-
-  /// «Cambiar de Entidad» (Administrador): itinerario y parada opcionales.
-  /// A quien no tiene Entidad se le añade una.
-  Future<bool> changeEntity(List<Worker> workers) async {
-    final list = await entities();
-    if (!context.mounted) return false;
-    final entity = await pickOne<Entity>(context, 'Cambiar de Entidad', list, (e) => e.abbreviation, subtitle: (e) => e.name);
-    if (entity == null || !context.mounted) return false;
-    final itineraryList = await itineraries(entityId: entity.id);
-    if (!context.mounted) return false;
-    const none = Itinerary(id: '', name: 'Sin itinerario');
-    final itinerary = await pickOne<Itinerary>(context, 'Itinerario (opcional)', [none, ...itineraryList], (i) => i.id.isEmpty ? 'Sin itinerario' : i.name);
-    if (itinerary == null) return false;
-    Stop? stop;
-    if (itinerary.id.isNotEmpty) {
-      final picked = await _pickStop(itinerary.id);
-      if (picked.cancelled) return false;
-      stop = picked.stop;
-    }
-    if (!context.mounted) return false;
-    if (!await confirm(context, 'Cambiar de Entidad', 'Al cambiar de Entidad se pierden el itinerario, la parada y el rol de Jefe que tenía en la anterior. ¿Seguir?',
-        accept: 'Cambiar', icon: Icons.swap_horiz)) {
+    if (list.isEmpty) {
+      showMessage(context, 'No hay itinerarios que añadir.');
       return false;
     }
-    for (final w in workers) {
-      final relationships = <String, ResourceId?>{
-        'entity': ResourceId('entities', entity.id),
-        if (itinerary.id.isNotEmpty) 'itinerary': ResourceId('itineraries', itinerary.id),
-        if (stop != null) 'stop': ResourceId('stops', stop.id),
-      };
-      if (w.hasMembership) {
-        await api.patch('/workers/${w.id}', resourceData('workers', id: w.id, relationships: relationships));
-      } else {
-        await api.post('/workers', resourceData('workers', relationships: {...relationships, 'user': ResourceId('users', w.person.id)}));
-      }
-    }
-    return true;
-  }
-
-  /// «Asignar rol» de Jefe de itinerario (Administrador): se le pone en ese itinerario.
-  Future<bool> assignChief(Worker worker) async {
-    if (worker.entityId == null) return false;
-    final list = await itineraries(entityId: worker.entityId);
-    if (!context.mounted) return false;
-    final target = await pickOne<Itinerary>(context, 'Jefe de itinerario de…', list, (i) => i.name, selected: list.where((i) => i.id == worker.itineraryId).firstOrNull);
-    if (target == null || !context.mounted) return false;
-    if (worker.itineraryId != null && worker.itineraryId != target.id) {
-      if (!await confirm(context, 'Asignar rol', 'El Jefe viaja en su itinerario: ${worker.person.fullName} pasará de ${worker.itineraryName ?? 'su itinerario'} a ${target.name}. ¿Seguir?',
-          accept: 'Asignar', icon: Icons.badge_outlined)) {
-        return false;
-      }
-    }
-    await api.patch('/workers/${worker.id}', resourceData('workers', id: worker.id, attributes: {'isChief': true}, relationships: {
-      if (worker.itineraryId != target.id) 'itinerary': ResourceId('itineraries', target.id),
+    final itinerary = await pickOne<Itinerary>(context, 'Añadir itinerario', list, (i) => i.name, subtitle: (i) => i.entityAbbreviation ?? '');
+    if (itinerary == null || !context.mounted) return false;
+    final stop = await pickStopOf(itinerary.id);
+    if (stop.cancelled) return false;
+    await api.post('/worker-itineraries', resourceData('worker-itineraries', relationships: {
+      'user': ResourceId('users', userId),
+      'itinerary': ResourceId('itineraries', itinerary.id),
+      if (stop.stop != null) 'stop': ResourceId('stops', stop.stop!.id),
     }));
+    done('Itinerario añadido');
     return true;
   }
 
-  /// Declarar ausencia (de sí mismo o, para Administrador y Jefe, de otra persona).
-  Future<bool> declareAbsence(String workerId, {String? who}) async {
+  /// «Cambiar de parada» en uno de sus itinerarios.
+  Future<bool> changeStop(Placement p) async {
+    final stop = await pickStopOf(p.itineraryId, title: 'Parada en ${p.itineraryName}', current: p.stopId);
+    if (stop.cancelled) return false;
+    await api.patch('/worker-itineraries/${p.id}', resourceData('worker-itineraries', id: p.id, relationships: {'stop': stop.stop == null ? null : ResourceId('stops', stop.stop!.id)}));
+    done('Parada cambiada');
+    return true;
+  }
+
+  /// «Quitar del itinerario» (o «Salir del itinerario», la propia persona).
+  Future<bool> removeFromItinerary(Placement p, {String? who}) async {
+    final warning = p.isChief ? ' Perderá el rol de Jefe de itinerario.' : '';
+    if (!await confirm(context, who == null ? 'Salir del itinerario' : 'Quitar del itinerario',
+        '¿${who == null ? 'Salir de' : 'Quitar a $who de'} ${p.itineraryName}? Sigue en ${p.entityAbbreviation}.$warning',
+        accept: who == null ? 'Salir' : 'Quitar', icon: Icons.logout, destructive: true, headerIcon: Icons.route)) {
+      return false;
+    }
+    await api.delete('/worker-itineraries/${p.id}');
+    done('Itinerario quitado');
+    return true;
+  }
+
+  /// «Asignar rol de Jefe» / «Quitar rol de Jefe» (Administrador).
+  Future<bool> setChief(Placement p, bool chief) async {
+    await api.patch('/worker-itineraries/${p.id}', resourceData('worker-itineraries', id: p.id, attributes: {'isChief': chief}));
+    done(chief ? 'Jefe asignado' : 'Rol de Jefe quitado');
+    return true;
+  }
+
+  /// «Sacar de la Entidad» (Administrador) o «Salir de la Entidad» (la propia persona).
+  Future<bool> leaveEntity(Membership m, {String? who}) async {
+    if (!await confirm(context, who == null ? 'Salir de la Entidad' : 'Sacar de la Entidad',
+        '¿${who == null ? 'Salir de' : 'Sacar a $who de'} ${m.entityAbbreviation}? Se pierden allí sus itinerarios, paradas, jefatura, ausencias y solicitudes pendientes.',
+        accept: who == null ? 'Salir' : 'Sacar', icon: Icons.logout, destructive: true, headerIcon: Icons.apartment)) {
+      return false;
+    }
+    await api.delete('/workers/${m.workerId}');
+    done(who == null ? 'Salió de la Entidad' : 'Persona sacada de la Entidad');
+    return true;
+  }
+
+  /// Declarar ausencia (de sí mismo o, para Administrador y Jefe, de otra
+  /// persona) en una de sus Entidades.
+  Future<bool> declareAbsence(List<Membership> memberships, {String? who}) async {
+    if (memberships.isEmpty) {
+      showMessage(context, 'Hace falta pertenecer a una Entidad.');
+      return false;
+    }
+    var membership = memberships.first;
+    if (memberships.length > 1) {
+      final picked = await pickOne<Membership>(context, 'Ausencia en…', memberships, (m) => m.entityAbbreviation,
+          subtitle: (m) => m.itineraries.isEmpty ? 'Sin itinerario' : m.itineraries.map((p) => p.itineraryName).join(', '));
+      if (picked == null) return false;
+      membership = picked;
+    }
     final types = (await api.getAll('/absence-types', query: {'filter[active]': 'true'})).map(NomenclatorItem.from).toList();
     if (!context.mounted) return false;
-    final result = await showDialog<bool>(context: context, builder: (_) => _AbsenceDialog(api: api, workerId: workerId, types: types, who: who));
-    return result == true;
+    final result = await showDialog<_Absence>(context: context, builder: (_) => _AbsenceDialog(types: types, who: who));
+    if (result == null) return false;
+    await api.post('/absences', resourceData('absences', attributes: {
+      'startsOn': apiDay(result.from),
+      'endsOn': result.to == null ? null : apiDay(result.to!),
+      if (result.note.isNotEmpty) 'note': result.note,
+    }, relationships: {
+      'worker': ResourceId('workers', membership.workerId),
+      'absenceType': ResourceId('absence-types', result.type.id),
+    }));
+    done('Ausencia declarada');
+    return true;
   }
 }
 
+class _Absence {
+  final NomenclatorItem type;
+  final DateTime from;
+  final DateTime? to;
+  final String note;
+
+  const _Absence(this.type, this.from, this.to, this.note);
+}
+
 class _AbsenceDialog extends StatefulWidget {
-  final ApiClient api;
-  final String workerId;
   final List<NomenclatorItem> types;
   final String? who;
 
-  const _AbsenceDialog({required this.api, required this.workerId, required this.types, this.who});
+  const _AbsenceDialog({required this.types, this.who});
 
   @override
   State<_AbsenceDialog> createState() => _AbsenceDialogState();
@@ -234,14 +323,14 @@ class _AbsenceDialogState extends State<_AbsenceDialog> {
   DateTime _from = DateTime.now();
   DateTime? _to;
   final _note = TextEditingController();
-  bool _busy = false;
 
   Future<DateTime?> _pick(DateTime initial) => showDatePicker(context: context, initialDate: initial, firstDate: DateTime.now().subtract(const Duration(days: 1)), lastDate: DateTime(2100));
 
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(widget.who == null ? 'Declarar ausencia' : 'Ausencia de ${widget.who}'),
+      icon: const Icon(Icons.event_busy, size: 32),
+      title: Text(widget.who == null ? 'Declarar ausencia' : 'Ausencia de ${widget.who}', textAlign: TextAlign.center),
       content: SingleChildScrollView(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           DropdownButtonFormField<NomenclatorItem>(
@@ -272,31 +361,14 @@ class _AbsenceDialogState extends State<_AbsenceDialog> {
               if (d != null) setState(() => _to = d);
             },
           ),
-          TextField(controller: _note, decoration: const InputDecoration(labelText: 'Nota'), maxLines: 2),
+          TextField(controller: _note, decoration: const InputDecoration(labelText: 'Nota'), maxLines: 2, textInputAction: TextInputAction.done),
         ]),
       ),
+      actionsAlignment: MainAxisAlignment.center,
       actions: [
         cancelButton(context),
         FilledButton.icon(
-          onPressed: _busy || _type == null
-              ? null
-              : () async {
-                  setState(() => _busy = true);
-                  final ok = await runAction(context, () => widget.api.post('/absences', resourceData('absences', attributes: {
-                        'startsOn': apiDay(_from),
-                        'endsOn': _to == null ? null : apiDay(_to!),
-                        if (_note.text.trim().isNotEmpty) 'note': _note.text.trim(),
-                      }, relationships: {
-                        'worker': ResourceId('workers', widget.workerId),
-                        'absenceType': ResourceId('absence-types', _type!.id),
-                      })), success: 'Ausencia declarada.');
-                  if (!context.mounted) return;
-                  if (ok) {
-                    Navigator.pop(context, true);
-                  } else {
-                    setState(() => _busy = false);
-                  }
-                },
+          onPressed: _type == null ? null : () => Navigator.pop(context, _Absence(_type!, _from, _to, _note.text.trim())),
           icon: const Icon(Icons.event_busy),
           label: const Text('Declarar'),
         ),

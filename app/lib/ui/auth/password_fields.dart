@@ -5,7 +5,9 @@ import '../widgets/common.dart';
 
 /// Contraseña nueva y su repetición, con los requisitos de la app
 /// (docs/08-version-2.md §8.4). Los dos campos llevan el ojo para verla y
-/// no hay ayudas fijas: solo el error si incumple una regla (docs/09).
+/// no hay ayudas fijas: solo el error si incumple una regla (docs/09). La
+/// app no propone ni sugiere contraseñas (docs/11 §11.56): sin ejemplos, sin
+/// sugerencias del teclado ni del autocompletado.
 class PasswordFields extends StatefulWidget {
   final TextEditingController password;
   final TextEditingController confirmation;
@@ -15,7 +17,7 @@ class PasswordFields extends StatefulWidget {
   /// nombres (docs/09 §32). Se conserva para no romper a quien lo pasa.
   final List<String> Function()? personal;
 
-  /// Se ve la contraseña desde el principio (p. ej. la propuesta en el registro).
+  /// Se ve la contraseña desde el principio.
   final bool initiallyVisible;
 
   const PasswordFields({super.key, required this.password, required this.confirmation, this.personal, this.label = 'Contraseña', this.initiallyVisible = false});
@@ -46,9 +48,12 @@ class _PasswordFieldsState extends State<PasswordFields> {
       TextFormField(
         controller: widget.password,
         obscureText: _hidden,
+        autocorrect: false,
+        enableSuggestions: false,
+        autofillHints: null,
+        textInputAction: TextInputAction.next,
         decoration: InputDecoration(
           labelText: widget.label,
-          hintText: 'p. ej. Ruta.2026',
           prefixIcon: const Icon(Icons.lock_outline),
           errorMaxLines: 3,
           suffixIcon: _eye(_hidden, () => setState(() => _hidden = !_hidden)),
@@ -60,6 +65,10 @@ class _PasswordFieldsState extends State<PasswordFields> {
       TextFormField(
         controller: widget.confirmation,
         obscureText: _hiddenConfirmation,
+        autocorrect: false,
+        enableSuggestions: false,
+        autofillHints: null,
+        textInputAction: TextInputAction.done,
         decoration: InputDecoration(
           labelText: 'Repita la contraseña',
           prefixIcon: const Icon(Icons.lock_outline),

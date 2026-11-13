@@ -42,6 +42,10 @@ class Notifications {
     _initialized = true;
   }
 
+  /// Notificaciones del servidor recibidas con la app abierta: se muestran
+  /// dentro de la app (no en el teléfono, docs/11 §11.56). HomeShell las escucha.
+  static final inApp = ValueNotifier<InAppNotice?>(null);
+
   static Future<void> requestPermissions() async {
     final android = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
     await android?.requestNotificationsPermission();
@@ -51,17 +55,27 @@ class Notifications {
 
   static int _id() => _random.nextInt(1 << 30);
 
-  /// Notificación de GET sync según su `kind` (docs/13 §13.10).
-  static Future<void> showServer(String kind, String title, String body, Map<String, dynamic> data) {
+  static String? payloadOf(String kind, Map<String, dynamic> data) {
     final tripId = data['tripId']?.toString();
-    final payload = switch (kind) {
-      'solicitud_recibida' || 'solicitud_resuelta' => 'gestion',
+    return switch (kind) {
+      'solicitud_recibida' => 'gestion',
+      'solicitud_resuelta' => 'inicio',
       'respuesta_desarrollador' => 'conversation:${data['conversationId'] ?? ''}',
       'olvide_recibida' => 'olvide',
       _ => tripId == null ? null : 'trip:$tripId',
     };
+  }
+
+  /// Notificación de GET sync según su `kind` (docs/13 §13.10). Con la app
+  /// abierta ([foreground]) se muestra dentro de ella y no en el teléfono.
+  static Future<void> showServer(String kind, String title, String body, Map<String, dynamic> data, {bool foreground = false}) async {
+    final payload = payloadOf(kind, data);
+    if (foreground) {
+      inApp.value = InAppNotice(title, body, payload);
+      return;
+    }
     final details = kind.startsWith('viaje') || kind.startsWith('vehiculo') ? _trips : _general;
-    return _plugin.show(id: _id(), title: title, body: body, notificationDetails: NotificationDetails(android: details), payload: payload);
+    await _plugin.show(id: _id(), title: title, body: body, notificationDetails: NotificationDetails(android: details), payload: payload);
   }
 
   /// «Actualización disponible» (docs/11 §11.50).
@@ -111,4 +125,13 @@ class Notifications {
       );
 
   static Future<void> cancelAll() => _plugin.cancelAll();
+}
+
+/// Notificación mostrada dentro de la app.
+class InAppNotice {
+  final String title;
+  final String body;
+  final String? payload;
+
+  const InAppNotice(this.title, this.body, this.payload);
 }

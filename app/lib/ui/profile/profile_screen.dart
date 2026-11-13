@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -33,17 +34,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
   late final _secondSurname = TextEditingController(text: _me.name.secondSurname);
   late final _card = TextEditingController(text: _me.identityCard);
   late final _username = TextEditingController(text: _me.username);
+  late List<Object?> _initial = _snapshot();
+
+  List<Object?> _snapshot() => [_first.text, _middle.text, _firstSurname.text, _secondSurname.text, _card.text, _username.text];
+
+  bool get _dirty => !listEquals(_initial, _snapshot());
+
+  @override
+  void initState() {
+    super.initState();
+    _initial;
+  }
 
   Future<void> _save() async {
     if (!_form.currentState!.validate()) return;
-    await runAction(context, () async {
+    final ok = await runAction(context, () async {
       await context.api.patch('/me', resourceData('users', attributes: {
         ...PersonName(firstName: _first.text, middleName: _middle.text, firstSurname: _firstSurname.text, secondSurname: _secondSurname.text).toAttributes(),
         'identityCard': _card.text.trim(),
         'username': Username.normalize(_username.text),
       }));
       if (mounted) await context.read<Session>().reloadMe();
-    }, success: 'Perfil guardado.');
+    }, success: 'Perfil actualizado');
+    if (ok && mounted) setState(() => _initial = _snapshot());
   }
 
   Future<void> _photo() async {
@@ -57,7 +70,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     await runAction(context, () async {
       await context.api.delete('/me/photo');
       if (mounted) await context.read<Session>().reloadMe();
-    }, success: 'Foto quitada.');
+    }, success: 'Foto quitada');
     if (mounted) setState(() => _me = context.read<Session>().me!);
   }
 
@@ -66,9 +79,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final card = _card.text.trim();
-    return AppScaffold(
+    return LeaveGuard(
+      dirty: () => _dirty,
+      child: AppScaffold(
       title: 'Perfil',
-      tab: MainTab.more,
+      tab: MainTab.home,
       actions: () => [
         ActionItem(Icons.save_outlined, 'Guardar perfil', _save),
         ActionItem(Icons.password, 'Cambiar contraseña', _changePassword),
@@ -77,7 +92,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ],
       body: Form(
         key: _form,
-        child: ListView(padding: const EdgeInsets.only(bottom: 96), children: [
+        onChanged: () => setState(() {}),
+        child: ListView(padding: const EdgeInsets.only(bottom: 120), children: [
           PhotoHeader(url: _me.photoUrl, icon: Icons.person, onTap: _photo),
           FormText(controller: _first, label: 'Primer nombre', capitalization: TextCapitalization.words, validator: (v) => requiredText(v, 'Escriba el primer nombre')),
           FormText(controller: _middle, label: 'Segundo nombre', capitalization: TextCapitalization.words),
@@ -86,10 +102,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
           FormText(controller: _card, label: 'Carné de identidad', icon: Icons.badge_outlined, keyboard: TextInputType.number,
               formatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(11)], validator: IdentityCard.validate),
           FormText(label: 'Sexo y nacimiento', value: sexAndBirth(_me.sex ?? IdentityCard.sex(card), _me.birthDate ?? IdentityCard.birthDate(card)), readOnly: true),
-          FormText(controller: _username, label: 'Usuario', icon: Icons.alternate_email, validator: validateUsername),
+          FormText(controller: _username, label: 'Usuario', icon: Icons.alternate_email, validator: validateUsername, capitalization: TextCapitalization.none, last: true),
           FormText(label: 'Contraseña', value: _me.passwordExpiresAt == null ? 'Sin caducidad' : 'Caduca el ${formatDate(_me.passwordExpiresAt)}', readOnly: true),
         ]),
       ),
+    ),
     );
   }
 }
@@ -111,7 +128,8 @@ class _PasswordDialogState extends State<_PasswordDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Cambiar contraseña'),
+      icon: const Icon(Icons.password, size: 32),
+      title: const Text('Cambiar contraseña', textAlign: TextAlign.center),
       content: Form(
         key: _form,
         child: SingleChildScrollView(
@@ -119,6 +137,9 @@ class _PasswordDialogState extends State<_PasswordDialog> {
             TextFormField(
               controller: _current,
               obscureText: true,
+              autocorrect: false,
+              enableSuggestions: false,
+              textInputAction: TextInputAction.next,
               decoration: const InputDecoration(labelText: 'Contraseña actual', prefixIcon: Icon(Icons.lock_clock_outlined)),
               validator: (v) => (v ?? '').isEmpty ? 'Escriba su contraseña actual' : null,
             ),
@@ -139,7 +160,7 @@ class _PasswordDialogState extends State<_PasswordDialog> {
                   setState(() => _busy = true);
                   final body = resourceData('users', attributes: {'password': _password.text});
                   body['meta'] = {'currentPassword': _current.text};
-                  final ok = await runAction(context, () => context.api.patch('/me', body), success: 'Contraseña cambiada.');
+                  final ok = await runAction(context, () => context.api.patch('/me', body), success: 'Contraseña cambiada');
                   if (!context.mounted) return;
                   if (ok) {
                     Navigator.pop(context);

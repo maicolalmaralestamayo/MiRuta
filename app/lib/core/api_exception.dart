@@ -8,8 +8,15 @@ class ApiException implements Exception {
   ApiException(this.statusCode, this.errors);
 
   factory ApiException.network() => ApiException(null, [
-        JsonApiError(status: '', code: 'NETWORK_ERROR', title: 'Sin conexión', detail: 'No se pudo conectar con el servidor. Revisa tu conexión.'),
+        JsonApiError(status: '', code: 'NETWORK_ERROR', title: 'Sin conexión', detail: 'No se pudo conectar con el servidor. Revise su conexión.'),
       ]);
+
+  /// El usuario pulsó «Cancelar» en el spinner (docs/11 §11.56).
+  factory ApiException.cancelled() => ApiException(null, [
+        JsonApiError(status: '', code: 'CANCELLED', title: 'Cancelada', detail: 'Operación cancelada'),
+      ]);
+
+  bool get isCancelled => code == 'CANCELLED';
 
   String get code => errors.isEmpty ? 'ERROR' : errors.first.code;
 

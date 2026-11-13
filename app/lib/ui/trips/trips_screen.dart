@@ -54,9 +54,10 @@ class _TripsScreenState extends State<TripsScreen> {
         _showFinished = saved['finished'] != false;
         _showCancelled = saved['cancelled'] == true;
       } else {
-        final m = me.chiefMembership ?? me.memberships.where((m) => m.itineraryId != null).firstOrNull ?? me.memberships.firstOrNull;
-        _entity = m?.entityId;
-        _itinerary = m?.itineraryId;
+        // Por omisión, todos sus itinerarios (el Jefe, el suyo).
+        final chief = me.chiefPlacement;
+        _entity = chief?.entityId;
+        _itinerary = chief?.itineraryId;
       }
       if (mounted) setState(() => _ready = true);
     });
@@ -101,9 +102,14 @@ class _TripsScreenState extends State<TripsScreen> {
   }
 
   Future<void> _changeStatus(Trip trip, String status, String verb) async {
-    if (!await confirm(context, verb, '¿$verb el ${trip.title.toLowerCase()} de ${trip.itineraryName ?? ''}?', accept: verb, icon: Icons.check, destructive: status == TripStatus.cancelled)) return;
+    final cancelling = status == TripStatus.cancelled;
+    if (!await confirm(context, '$verb viaje', '¿$verb el ${trip.title.toLowerCase()} de ${trip.itineraryName ?? ''}?',
+        accept: '$verb viaje', icon: Icons.check, destructive: cancelling, headerIcon: cancelling ? Icons.cancel_outlined : Icons.directions_bus_outlined,
+        cancel: 'Volver', cancelIcon: Icons.arrow_back)) {
+      return;
+    }
     if (!mounted) return;
-    if (await runAction(context, () => context.read<Session>().api.patch('/trips/${trip.id}', resourceData('trips', id: trip.id, attributes: {'status': status})), success: 'Hecho.')) {
+    if (await runAction(context, () => context.read<Session>().api.patch('/trips/${trip.id}', resourceData('trips', id: trip.id, attributes: {'status': status})), success: const {TripStatus.running: 'Viaje empezado', TripStatus.finished: 'Viaje terminado', TripStatus.cancelled: 'Viaje cancelado'}[status] ?? 'Viaje actualizado')) {
       _marks.clear();
       _view.currentState?.reload();
     }
@@ -153,7 +159,7 @@ class _TripsScreenState extends State<TripsScreen> {
             for (final t in marked) {
               await api.delete('/trips/${t.id}');
             }
-          }, success: 'Eliminado.')) {
+          }, success: marked.length == 1 ? 'Viaje eliminado' : 'Viajes eliminados')) {
             _marks.clear();
             _view.currentState?.reload();
           }
@@ -182,19 +188,19 @@ class _TripsScreenState extends State<TripsScreen> {
     final me = context.watch<Session>().me!;
     if (!_ready) return const AppScaffold(title: 'Viajes', tab: MainTab.trips, body: Center(child: CircularProgressIndicator()));
     if (!me.seesTrips) {
-      final m = me.memberships.firstOrNull;
+      final p = me.placements.firstOrNull;
       return AppScaffold.list(title: 'Viajes', tab: MainTab.trips, children: [
         NoticeCard(
           icon: Icons.directions_bus_outlined,
           title: 'Aún no ve viajes',
-          detail: m == null
+          detail: !me.hasEntity
               ? 'Para ver los viajes necesita una Entidad, un itinerario y una parada.'
-              : m.itineraryId == null
-                  ? 'Para ver los viajes necesita un itinerario y una parada en ${m.entityAbbreviation}.'
-                  : 'Para ver los viajes elija su parada en ${m.itineraryName}.',
-          buttonIcon: Icons.settings,
-          buttonText: 'Ir a Gestión',
-          onPressed: () => MainTabs.go(context, MainTab.management),
+              : p == null
+                  ? 'Para ver los viajes necesita un itinerario y una parada en él.'
+                  : 'Para ver los viajes elija su parada en ${p.itineraryName}.',
+          buttonIcon: Icons.home_outlined,
+          buttonText: 'Ir a Inicio',
+          onPressed: () => MainTabs.go(context, MainTab.home),
         ),
       ]);
     }

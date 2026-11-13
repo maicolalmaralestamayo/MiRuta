@@ -140,6 +140,7 @@ class _LoginScreenState extends State<LoginScreen> {
               child: TextFormField(
                 controller: _password,
                 obscureText: _hidden,
+                textInputAction: TextInputAction.done,
                 decoration: InputDecoration(
                   labelText: 'Contraseña',
                   prefixIcon: const Icon(Icons.lock_outline),

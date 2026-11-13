@@ -47,7 +47,8 @@ class _AccessRecoveriesScreenState extends State<AccessRecoveriesScreen> {
       await showDialog<void>(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text('Solicitud aprobada'),
+          icon: const Icon(Icons.check_circle_outline, size: 32, color: green),
+          title: const Text('Solicitud aprobada', textAlign: TextAlign.center),
           content: SelectableText(lines.isEmpty ? 'La persona lo verá en su teléfono.' : lines.join('\n')),
           actions: [
             TextButton.icon(
@@ -69,7 +70,8 @@ class _AccessRecoveriesScreenState extends State<AccessRecoveriesScreen> {
     final action = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(user?.string('fullName') ?? 'No coincide con nadie'),
+        icon: const Icon(Icons.lock_reset, size: 32),
+        title: Text(user?.string('fullName') ?? 'No coincide con nadie', textAlign: TextAlign.center),
         content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(_what(r)),
           const SizedBox(height: 6),

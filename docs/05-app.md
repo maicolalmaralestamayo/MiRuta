@@ -1,10 +1,10 @@
-# 5. App móvil (Flutter, Android) — versión 4.0
+# 5. App móvil (Flutter, Android) — versión 4.1
 
-La app se llama **MiRuta** (paquete `com.mitransporte.mitransporte`, versión `4.0.0+10`). Interfaz en **español**,
-con **trato de usted**. Funciona contra la API de la versión 4.0 ([13-api-proxima-version.md](13-api-proxima-version.md));
+La app se llama **MiRuta** (paquete `com.mitransporte.mitransporte`, versión `4.1.0+11`). Interfaz en **español**,
+con **trato de usted**. Funciona contra la API 4.1.0 ([13-api-proxima-version.md](13-api-proxima-version.md));
 lo acordado está resumido en [12-resumen-proxima-version.md](12-resumen-proxima-version.md) y detallado en
-[11-acuerdos-registro-qr.md](11-acuerdos-registro-qr.md) §11.19–§11.55. La versión 3.0 de este documento queda en el
-historial de git.
+[11-acuerdos-registro-qr.md](11-acuerdos-registro-qr.md) §11.19–§11.60 (la 4.1.0 implementa §11.56–§11.60). La
+versión 3.0 de este documento queda en el historial de git.
 
 ## 5.1 Arquitectura
 
@@ -23,6 +23,21 @@ compartida desde otras apps usa un canal propio (`mitransporte/share` en `MainAc
 
 ## 5.2 Reglas comunes de la interfaz
 
+- **Operaciones con el servidor** (§11.56): toda acción del usuario que se conecta al servidor muestra el spinner
+  «Conectando con el servidor…» que **bloquea la app**, con **Cancelar** (corta la conexión). Al final, un mensaje
+  escueto: el resultado («Itinerario creado», «Parada cambiada»…) o «Operación cancelada». Lo hace `runAction`
+  (`ui/widgets/busy.dart` y `core/busy_scope.dart`: un ámbito en una zona que `ApiClient` usa en cada petición); el
+  menú Acciones y los botones lo aplican solos. El spinner solo se ve mientras hay peticiones en curso.
+- **Botón Actualizar:** solo las notificaciones pendientes (GET sync) y los datos de la **pantalla visible** (sus
+  `DataView` se apuntan solas en el `RefreshScope` de su `AppScaffold`).
+- **Notificaciones con la app abierta:** se muestran dentro de la app (barra con «Ver») y no también en el teléfono;
+  la tarea en segundo plano no consulta mientras la app está a la vista.
+- **Contraseñas:** la app no propone ni sugiere contraseñas; solo comprueba los requisitos.
+- **Formularios:** «Salir sin guardar» (Cancelar / Salir, `LeaveGuard`) si hay cambios; el teclado recorre todos los
+  campos («Siguiente» y, en el último, «Listo»).
+- **Modales:** ícono, título, pregunta y botones; el que vuelve sin hacer nada dice «Volver» cuando la acción es
+  «Cancelar …» (p. ej. «Volver» / «Cancelar solicitud»).
+
 - Barra principal **Inicio · Gestión (engranaje, con el número de solicitudes) · Viajes · Más** en todas las
   pantallas. Barra superior con el **botón Actualizar** y el **punto de conexión** (verde, rojo; gris sin servidor).
 - **Tocar** una tarjeta abre su formulario; **mantenerla** la marca (check naranja arriba a la derecha); **un solo
@@ -31,7 +46,7 @@ compartida desde otras apps usa un canal propio (`mitransporte/share` en `MainAc
   las de un solo objeto (Editar…) solo con una marcada.
 - **Selectores** con ↕ que solo despliegan. **Secciones plegables** con su cantidad, que recuerdan si estaban
   plegadas, **paginadas de 5 en 5** (salvo las paradas de un itinerario elegido, que se ordenan arrastrando).
-- **Formularios** con los campos propios del objeto (sin datos de otras tablas) y el interruptor **Activado**.
+- **Formularios** con los campos propios del objeto y el interruptor **Activado**; debajo, sus **relaciones** (§11.57).
 - Botones siempre con **ícono y texto**; también «Cancelar» en los diálogos. Eliminar siempre pide confirmación y
   explica qué se borra y qué se conserva.
 - **Sin conexión**: se ve lo último cargado con el aviso «Sin conexión: datos del …»; en Gestión solo queda
@@ -42,16 +57,17 @@ compartida desde otras apps usa un canal propio (`mitransporte/share` en `MainAc
 | Pantalla | Contenido |
 |---|---|
 | **Inicio de sesión** | Botón **Servidor** (rojo sin servidor; diálogo «Falta el servidor» al intentar operar sin él) y punto de conexión; usuario, contraseña, «Recordar contraseña»; **Entrar**, **Olvidé usuario/contraseña** (naranja), **Registrarme** (sin relleno). Con una **actualización obligatoria** pendiente muestra el aviso con «Descargar e instalar» y no deja entrar |
-| **Inicio** | Tarjeta de la persona; **Perfil**, **Hijos**, **Mi QR**; avisos «Aún no tiene Entidad / itinerario / parada» con su botón; Entidad (selector si tiene varias), itinerario y parada, rol, próximos viajes |
-| **Gestión** | Selectores Entidad → Itinerario → Parada («Todas», «Sin Entidad» solo Administrador, «Sin itinerario», «Sin parada»; recuerdan la elección), buscador de personas y secciones **Entidades, Itinerarios, Paradas, Personas, Solicitudes**. Acciones según el rol y lo marcado: registrar trabajador, crear Entidad / itinerario / parada, **Incluir por QR**, entrar en una Entidad (Administrador), solicitar Entidad o itinerario, declarar ausencia, mostrar u ocultar solicitudes aprobadas y rechazadas; editar, eliminar, salir, crear o añadir paradas, cambiar de Entidad, asignar o quitar el rol de Jefe, cambiar de itinerario o de parada, quitar del itinerario, «Cambiarme a esta parada», aprobar o rechazar (motivo del nomenclador), cancelar o eliminar las propias |
-| **Formularios** | Trabajador, Entidad, itinerario y parada (con **«Usar mi ubicación actual»** y latitud y longitud de solo lectura), con imagen y «Activado» |
+| **Inicio** (G22) | Tarjeta con los datos de la persona y sus roles; **Mi QR** (tocar = en grande); **Viajes activos** (de todos sus itinerarios); **Entidades** y sus solicitudes; **Itinerarios** y sus solicitudes (tocar una propia: «Volver» / «Cancelar solicitud»); **Paradas**; **Hijos**. Acciones: Ver o editar el perfil, Solicitar Entidad, Solicitar itinerario, Cambiar de parada, Añadir hijo, Declarar ausencia, Cerrar sesión |
+| **Gestión** (G19, G20) | Tarjetas de las tablas con su cantidad y el número de solicitudes pendientes: **Entidades, Itinerarios, Paradas, Trabajadores** y (Administrador) los **nomencladores**. Acciones: Incluir por QR, Registrar trabajador, crear Entidad / itinerario / parada |
+| **Pantalla de cada tabla** | Buscador, tarjetas de 5 en 5, marcar (mantener) con Marcar todo / Desmarcar todo / Invertir selección, Acciones según lo marcado y los **sueltos**: Entidades + «Trabajadores sin Entidad»; Itinerarios + «Itinerarios sin Entidad» + «Trabajadores sin itinerario»; Paradas + «Paradas sin itinerario» + «Trabajadores sin parada» |
+| **Formularios con relaciones** | **Entidad:** sus itinerarios («Crear itinerario»), trabajadores («Adicionar persona»: existente o registrar) y solicitudes (aprobar / rechazar). **Itinerario:** selector de **Entidad** (con «Sin Entidad»), **paradas en orden** (arrastrar), «Adicionar parada» (existente o nueva), trabajadores («Adicionar persona», con parada opcional), solicitudes; Acciones: quitar parada, asignar o quitar Jefe. **Parada:** «Usar mi ubicación actual», sus **itinerarios** («Asociar itinerario», quitar de uno) y sus trabajadores. **Trabajador:** sus **Entidades**, cada una con sus **itinerarios y paradas** (tocar: ver, cambiar de parada, Jefe, quitar), «Añadir itinerario en X», «Asociar Entidad», y sus **hijos** («Añadir hijo») |
 | **Incluir por QR** | Escanea el QR, muestra dónde está ya la persona y se elige Entidad, itinerario o parada (el itinerario de la parada, bloqueado). Sin conexión, comprueba el QR en el teléfono y lo envía al volver la conexión |
-| **Ubicación compartida** | MiRuta aparece en «Compartir» (WhatsApp, Telegram, Google Maps, OsmAnd…): entiende `geo:`, enlaces de Google Maps (también los cortos, con conexión), de OpenStreetMap / OsmAnd y coordenadas escritas. Pregunta **Crear parada nueva** o **Cambiar la ubicación de una parada existente** (solo Administrador y Jefe) |
+| **Ubicación compartida** | MiRuta aparece en «Compartir» (WhatsApp, Telegram, Google Maps, OsmAnd…): entiende `geo:`, enlaces de Google Maps (también los cortos, con conexión), de OpenStreetMap / OsmAnd y coordenadas escritas. Pregunta **Crear parada nueva** o **Cambiar la ubicación de una parada existente** (solo Administrador y Jefe); al guardar se cierra también esta pantalla |
 | **Viajes** | Selectores Entidad e Itinerario; secciones **Planificados, En ejecución, Terminados, Cancelados** (estas dos se muestran u ocultan). Acciones: **Planificar viaje** (casillas Ida y Regreso, cada una con hora y tipo de vehículo); con un viaje marcado: editar, ver recorrido, Trabajadores, empezar, terminar, cancelar, eliminar |
 | **Formulario del viaje** | Itinerario y sentido de solo lectura; fecha, hora y tipo de vehículo editables solo en Planificado; estado y ocupación prevista |
 | **Línea del recorrido** | Requiere la ubicación activada a quien viaja. Paradas en el orden del recorrido, vehículo en su tramo (En movimiento, Detenido, Dejando / Recogiendo), sensores destacados, «Mi estado», cantidades sin ceros y la tarjeta «N esperando en [primera parada]» o Viajando / Recogidos. Opciones del trabajador: «Estoy en la parada …» (con sus hijos), «Me bajé en mi parada», «Estoy en mi parada», «Ya me recogieron», «No voy en este viaje» (en la ida pregunta «¿Tampoco irá en el regreso?») |
-| **Más** | Mi QR, Conversaciones, Compartir la app (64 o 32 bits), Cerrar sesión. Administrador: Nomencladores, Ajustes de la app, Olvidé algo, Actualizaciones de la app (sube los APK de 64 y 32 bits y marca Obligatoria), Mantenimiento del servidor (estado, instalar o actualizar la base de datos, tareas, caché, registro de errores) |
-| **Perfil, Hijos, Mi QR** | Mismo estilo que el formulario del trabajador. Mi QR cambia cada 15 s, sin capturas de pantalla |
+| **Más** | Conversaciones, Compartir la app (64 o 32 bits). Administrador: Ajustes de la app, Olvidé algo, Actualizaciones de la app (sube los APK de 64 y 32 bits y marca Obligatoria), Mantenimiento del servidor (estado, instalar o actualizar la base de datos, tareas, caché, registro de errores) |
+| **Perfil, Hijo, Mi QR** | Se abren desde Inicio. Mi QR cambia cada 15 s, sin capturas de pantalla |
 | **Conversación** | Con el desarrollador, estilo WhatsApp, solo texto y con motivo; se consulta cada «Frecuencia chat» |
 
 ## 5.4 Tiempo real calculado en el teléfono

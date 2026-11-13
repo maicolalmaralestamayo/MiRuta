@@ -7,6 +7,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'api_exception.dart';
+import 'busy_scope.dart';
 import 'json_api.dart';
 import 'storage.dart';
 import '../services/installation.dart';
@@ -107,6 +108,8 @@ class ApiClient {
       ApiException(null, [JsonApiError(status: '', code: code, title: 'Servidor', detail: detail)]);
 
   Future<void> _onRequest(RequestOptions options, RequestInterceptorHandler handler) async {
+    // Operación del usuario con spinner: «Cancelar» corta la conexión.
+    options.cancelToken ??= BusyScope.active?.token;
     if (options.extra['auth'] != false) {
       final token = await Storage.accessToken();
       if (token != null) options.headers['Authorization'] = 'Bearer $token';
@@ -214,11 +217,18 @@ class ApiClient {
 
   Future<Response> _send(Future<Response> Function() request, {bool retried = false}) async {
     if (!hasServer) throw noServer();
+    final scope = BusyScope.active;
+    if (scope != null && scope.cancelled) throw ApiException.cancelled();
+    scope?.begin();
     try {
-      final response = await request();
+      final future = request();
+      final response = scope == null
+          ? await future
+          : await Future.any<Response>([future, scope.token.whenCancel.then<Response>((_) => throw ApiException.cancelled())]);
       onReachability?.call(true);
       return response;
     } on DioException catch (error) {
+      if (error.type == DioExceptionType.cancel || CancelToken.isCancel(error)) throw ApiException.cancelled();
       onReachability?.call(error.response != null);
       final apiError = _toApiException(error);
       if (apiError.statusCode == 426 || apiError.hasCode('APP_UPDATE_REQUIRED')) {
@@ -232,6 +242,8 @@ class ApiClient {
         onSessionExpired?.call();
       }
       throw apiError;
+    } finally {
+      scope?.end();
     }
   }
 

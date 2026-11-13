@@ -8,10 +8,36 @@ import 'common.dart';
 import 'connection_dot.dart';
 import 'marks.dart';
 
+/// Lo que recarga el botón Actualizar de una pantalla (docs/11 §11.56: solo
+/// los datos de la pantalla visible). Las DataView de la pantalla se
+/// registran solas; [AppScaffold.onRefresh] añade lo demás.
+class RefreshRegistry {
+  final Set<Future<void> Function()> _loaders = {};
+
+  void add(Future<void> Function() loader) => _loaders.add(loader);
+
+  void remove(Future<void> Function() loader) => _loaders.remove(loader);
+
+  Future<void> reloadAll() async {
+    await Future.wait([for (final loader in _loaders.toList()) loader().catchError((_) {})]);
+  }
+}
+
+class RefreshScope extends InheritedWidget {
+  final RefreshRegistry registry;
+
+  const RefreshScope({super.key, required this.registry, required super.child});
+
+  static RefreshRegistry? maybeOf(BuildContext context) => context.getInheritedWidgetOfExactType<RefreshScope>()?.registry;
+
+  @override
+  bool updateShouldNotify(RefreshScope oldWidget) => registry != oldWidget.registry;
+}
+
 /// Forma común de las pantallas con sesión (docs/11 §11.48 y maquetas G18):
 /// barra con el título, el botón Actualizar y el punto de conexión (o «N
 /// marcadas» con ✕); el contenido; el botón «Acciones»; y la barra principal.
-class AppScaffold extends StatelessWidget {
+class AppScaffold extends StatefulWidget {
   final String title;
   final String? subtitle;
   final Widget body;
@@ -21,11 +47,35 @@ class AppScaffold extends StatelessWidget {
   final Widget? bottom;
   final Color? background;
 
-  const AppScaffold({super.key, required this.title, this.subtitle, required this.body, this.actions, this.marks, this.tab = MainTab.home, this.bottom, this.background});
+  /// Recarga de la pantalla con el botón Actualizar (además de sus DataView).
+  final Future<void> Function()? onRefresh;
+
+  const AppScaffold({super.key, required this.title, this.subtitle, required this.body, this.actions, this.marks, this.tab = MainTab.home, this.bottom, this.background, this.onRefresh});
 
   /// Contenido en lista, con espacio abajo para el botón Acciones.
-  AppScaffold.list({super.key, required this.title, this.subtitle, required List<Widget> children, this.actions, this.marks, this.tab = MainTab.home, this.bottom, this.background})
-      : body = ListView(padding: const EdgeInsets.only(top: 4, bottom: 96), children: children);
+  AppScaffold.list({super.key, required this.title, this.subtitle, required List<Widget> children, this.actions, this.marks, this.tab = MainTab.home, this.bottom, this.background, this.onRefresh})
+      : body = ListView(padding: const EdgeInsets.only(top: 4, bottom: 120), children: children);
+
+  @override
+  State<AppScaffold> createState() => _AppScaffoldState();
+}
+
+class _AppScaffoldState extends State<AppScaffold> {
+  final _registry = RefreshRegistry();
+
+  String get title => widget.title;
+  String? get subtitle => widget.subtitle;
+  Widget get body => widget.body;
+  List<ActionItem> Function()? get actions => widget.actions;
+  Marks? get marks => widget.marks;
+  MainTab get tab => widget.tab;
+  Widget? get bottom => widget.bottom;
+  Color? get background => widget.background;
+
+  Future<void> _refresh() async {
+    await _registry.reloadAll();
+    await widget.onRefresh?.call();
+  }
 
   PreferredSizeWidget _appBar(BuildContext context, bool ready) {
     final canPop = Navigator.of(context).canPop();
@@ -35,7 +85,7 @@ class AppScaffold extends StatelessWidget {
       title: subtitle == null
           ? Text(title)
           : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title), Text(subtitle!, style: const TextStyle(fontSize: 12, color: Colors.white))]),
-      actions: [if (ready) const RefreshButton(), const ConnectionDot(), const SizedBox(width: 4)],
+      actions: [if (ready) RefreshButton(onRefresh: _refresh), const ConnectionDot(), const SizedBox(width: 4)],
     );
     final m = marks;
     if (m == null) return normal;
@@ -64,7 +114,7 @@ class AppScaffold extends StatelessWidget {
     Widget scaffold = Scaffold(
       backgroundColor: background,
       appBar: _appBar(context, ready),
-      body: content,
+      body: RefreshScope(registry: _registry, child: content),
       bottomNavigationBar: ready ? MainNavigationBar(selected: tab) : null,
     );
     final m = marks;
@@ -85,9 +135,12 @@ class AppScaffold extends StatelessWidget {
   }
 }
 
-/// Botón Actualizar de la barra (docs/11 §11.48).
+/// Botón Actualizar de la barra (docs/11 §11.48 y §11.56): solo las
+/// notificaciones pendientes y los datos de la pantalla visible.
 class RefreshButton extends StatefulWidget {
-  const RefreshButton({super.key});
+  final Future<void> Function()? onRefresh;
+
+  const RefreshButton({super.key, this.onRefresh});
 
   @override
   State<RefreshButton> createState() => _RefreshButtonState();
@@ -106,6 +159,7 @@ class _RefreshButtonState extends State<RefreshButton> {
               setState(() => _busy = true);
               try {
                 await context.read<Session>().refresh();
+                await widget.onRefresh?.call();
               } finally {
                 if (mounted) setState(() => _busy = false);
               }

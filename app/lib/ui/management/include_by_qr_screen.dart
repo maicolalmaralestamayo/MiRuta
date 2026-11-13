@@ -9,6 +9,7 @@ import '../navigation.dart';
 import '../widgets/actions.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/cards.dart';
+import '../widgets/busy.dart';
 import '../widgets/common.dart';
 
 /// Lee un código QR con la cámara y lo devuelve (null si se vuelve atrás).
@@ -161,10 +162,11 @@ class _IncludeByQrScreenState extends State<IncludeByQrScreen> {
       final api = context.api;
       final entities = me.isAdmin
           ? (await api.getAll('/entities')).map((r) => _Option(r.id, r.string('abbreviation') ?? '')).toList()
-          : [for (final m in me.memberships.where((m) => m.itineraryId == me.chiefItineraryId)) _Option(m.entityId, m.entityAbbreviation)];
+          : [for (final p in me.placements.where((p) => p.itineraryId == me.chiefItineraryId)) _Option(p.entityId, p.entityAbbreviation)];
+      // Solo los itinerarios con Entidad admiten personas.
       final itineraries = me.isAdmin
-          ? (await api.getAll('/itineraries')).map((r) => _Option(r.id, r.string('name') ?? '', r.relId('entity')?.id)).toList()
-          : [for (final m in me.memberships.where((m) => m.itineraryId == me.chiefItineraryId)) _Option(m.itineraryId!, m.itineraryName ?? '', m.entityId)];
+          ? (await api.getAll('/itineraries')).where((r) => r.relId('entity') != null).map((r) => _Option(r.id, r.string('name') ?? '', r.relId('entity')?.id)).toList()
+          : [for (final p in me.placements.where((p) => p.itineraryId == me.chiefItineraryId)) _Option(p.itineraryId, p.itineraryName, p.entityId)];
       final stops = <String, List<_Option>>{};
       for (final i in me.isAdmin ? const <_Option>[] : itineraries) {
         stops[i.id] = (await api.getAll('/stops', query: {'filter[itinerary]': i.id, 'sort': 'position'})).map((r) => _Option(r.id, r.string('landmark') ?? '')).toList();
@@ -270,16 +272,19 @@ class _IncludeByQrScreenState extends State<IncludeByQrScreen> {
       if (mounted) showMessage(context, 'Sin conexión: la inclusión se enviará al volver la conexión. Hasta entonces la persona no la verá.');
     } else {
       final r = (await context.api.post('/qr-inclusions', QrQueue.body(qr: qr, scannedAt: DateTime.now(), entityId: entityId, itineraryId: itineraryId, stopId: stopId))).resource;
-      if (mounted) showMessage(context, '${r.string('fullName') ?? _name} quedó incluido.');
+      if (mounted) showResult(ScaffoldMessenger.of(context), '${r.string('fullName') ?? _name} incluido');
     }
     if (mounted) Navigator.pop(context, true);
   }
 
+  /// «XX Aniversario • Coppelia (Jefe); Ruta Playa • Sin parada» o «Sin itinerario».
   String _placeText(Map<String, dynamic> m) {
-    final entity = (m['entity'] as Map?)?['abbreviation'] ?? '';
-    final itinerary = (m['itinerary'] as Map?)?['name'];
-    final stop = (m['stop'] as Map?)?['landmark'];
-    return [entity, itinerary ?? 'Sin itinerario', if (itinerary != null) stop ?? 'Sin parada', if (m['isChief'] == true) 'Jefe'].join(' • ');
+    final itineraries = [for (final i in (m['itineraries'] as List? ?? const [])) Map<String, dynamic>.from(i as Map)];
+    if (itineraries.isEmpty) return 'Sin itinerario';
+    return itineraries.map((i) {
+      final stop = (i['stop'] as Map?)?['landmark'] ?? 'Sin parada';
+      return '${(i['itinerary'] as Map?)?['name'] ?? ''} • $stop${i['isChief'] == true ? ' (Jefe)' : ''}';
+    }).join('; ');
   }
 
   @override

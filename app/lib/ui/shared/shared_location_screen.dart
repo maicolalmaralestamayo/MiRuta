@@ -16,6 +16,8 @@ import '../widgets/common.dart';
 /// §11.51): «Crear parada nueva» o «Cambiar la ubicación de una parada
 /// existente». Solo el Administrador y el Jefe de itinerario.
 class SharedLocationScreen extends StatefulWidget {
+  static const routeName = 'ubicacion-compartida';
+
   final String text;
 
   const SharedLocationScreen({super.key, required this.text});
@@ -54,29 +56,36 @@ class _SharedLocationScreenState extends State<SharedLocationScreen> {
     }
   }
 
+  /// Tras guardar se cierra también esta pantalla (docs/11 §11.56).
+  void _close() {
+    if (!mounted) return;
+    Navigator.of(context).popUntil((route) => route.settings.name != SharedLocationScreen.routeName);
+  }
+
   Future<void> _create() async {
     final me = context.read<Session>().me!;
-    await push(context, StopForm(itineraryId: me.isAdmin ? null : me.chiefItineraryId, latitude: _point!.latitude, longitude: _point!.longitude));
-    if (mounted) Navigator.pop(context);
+    final saved = await push<bool>(context, StopForm(itineraryId: me.isAdmin ? null : me.chiefItineraryId, latitude: _point!.latitude, longitude: _point!.longitude));
+    if (saved == true) _close();
   }
 
   Future<void> _change() async {
     final me = context.read<Session>().me!;
     final api = context.read<Session>().api;
-    final stops = (await api.getAll('/stops', query: {if (!me.isAdmin) 'filter[itinerary]': me.chiefItineraryId})).map(Stop.from).toList();
+    var stops = const <Stop>[];
+    if (!await runAction(context, () async => stops = (await api.getAll('/stops', query: {if (!me.isAdmin) 'filter[itinerary]': me.chiefItineraryId})).map(Stop.from).toList())) return;
     if (!mounted) return;
     final stop = await pickOne<Stop>(context, 'Parada', stops, (s) => s.landmark, subtitle: (s) => s.address, search: true);
     if (stop == null || !mounted) return;
     if (!await confirm(context, 'Cambiar la ubicación', '¿Poner a ${stop.landmark} la ubicación compartida (${_point!.latitude.toStringAsFixed(5)}, ${_point!.longitude.toStringAsFixed(5)})?',
-        accept: 'Cambiar', icon: Icons.edit_location_alt_outlined)) {
+        accept: 'Cambiar', icon: Icons.edit_location_alt_outlined, headerIcon: Icons.place)) {
       return;
     }
     if (!mounted) return;
     final ok = await runAction(context, () => api.patch('/stops/${stop.id}', resourceData('stops', id: stop.id, attributes: {
           'latitude': double.parse(_point!.latitude.toStringAsFixed(6)),
           'longitude': double.parse(_point!.longitude.toStringAsFixed(6)),
-        })), success: 'Ubicación de ${stop.landmark} cambiada.');
-    if (ok && mounted) Navigator.pop(context);
+        })), success: 'Parada actualizada');
+    if (ok) _close();
   }
 
   @override
@@ -112,7 +121,7 @@ class _SharedLocationScreenState extends State<SharedLocationScreen> {
               child: SizedBox(
                 height: 52,
                 child: OutlinedButton.icon(
-                  onPressed: () => runAction(context, _change),
+                  onPressed: _change,
                   icon: const Icon(Icons.edit_location_alt_outlined),
                   label: const Text('Cambiar la ubicación de una parada existente'),
                 ),

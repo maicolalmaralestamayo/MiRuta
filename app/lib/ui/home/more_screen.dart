@@ -8,17 +8,16 @@ import '../../services/session.dart';
 import '../admin/access_recoveries_screen.dart';
 import '../admin/app_versions_screen.dart';
 import '../admin/maintenance_screen.dart';
-import '../admin/nomenclators_screen.dart';
 import '../admin/settings_screen.dart';
 import '../chat/conversations_screen.dart';
 import '../navigation.dart';
-import '../profile/my_qr_screen.dart';
-import '../profile/profile_screen.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/cards.dart';
 import '../widgets/common.dart';
 
-/// Más (docs/11 §11.38, maqueta G18 n.º 11).
+/// Más (docs/11 §11.38 y §11.60): Conversaciones, Compartir la app y las
+/// herramientas del Administrador. Mi QR, el perfil y Cerrar sesión están en
+/// Inicio; los nomencladores, en Gestión.
 class MoreScreen extends StatefulWidget {
   const MoreScreen({super.key});
 
@@ -46,8 +45,10 @@ class _MoreScreenState extends State<MoreScreen> {
     final arm64 = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Compartir la app'),
-        content: const Text('¿Para qué tipo de teléfono? La mayoría de los teléfonos actuales son de 64 bits.'),
+        icon: const Icon(Icons.share_outlined, size: 32),
+        title: const Text('Compartir la app', textAlign: TextAlign.center),
+        content: const Text('¿Para qué tipo de teléfono? La mayoría de los teléfonos actuales son de 64 bits.', textAlign: TextAlign.center),
+        actionsAlignment: MainAxisAlignment.center,
         actions: [
           cancelButton(context),
           TextButton.icon(onPressed: () => Navigator.pop(context, false), icon: const Icon(Icons.phone_android), label: const Text('32 bits')),
@@ -86,12 +87,6 @@ class _MoreScreenState extends State<MoreScreen> {
       title: 'Más',
       tab: MainTab.more,
       children: [
-        InfoCard(
-          images: [CardImage(url: me.photoUrl, icon: Icons.person, round: true)],
-          title: me.fullName,
-          lines: ['${me.username}${me.identityCard == null ? '' : ' • CI ${me.identityCard}'}'],
-          onTap: () => push(context, const ProfileScreen()),
-        ),
         if (update != null)
           NoticeCard(
             icon: Icons.system_update,
@@ -103,27 +98,16 @@ class _MoreScreenState extends State<MoreScreen> {
             color: blue2,
           ),
         const SectionTitle('Para mí'),
-        _tile(Icons.qr_code_2, 'Mi QR', () => push(context, const MyQrScreen())),
         _tile(Icons.forum_outlined, 'Conversaciones', () => push(context, const ConversationsScreen()), me.isAdmin ? 'Mensajes al desarrollador' : 'Escribir al desarrollador'),
         _tile(Icons.share_outlined, 'Compartir la app', _share),
         if (me.isAdmin) ...[
           const SectionTitle('Administrador'),
-          _tile(Icons.list_alt, 'Nomencladores', () => push(context, const NomenclatorsScreen())),
           _tile(Icons.settings_applications_outlined, 'Ajustes de la app', () => push(context, const SettingsScreen())),
           _tile(Icons.lock_reset, 'Olvidé algo', () => push(context, const AccessRecoveriesScreen()), 'Solicitudes de recuperación de acceso'),
           _tile(Icons.system_update_alt, 'Actualizaciones de la app', () => push(context, const AppVersionsScreen())),
           _tile(Icons.dns_outlined, 'Mantenimiento del servidor', () => push(context, const MaintenanceScreen())),
         ],
         const Divider(),
-        ListTile(
-          leading: const Icon(Icons.logout, color: red),
-          title: const Text('Cerrar sesión', style: TextStyle(color: red)),
-          onTap: () async {
-            if (await confirm(context, 'Cerrar sesión', '¿Cerrar la sesión en este teléfono?', accept: 'Cerrar sesión', icon: Icons.logout, destructive: true) && context.mounted) {
-              await context.read<Session>().logout();
-            }
-          },
-        ),
         Center(child: Padding(padding: const EdgeInsets.all(8), child: Text(_version, style: const TextStyle(color: grey)))),
       ],
     );

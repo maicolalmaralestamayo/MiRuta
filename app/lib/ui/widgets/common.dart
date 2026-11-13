@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -7,6 +9,7 @@ import '../../core/api_exception.dart';
 import '../../models/models.dart';
 import '../../services/session.dart';
 import '../theme.dart';
+import 'busy.dart';
 
 const red = Color(0xFFD32F2F);
 const green = Color(0xFF2E7D32);
@@ -56,6 +59,10 @@ void showError(BuildContext context, Object error) {
     showMissingServer(context);
     return;
   }
+  if (error is ApiException && error.isCancelled) {
+    showResult(ScaffoldMessenger.of(context), 'Operación cancelada', cancelled: true);
+    return;
+  }
   final message = error is ApiException ? error.message : (error is StateError ? error.message : 'Ocurrió un error inesperado.');
   ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()
@@ -68,32 +75,33 @@ void showMessage(BuildContext context, String message) {
     ..showSnackBar(SnackBar(content: Text(message)));
 }
 
-/// Ejecuta una acción mostrando el error si falla. Devuelve true si salió bien.
-Future<bool> runAction(BuildContext context, Future<void> Function() action, {String? success}) async {
-  try {
-    await action();
-    if (success != null && context.mounted) showMessage(context, success);
-    return true;
-  } catch (error) {
-    if (context.mounted) showError(context, error);
-    return false;
-  }
-}
+/// Ejecuta una operación del usuario con el spinner que bloquea la app y
+/// «Cancelar» (docs/11 §11.56); al final, el mensaje escueto [success] o el
+/// error. Devuelve true si salió bien.
+Future<bool> runAction(BuildContext context, FutureOr<void> Function() action, {String? success}) =>
+    runBusy(context, action, done: success, onError: showError);
 
-/// Botones de los diálogos: «Cancelar» también con ícono (docs/11 §11.52).
-Widget cancelButton(BuildContext context) =>
-    TextButton.icon(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close), label: const Text('Cancelar'));
+/// Botón para cerrar un diálogo sin hacer nada (con ícono; docs/11 §11.52).
+Widget cancelButton(BuildContext context, {String label = 'Cancelar', IconData icon = Icons.close}) =>
+    TextButton.icon(onPressed: () => Navigator.pop(context), icon: Icon(icon), label: Text(label));
 
-Future<bool> confirm(BuildContext context, String title, String message, {String accept = 'Aceptar', IconData icon = Icons.check, bool destructive = false}) async {
+/// Modal simple (docs/11 §11.56, maqueta G19 n.º 9 y 10): ícono, título,
+/// pregunta de confirmación y botones. [cancel] es el texto del botón que
+/// vuelve sin hacer nada (p. ej. «Volver» cuando la acción es «Cancelar solicitud»).
+Future<bool> confirm(BuildContext context, String title, String message,
+    {String accept = 'Aceptar', IconData icon = Icons.check, bool destructive = false, IconData? headerIcon, String cancel = 'Cancelar', IconData cancelIcon = Icons.close}) async {
+  final color = destructive ? red : Theme.of(context).colorScheme.primary;
   final result = await showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
-      title: Text(title),
-      content: Text(message),
+      icon: Icon(headerIcon ?? (destructive ? Icons.warning_amber_rounded : Icons.help_outline), color: color, size: 32),
+      title: Text(title, textAlign: TextAlign.center),
+      content: Text(message, textAlign: TextAlign.center),
+      actionsAlignment: MainAxisAlignment.center,
       actions: [
-        cancelButton(context),
+        cancelButton(context, label: cancel, icon: cancelIcon),
         FilledButton.icon(
-          style: destructive ? FilledButton.styleFrom(backgroundColor: red) : null,
+          style: destructive ? FilledButton.styleFrom(backgroundColor: red, foregroundColor: Colors.white) : null,
           onPressed: () => Navigator.pop(context, true),
           icon: Icon(icon),
           label: Text(accept),
@@ -106,17 +114,58 @@ Future<bool> confirm(BuildContext context, String title, String message, {String
 
 /// Confirmación de eliminar, explicando qué se borra y qué se conserva.
 Future<bool> confirmDelete(BuildContext context, String what, {String? consequences}) =>
-    confirm(context, 'Eliminar', '¿Eliminar $what?${consequences == null ? '' : '\n\n$consequences'}', accept: 'Eliminar', icon: Icons.delete_outline, destructive: true);
+    confirm(context, 'Eliminar', '¿Eliminar $what?${consequences == null ? '' : '\n\n$consequences'}',
+        accept: 'Eliminar', icon: Icons.delete_outline, destructive: true, headerIcon: Icons.delete_outline);
+
+/// «Salir sin guardar» (docs/11 §11.56, maqueta G19 n.º 9): el mismo en todos los formularios.
+Future<bool> confirmLeave(BuildContext context) => confirm(context, 'Salir sin guardar', '¿Salir? Los cambios no se guardarán.',
+    accept: 'Salir', icon: Icons.logout, destructive: true, headerIcon: Icons.warning_amber_rounded);
+
+/// Protege un formulario: si hay cambios sin guardar ([dirty]), al salir
+/// pregunta «Salir sin guardar» (Cancelar / Salir).
+class LeaveGuard extends StatelessWidget {
+  final bool Function() dirty;
+  final Widget child;
+
+  const LeaveGuard({super.key, required this.dirty, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        final navigator = Navigator.of(context);
+        if (!dirty() || await confirmLeave(context)) {
+          if (navigator.mounted) navigator.pop(result);
+        }
+      },
+      child: child,
+    );
+  }
+}
 
 /// Pide un texto en un diálogo.
 Future<String?> promptText(BuildContext context, String title,
-    {String label = '', String initial = '', bool required = false, int maxLines = 1, String accept = 'Aceptar', IconData icon = Icons.check, TextInputType? keyboard}) {
+    {String label = '', String initial = '', bool required = false, int maxLines = 1, String accept = 'Aceptar', IconData icon = Icons.check, TextInputType? keyboard, IconData headerIcon = Icons.edit_note}) {
   final controller = TextEditingController(text: initial);
   return showDialog<String>(
     context: context,
     builder: (context) => AlertDialog(
-      title: Text(title),
-      content: TextField(controller: controller, decoration: InputDecoration(labelText: label), maxLines: maxLines, autofocus: true, keyboardType: keyboard),
+      icon: Icon(headerIcon, size: 32),
+      title: Text(title, textAlign: TextAlign.center),
+      content: TextField(
+        controller: controller,
+        decoration: InputDecoration(labelText: label),
+        maxLines: maxLines,
+        autofocus: true,
+        keyboardType: keyboard,
+        textInputAction: TextInputAction.done,
+        onSubmitted: (_) {
+          if (required && controller.text.trim().isEmpty) return;
+          Navigator.pop(context, controller.text.trim());
+        },
+      ),
       actions: [
         cancelButton(context),
         FilledButton.icon(
@@ -206,9 +255,7 @@ class _BusyButtonState extends State<BusyButton> {
   Future<void> _run() async {
     setState(() => _busy = true);
     try {
-      await widget.onPressed();
-    } catch (error) {
-      if (mounted) showError(context, error);
+      await runAction(context, widget.onPressed);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -270,6 +317,13 @@ class FormText extends StatelessWidget {
   final bool enabled;
   final TextCapitalization capitalization;
 
+  /// Último campo del formulario: el teclado muestra «Listo» en vez de
+  /// «Siguiente» (docs/11 §11.56: se recorre todo con el teclado).
+  final bool last;
+  final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onSubmitted;
+  final FocusNode? focusNode;
+
   const FormText({
     super.key,
     this.controller,
@@ -285,6 +339,10 @@ class FormText extends StatelessWidget {
     this.onTap,
     this.enabled = true,
     this.capitalization = TextCapitalization.sentences,
+    this.last = false,
+    this.onChanged,
+    this.onSubmitted,
+    this.focusNode,
   });
 
   @override
@@ -300,6 +358,12 @@ class FormText extends StatelessWidget {
         inputFormatters: formatters,
         maxLines: maxLines,
         textCapitalization: capitalization,
+        textInputAction: last ? TextInputAction.done : TextInputAction.next,
+        focusNode: focusNode,
+        onChanged: onChanged,
+        onFieldSubmitted: onSubmitted,
+        // Los de solo lectura no reciben el foco del teclado.
+        canRequestFocus: !(readOnly || !enabled) || onTap != null,
         autovalidateMode: AutovalidateMode.onUserInteraction,
         validator: validator,
         decoration: InputDecoration(

@@ -63,7 +63,8 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
   void _details(String title, List<String> lines) => showDialog<void>(
         context: context,
         builder: (context) => AlertDialog(
-          title: Text(title),
+          icon: const Icon(Icons.info_outline, size: 32),
+          title: Text(title, textAlign: TextAlign.center),
           content: SingleChildScrollView(child: SelectableText(lines.join('\n'))),
           actions: [TextButton.icon(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close), label: const Text('Cerrar'))],
         ),

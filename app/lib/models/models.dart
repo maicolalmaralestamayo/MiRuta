@@ -85,68 +85,144 @@ String roleName(Role role) => switch (role) {
       Role.trabajador => 'Trabajador',
     };
 
-/// Una de sus Entidades, con itinerario y parada (meta.memberships de GET me).
-class Membership {
+/// Uno de sus itinerarios en una Entidad, con su parada (docs/11 §11.58).
+/// [id] es el del recurso `worker-itineraries`.
+class Placement {
+  final String id;
   final String workerId;
-  final bool active;
   final bool isChief;
   final String entityId;
   final String entityAbbreviation;
-  final String entityName;
-  final String? entityImageUrl;
-  final int entityWorkerCount;
-  final String? itineraryId;
-  final String? itineraryName;
+  final String itineraryId;
+  final String itineraryName;
+  final String? itineraryImageUrl;
+  final bool itineraryActive;
   final int itineraryWorkerCount;
   final String? stopId;
   final String? stopLandmark;
   final String? stopStreet;
+  final String? stopImageUrl;
   final double? stopLatitude;
   final double? stopLongitude;
 
-  const Membership({
-    required this.workerId,
-    this.active = true,
+  /// La persona (en las listas de worker-itineraries).
+  final String? userId;
+  final String? userName;
+  final String? photoUrl;
+  final bool active;
+
+  const Placement({
+    required this.id,
+    this.workerId = '',
     this.isChief = false,
-    required this.entityId,
-    required this.entityAbbreviation,
-    this.entityName = '',
-    this.entityImageUrl,
-    this.entityWorkerCount = 0,
-    this.itineraryId,
-    this.itineraryName,
+    this.entityId = '',
+    this.entityAbbreviation = '',
+    required this.itineraryId,
+    this.itineraryName = '',
+    this.itineraryImageUrl,
+    this.itineraryActive = true,
     this.itineraryWorkerCount = 0,
     this.stopId,
     this.stopLandmark,
     this.stopStreet,
+    this.stopImageUrl,
     this.stopLatitude,
     this.stopLongitude,
+    this.userId,
+    this.userName,
+    this.photoUrl,
+    this.active = true,
   });
 
-  factory Membership.fromJson(Map<String, dynamic> j) {
-    final entity = Map<String, dynamic>.from(j['entity'] as Map? ?? const {});
-    final itinerary = j['itinerary'] is Map ? Map<String, dynamic>.from(j['itinerary'] as Map) : null;
+  factory Placement.fromJson(Map<String, dynamic> j, {String workerId = '', String entityId = '', String entityAbbreviation = ''}) {
+    final itinerary = Map<String, dynamic>.from(j['itinerary'] as Map? ?? const {});
     final stop = j['stop'] is Map ? Map<String, dynamic>.from(j['stop'] as Map) : null;
-    return Membership(
-      workerId: '${j['workerId']}',
-      active: j['active'] != false,
+    return Placement(
+      id: '${j['id']}',
+      workerId: workerId,
       isChief: j['isChief'] == true,
-      entityId: '${entity['id']}',
-      entityAbbreviation: '${entity['abbreviation'] ?? ''}',
-      entityName: '${entity['name'] ?? ''}',
-      entityImageUrl: _str(entity['imageUrl']),
-      entityWorkerCount: _int(entity['workerCount']),
-      itineraryId: _str(itinerary?['id']),
-      itineraryName: _str(itinerary?['name']),
-      itineraryWorkerCount: _int(itinerary?['workerCount']),
+      entityId: entityId,
+      entityAbbreviation: entityAbbreviation,
+      itineraryId: '${itinerary['id']}',
+      itineraryName: '${itinerary['name'] ?? ''}',
+      itineraryImageUrl: _str(itinerary['imageUrl']),
+      itineraryActive: itinerary['active'] != false,
+      itineraryWorkerCount: _int(itinerary['workerCount']),
       stopId: _str(stop?['id']),
       stopLandmark: _str(stop?['landmark']),
       stopStreet: _str(stop?['street']),
+      stopImageUrl: _str(stop?['imageUrl']),
       stopLatitude: (stop?['latitude'] as num?)?.toDouble(),
       stopLongitude: (stop?['longitude'] as num?)?.toDouble(),
     );
   }
+
+  /// La persona en un itinerario (recurso worker-itineraries, con su meta).
+  factory Placement.from(Resource r) => Placement(
+        id: r.id,
+        workerId: r.relId('worker')?.id ?? '',
+        isChief: r.boolean('isChief'),
+        entityId: _str(r.meta['entityId']) ?? '',
+        entityAbbreviation: _str(r.meta['entityAbbreviation']) ?? '',
+        itineraryId: r.relId('itinerary')?.id ?? '',
+        itineraryName: _str(r.meta['itineraryName']) ?? '',
+        stopId: r.relId('stop')?.id,
+        stopLandmark: _str(r.meta['stopLandmark']),
+        userId: r.relId('user')?.id,
+        userName: _str(r.meta['userName']),
+        photoUrl: _str(r.meta['photoUrl']),
+        active: r.meta['active'] != false,
+      );
 }
+
+/// Una de sus Entidades con sus itinerarios (meta.memberships de GET me y de
+/// GET users/{id}).
+class Membership {
+  final String workerId;
+  final bool active;
+  final String entityId;
+  final String entityAbbreviation;
+  final String entityName;
+  final String? entityImageUrl;
+  final bool entityActive;
+  final int entityWorkerCount;
+  final List<Placement> itineraries;
+
+  const Membership({
+    required this.workerId,
+    this.active = true,
+    required this.entityId,
+    required this.entityAbbreviation,
+    this.entityName = '',
+    this.entityImageUrl,
+    this.entityActive = true,
+    this.entityWorkerCount = 0,
+    this.itineraries = const [],
+  });
+
+  factory Membership.fromJson(Map<String, dynamic> j) {
+    final entity = Map<String, dynamic>.from(j['entity'] as Map? ?? const {});
+    final workerId = '${j['workerId']}';
+    final entityId = '${entity['id']}';
+    final abbreviation = '${entity['abbreviation'] ?? ''}';
+    return Membership(
+      workerId: workerId,
+      active: j['active'] != false,
+      entityId: entityId,
+      entityAbbreviation: abbreviation,
+      entityName: '${entity['name'] ?? ''}',
+      entityImageUrl: _str(entity['imageUrl']),
+      entityActive: entity['active'] != false,
+      entityWorkerCount: _int(entity['workerCount']),
+      itineraries: [
+        for (final i in (j['itineraries'] as List? ?? const []))
+          Placement.fromJson(Map<String, dynamic>.from(i as Map), workerId: workerId, entityId: entityId, entityAbbreviation: abbreviation),
+      ],
+    );
+  }
+}
+
+List<Membership> membershipsFrom(Object? raw) => [for (final m in (raw as List? ?? const [])) Membership.fromJson(Map<String, dynamic>.from(m as Map))];
 
 /// La persona que usa la app (GET me).
 class Me {
@@ -199,7 +275,7 @@ class Me {
         passwordExpiresAt: r.date('passwordExpiresAt'),
         role: roleFrom(r.meta['role']?.toString()),
         chiefItineraryId: _str(r.meta['chiefItineraryId']),
-        memberships: [for (final m in (r.meta['memberships'] as List? ?? const [])) Membership.fromJson(Map<String, dynamic>.from(m as Map))],
+        memberships: membershipsFrom(r.meta['memberships']),
       );
 
   bool get isChief => role == Role.jefe;
@@ -209,16 +285,21 @@ class Me {
 
   Membership? membershipIn(String? entityId) => memberships.where((m) => m.entityId == entityId).firstOrNull;
 
-  Membership? get chiefMembership => memberships.where((m) => m.itineraryId != null && m.itineraryId == chiefItineraryId).firstOrNull;
+  /// Todos sus itinerarios (de todas sus Entidades), con su parada.
+  List<Placement> get placements => [for (final m in memberships) ...m.itineraries];
+
+  Placement? placementIn(String? itineraryId) => placements.where((p) => p.itineraryId == itineraryId).firstOrNull;
+
+  Placement? get chiefPlacement => placements.where((p) => p.isChief).firstOrNull;
 
   bool get hasEntity => memberships.isNotEmpty;
 
-  bool get hasItinerary => memberships.any((m) => m.itineraryId != null);
+  bool get hasItinerary => placements.isNotEmpty;
 
-  bool get hasStop => memberships.any((m) => m.stopId != null);
+  bool get hasStop => placements.any((p) => p.stopId != null);
 
-  /// Puede ver viajes: itinerario y parada (el Jefe aunque no tenga parada; el Administrador, todos).
-  bool get seesTrips => isAdmin || chiefItineraryId != null || memberships.any((m) => m.itineraryId != null && m.stopId != null);
+  /// Puede ver viajes: algún itinerario con parada (el Jefe aunque no tenga parada; el Administrador, todos).
+  bool get seesTrips => isAdmin || chiefItineraryId != null || placements.any((p) => p.stopId != null);
 
   bool isChiefOf(String? itineraryId) => itineraryId != null && chiefItineraryId == itineraryId;
 
@@ -227,9 +308,9 @@ class Me {
         'isAdmin': isAdmin,
         'role': role.name,
         'chiefItineraryId': chiefItineraryId,
-        'itineraryIds': [for (final m in memberships) ?m.itineraryId],
+        'itineraryIds': [for (final p in placements) p.itineraryId],
         // Donde viaja (con parada): recordatorios y cálculo de su estado.
-        'travelItineraryIds': [for (final m in memberships) if (m.stopId != null) ?m.itineraryId],
+        'travelItineraryIds': [for (final p in placements) if (p.stopId != null) p.itineraryId],
       };
 }
 
@@ -245,8 +326,9 @@ class Entity {
   final bool active;
   final int workerCount;
   final int itineraryCount;
+  final int pendingApplications;
 
-  const Entity({required this.id, this.abbreviation = '', this.number, this.name = '', this.description, this.observation, this.imageUrl, this.active = true, this.workerCount = 0, this.itineraryCount = 0});
+  const Entity({required this.id, this.abbreviation = '', this.number, this.name = '', this.description, this.observation, this.imageUrl, this.active = true, this.workerCount = 0, this.itineraryCount = 0, this.pendingApplications = 0});
 
   factory Entity.from(Resource r) => Entity(
         id: r.id,
@@ -259,6 +341,7 @@ class Entity {
         active: r.attributes['active'] != false,
         workerCount: _int(r.meta['workerCount']),
         itineraryCount: _int(r.meta['itineraryCount']),
+        pendingApplications: _int(r.meta['pendingApplications']),
       );
 }
 
@@ -274,8 +357,9 @@ class Itinerary {
   final String? entityAbbreviation;
   final int stopCount;
   final int workerCount;
+  final int pendingApplications;
 
-  const Itinerary({required this.id, this.name = '', this.description, this.observation, this.imageUrl, this.active = true, this.entityId, this.entityAbbreviation, this.stopCount = 0, this.workerCount = 0});
+  const Itinerary({required this.id, this.name = '', this.description, this.observation, this.imageUrl, this.active = true, this.entityId, this.entityAbbreviation, this.stopCount = 0, this.workerCount = 0, this.pendingApplications = 0});
 
   factory Itinerary.from(Resource r) => Itinerary(
         id: r.id,
@@ -288,6 +372,7 @@ class Itinerary {
         entityAbbreviation: r.related('entity')?.string('abbreviation'),
         stopCount: _int(r.meta['stopCount']),
         workerCount: _int(r.meta['workerCount']),
+        pendingApplications: _int(r.meta['pendingApplications']),
       );
 }
 
@@ -296,16 +381,18 @@ class StopLink {
   final String itineraryStopId;
   final String itineraryId;
   final String name;
-  final String entityId;
+  final String? entityId;
+  final String? entityAbbreviation;
   final int position;
 
-  const StopLink({required this.itineraryStopId, required this.itineraryId, required this.name, required this.entityId, required this.position});
+  const StopLink({required this.itineraryStopId, required this.itineraryId, required this.name, this.entityId, this.entityAbbreviation, required this.position});
 
   factory StopLink.fromJson(Map<String, dynamic> j) => StopLink(
         itineraryStopId: '${j['itineraryStopId']}',
         itineraryId: '${j['itineraryId']}',
         name: '${j['name'] ?? ''}',
-        entityId: '${j['entityId']}',
+        entityId: _str(j['entityId']),
+        entityAbbreviation: _str(j['entityAbbreviation']),
         position: _int(j['position']),
       );
 }
@@ -322,8 +409,9 @@ class Stop {
   final String? imageUrl;
   final bool active;
   final List<StopLink> itineraries;
+  final int workerCount;
 
-  const Stop({required this.id, this.landmark = '', this.street = '', this.crossStreet1, this.crossStreet2, this.latitude = 0, this.longitude = 0, this.imageUrl, this.active = true, this.itineraries = const []});
+  const Stop({required this.id, this.landmark = '', this.street = '', this.crossStreet1, this.crossStreet2, this.latitude = 0, this.longitude = 0, this.imageUrl, this.active = true, this.itineraries = const [], this.workerCount = 0});
 
   factory Stop.from(Resource r) => Stop(
         id: r.id,
@@ -336,6 +424,7 @@ class Stop {
         imageUrl: r.string('imageUrl'),
         active: r.attributes['active'] != false,
         itineraries: [for (final i in (r.meta['itineraries'] as List? ?? const [])) StopLink.fromJson(Map<String, dynamic>.from(i as Map))],
+        workerCount: _int(r.meta['workerCount']),
       );
 
   /// «Calle 23 • entre K y L».
@@ -362,7 +451,10 @@ class Person {
   final String? identityCard;
   final DateTime? birthDate;
 
-  const Person({required this.id, this.username, this.name = const PersonName(), this.fullName = '', this.sex, this.photoUrl, this.isAdmin = false, this.entities = const [], this.identityCard, this.birthDate});
+  /// Sus Entidades con itinerarios y paradas (solo en GET users/{id}).
+  final List<Membership> memberships;
+
+  const Person({required this.id, this.username, this.name = const PersonName(), this.fullName = '', this.sex, this.photoUrl, this.isAdmin = false, this.entities = const [], this.identityCard, this.birthDate, this.memberships = const []});
 
   factory Person.from(Resource r) => Person(
         id: r.id,
@@ -375,48 +467,45 @@ class Person {
         entities: [for (final e in (r.attributes['entities'] as List? ?? const [])) '$e'],
         identityCard: r.string('identityCard'),
         birthDate: parseDay(r.string('birthDate')),
+        memberships: membershipsFrom(r.meta['memberships']),
       );
 }
 
-/// Persona en una Entidad (recurso workers, con include=user,entity,itinerary,stop).
-/// Para «Sin Entidad» se usan personas sin pertenencia ([id] vacío).
+/// Persona en una Entidad (recurso workers, con include=user,entity), con
+/// sus itinerarios en ella (meta.itineraries).
 class Worker {
   final String id;
-  final bool isChief;
   final bool active;
   final Person person;
   final String? entityId;
   final String? entityAbbreviation;
-  final String? itineraryId;
-  final String? itineraryName;
-  final String? stopId;
-  final String? stopLandmark;
+  final List<Placement> itineraries;
 
-  const Worker({required this.id, this.isChief = false, this.active = true, required this.person, this.entityId, this.entityAbbreviation, this.itineraryId, this.itineraryName, this.stopId, this.stopLandmark});
+  const Worker({required this.id, this.active = true, required this.person, this.entityId, this.entityAbbreviation, this.itineraries = const []});
 
   factory Worker.from(Resource r) {
     final user = r.related('user');
+    final entityId = r.relId('entity')?.id;
+    final abbreviation = r.related('entity')?.string('abbreviation');
     return Worker(
       id: r.id,
-      isChief: r.boolean('isChief'),
       active: r.attributes['active'] != false,
       person: user == null ? Person(id: r.relId('user')?.id ?? '') : Person.from(user),
-      entityId: r.relId('entity')?.id,
-      entityAbbreviation: r.related('entity')?.string('abbreviation'),
-      itineraryId: r.relId('itinerary')?.id,
-      itineraryName: r.related('itinerary')?.string('name'),
-      stopId: r.relId('stop')?.id,
-      stopLandmark: r.related('stop')?.string('landmark'),
+      entityId: entityId,
+      entityAbbreviation: abbreviation,
+      itineraries: [
+        for (final i in (r.meta['itineraries'] as List? ?? const []))
+          Placement.fromJson(Map<String, dynamic>.from(i as Map), workerId: r.id, entityId: entityId ?? '', entityAbbreviation: abbreviation ?? ''),
+      ],
     );
   }
 
-  /// Persona sin ninguna Entidad («Sin Entidad»).
-  factory Worker.withoutEntity(Person person) => Worker(id: '', person: person);
+  bool get isChief => itineraries.any((p) => p.isChief);
 
-  bool get hasMembership => id.isNotEmpty;
-
-  /// Clave para marcarla (persona y pertenencia).
-  String get key => hasMembership ? 'w$id' : 'u${person.id}';
+  /// «XX Aniversario • Banco Metropolitano» (o «Sin itinerario»).
+  String get where => itineraries.isEmpty
+      ? 'Sin itinerario'
+      : itineraries.map((p) => '${p.itineraryName} • ${p.stopLandmark ?? 'Sin parada'}').join('; ');
 }
 
 /// Solicitud de Entidad o de itinerario.
@@ -561,13 +650,22 @@ class Nomenclator {
   final String title;
   final String singular;
 
-  const Nomenclator(this.type, this.title, this.singular);
+  final bool feminine;
+
+  const Nomenclator(this.type, this.title, this.singular, {this.feminine = false});
 
   static const vehicleTypes = Nomenclator('vehicle-types', 'Tipos de vehículo', 'tipo de vehículo');
   static const absenceTypes = Nomenclator('absence-types', 'Tipos de ausencia', 'tipo de ausencia');
   static const conversationTopics = Nomenclator('conversation-topics', 'Motivos de conversación', 'motivo de conversación');
   static const denialReasons = Nomenclator('denial-reasons', 'Motivos de denegación', 'motivo de denegación');
-  static const detentionCauses = Nomenclator('detention-causes', 'Causas de detención', 'causa de detención');
+  static const detentionCauses = Nomenclator('detention-causes', 'Causas de detención', 'causa de detención', feminine: true);
+
+  /// «Tipo de vehículo creado», «Causas de detención eliminadas»…
+  String done(String verb, {bool plural = false}) {
+    final ending = '${feminine ? 'a' : 'o'}${plural ? 's' : ''}';
+    final subject = plural ? title : '${singular[0].toUpperCase()}${singular.substring(1)}';
+    return '$subject $verb$ending';
+  }
 
   static const all = [vehicleTypes, absenceTypes, conversationTopics, denialReasons, detentionCauses];
 }

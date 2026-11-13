@@ -58,6 +58,9 @@ class _NewPasswordScreenState extends State<NewPasswordScreen> {
               TextFormField(
                 controller: _current,
                 obscureText: _hiddenCurrent,
+                textInputAction: TextInputAction.next,
+                autocorrect: false,
+                enableSuggestions: false,
                 decoration: InputDecoration(
                   labelText: 'Contraseña actual',
                   prefixIcon: const Icon(Icons.lock_clock_outlined),

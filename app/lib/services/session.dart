@@ -45,6 +45,9 @@ class Session extends ChangeNotifier {
   Timer? _timer;
   Duration? _interval;
 
+  /// La app está a la vista (no en segundo plano).
+  bool _foreground = true;
+
   Session(this.api) {
     api.onSessionExpired = () {
       if (state == SessionState.ready) _clear();
@@ -52,9 +55,9 @@ class Session extends ChangeNotifier {
     api.onUpdateRequired = (meta) => _onUpdateRequired(meta);
   }
 
-  /// Número de la pestaña Gestión: por resolver (Administrador y Jefe) o
-  /// resueltas sin ver (trabajador).
-  int get managementBadge => (me?.manages ?? false) ? (counters['applicationsToResolve'] ?? 0) + (counters['applicationsResolvedUnseen'] ?? 0) : (counters['applicationsResolvedUnseen'] ?? 0);
+  /// Número de la pestaña Gestión: solicitudes por resolver (Administrador y
+  /// Jefe). Las propias resueltas se ven en Inicio.
+  int get managementBadge => (me?.manages ?? false) ? (counters['applicationsToResolve'] ?? 0) : 0;
 
   Future<void> init() async {
     settings = await AppSettings.cached();
@@ -135,7 +138,8 @@ class Session extends ChangeNotifier {
   Future<void> sync({bool all = false}) async {
     if (state != SessionState.ready) return;
     try {
-      final result = await SyncService.run(api);
+      await Storage.setForeground(_foreground);
+      final result = await SyncService.run(api, foreground: _foreground);
       counters = result.counters;
       nextTrip = result.nextTrip;
       if (result.settingsChanged) settings = await AppSettings.cached();
@@ -152,16 +156,9 @@ class Session extends ChangeNotifier {
     }
   }
 
-  /// Botón Actualizar (docs/11 §11.48).
-  Future<void> refresh() async {
-    try {
-      await reloadMe();
-    } catch (_) {}
-    await sync(all: true);
-    lastChanged = const {'all'};
-    revision++;
-    notifyListeners();
-  }
+  /// Botón Actualizar (docs/11 §11.48 y §11.56): solo las notificaciones
+  /// pendientes (y los contadores); los datos los recarga la pantalla visible.
+  Future<void> refresh() => sync();
 
   /// Consulta periódica con la app abierta: «Frecuencia día viaje» si hay
   /// un viaje ese día y «Frecuencia reposo» si no.
@@ -170,16 +167,20 @@ class Session extends ChangeNotifier {
     if (_timer != null && interval == _interval) return;
     _interval = interval;
     _timer?.cancel();
-    _timer = Timer.periodic(interval < const Duration(seconds: 30) ? const Duration(seconds: 30) : interval, (_) => sync());
+    // En la zona raíz: no hereda el spinner de la operación que lo programó.
+    _timer = Zone.root.run(() => Timer.periodic(interval < const Duration(seconds: 30) ? const Duration(seconds: 30) : interval, (_) => sync()));
   }
 
   void pause() {
+    _foreground = false;
+    Storage.setForeground(false);
     _timer?.cancel();
     _timer = null;
     connection.stop();
   }
 
   void resume() {
+    _foreground = true;
     if (state != SessionState.ready) return;
     connection.start();
     sync();
@@ -193,7 +194,7 @@ class Session extends ChangeNotifier {
     if (trip == null || person == null || trip.itineraryId == null) return;
     if (trip.status != 'planificado' && trip.status != 'en_ejecucion') return;
     if (!force && DateTime.now().isBefore(trip.departsAt.subtract(settings.duration('anticipacion_viaje')))) return;
-    final membership = person.memberships.where((m) => m.itineraryId == trip.itineraryId && m.stopId != null).firstOrNull;
+    final membership = person.placements.where((p) => p.itineraryId == trip.itineraryId && p.stopId != null).firstOrNull;
     if (membership == null) return;
     try {
       if (await TrackingService.runningTripId() == trip.id) return;

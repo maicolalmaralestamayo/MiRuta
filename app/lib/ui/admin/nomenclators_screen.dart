@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -10,6 +11,7 @@ import '../navigation.dart';
 import '../widgets/actions.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/cards.dart';
+import '../widgets/busy.dart';
 import '../widgets/common.dart';
 import '../widgets/data_view.dart';
 import '../widgets/marks.dart';
@@ -25,8 +27,13 @@ IconData nomenclatorIcon(String type) => switch (type) {
 /// Nomencladores (docs/11 §11.26 y §11.31, maqueta G18 n.º 17): una sección
 /// plegable por nomenclador. Lo que está en uso no se elimina: se propone
 /// desactivarlo (§11.29).
+///
+/// Desde Gestión se abre un solo nomenclador ([only]) desde su tarjeta
+/// (docs/11 §11.56 y §11.59).
 class NomenclatorsScreen extends StatefulWidget {
-  const NomenclatorsScreen({super.key});
+  final Nomenclator? only;
+
+  const NomenclatorsScreen({super.key, this.only});
 
   @override
   State<NomenclatorsScreen> createState() => _NomenclatorsScreenState();
@@ -36,9 +43,11 @@ class _NomenclatorsScreenState extends State<NomenclatorsScreen> {
   final _view = GlobalKey<DataViewState<Map<String, List<NomenclatorItem>>>>();
   final _marks = Marks();
 
+  List<Nomenclator> get _list => widget.only == null ? Nomenclator.all : [widget.only!];
+
   Future<Map<String, List<NomenclatorItem>>> _load() async {
     final api = context.read<Session>().api;
-    return {for (final n in Nomenclator.all) n.type: (await api.getAll('/${n.type}')).map(NomenclatorItem.from).toList()};
+    return {for (final n in _list) n.type: (await api.getAll('/${n.type}')).map(NomenclatorItem.from).toList()};
   }
 
   Future<void> _open(Nomenclator n, [NomenclatorItem? item]) async {
@@ -49,11 +58,13 @@ class _NomenclatorsScreenState extends State<NomenclatorsScreen> {
   Future<void> _delete(Nomenclator n, List<NomenclatorItem> items) async {
     if (!await confirmDelete(context, items.length == 1 ? '«${items.first.name}»' : '${items.length} elementos de ${n.title}')) return;
     if (!mounted) return;
+    var deleted = 0;
     final api = context.read<Session>().api;
     final inUse = <NomenclatorItem>[];
     for (final item in items) {
       try {
         await api.delete('/${n.type}/${item.id}');
+        deleted++;
       } on ApiException catch (error) {
         if (error.hasCode('NOMENCLATOR_IN_USE')) {
           inUse.add(item);
@@ -69,16 +80,18 @@ class _NomenclatorsScreenState extends State<NomenclatorsScreen> {
         for (final item in inUse) {
           await api.patch('/${n.type}/${item.id}', resourceData(n.type, id: item.id, attributes: {'active': false}));
         }
+        if (mounted) showResult(ScaffoldMessenger.of(context), n.done('desactivad', plural: inUse.length > 1));
       }
     }
+    if (deleted > 0 && inUse.isEmpty && mounted) showResult(ScaffoldMessenger.of(context), n.done('eliminad', plural: deleted > 1));
     _marks.clear();
     _view.currentState?.reload();
   }
 
   List<ActionItem> _actions() {
     final data = _view.currentState?.data ?? const {};
-    if (!_marks.active) return [for (final n in Nomenclator.all) ActionItem(nomenclatorIcon(n.type), 'Crear ${n.singular}', () => _open(n))];
-    final n = Nomenclator.all.firstWhere((n) => n.type == _marks.type);
+    if (!_marks.active) return [for (final n in _list) ActionItem(nomenclatorIcon(n.type), 'Crear ${n.singular}', () => _open(n))];
+    final n = _list.firstWhere((n) => n.type == _marks.type);
     final items = data[n.type] ?? const [];
     final marked = _marks.of(n.type, items, (i) => i.id);
     return [
@@ -97,20 +110,20 @@ class _NomenclatorsScreenState extends State<NomenclatorsScreen> {
   @override
   Widget build(BuildContext context) {
     return AppScaffold(
-      title: 'Nomencladores',
-      tab: MainTab.more,
+      title: widget.only?.title ?? 'Nomencladores',
+      tab: MainTab.management,
       marks: _marks,
       actions: _actions,
       body: DataView<Map<String, List<NomenclatorItem>>>(
         key: _view,
         load: _load,
         builder: (context, data, reload) => ListView(padding: const EdgeInsets.only(bottom: 96), physics: const AlwaysScrollableScrollPhysics(), children: [
-          for (final n in Nomenclator.all)
+          for (final n in _list)
             FoldSection<NomenclatorItem>(
               storageKey: 'nomencladores.${n.type}',
               title: n.title,
               items: data[n.type] ?? const [],
-              initiallyOpen: n == Nomenclator.vehicleTypes,
+              initiallyOpen: widget.only != null || n == Nomenclator.vehicleTypes,
               builder: (i) => ListenableBuilder(
                 listenable: _marks,
                 builder: (context, _) => InfoCard(
@@ -151,6 +164,18 @@ class _NomenclatorFormState extends State<NomenclatorForm> {
   late final _standing = TextEditingController(text: '${widget.item?.standing ?? 0}');
   late String? _applicationType = widget.item?.applicationType;
   late bool _active = widget.item?.active ?? true;
+  late final List<Object?> _initial = _snapshot();
+  bool _leaving = false;
+
+  List<Object?> _snapshot() => [_name.text, _description.text, _observation.text, _seats.text, _standing.text, _applicationType, _active];
+
+  bool get _dirty => !_leaving && !listEquals(_initial, _snapshot());
+
+  @override
+  void initState() {
+    super.initState();
+    _initial;
+  }
 
   String get _type => widget.nomenclator.type;
 
@@ -172,23 +197,29 @@ class _NomenclatorFormState extends State<NomenclatorForm> {
       } else {
         await api.patch('/$_type/${widget.item!.id}', resourceData(_type, id: widget.item!.id, attributes: attributes));
       }
-    }, success: 'Guardado.');
-    if (ok && mounted) Navigator.pop(context, true);
+    }, success: widget.nomenclator.done(widget.item == null ? 'cread' : 'actualizad'));
+    if (ok && mounted) {
+      _leaving = true;
+      Navigator.pop(context, true);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final total = (int.tryParse(_seats.text) ?? 0) + (int.tryParse(_standing.text) ?? 0);
-    return AppScaffold(
+    return LeaveGuard(
+      dirty: () => _dirty,
+      child: AppScaffold(
       title: widget.nomenclator.title,
-      tab: MainTab.more,
+      tab: MainTab.management,
       actions: () => [ActionItem(Icons.save_outlined, 'Guardar', _save)],
       body: Form(
         key: _form,
+        onChanged: () => setState(() {}),
         child: ListView(padding: const EdgeInsets.only(top: 8, bottom: 96), children: [
           FormText(controller: _name, label: 'Nombre', validator: (v) => requiredText(v, 'Escriba el nombre')),
           FormText(controller: _description, label: 'Descripción', maxLines: 2),
-          FormText(controller: _observation, label: 'Observación', maxLines: 2),
+          FormText(controller: _observation, label: 'Observación', maxLines: 2, last: _type != 'vehicle-types'),
           if (_type == 'vehicle-types') ...[
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
@@ -196,6 +227,7 @@ class _NomenclatorFormState extends State<NomenclatorForm> {
                 controller: _seats,
                 decoration: const InputDecoration(labelText: 'Asientos'),
                 keyboardType: TextInputType.number,
+                textInputAction: TextInputAction.next,
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 onChanged: (_) => setState(() {}),
               ),
@@ -206,6 +238,7 @@ class _NomenclatorFormState extends State<NomenclatorForm> {
                 controller: _standing,
                 decoration: const InputDecoration(labelText: 'De pie'),
                 keyboardType: TextInputType.number,
+                textInputAction: TextInputAction.done,
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 onChanged: (_) => setState(() {}),
               ),
@@ -229,6 +262,7 @@ class _NomenclatorFormState extends State<NomenclatorForm> {
           ActiveSwitch(value: _active, onChanged: (v) => setState(() => _active = v)),
         ]),
       ),
+    ),
     );
   }
 }

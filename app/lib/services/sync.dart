@@ -66,7 +66,9 @@ class SyncService {
     return json['id'] == null ? null : NextTrip.fromJson(json);
   }
 
-  static Future<SyncResult> run(ApiClient api, {bool notify = true}) async {
+  /// [foreground]: la app está abierta; las notificaciones se muestran dentro
+  /// de ella y no en el teléfono (docs/11 §11.56).
+  static Future<SyncResult> run(ApiClient api, {bool notify = true, bool foreground = false}) async {
     final me = await Storage.getJson(meKey);
     var cursor = await Storage.getString(_cursorKey);
     final changed = <String>{};
@@ -76,7 +78,7 @@ class SyncService {
       for (final n in document.resources) {
         if (notify && cursor != null) {
           await Notifications.showServer(n.string('kind') ?? '', n.string('title') ?? 'MiRuta', n.string('body') ?? '',
-              Map<String, dynamic>.from(n.attributes['data'] as Map? ?? const {}));
+              Map<String, dynamic>.from(n.attributes['data'] as Map? ?? const {}), foreground: foreground);
         }
       }
       meta = document.meta;

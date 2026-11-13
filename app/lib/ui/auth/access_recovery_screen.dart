@@ -121,6 +121,7 @@ class _AccessRecoveryScreenState extends State<AccessRecoveryScreen> {
         controller: _identityCard,
         decoration: const InputDecoration(labelText: 'Carné de identidad', hintText: 'p. ej. 85031512345', prefixIcon: Icon(Icons.badge_outlined)),
         keyboardType: TextInputType.number,
+        textInputAction: TextInputAction.next,
         inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(IdentityCard.length)],
         autovalidateMode: AutovalidateMode.onUserInteraction,
         validator: IdentityCard.validate,
@@ -130,6 +131,7 @@ class _AccessRecoveryScreenState extends State<AccessRecoveryScreen> {
         controller: _phone,
         decoration: const InputDecoration(labelText: 'Teléfono', hintText: 'p. ej. +53 5 123 4567', prefixIcon: Icon(Icons.phone_outlined)),
         keyboardType: TextInputType.phone,
+        textInputAction: TextInputAction.done,
         autovalidateMode: AutovalidateMode.onUserInteraction,
         validator: (v) => RegExp(r'^\+?[0-9 ()\-]{7,20}$').hasMatch(v?.trim() ?? '') && (v ?? '').replaceAll(RegExp(r'\D'), '').length >= 7
             ? null

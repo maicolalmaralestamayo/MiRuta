@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:workmanager/workmanager.dart';
 
 import 'core/api_client.dart';
+import 'core/storage.dart';
 import 'services/notifications.dart';
 import 'services/session.dart';
 import 'services/sync.dart';
@@ -20,6 +21,8 @@ import 'ui/theme.dart';
 void callbackDispatcher() {
   Workmanager().executeTask((task, inputData) async {
     try {
+      // Con la app abierta consulta ella (y muestra los avisos dentro).
+      if (await Storage.isForeground()) return true;
       await Notifications.init();
       await initializeDateFormatting('es');
       await SyncService.run(await ApiClient.create());

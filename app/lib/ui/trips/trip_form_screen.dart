@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -9,6 +10,7 @@ import '../navigation.dart';
 import '../widgets/actions.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/cards.dart';
+import '../widgets/busy.dart';
 import '../widgets/common.dart';
 import '../widgets/data_view.dart';
 import 'trip_line_screen.dart';
@@ -44,6 +46,14 @@ class _TripFormScreenState extends State<TripFormScreen> {
   final _observation = TextEditingController();
   String? _loadedId;
 
+  /// Valores cargados, para «Salir sin guardar».
+  List<Object?>? _initial;
+  bool _editable = false;
+
+  List<Object?> _snapshot() => [_date, _time, _vehicleType, _observation.text];
+
+  bool get _dirty => _editable && _initial != null && !listEquals(_initial, _snapshot());
+
   Future<(Trip, List<NomenclatorItem>)> _load() async {
     final api = context.read<Session>().api;
     final typesFuture = _vehicleTypes(context);
@@ -55,7 +65,9 @@ class _TripFormScreenState extends State<TripFormScreen> {
       _time = _parseTime(trip.departureTime);
       _vehicleType = trip.vehicleTypeId;
       _observation.text = trip.observation ?? '';
+      _initial = _snapshot();
     }
+    _editable = mounted && _canManage(trip) && trip.isPlanned;
     return (trip, types);
   }
 
@@ -70,14 +82,21 @@ class _TripFormScreenState extends State<TripFormScreen> {
       'departureTime': _hhmm(_time!),
       'observation': _observation.text.trim().isEmpty ? null : _observation.text.trim(),
     }, relationships: {'vehicleType': ResourceId('vehicle-types', _vehicleType!)}));
-    if (mounted) showMessage(context, 'Viaje guardado.');
+    _initial = _snapshot();
+    if (mounted) showResult(ScaffoldMessenger.of(context), 'Viaje actualizado');
     _view.currentState?.reload();
   }
 
   Future<void> _status(Trip t, String status, String verb) async {
-    if (!await confirm(context, verb, '¿$verb el ${t.title.toLowerCase()}?', accept: verb, icon: Icons.check, destructive: status == TripStatus.cancelled)) return;
+    final cancelling = status == TripStatus.cancelled;
+    if (!await confirm(context, '$verb viaje', '¿$verb el ${t.title.toLowerCase()}?',
+        accept: '$verb viaje', icon: Icons.check, destructive: cancelling, headerIcon: cancelling ? Icons.cancel_outlined : Icons.directions_bus_outlined,
+        cancel: 'Volver', cancelIcon: Icons.arrow_back)) {
+      return;
+    }
     if (!mounted) return;
     await context.read<Session>().api.patch('/trips/${t.id}', resourceData('trips', id: t.id, attributes: {'status': status}));
+    if (mounted) showResult(ScaffoldMessenger.of(context), const {TripStatus.running: 'Viaje empezado', TripStatus.finished: 'Viaje terminado', TripStatus.cancelled: 'Viaje cancelado'}[status] ?? 'Viaje actualizado');
     _view.currentState?.reload();
   }
 
@@ -89,7 +108,7 @@ class _TripFormScreenState extends State<TripFormScreen> {
     final cause = await pickOne<NomenclatorItem>(context, 'Causa de la detención', [none, ...causes], (c) => c.name);
     if (cause == null) return;
     await api.patch('/trips/${t.id}', resourceData('trips', id: t.id, relationships: {'detentionCause': cause.id.isEmpty ? null : ResourceId('detention-causes', cause.id)}));
-    if (mounted) showMessage(context, 'Causa indicada.');
+    if (mounted) showResult(ScaffoldMessenger.of(context), 'Causa indicada');
   }
 
   List<ActionItem> _actions() {
@@ -112,6 +131,8 @@ class _TripFormScreenState extends State<TripFormScreen> {
           if (!await confirmDelete(context, 'el ${t.title.toLowerCase()}')) return;
           if (!mounted) return;
           await context.read<Session>().api.delete('/trips/${t.id}');
+          _editable = false;
+          if (mounted) showResult(ScaffoldMessenger.of(context), 'Viaje eliminado');
           if (mounted) Navigator.pop(context, true);
         }, destructive: true),
     ];
@@ -119,7 +140,9 @@ class _TripFormScreenState extends State<TripFormScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return AppScaffold(
+    return LeaveGuard(
+      dirty: () => _dirty,
+      child: AppScaffold(
       title: 'Viaje',
       tab: MainTab.trips,
       actions: _actions,
@@ -176,13 +199,14 @@ class _TripFormScreenState extends State<TripFormScreen> {
                       decoration: const InputDecoration(labelText: 'Tipo de vehículo', suffixIcon: Icon(Icons.lock_outline, size: 18)),
                     ),
             ),
-            FormText(controller: _observation, label: 'Observación', readOnly: !edit, maxLines: 2),
+            FormText(controller: _observation, label: 'Observación', readOnly: !edit, maxLines: 2, last: true, onChanged: (_) => setState(() {})),
             FormText(label: 'Estado', value: TripStatus.name(t.status), readOnly: true),
             FormText(label: 'Ocupación prevista', value: t.occupancy, readOnly: true),
             if (t.myState != null) FormText(label: 'Mi estado', value: WorkerState.name(t.myState), readOnly: true),
           ]);
         },
       ),
+    ),
     );
   }
 }
@@ -214,6 +238,12 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
   String? _outboundType;
   String? _returnType;
   final _observation = TextEditingController();
+  List<Object?>? _initial;
+  bool _planned = false;
+
+  List<Object?> _snapshot() => [_itinerary?.id, _date, _outbound, _return, _outboundTime, _returnTime, _outboundType, _returnType, _observation.text];
+
+  bool get _dirty => !_planned && _initial != null && !listEquals(_initial, _snapshot());
 
   @override
   void initState() {
@@ -235,6 +265,7 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
         _itinerary = list.where((i) => i.id == widget.itineraryId).firstOrNull ?? (list.length == 1 ? list.first : null);
         _outboundType = types.firstOrNull?.id;
         _returnType = types.firstOrNull?.id;
+        _initial = _snapshot();
       });
     } catch (error) {
       if (mounted) showError(context, error);
@@ -262,7 +293,8 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
       created.add(direction);
     }
     if (!mounted) return;
-    showMessage(context, created.length == 2 ? 'Viajes de ida y regreso planificados.' : 'Viaje de ${created.first} planificado.');
+    _planned = true;
+    showResult(ScaffoldMessenger.of(context), created.length == 2 ? 'Viajes planificados' : 'Viaje planificado');
     Navigator.pop(context, true);
   }
 
@@ -297,7 +329,9 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return AppScaffold.list(
+    return LeaveGuard(
+      dirty: () => _dirty,
+      child: AppScaffold.list(
       title: 'Planificar viaje',
       tab: MainTab.trips,
       actions: () => [ActionItem(Icons.event_available, 'Planificar', _plan)],
@@ -324,8 +358,9 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
         ),
         _leg('Ida', _outbound, (v) => setState(() => _outbound = v), _outboundTime, (v) => setState(() => _outboundTime = v), _outboundType, (v) => setState(() => _outboundType = v)),
         _leg('Regreso', _return, (v) => setState(() => _return = v), _returnTime, (v) => setState(() => _returnTime = v), _returnType, (v) => setState(() => _returnType = v)),
-        FormText(controller: _observation, label: 'Observación', maxLines: 2),
+        FormText(controller: _observation, label: 'Observación', maxLines: 2, last: true),
       ],
+    ),
     );
   }
 }

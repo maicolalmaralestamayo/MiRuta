@@ -53,7 +53,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     context.api.get('/registration-status').then((d) {
       if (mounted) setState(() => _adminExists = d.resource.boolean('adminExists'));
     }).catchError((_) {});
-    _suggestPassword();
   }
 
   @override
@@ -63,19 +62,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
       c.dispose();
     }
     super.dispose();
-  }
-
-  Future<void> _suggestPassword() async {
-    try {
-      final password = (await context.api.get('/password-suggestion')).resource.string('password') ?? '';
-      if (!mounted || password.isEmpty) return;
-      setState(() {
-        _password.text = password;
-        _confirmation.text = password;
-      });
-    } catch (_) {
-      // Sin conexión: la escribe la persona.
-    }
   }
 
   /// Propone el usuario al escribir los nombres (si la persona no lo cambió).
@@ -175,6 +161,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               errorMaxLines: 3,
             ),
             keyboardType: TextInputType.visiblePassword,
+            textInputAction: TextInputAction.next,
             autocorrect: false,
             enableSuggestions: false,
             inputFormatters: [LengthLimitingTextInputFormatter(Username.maxLength)],
@@ -185,12 +172,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
             },
             validator: validateUsername,
           )),
-          Padding(padding: const EdgeInsets.fromLTRB(16, 6, 16, 0), child: PasswordFields(password: _password, confirmation: _confirmation, initiallyVisible: true)),
-          const SizedBox(height: 4),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton.icon(onPressed: _suggestPassword, icon: const Icon(Icons.autorenew), label: const Text('Proponer otra contraseña')),
-          ),
+          // La contraseña la escribe la persona: la app solo comprueba los requisitos (docs/11 §11.56).
+          Padding(padding: const EdgeInsets.fromLTRB(16, 6, 16, 0), child: PasswordFields(password: _password, confirmation: _confirmation)),
           if (_error != null && (!fieldErrors || _error!.hasCode('IDENTITY_CARD_TAKEN'))) ...[
             const SizedBox(height: 4),
             Padding(padding: const EdgeInsets.symmetric(horizontal: 16), child: Text(_errorText, style: TextStyle(color: Theme.of(context).colorScheme.error))),

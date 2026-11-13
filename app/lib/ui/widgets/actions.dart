@@ -126,13 +126,13 @@ class _ActionsOverlayState extends State<ActionsOverlay> {
 
   void _toggle() => setState(() => _open = !_open);
 
+  /// Cada acción con el spinner de las operaciones con el servidor
+  /// (docs/11 §11.56): solo se ve mientras se conecta.
   Future<void> _run(ActionItem item) async {
     setState(() => _open = false);
-    try {
-      await item.onPressed?.call();
-    } catch (error) {
-      if (mounted) showError(context, error);
-    }
+    final action = item.onPressed;
+    if (action == null) return;
+    await runAction(context, () async => await action());
   }
 
   @override

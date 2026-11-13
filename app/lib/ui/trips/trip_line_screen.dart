@@ -42,10 +42,10 @@ class _TripLineScreenState extends State<TripLineScreen> with WidgetsBindingObse
   Session get _session => context.read<Session>();
 
   /// Viaja en este viaje (tiene parada en su itinerario).
-  Membership? get _membership {
+  Placement? get _membership {
     final trip = _trip;
     if (trip == null) return null;
-    return _session.me?.memberships.where((m) => m.itineraryId == trip.itineraryId && m.stopId != null).firstOrNull;
+    return _session.me?.placements.where((p) => p.itineraryId == trip.itineraryId && p.stopId != null).firstOrNull;
   }
 
   @override
@@ -145,7 +145,8 @@ class _TripLineScreenState extends State<TripLineScreen> with WidgetsBindingObse
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
-          title: const Text('¿Con qué hijos sube?'),
+          icon: const Icon(Icons.child_care, size: 32),
+          title: const Text('¿Con qué hijos sube?', textAlign: TextAlign.center),
           content: Column(mainAxisSize: MainAxisSize.min, children: [
             for (final c in children)
               CheckboxListTile(
@@ -170,10 +171,11 @@ class _TripLineScreenState extends State<TripLineScreen> with WidgetsBindingObse
       final answer = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text('No voy en este viaje'),
-          content: const Text('¿Tampoco irá en el regreso?'),
+          icon: const Icon(Icons.block, size: 32),
+          title: const Text('No voy en este viaje', textAlign: TextAlign.center),
+          content: const Text('¿Tampoco irá en el regreso?', textAlign: TextAlign.center),
           actions: [
-            cancelButton(context),
+            cancelButton(context, label: 'Volver', icon: Icons.arrow_back),
             TextButton.icon(onPressed: () => Navigator.pop(context, false), icon: const Icon(Icons.east), label: const Text('Solo la ida')),
             FilledButton.icon(onPressed: () => Navigator.pop(context, true), icon: const Icon(Icons.block), label: const Text('Tampoco')),
           ],
@@ -181,7 +183,7 @@ class _TripLineScreenState extends State<TripLineScreen> with WidgetsBindingObse
       );
       if (answer == null) return;
       alsoReturn = answer;
-    } else if (!await confirm(context, 'No voy en este viaje', '¿Confirma que no irá en este viaje de regreso?', accept: 'No voy', icon: Icons.block)) {
+    } else if (!await confirm(context, 'No voy en este viaje', '¿Confirma que no irá en este viaje de regreso?', accept: 'No voy', icon: Icons.block, headerIcon: Icons.block, cancel: 'Volver', cancelIcon: Icons.arrow_back)) {
       return;
     }
     await _report(WorkerState.notGoing);

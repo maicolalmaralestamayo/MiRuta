@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/formats.dart';
 import '../../services/session.dart';
+import 'app_scaffold.dart';
 import 'common.dart';
 
 /// Carga datos y los vuelve a cargar con el botón Actualizar o cuando GET
@@ -16,7 +17,11 @@ class DataView<T> extends StatefulWidget {
   /// Clave para recordar lo último cargado mientras la app está abierta.
   final String? cacheKey;
 
-  const DataView({super.key, required this.load, required this.builder, this.kinds = const {}, this.cacheKey});
+  /// Datos que mostrar si la primera carga falla (p. ej. Inicio sin conexión,
+  /// con lo que ya se sabe de la persona), con el aviso de sin conexión.
+  final T? fallback;
+
+  const DataView({super.key, required this.load, required this.builder, this.kinds = const {}, this.cacheKey, this.fallback});
 
   @override
   State<DataView<T>> createState() => DataViewState<T>();
@@ -31,6 +36,7 @@ class DataViewState<T> extends State<DataView<T>> {
   bool _loading = true;
   int _revision = 0;
   Session? _session;
+  RefreshRegistry? _registry;
 
   /// Lo último cargado, si lo hay.
   T? get data => _data;
@@ -57,8 +63,20 @@ class DataViewState<T> extends State<DataView<T>> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Se apunta al botón Actualizar de su pantalla.
+    final registry = RefreshScope.maybeOf(context);
+    if (registry != _registry) {
+      _registry?.remove(reload);
+      _registry = registry?..add(reload);
+    }
+  }
+
+  @override
   void dispose() {
     _session?.removeListener(_onSession);
+    _registry?.remove(reload);
     super.dispose();
   }
 
@@ -85,7 +103,7 @@ class DataViewState<T> extends State<DataView<T>> {
 
   @override
   Widget build(BuildContext context) {
-    final data = _data;
+    final data = _data ?? (_error != null ? widget.fallback : null);
     if (data == null) {
       if (_error != null) return ErrorView(message: errorText(_error), onRetry: reload);
       return const Center(child: CircularProgressIndicator());
@@ -98,7 +116,7 @@ class DataViewState<T> extends State<DataView<T>> {
         child: ListTile(
           dense: true,
           leading: const Icon(Icons.cloud_off, color: amber),
-          title: Text('Sin conexión: datos del ${formatDateTime(_loadedAt)}'),
+          title: Text(_loadedAt == null ? errorText(_error) : 'Sin conexión: datos del ${formatDateTime(_loadedAt)}'),
           trailing: IconButton(tooltip: 'Reintentar', icon: const Icon(Icons.refresh), onPressed: reload),
         ),
       ),
