@@ -1597,3 +1597,8 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
   «un único itinerario por Entidad»). Las personas **sí pueden estar sueltas** (sin Entidad o sin itinerario): para
   eso están las solicitudes. El Administrador puede aprobar **más de una Entidad y más de un itinerario** para la
   misma persona.
+- **Corrección** (13/11/2026; sustituye lo anterior de esta sección sobre itinerarios y paradas sueltos): el sistema
+  **sí permite itinerarios y paradas sueltos**. Un itinerario pertenece **como mucho a una Entidad** (puede no tener
+  ninguna); una parada puede estar en **varios itinerarios o en ninguno**. Vuelven a mostrarse «itinerarios sin
+  Entidad» y «paradas sin itinerario» en sus pantallas de gestión (§11.57). Quitar una parada de su último itinerario
+  o eliminar un itinerario **no elimina** las paradas: quedan sueltas.
