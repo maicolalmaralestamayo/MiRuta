@@ -1660,3 +1660,6 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
   - **«Dormido» no apareció:** según lo acordado, Dormido solo existe en el **regreso**; en la ida todos suben en la
     primera parada y «En la parada» significa estar en la primera parada. Pendiente de decidir qué pasa en la ida con
     quien espera en **su** parada (no en la primera).
+  - **Decisión** (13/11/2026): en la **ida todos suben en la primera parada**, como estaba acordado. Se corrigen el
+    «En movimiento» sin datos y se muestra en la app **por qué un teléfono no es sensor** (p. ej. «No está Viajando»,
+    «App cerrada», «Sin GPS», «Sin enviar desde hh:mm»).
