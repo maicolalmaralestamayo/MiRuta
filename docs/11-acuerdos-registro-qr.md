@@ -1854,3 +1854,5 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
   4. **Solicitudes**: una de pendientes (Administrador / Jefe) y una por cada respuesta a las propias.
   5. **Mensajes**: una de respuestas del desarrollador.
   6. **Actualizaciones**: una de versión disponible/obligatoria.
+- **Notificaciones: revisión final aceptada** (15/11/2026): el usuario dio el visto bueno al conjunto completo
+  (29 variantes en 6 canales) tal como se describe arriba.
