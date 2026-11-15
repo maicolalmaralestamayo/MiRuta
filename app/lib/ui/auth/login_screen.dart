@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:ota_update/ota_update.dart';
 import 'package:provider/provider.dart';
@@ -10,6 +12,7 @@ import '../../services/session.dart';
 import '../../services/theme_controller.dart';
 import '../navigation.dart';
 import '../widgets/app_icon.dart';
+import '../widgets/app_scaffold.dart';
 import '../widgets/common.dart';
 import '../widgets/connection_dot.dart';
 import 'access_recovery_screen.dart';
@@ -38,6 +41,12 @@ class _LoginScreenState extends State<LoginScreen> {
   AppUpdate? _mandatory;
   String _version = '';
 
+  /// Comprobación de la conexión cada 30 s mientras la pantalla está abierta
+  /// (docs/11 §11.63), con su cuenta atrás.
+  static const _checkEvery = Duration(seconds: 30);
+  Timer? _checkTimer;
+  DateTime? _nextCheck;
+
   @override
   void initState() {
     super.initState();
@@ -51,7 +60,29 @@ class _LoginScreenState extends State<LoginScreen> {
       if (mounted) setState(() => _version = v);
     });
     _checkUpdate();
+    _checkConnection();
+  }
+
+  @override
+  void dispose() {
+    _checkTimer?.cancel();
+    _username.dispose();
+    _password.dispose();
+    super.dispose();
+  }
+
+  /// Comprueba la conexión ahora y programa la siguiente dentro de 30 s.
+  void _checkConnection() {
     context.read<Session>().connection.check();
+    _scheduleCheck();
+  }
+
+  void _scheduleCheck() {
+    _checkTimer?.cancel();
+    _checkTimer = Timer(_checkEvery, () {
+      if (mounted) _checkConnection();
+    });
+    if (mounted) setState(() => _nextCheck = DateTime.now().add(_checkEvery));
   }
 
   /// La obligación guardada y, con conexión, la comprobación en el servidor.
@@ -79,6 +110,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (mounted) {
       setState(() {});
       _checkUpdate();
+      _checkConnection();
     }
   }
 
@@ -87,6 +119,8 @@ class _LoginScreenState extends State<LoginScreen> {
     if (await _needServer()) return;
     if (!_form.currentState!.validate()) return;
     setState(() => _error = null);
+    // Entrar también comprueba la conexión: la cuenta atrás vuelve a empezar.
+    _scheduleCheck();
     try {
       await session.login(_username.text, _password.text, remember: _remember);
     } on ApiException catch (error) {
@@ -117,7 +151,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     ? OutlinedButton.icon(onPressed: _openServer, icon: const Icon(Icons.dns_outlined), label: const Text('Servidor'))
                     : FilledButton.icon(
                         onPressed: _openServer, style: FilledButton.styleFrom(backgroundColor: red), icon: const Icon(Icons.dns_outlined), label: const Text('Servidor')),
-                const ConnectionDot(onBar: false),
+                CountdownLabel(next: hasServer ? _nextCheck : null, onTap: _checkConnection, tooltip: 'Próxima comprobación de la conexión'),
+                ConnectionDot(onBar: false, onCheck: _checkConnection),
               ]),
             ),
             const SizedBox(height: 28),

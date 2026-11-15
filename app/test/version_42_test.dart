@@ -113,8 +113,11 @@ void main() {
   testWidgets('tema claro, oscuro o automático (se guarda en el teléfono)', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: Scaffold(body: Center(child: ThemeModeSelector()))));
     expect(ThemeController.mode.value, ThemeMode.system);
-    await tester.tap(find.byIcon(Icons.dark_mode_outlined));
-    await tester.pump();
+    // Un solo botón (docs/11 §11.63) que abre el menú.
+    await tester.tap(find.byIcon(Icons.settings_suggest_outlined));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Oscuro'), warnIfMissed: false);
+    await tester.pumpAndSettle();
     expect(ThemeController.mode.value, ThemeMode.dark);
     expect((await SharedPreferences.getInstance()).getString('app.theme_mode'), 'dark');
     await ThemeController.set(ThemeMode.system);

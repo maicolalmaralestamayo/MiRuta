@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/models.dart';
+import '../../services/notifications.dart';
 import '../../services/session.dart';
 import '../../services/theme_controller.dart';
 import '../../services/tracking/trip_permissions.dart';
@@ -56,23 +57,6 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Ausencias en curso (para «Terminar ausencia»).
   List<Absence> _absences = const [];
 
-  Future<void> _chooseTheme() async {
-    await showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        icon: const Icon(Icons.contrast, size: 32),
-        title: const Text('Tema', textAlign: TextAlign.center),
-        content: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Text('Claro, oscuro o automático (según el teléfono).', textAlign: TextAlign.center),
-          const SizedBox(height: 16),
-          const ThemeModeSelector(compact: false),
-        ]),
-        actionsAlignment: MainAxisAlignment.center,
-        actions: [cancelButton(context, label: 'Cerrar', icon: Icons.check)],
-      ),
-    );
-  }
-
   Future<_HomeData> _load() async {
     final session = _session;
     final api = session.api;
@@ -91,10 +75,11 @@ class _HomeScreenState extends State<HomeScreen> {
         ? (await api.getAll('/absences', query: {'filter[user]': me.userId, 'filter[current]': 'true'})).map(Absence.from).toList()
         : <Absence>[];
     _absences = absences;
-    // Abrió Inicio: sus solicitudes resueltas quedan vistas.
+    // Abrió Inicio: sus solicitudes resueltas quedan vistas (y se quitan sus notificaciones).
     if ((session.counters['applicationsResolvedUnseen'] ?? 0) > 0) {
       api.post('/me/applications-seen', const {}).then((_) => session.sync()).catchError((_) {});
     }
+    Notifications.resolvedSeen();
     final upcoming = (await TripWindow.current(settings: session.settings)).isNotEmpty;
     final needsPermissions = upcoming && !(await TripPermissions.check()).complete;
     return _HomeData(applications, TripList(trips.trips.where((t) => mine.contains(t.itineraryId)).toList(), trips.ends), children, absences, needsPermissions);
@@ -141,7 +126,6 @@ class _HomeScreenState extends State<HomeScreen> {
       ActionItem(Icons.person_add_alt_1, 'Añadir hijo', () => _open(() => push(context, const ChildForm()))),
       if (me.hasItinerary) ActionItem(Icons.event_busy, 'Declarar ausencia', () => _change(() => ops.declareAbsence(me.userId, me.placements))),
       if (_absences.isNotEmpty) ActionItem(Icons.event_available, 'Terminar ausencia', () => _change(() => ops.endAbsence(_absences))),
-      ActionItem(Icons.contrast, 'Tema: claro, oscuro o automático', _chooseTheme),
       const ActionItem.divider(),
       ActionItem(Icons.logout, 'Cerrar sesión', () async {
         if (await confirm(context, 'Cerrar sesión', '¿Cerrar la sesión en este teléfono?', accept: 'Cerrar sesión', icon: Icons.logout, destructive: true, headerIcon: Icons.logout) &&
@@ -171,6 +155,8 @@ class _HomeScreenState extends State<HomeScreen> {
       title: 'Inicio',
       tab: MainTab.home,
       actions: _actions,
+      // Tema en un solo botón (docs/11 §11.63), igual que en el inicio de sesión.
+      barActions: const [ThemeModeSelector(color: Colors.white)],
       body: DataView<_HomeData>(
         key: _view,
         kinds: const {'applications', 'trips', 'children', 'absences'},

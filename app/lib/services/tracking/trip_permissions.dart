@@ -24,6 +24,10 @@ class TripPermissions {
   /// Puede usar la ubicación con la app abierta.
   bool get foreground => locationOn && (permission == LocationPermission.always || permission == LocationPermission.whileInUse);
 
+  /// Tiene algún permiso de ubicación (con el GPS encendido o no): el
+  /// servicio de la ventana de viaje puede arrancar.
+  bool get granted => permission == LocationPermission.always || permission == LocationPermission.whileInUse;
+
   /// Ubicación «Permitir todo el tiempo».
   bool get always => permission == LocationPermission.always;
 

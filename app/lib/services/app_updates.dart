@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:ota_update/ota_update.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -45,7 +46,6 @@ class AppUpdates {
   /// La obligación se recuerda en el teléfono aunque no haya conexión (no
   /// empieza por «user.»: no se borra al cerrar la sesión).
   static const _mandatoryKey = 'update.mandatory';
-  static const _notifiedKey = 'update.notified_code';
   static const _channel = MethodChannel('mitransporte/app');
 
   static Future<int> currentVersionCode() async => int.tryParse((await PackageInfo.fromPlatform()).buildNumber) ?? 0;
@@ -114,13 +114,9 @@ class AppUpdates {
         sha256checksum: update.sha256,
       );
 
-  /// Para avisar de cada versión una sola vez.
-  static Future<bool> shouldNotify(int versionCode) async {
-    final notified = int.tryParse(await Storage.getString(_notifiedKey) ?? '') ?? 0;
-    if (notified >= versionCode) return false;
-    await Storage.setString(_notifiedKey, '$versionCode');
-    return true;
-  }
+  /// «Descargar e instalar» pedido desde la notificación de actualización
+  /// (la pantalla Más lo atiende).
+  static final installRequested = ValueNotifier<int>(0);
 
   /// «Compartir la app»: el APK instalado si es del tipo pedido; si no, el del servidor.
   static Future<void> share(ApiClient api, {required bool arm64}) async {

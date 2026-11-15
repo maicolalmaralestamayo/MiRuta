@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import '../core/storage.dart';
 
 /// Tema de la app (docs/11 §11.62): claro, oscuro o automático (según el
-/// teléfono, por omisión). Se elige en el inicio de sesión y en Inicio →
-/// Acciones → «Tema»; se guarda en el teléfono (no se borra al cerrar sesión).
+/// teléfono, por omisión). Se elige con un solo botón en el inicio de sesión
+/// y en la barra de Inicio (docs/11 §11.63); se guarda en el teléfono (no se borra al cerrar sesión).
 class ThemeController {
   static const _key = 'app.theme_mode';
 
@@ -26,34 +26,37 @@ class ThemeController {
   }
 }
 
-/// Selector Claro · Oscuro · Automático (íconos sol, luna y engranaje).
+/// Selector de tema en un solo botón (docs/11 §11.63): muestra el icono del
+/// modo actual y al tocarlo abre un menú con Claro, Oscuro y Automático.
 class ThemeModeSelector extends StatelessWidget {
-  final bool compact;
+  /// Color del icono (p. ej. blanco sobre la barra).
+  final Color? color;
 
-  const ThemeModeSelector({super.key, this.compact = true});
+  const ThemeModeSelector({super.key, this.color});
+
+  static IconData iconOf(ThemeMode m) => switch (m) {
+        ThemeMode.light => Icons.light_mode_outlined,
+        ThemeMode.dark => Icons.dark_mode_outlined,
+        ThemeMode.system => Icons.settings_suggest_outlined,
+      };
 
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<ThemeMode>(
       valueListenable: ThemeController.mode,
-      builder: (context, current, _) => SegmentedButton<ThemeMode>(
-        showSelectedIcon: false,
-        style: const ButtonStyle(visualDensity: VisualDensity.compact, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-        segments: [
+      builder: (context, current, _) => PopupMenuButton<ThemeMode>(
+        tooltip: 'Tema: ${ThemeController.names[current]!.toLowerCase()}',
+        icon: Icon(iconOf(current), color: color),
+        initialValue: current,
+        onSelected: ThemeController.set,
+        itemBuilder: (context) => [
           for (final m in const [ThemeMode.light, ThemeMode.dark, ThemeMode.system])
-            ButtonSegment(
+            CheckedPopupMenuItem(
               value: m,
-              tooltip: 'Tema ${ThemeController.names[m]!.toLowerCase()}',
-              icon: Icon(switch (m) {
-                ThemeMode.light => Icons.light_mode_outlined,
-                ThemeMode.dark => Icons.dark_mode_outlined,
-                ThemeMode.system => Icons.settings_suggest_outlined,
-              }),
-              label: compact ? null : Text(ThemeController.names[m]!),
+              checked: m == current,
+              child: Row(children: [Icon(iconOf(m)), const SizedBox(width: 12), Text(ThemeController.names[m]!)]),
             ),
         ],
-        selected: {current},
-        onSelectionChanged: (s) => ThemeController.set(s.first),
       ),
     );
   }

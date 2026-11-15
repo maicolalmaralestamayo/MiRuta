@@ -128,13 +128,13 @@ void main() {
     // En el regreso el recorrido va al revés; su parada es la 2.ª del itinerario.
     final back = route.reversed.toList();
 
-    test('En la parada y sale a velocidad de vehículo: Recogido (sensor)', () {
+    test('En la parada y sale a velocidad de vehículo: Viajando (sensor, como en la ida)', () {
       final r = Run(WorkerTracker(outbound: false, route: back, myIndex: 1));
       r.at(1300);
       r.at(1050);
       expect(r.states, ['de_camino', 'en_parada']);
       r.at(850, passed: true, status: 'en_ejecucion');
-      expect(r.tracker.state, 'recogido');
+      expect(r.tracker.state, 'viajando');
       expect(r.tracker.isSensor, isTrue);
     });
 

@@ -15,7 +15,11 @@ class ConnectionDot extends StatelessWidget {
   /// Borde blanco (sobre la barra azul) o sin borde (pantalla de inicio de sesión).
   final bool onBar;
 
-  const ConnectionDot({super.key, this.onBar = true});
+  /// Comprobar la conexión al tocarlo (por omisión, la del monitor). El
+  /// inicio de sesión lo usa para reiniciar su cuenta atrás.
+  final VoidCallback? onCheck;
+
+  const ConnectionDot({super.key, this.onBar = true, this.onCheck});
 
   @override
   Widget build(BuildContext context) {
@@ -38,7 +42,11 @@ class ConnectionDot extends StatelessWidget {
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
           ..showSnackBar(SnackBar(content: Text(text)));
-        monitor.check();
+        if (onCheck != null) {
+          onCheck!();
+        } else {
+          monitor.check();
+        }
       },
       icon: Container(
         width: 12,

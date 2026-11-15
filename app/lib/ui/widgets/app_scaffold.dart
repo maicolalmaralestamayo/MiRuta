@@ -53,10 +53,35 @@ class AppScaffold extends StatefulWidget {
   /// Recarga de la pantalla con el botón Actualizar (además de sus DataView).
   final Future<void> Function()? onRefresh;
 
-  const AppScaffold({super.key, required this.title, this.subtitle, required this.body, this.actions, this.marks, this.tab = MainTab.home, this.bottom, this.background, this.onRefresh});
+  /// Botones de la barra antes de Actualizar (p. ej. el del tema en Inicio).
+  final List<Widget> barActions;
+
+  const AppScaffold(
+      {super.key,
+      required this.title,
+      this.subtitle,
+      required this.body,
+      this.actions,
+      this.marks,
+      this.tab = MainTab.home,
+      this.bottom,
+      this.background,
+      this.onRefresh,
+      this.barActions = const []});
 
   /// Contenido en lista, con espacio abajo para el botón Acciones.
-  AppScaffold.list({super.key, required this.title, this.subtitle, required List<Widget> children, this.actions, this.marks, this.tab = MainTab.home, this.bottom, this.background, this.onRefresh})
+  AppScaffold.list(
+      {super.key,
+      required this.title,
+      this.subtitle,
+      required List<Widget> children,
+      this.actions,
+      this.marks,
+      this.tab = MainTab.home,
+      this.bottom,
+      this.background,
+      this.onRefresh,
+      this.barActions = const []})
       : body = ListView(padding: const EdgeInsets.only(top: 4, bottom: 120), children: children);
 
   @override
@@ -88,7 +113,7 @@ class _AppScaffoldState extends State<AppScaffold> {
       title: subtitle == null
           ? Text(title)
           : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title), Text(subtitle!, style: const TextStyle(fontSize: 12, color: Colors.white))]),
-      actions: [if (ready) RefreshButton(onRefresh: _refresh), const SizedBox(width: 6), const ConnectionDot(), const SizedBox(width: 4)],
+      actions: [...widget.barActions, if (ready) RefreshButton(onRefresh: _refresh), const SizedBox(width: 6), const ConnectionDot(), const SizedBox(width: 4)],
     );
     final m = marks;
     if (m == null) return normal;
@@ -203,6 +228,61 @@ class _RefreshButtonState extends State<RefreshButton> {
               ]),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Cuenta atrás hasta la próxima comprobación sin sesión (docs/11 §11.63):
+/// «↻ 23 s» en el inicio de sesión (conexión con el servidor) y en Recuperar
+/// acceso (estado de la solicitud), como el de la barra con sesión. Al
+/// tocarlo comprueba ya ([onTap]).
+class CountdownLabel extends StatefulWidget {
+  final DateTime? next;
+  final VoidCallback? onTap;
+  final String tooltip;
+
+  const CountdownLabel({super.key, required this.next, this.onTap, this.tooltip = 'Próxima comprobación'});
+
+  @override
+  State<CountdownLabel> createState() => _CountdownLabelState();
+}
+
+class _CountdownLabelState extends State<CountdownLabel> {
+  Timer? _tick;
+
+  @override
+  void initState() {
+    super.initState();
+    _tick = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted && widget.next != null) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _tick?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final label = countdownText(widget.next);
+    if (label == null) return const SizedBox.shrink();
+    final color = Theme.of(context).colorScheme.onSurfaceVariant;
+    return Tooltip(
+      message: widget.tooltip,
+      child: InkWell(
+        customBorder: const StadiumBorder(),
+        onTap: widget.onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.refresh, size: 18, color: color),
+            const SizedBox(width: 2),
+            Text(label, style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.w700, fontFeatures: const [FontFeature.tabularFigures()])),
+          ]),
         ),
       ),
     );

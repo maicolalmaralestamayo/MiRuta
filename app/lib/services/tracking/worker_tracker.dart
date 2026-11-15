@@ -9,7 +9,7 @@
 /// 2. |d1 − d2| ≤ Tolerancia GPS → conserva el estado.
 /// 3. Se acerca (d2 < d1) → De camino a la parada.
 /// 4. Se aleja: si antes estuvo En la parada y la velocidad supera la
-///    Velocidad humana → Viajando (ida) / Recogido (regreso); si no → No voy a
+///    Velocidad humana → Viajando; si no → No voy a
 ///    viajar (definitivo a más de Distancia abandono).
 ///
 /// Ida: la parada de referencia es la primera. Viajando es semidefinitivo:
@@ -18,10 +18,11 @@
 ///
 /// Regreso: la referencia es su parada. Ida y regreso (docs/11 §11.61): cuando
 /// el vehículo pasó por la parada de referencia, si estaba En la parada y no
-/// está Viajando / Recogido → Botado; si llega después → Dormido. Tras
+/// está Viajando → Botado; si llega después → Dormido. Tras
 /// «Espera final» deja de calcular; si se aleja, No voy a viajar.
 ///
-/// Viajando (ida) y Recogido (regreso) convierten el teléfono en sensor del
+/// Viajando (ida y regreso; docs/11 §11.63: Viajando y Recogido unificados)
+/// convierte el teléfono en sensor del
 /// vehículo: Detenido / En movimiento (umbral: Tolerancia GPS), próxima parada
 /// y si está detenido en su radio.
 library;
@@ -166,14 +167,16 @@ class WorkerTracker {
 
   WorkerTracker({required this.outbound, required this.route, required this.myIndex, this.config = const TrackerConfig()});
 
-  static const finalStates = {'dejado', 'recogido'};
+  static const finalStates = {'dejado'};
 
   GeoPoint get reference => outbound ? route.first.point : route[myIndex].point;
 
-  bool get isSensor => outbound ? state == 'viajando' : state == 'recogido';
+  bool get isSensor => state == 'viajando';
 
   /// Estado declarado a mano por el trabajador (o recibido del servidor).
   void declare(String newState) {
+    // «recogido» (servidor o datos de la 4.2.0) es Viajando.
+    if (newState == 'recogido') newState = 'viajando';
     state = newState;
     if (newState == 'en_parada') reachedStop = true;
     slowCount = 0;
@@ -218,11 +221,11 @@ class WorkerTracker {
     final fast = (d2 - d1) / seconds > config.humanSpeed;
 
     // Botado / Dormido (docs/11 §11.61): si se aleja, No voy (o, si un Botado
-    // sale a velocidad de vehículo, sí subió: Viajando / Recogido); pasada la
+    // sale a velocidad de vehículo, sí subió: Viajando); pasada la
     // espera final, deja de calcular.
     if (state == 'botado' || state == 'dormido') {
       if (away) {
-        if (state == 'botado' && fast) return _change(outbound ? 'viajando' : 'recogido');
+        if (state == 'botado' && fast) return _change('viajando');
         definitive = true;
         finished = true;
         return _change('no_voy', finished: true);
@@ -236,12 +239,12 @@ class WorkerTracker {
 
     // El vehículo ya pasó por la parada de referencia (ida: salió de la
     // primera; regreso: pasó por la suya). Regla simplificada (docs/11 §11.61):
-    // Botado = estaba En la parada antes y no está Viajando / Recogido;
+    // Botado = estaba En la parada antes y no está Viajando;
     // Dormido = llega a En la parada después.
     if (passed) {
       passedAt ??= now;
       if (state == 'en_parada') {
-        if (away && fast) return _change(outbound ? 'viajando' : 'recogido');
+        if (away && fast) return _change('viajando');
         waitingSince = now;
         return _change('botado');
       }
@@ -268,7 +271,7 @@ class WorkerTracker {
     } else if (d2 < d1) {
       next = 'de_camino';
     } else if (reachedStop && (d2 - d1) / seconds > config.humanSpeed) {
-      next = outbound ? 'viajando' : 'recogido';
+      next = 'viajando';
     } else {
       next = 'no_voy';
       if (d2 > config.abandonDistance) {
@@ -374,7 +377,7 @@ class WorkerTracker {
       myIndex: (j['myIndex'] as num).toInt(),
       config: TrackerConfig.fromJson(Map<String, dynamic>.from(j['config'] as Map)),
     )
-      ..state = j['state'] as String?
+      ..state = j['state'] == 'recogido' ? 'viajando' : j['state'] as String?
       ..definitive = j['definitive'] == true
       ..finished = j['finished'] == true
       ..reachedStop = j['reachedStop'] == true

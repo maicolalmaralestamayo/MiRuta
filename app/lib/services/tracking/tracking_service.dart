@@ -10,6 +10,7 @@ import '../../core/json_api.dart';
 import '../../core/storage.dart';
 import '../../models/models.dart';
 import '../app_settings.dart';
+import '../notification_texts.dart';
 import '../notifications.dart';
 import '../sync.dart';
 import 'trip_window.dart';
@@ -23,14 +24,18 @@ import 'worker_tracker.dart';
 /// (y del vehículo si es sensor) y hace UNA sola petición,
 /// `POST trips/{id}/reports?cursor=N`, que envía los cambios pendientes (con
 /// acuse y reintento) y recibe la línea del recorrido y las novedades de
-/// GET sync. Mientras está activo hay una notificación fija.
+/// GET sync. Mientras está activo, su notificación fija es «Mi estado» y,
+/// con el viaje en ejecución, mantiene la del vehículo (docs/11 §11.63).
 class TrackingService {
   static const _key = 'tracking';
 
+  /// Lo tocado en «Mi estado» (gps, permiso o trip:N), para la app al abrirse.
+  static const tapKey = 'user.tracking.tap';
+
   static AndroidNotificationOptions get _notificationOptions => AndroidNotificationOptions(
-        channelId: 'recorrido',
-        channelName: 'Viaje en curso',
-        channelDescription: 'Se muestra mientras MiRuta usa la ubicación en la ventana de viaje',
+        channelId: Notifications.channelMyState,
+        channelName: 'Mi estado',
+        channelDescription: 'Su estado en el viaje mientras MiRuta usa la ubicación',
         onlyAlertOnce: true,
       );
 
@@ -53,8 +58,8 @@ class TrackingService {
   static String alarmPayload(String title, Duration every) => jsonEncode({
         'serviceTypes': [ForegroundServiceTypes.location.rawValue],
         ..._taskOptions(every).toJson(),
-        'notificationContentTitle': 'MiRuta: $title',
-        'notificationContentText': 'Ventana de viaje abierta',
+        'notificationContentTitle': 'Mi estado',
+        'notificationContentText': title,
         ..._notificationOptions.toJson(),
         'callbackHandle': PluginUtilities.getCallbackHandle(trackingCallback)?.toRawHandle(),
       });
@@ -107,13 +112,13 @@ class TrackingService {
     init(settings.windowEvery);
     await FlutterForegroundTask.startService(
       serviceTypes: [ForegroundServiceTypes.location],
-      notificationTitle: 'MiRuta: ${slot.trip.title}',
-      notificationText: 'Ventana de viaje abierta',
+      notificationTitle: 'Mi estado',
+      notificationText: itineraryLine(slot.trip.itineraryName, slot.trip.direction),
       callback: trackingCallback,
     );
   }
 
-  /// Los hijos que suben con él (se envían al pasar a Viajando o Recogido).
+  /// Los hijos que suben con él (se envían al pasar a Viajando).
   static Future<void> setChildren(List<String> childIds) async {
     final raw = await FlutterForegroundTask.getData<String>(key: _key);
     if (raw == null) return;
@@ -160,6 +165,19 @@ class TrackingHandler extends TaskHandler {
     _tick().catchError((_) {}).whenComplete(() => _busy = false);
   }
 
+  /// Tocar «Mi estado»: la app se abre y, sin GPS o sin «Permitir todo el
+  /// tiempo», lleva a los ajustes (docs/11 §11.63); si no, a la línea del recorrido.
+  @override
+  void onNotificationPressed() {
+    FlutterForegroundTask.getData<String>(key: TrackingService._key).then((raw) async {
+      final data = raw == null ? const {} : jsonDecode(raw) as Map;
+      final tap = '${data['tap'] ?? (data['tripId'] == null ? '' : 'trip:${data['tripId']}')}';
+      if (tap.isEmpty) return;
+      await Storage.setString(TrackingService.tapKey, tap);
+      FlutterForegroundTask.sendDataToMain({'tap': tap});
+    }).catchError((_) {});
+  }
+
   @override
   void onReceiveData(Object data) {
     // «Actualizar» en la app: conectar ahora.
@@ -185,6 +203,8 @@ class TrackingHandler extends TaskHandler {
       data = {
         'tripId': slot.trip.id,
         'title': slot.trip.title,
+        'itinerary': slot.trip.itineraryName,
+        'outbound': slot.trip.outbound,
         'end': slot.end.toIso8601String(),
         'tracker': null,
         'queue': <Map<String, dynamic>>[],
@@ -196,7 +216,6 @@ class TrackingHandler extends TaskHandler {
       data['end'] = slot.end.toIso8601String();
     }
     final tripId = '${data['tripId']}';
-    final title = '${data['title']}';
     final queue = [for (final q in (data['queue'] as List? ?? const [])) Map<String, dynamic>.from(q as Map)];
     final tripInfo = Map<String, dynamic>.from(data['trip'] as Map? ?? const {});
     final ended = data['endedAt'] == null ? null : DateTime.tryParse('${data['endedAt']}');
@@ -211,12 +230,18 @@ class TrackingHandler extends TaskHandler {
     var tracker = data['tracker'] == null ? null : WorkerTracker.fromJson(Map<String, dynamic>.from(data['tracker'] as Map));
     if (tracker == null && ended == null) {
       tracker = await _bootstrap(api, tripId, settings);
+      if (tracker != null && tracker.myIndex < tracker.route.length) data['myStop'] ??= tracker.route[tracker.myIndex].name;
     }
+
+    // GPS encendido y permiso «todo el tiempo» (para «Mi estado»).
+    final gpsOn = await _safe(Geolocator.isLocationServiceEnabled, true);
+    final permission = await _safe(Geolocator.checkPermission, LocationPermission.always);
 
     // GPS solo dentro de la ventana y mientras calcula.
     TrackerStep? step;
     bool? gps;
-    if (tracker != null && !tracker.finished && ended == null) {
+    if (!gpsOn && tracker != null && !tracker.finished && ended == null) gps = false;
+    if (gpsOn && tracker != null && !tracker.finished && ended == null) {
       try {
         final position = await Geolocator.getCurrentPosition(
           locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, timeLimit: Duration(seconds: 20)),
@@ -239,13 +264,9 @@ class TrackingHandler extends TaskHandler {
       queue.add({
         'workerState': state,
         if (step.stopId != null) 'stopId': int.tryParse(step.stopId!),
-        if ((state == 'viajando' || state == 'recogido' || state == 'en_parada') && childIds.isNotEmpty) 'childIds': [for (final id in childIds) int.tryParse(id) ?? 0],
+        if ((state == 'viajando' || state == 'en_parada') && childIds.isNotEmpty) 'childIds': [for (final id in childIds) int.tryParse(id) ?? 0],
         'reportedAt': now.toIso8601String(),
       });
-      await Notifications.showMyState(tripId, 'Mi estado: ${WorkerState.name(state)}', title);
-      if (state == 'botado' || state == 'dormido') {
-        await Notifications.showMyState(tripId, state == 'dormido' ? 'Llegó tarde a la parada' : 'El vehículo pasó sin recogerle', title);
-      }
     }
 
     // Una sola petición: el primer cambio pendiente, el sensor y, de paso, las novedades.
@@ -256,7 +277,6 @@ class TrackingHandler extends TaskHandler {
       'gps': ?gps,
       if (step != null && step.isSensor) ...{'vehicleState': step.vehicleState, 'nextStopIndex': step.nextStopIndex, 'atStop': step.atStop},
     };
-    final foreground = await Storage.isForeground(within: settings.windowEvery * 3);
     final cursor = await SyncService.cursor();
     try {
       final document = await api.post('/trips/$tripId/reports${cursor == null ? '' : '?cursor=$cursor'}', resourceData('trip-reports', attributes: attributes));
@@ -268,6 +288,10 @@ class TrackingHandler extends TaskHandler {
       tripInfo['passed'] = reference != null && reference.passed;
       tripInfo['next'] = live.nextStopIndex;
       data['sensors'] = live.sensors;
+      data['myStop'] = live.myStop?.landmark ?? data['myStop'];
+      if (live.itineraryName != null) data['itinerary'] = live.itineraryName;
+      data['outbound'] = live.outbound;
+      await _vehicle(data, live, tracker);
       // Lo declarado a mano desde la app (o por otra vía) manda sobre el cálculo.
       if (tracker != null && queue.isEmpty && live.myState != null && live.myState != tracker.state && live.myState != 'de_camino') {
         tracker.declare(live.myState!);
@@ -276,18 +300,16 @@ class TrackingHandler extends TaskHandler {
       if (sync is Map) {
         final notifications = [for (final n in (sync['data'] as List? ?? const [])) Resource.fromJson(Map<String, dynamic>.from(n as Map))];
         final syncMeta = Map<String, dynamic>.from(sync['meta'] as Map? ?? const {});
-        // Con la app abierta, ella muestra los avisos dentro y recarga lo que cambió.
-        final result = await SyncService.apply(api, notifications, syncMeta, notify: !foreground, foreground: foreground);
-        FlutterForegroundTask.sendDataToMain({
-          'changed': result.changed.toList(),
-          if (foreground) 'notifications': [for (final n in notifications) n.attributes],
-        });
+        // Las notificaciones salen en la cortina (docs/11 §11.63); la app abierta recarga lo que cambió.
+        final result = await SyncService.apply(api, notifications, syncMeta);
+        FlutterForegroundTask.sendDataToMain({'changed': result.changed.toList()});
       }
     } on ApiException catch (error) {
       if (!error.isNetwork && pending != null && (error.statusCode == 422 || error.statusCode == 403 || error.statusCode == 404)) queue.removeAt(0);
       if (error.statusCode == 404 || error.statusCode == 403) {
         await TripWindow.markDone(tripId, now.subtract(settings.windowAfter));
-        await _stop(settings, reason: '$title. El viaje ya no está disponible. Ya no hace falta la ubicación: puede quitar el GPS.');
+        await Notifications.tripFinished(tripId);
+        await _stop(settings);
         return;
       }
     } catch (_) {
@@ -301,19 +323,71 @@ class TrackingHandler extends TaskHandler {
       endedAt = now;
       data['endedAt'] = now.toIso8601String();
       await TripWindow.markDone(tripId, now);
-      await Notifications.showDisableGps('$title. ${status == 'terminado' ? 'Terminó el viaje.' : 'Su estado: ${WorkerState.name(tracker?.state)}.'} Ya no hace falta la ubicación: puede quitar el GPS.');
     }
+    if (status == 'terminado') await Notifications.tripFinished(tripId);
 
     data['tracker'] = tracker?.toJson();
     data['queue'] = queue.length > 50 ? queue.sublist(queue.length - 50) : queue;
     data['trip'] = tripInfo;
     data['lastAt'] = now.toIso8601String();
-    await FlutterForegroundTask.saveData(key: TrackingService._key, value: jsonEncode(data));
     FlutterForegroundTask.sendDataToMain({'nextAt': now.add(settings.windowEvery).toIso8601String()});
 
-    final stateName = endedAt != null ? 'Terminado para usted' : WorkerState.name(tracker?.state);
-    final gpsText = gps == false ? ' • sin GPS' : '';
-    FlutterForegroundTask.updateService(notificationTitle: 'MiRuta: $stateName • ${data['sensors']} sensores', notificationText: '$title$gpsText');
+    // «Mi estado» (docs/11 §11.63): sin GPS o sin «todo el tiempo», solo el aviso.
+    final state = tracker?.state;
+    final content = myStateNotice(
+      stateName: WorkerState.notice(state),
+      state: state,
+      itineraryName: data['itinerary']?.toString(),
+      outbound: data['outbound'] != false,
+      myStop: data['myStop']?.toString(),
+      gpsOn: gpsOn,
+      alwaysPermission: permission == LocationPermission.always,
+      ended: endedAt != null,
+    );
+    data['tap'] = !gpsOn ? 'gps' : (permission != LocationPermission.always ? 'permiso' : 'trip:$tripId');
+    await FlutterForegroundTask.saveData(key: TrackingService._key, value: jsonEncode(data));
+    FlutterForegroundTask.updateService(notificationTitle: content.title, notificationText: content.text);
+  }
+
+  static Future<T> _safe<T>(Future<T> Function() f, T fallback) async {
+    try {
+      return await f();
+    } catch (_) {
+      return fallback;
+    }
+  }
+
+  /// Notificación del vehículo (docs/11 §11.63): mientras el viaje está en
+  /// ejecución y él no llegó a un estado definitivo. Se compone con la línea
+  /// del recorrido y solo se vuelve a mostrar si cambia.
+  Future<void> _vehicle(Map<String, dynamic> data, TripLive live, WorkerTracker? tracker) async {
+    final tripId = '${data['tripId']}';
+    final myState = WorkerState.normalize(tracker?.state ?? live.myState);
+    final show = live.status == 'en_ejecucion' && !WorkerState.isFinalFor(myState, outbound: live.outbound) && data['endedAt'] == null;
+    if (!show) {
+      if (data['vehicleSig'] != null) await Notifications.cancel(Notifications.vehicleId(tripId));
+      data['vehicleSig'] = null;
+      return;
+    }
+    if (live.vehicleState == 'en_movimiento' || live.nextStopIndex >= 2) data['moved'] = true;
+    final view = VehicleView(
+      vehicleType: live.vehicleTypeName ?? 'Vehículo',
+      itineraryName: live.itineraryName ?? data['itinerary']?.toString(),
+      outbound: live.outbound,
+      state: live.vehicleState,
+      sensors: live.sensors,
+      stops: [for (final s in live.stops) s.landmark],
+      nextStopIndex: live.nextStopIndex,
+      atStop: live.vehicleAtStop,
+      movedOnce: data['moved'] == true,
+    );
+    final lastLines = [for (final l in (data['vehicleLines'] as List? ?? const [])) '$l'];
+    final content = vehicleNotice(view, lastLines: lastLines);
+    if (!view.noData) data['vehicleLines'] = vehicleStopLines(view).$1;
+    final signature = content.toString();
+    if (signature == data['vehicleSig']) return;
+    data['vehicleSig'] = signature;
+    await Notifications.showVehicle(tripId, content);
   }
 
   /// Primer cálculo: el recorrido (con las coordenadas de las paradas) y su
@@ -345,8 +419,7 @@ class TrackingHandler extends TaskHandler {
     }
   }
 
-  Future<void> _stop(AppSettings settings, {String? reason}) async {
-    if (reason != null) await Notifications.showDisableGps(reason);
+  Future<void> _stop(AppSettings settings) async {
     await FlutterForegroundTask.removeData(key: TrackingService._key);
     // La próxima ventana (si la hay) queda programada antes de cerrar.
     await TripWindow.reschedule(settings);

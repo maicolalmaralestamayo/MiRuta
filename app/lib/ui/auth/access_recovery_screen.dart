@@ -8,6 +8,7 @@ import '../../core/api_exception.dart';
 import '../../core/json_api.dart';
 import '../../core/storage.dart';
 import '../../models/models.dart';
+import '../widgets/app_scaffold.dart';
 import '../widgets/common.dart';
 
 /// «Olvidé usuario/contraseña» (docs/11 §11.7 y §11.51): olvidé el usuario, la contraseña o los dos,
@@ -33,7 +34,12 @@ class _AccessRecoveryScreenState extends State<AccessRecoveryScreen> {
   String? _recoveryId;
   Resource? _recovery;
   bool _loading = true;
+
+  /// Consulta del estado cada 30 s mientras está pendiente, con su cuenta
+  /// atrás (docs/11 §11.63).
+  static const _pollEvery = Duration(seconds: 30);
   Timer? _timer;
+  DateTime? _nextPoll;
 
   @override
   void initState() {
@@ -46,8 +52,21 @@ class _AccessRecoveryScreenState extends State<AccessRecoveryScreen> {
       });
       if (id != null) _refresh();
     });
-    _timer = Timer.periodic(const Duration(seconds: 30), (_) {
-      if (_recoveryId != null && _recovery?.string('status') == 'pending') _refresh();
+  }
+
+  bool get _pending => _recoveryId != null && _recovery?.string('status') == 'pending';
+
+  /// Programa la próxima consulta (solo con la solicitud pendiente).
+  void _schedule() {
+    _timer?.cancel();
+    _timer = null;
+    if (!_pending) {
+      _nextPoll = null;
+      return;
+    }
+    _nextPoll = DateTime.now().add(_pollEvery);
+    _timer = Timer(_pollEvery, () {
+      if (mounted && _pending) _refresh();
     });
   }
 
@@ -64,7 +83,12 @@ class _AccessRecoveryScreenState extends State<AccessRecoveryScreen> {
     } on ApiException catch (error) {
       if (error.statusCode == 404) await _forget();
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _schedule();
+        });
+      }
     }
   }
 
@@ -74,6 +98,7 @@ class _AccessRecoveryScreenState extends State<AccessRecoveryScreen> {
       setState(() {
         _recoveryId = null;
         _recovery = null;
+        _schedule();
       });
     }
   }
@@ -95,6 +120,7 @@ class _AccessRecoveryScreenState extends State<AccessRecoveryScreen> {
       setState(() {
         _recoveryId = recovery.id;
         _recovery = recovery;
+        _schedule();
       });
     }
   }
@@ -157,7 +183,12 @@ class _AccessRecoveryScreenState extends State<AccessRecoveryScreen> {
             subtitle: Text('El Administrador comprobará sus datos y se pondrá en contacto con usted. Cuando la apruebe, vuelva a esta pantalla.'),
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 4),
+        Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+          const Text('Próxima consulta'),
+          CountdownLabel(next: _nextPoll, onTap: _refresh, tooltip: 'Próxima consulta del estado de la solicitud'),
+        ]),
+        const SizedBox(height: 4),
         BusyButton(onPressed: _refresh, icon: Icons.refresh, label: 'Comprobar la solicitud', outlined: true),
         TextButton.icon(onPressed: _forget, icon: const Icon(Icons.add), label: const Text('Hacer otra solicitud')),
       ]);

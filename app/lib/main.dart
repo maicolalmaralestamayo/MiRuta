@@ -23,7 +23,7 @@ import 'ui/theme.dart';
 void callbackDispatcher() {
   Workmanager().executeTask((task, inputData) async {
     try {
-      // Con la app abierta consulta ella (y muestra los avisos dentro).
+      // Con la app abierta consulta ella (las notificaciones salen igual en la cortina).
       if (await Storage.isForeground()) return true;
       await Notifications.init();
       await initializeDateFormatting('es');
@@ -40,6 +40,7 @@ Future<void> main() async {
   FlutterForegroundTask.initCommunicationPort();
   await initializeDateFormatting('es');
   await Notifications.init();
+  await Notifications.setupChannels();
   await Workmanager().initialize(callbackDispatcher);
   await ThemeController.load();
 

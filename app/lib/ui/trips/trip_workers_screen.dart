@@ -105,7 +105,7 @@ class TripWorker {
       case 'sensor':
         return 'Sensor activo: envía con GPS';
       case 'no_en_vehiculo':
-        return 'No está ${outbound ? 'Viajando' : 'Recogido'} (está ${state == null ? 'sin estado' : WorkerState.name(state)})';
+        return 'No está Viajando (está ${state == null ? 'sin estado' : WorkerState.name(state)})';
       case 'sin_gps':
         return 'Sin GPS: su teléfono envía sin ubicación$since';
       default:

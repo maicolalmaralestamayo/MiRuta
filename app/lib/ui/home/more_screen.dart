@@ -39,6 +39,23 @@ class _MoreScreenState extends State<MoreScreen> {
     AppUpdates.check(context.read<Session>().api).then((u) {
       if (mounted) setState(() => _update = u);
     }).catchError((_) {});
+    AppUpdates.installRequested.addListener(_onInstallRequested);
+  }
+
+  @override
+  void dispose() {
+    AppUpdates.installRequested.removeListener(_onInstallRequested);
+    super.dispose();
+  }
+
+  /// Tocó la notificación «Actualización disponible»: empieza la descarga.
+  Future<void> _onInstallRequested() async {
+    try {
+      final update = _update ?? await AppUpdates.check(context.read<Session>().api);
+      if (!mounted || update == null) return;
+      setState(() => _update = update);
+      if (_progress == null) _install(update);
+    } catch (_) {}
   }
 
   Future<void> _share() async {

@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../core/formats.dart';
 import '../../core/json_api.dart';
 import '../../models/models.dart';
+import '../../services/notifications.dart';
 import '../../services/session.dart';
 import '../navigation.dart';
 import '../widgets/app_scaffold.dart';
@@ -54,6 +55,8 @@ class _ConversationScreenState extends State<ConversationScreen> {
       final after = _messages.isEmpty ? null : _messages.last.id;
       final list = (await context.read<Session>().api.getAll('/conversations/${widget.conversationId}/messages', query: {'filter[after]': ?after})).map(Message.from).toList();
       if (!mounted) return;
+      // Leída: se quita la notificación «Respuesta del desarrollador» (docs/11 §11.63).
+      if (!_loaded) Notifications.messagesRead();
       final known = _messages.map((m) => m.id).toSet();
       final fresh = list.where((m) => !known.contains(m.id)).toList();
       setState(() {

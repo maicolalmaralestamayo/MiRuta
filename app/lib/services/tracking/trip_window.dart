@@ -5,6 +5,8 @@ import 'package:miruta_alarm/miruta_alarm.dart';
 
 import '../../core/storage.dart';
 import '../app_settings.dart';
+import '../notification_texts.dart';
+import '../notifications.dart';
 import 'trip_permissions.dart';
 import 'tracking_service.dart';
 
@@ -155,8 +157,10 @@ class TripWindow {
 
   /// Programa la ventana: si está abierta y el servicio no corre, lo arranca
   /// (con la app a la vista) o pide a la alarma que lo arranque en un momento;
-  /// si no, programa la alarma exacta para la próxima. Sin permiso de
-  /// ubicación no hay alarma (queda el recordatorio de activar la ubicación).
+  /// si no, programa la alarma exacta para la próxima. Con el GPS apagado el
+  /// servicio arranca igual y su notificación «Mi estado» pide activarlo
+  /// (docs/11 §11.63). Sin permiso de ubicación no puede arrancar: «Mi estado»
+  /// sale como notificación normal al abrirse la ventana.
   static Future<void> reschedule(AppSettings settings, {bool foreground = false}) async {
     try {
       final now = DateTime.now();
@@ -164,10 +168,18 @@ class TripWindow {
       final active = list.where((s) => s.contains(now)).firstOrNull;
       final upcoming = list.where((s) => s.start.isAfter(now)).firstOrNull;
       final permissions = await TripPermissions.check();
-      if (!permissions.foreground) {
+      if (!permissions.granted) {
         await MirutaAlarm.cancel();
+        final slot = active ?? upcoming;
+        if (slot == null) {
+          await Notifications.cancelMyStateFallback();
+        } else {
+          final content = myStateNotice(stateName: '', gpsOn: permissions.locationOn, alwaysPermission: false);
+          await Notifications.showMyStateFallback(content, payload: permissions.locationOn ? 'permiso' : 'gps', at: active != null ? null : slot.start);
+        }
         return;
       }
+      await Notifications.cancelMyStateFallback();
       if (active != null && !await TrackingService.isRunning) {
         if (foreground) {
           await TrackingService.startWindow(active, settings);

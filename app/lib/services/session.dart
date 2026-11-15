@@ -178,11 +178,11 @@ class Session extends ChangeNotifier {
     if (data is! Map) return;
     final next = DateTime.tryParse('${data['nextAt'] ?? ''}');
     if (next != null) TripWindow.nextContact.value = next;
-    for (final n in (data['notifications'] as List? ?? const [])) {
-      if (n is Map) {
-        Notifications.showServer('${n['kind'] ?? ''}', '${n['title'] ?? 'MiRuta'}', '${n['body'] ?? ''}', Map<String, dynamic>.from(n['data'] as Map? ?? const {}),
-            foreground: true);
-      }
+    // Tocó «Mi estado» (la notificación del servicio): la pantalla principal lo atiende.
+    final tap = data['tap'];
+    if (tap is String && tap.isNotEmpty) {
+      Storage.setString(TrackingService.tapKey, null);
+      Notifications.tapped.value = tap;
     }
     final changed = (data['changed'] as List?)?.map((e) => '$e').toSet();
     if (changed != null) {

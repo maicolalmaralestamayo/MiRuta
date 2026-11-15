@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/storage.dart';
+import '../../services/app_updates.dart';
 import '../../services/notifications.dart';
 import '../../services/session.dart';
 import '../../services/shared_location.dart';
+import '../../services/tracking/tracking_service.dart';
 import '../chat/conversations_screen.dart';
 import '../management/management_screen.dart';
 import '../navigation.dart';
@@ -31,9 +35,9 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     Notifications.requestPermissions();
     MainTabs.current.value = MainTab.home;
     Notifications.tapped.addListener(_onTapped);
-    Notifications.inApp.addListener(_onInApp);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _onTapped();
+      _serviceTap();
       SharedLocation.listen(_onShared);
     });
   }
@@ -43,6 +47,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     final session = context.read<Session>();
     if (state == AppLifecycleState.resumed) {
       session.resume();
+      _serviceTap();
     } else if (state == AppLifecycleState.paused) {
       session.pause();
     }
@@ -62,34 +67,29 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     } else if (payload.startsWith('conversation')) {
       MainTabs.go(context, MainTab.more);
       push(context, const ConversationsScreen());
-    } else if (payload == 'update' || payload == 'olvide') {
+    } else if (payload == 'update') {
+      // «Actualización disponible»: Más, y empieza la descarga.
       MainTabs.go(context, MainTab.more);
+      AppUpdates.installRequested.value++;
+    } else if (payload == 'olvide') {
+      MainTabs.go(context, MainTab.more);
+    } else if (payload == 'gps') {
+      // «Mi estado» sin GPS: ajustes de ubicación del teléfono (docs/11 §11.63).
+      Geolocator.openLocationSettings();
+    } else if (payload == 'permiso') {
+      // Sin «Permitir todo el tiempo»: ajustes de permisos de MiRuta.
+      Geolocator.openAppSettings();
     }
   }
 
-  /// Notificación recibida con la app abierta: se muestra dentro de la app
-  /// (no también en el teléfono, docs/11 §11.56), con «Ver» si lleva a algún sitio.
-  void _onInApp() {
-    final notice = Notifications.inApp.value;
-    if (notice == null || !mounted) return;
-    Notifications.inApp.value = null;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 6),
-        content: Row(children: [
-          const Icon(Icons.notifications_active_outlined, color: Colors.white),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(notice.title, style: const TextStyle(fontWeight: FontWeight.w700)),
-              Text(notice.body),
-            ]),
-          ),
-        ]),
-        action: notice.payload == null ? null : SnackBarAction(label: 'Ver', onPressed: () => Notifications.tapped.value = notice.payload),
-      ));
+  /// «Mi estado» (notificación del servicio de ubicación) tocada con la app
+  /// cerrada: el servicio lo dejó guardado.
+  Future<void> _serviceTap() async {
+    await Storage.reload();
+    final tap = await Storage.getString(TrackingService.tapKey);
+    if (tap == null || tap.isEmpty) return;
+    await Storage.setString(TrackingService.tapKey, null);
+    Notifications.tapped.value = tap;
   }
 
   /// Ubicación compartida: una sola pantalla «Ubicación compartida» a la
@@ -105,7 +105,6 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     Notifications.tapped.removeListener(_onTapped);
-    Notifications.inApp.removeListener(_onInApp);
     super.dispose();
   }
 

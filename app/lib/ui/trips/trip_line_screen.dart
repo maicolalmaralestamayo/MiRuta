@@ -215,12 +215,12 @@ class _TripLineScreenState extends State<TripLineScreen> with WidgetsBindingObse
       if (mine && trip.outbound && state == WorkerState.travelling) ActionItem(Icons.hail, 'Me bajé en mi parada', () => _report(WorkerState.dropped)),
       if (mine && !trip.outbound && (state == null || state == WorkerState.onTheWay || state == WorkerState.notGoing))
         ActionItem(Icons.where_to_vote_outlined, 'Estoy en mi parada', () => _report(WorkerState.atStop)),
-      if (mine && !trip.outbound && state != WorkerState.pickedUp)
+      if (mine && !trip.outbound && state != WorkerState.travelling)
         ActionItem(Icons.directions_bus, 'Ya me recogieron', () async {
           final kids = await _pickChildren();
-          if (kids != null) await _report(WorkerState.pickedUp, childIds: kids);
+          if (kids != null) await _report(WorkerState.travelling, childIds: kids);
         }),
-      if (mine && state != WorkerState.notGoing && state != WorkerState.dropped && state != WorkerState.pickedUp && state != WorkerState.travelling)
+      if (mine && state != WorkerState.notGoing && state != WorkerState.dropped && state != WorkerState.travelling)
         ActionItem(Icons.block, 'No voy en este viaje', _notGoing, destructive: true),
       ActionItem(Icons.groups_outlined, 'Trabajadores', () => push(context, TripWorkersScreen(trip: trip))),
       ActionItem(Icons.description_outlined, 'Datos del viaje', () => push(context, TripFormScreen(tripId: trip.id))),
@@ -273,7 +273,7 @@ class _TripLineScreenState extends State<TripLineScreen> with WidgetsBindingObse
           ),
           const Padding(
             padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: Text('Es sensor quien va en el vehículo (Viajando en la ida, Recogido en el regreso) y su teléfono envía con GPS.'),
+            child: Text('Es sensor quien va en el vehículo (Viajando) y su teléfono envía con GPS.'),
           ),
           for (final w in list)
             InfoCard(
@@ -452,7 +452,7 @@ class _TripLineScreenState extends State<TripLineScreen> with WidgetsBindingObse
       detail = '${plural(live.expectedPassengers, 'trabajador esperado', 'trabajadores esperados')}${live.notGoing > 0 ? ' • ${live.notGoing} no van' : ''}';
     } else {
       big = '${live.inVehicleWorkers + live.inVehicleChildren}';
-      title = live.outbound ? 'Viajando' : 'Recogidos';
+      title = 'Viajando';
       detail = '${plural(live.inVehicleWorkers, 'trabajador', 'trabajadores')} y ${plural(live.inVehicleChildren, 'niño', 'niños')} en el vehículo'
           '${live.capacity == null ? '' : ' • capacidad ${live.capacity}'}';
     }

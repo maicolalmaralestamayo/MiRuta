@@ -81,9 +81,9 @@ class Storage {
 
   static Future<void> setJson(String key, Map<String, dynamic> value) async => (await _prefs).setString(key, jsonEncode(value));
 
-  /// La app está abierta en primer plano (docs/11 §11.56): la tarea en
-  /// segundo plano no consulta mientras tanto, para no repetir en el
-  /// teléfono las notificaciones que la app ya muestra dentro.
+  /// La app está abierta en primer plano: la tarea en segundo plano no
+  /// consulta mientras tanto (ya consulta la app; las notificaciones salen
+  /// igual en la cortina, docs/11 §11.63).
   static Future<void> setForeground(bool value) async {
     final prefs = await _prefs;
     value ? await prefs.setInt('app.foreground_at', DateTime.now().millisecondsSinceEpoch) : await prefs.remove('app.foreground_at');

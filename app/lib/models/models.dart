@@ -804,28 +804,53 @@ class Trip {
   }
 }
 
-/// Estados del trabajador en un viaje (docs/13 §13.8).
+/// Estados del trabajador en un viaje (docs/13 §13.8). Viajando es el mismo
+/// en la ida y en el regreso (docs/11 §11.63: Viajando y Recogido unificados).
 abstract final class WorkerState {
   static const onTheWay = 'de_camino';
   static const atStop = 'en_parada';
   static const travelling = 'viajando';
   static const dropped = 'dejado';
-  static const pickedUp = 'recogido';
   static const leftBehind = 'botado';
   static const late = 'dormido';
   static const notGoing = 'no_voy';
+
+  /// Nombre de la 4.2.0 de Viajando en el regreso (solo para leer datos viejos).
+  static const legacyPickedUp = 'recogido';
+
+  /// «recogido» (4.2.0) es Viajando.
+  static String? normalize(String? state) => state == legacyPickedUp ? travelling : state;
 
   static String name(String? state) => const {
         onTheWay: 'De camino a la parada',
         atStop: 'En la parada',
         travelling: 'Viajando',
         dropped: 'Dejado',
-        pickedUp: 'Recogido',
         leftBehind: 'Botado',
         late: 'Dormido',
         notGoing: 'No voy a viajar',
-      }[state] ??
+      }[normalize(state)] ??
       'Sin estado';
+
+  /// Nombre en la notificación «Mi estado» (docs/11 §11.63).
+  static String notice(String? state) => const {
+        onTheWay: 'De camino',
+        atStop: 'En parada',
+        travelling: 'Viajando',
+        dropped: 'Dejado',
+        leftBehind: 'Botado',
+        late: 'Dormido',
+        notGoing: 'No voy',
+      }[normalize(state)] ??
+      'Sin estado';
+
+  /// Estado definitivo para la notificación del vehículo (docs/11 §11.63):
+  /// Dejado, Botado, Dormido, No voy y, en el regreso, Viajando (bajan todos
+  /// en la parada final).
+  static bool isFinalFor(String? state, {required bool outbound}) {
+    final s = normalize(state);
+    return s == dropped || s == leftBehind || s == late || s == notGoing || (!outbound && s == travelling);
+  }
 
   /// Nombre corto para las cantidades de la línea.
   static String short(String state) => const {
@@ -833,11 +858,10 @@ abstract final class WorkerState {
         atStop: 'En la parada',
         travelling: 'Viajando',
         dropped: 'Dejados',
-        pickedUp: 'Recogidos',
         leftBehind: 'Botados',
         late: 'Dormidos',
         notGoing: 'No van',
-      }[state] ??
+      }[normalize(state)] ??
       state;
 }
 
@@ -917,6 +941,10 @@ class TripLive {
   /// Quien consulta puede gestionar el viaje (Administrador o Jefe del itinerario).
   final bool canManage;
 
+  /// Para la notificación del vehículo (docs/11 §11.63).
+  final String? itineraryName;
+  final String? vehicleTypeName;
+
   const TripLive({
     required this.tripId,
     this.direction = 'ida',
@@ -940,6 +968,8 @@ class TripLive {
     this.mySensor = false,
     this.viewerStopId,
     this.canManage = false,
+    this.itineraryName,
+    this.vehicleTypeName,
   });
 
   factory TripLive.from(Resource r) {
@@ -964,11 +994,13 @@ class TripLive {
       expectedPassengers: _int(r.attributes['expectedPassengers']),
       notGoing: _int(r.attributes['notGoing']),
       stops: [for (final s in (r.attributes['stops'] as List? ?? const [])) LiveStop.fromJson(Map<String, dynamic>.from(s as Map))],
-      myState: _str(mine?['state']),
+      myState: WorkerState.normalize(_str(mine?['state'])),
       myStopId: _str(mine?['stopId']),
       mySensor: mine?['sensor'] == true,
       viewerStopId: r.string('myStopId'),
       canManage: r.boolean('canManage'),
+      itineraryName: r.string('itineraryName'),
+      vehicleTypeName: r.string('vehicleTypeName'),
     );
   }
 
