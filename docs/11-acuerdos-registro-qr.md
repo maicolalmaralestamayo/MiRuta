@@ -1686,3 +1686,14 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
     al entrar en un itinerario, con una pantalla que explica para qué son y lleva a los ajustes del teléfono. Si no se
     conceden, sigue funcionando **solo con la app abierta** y lo recuerda antes de cada viaje. Mientras calcula,
     notificación fija de Android («MiRuta: En la parada • 4 sensores») hasta el estado definitivo.
+
+## 11.62 Ventana de viaje y sincronización en segundo plano (15/11/2026; para la próxima versión)
+
+- **Ventana de viaje** de cada trabajador: empieza **X** antes de la salida planificada y termina **Y** después de
+  que **el viaje termina para ese trabajador** (su estado definitivo o el fin del viaje). Dentro de la ventana el
+  teléfono **envía y recibe** datos cada **Z** (10 s por defecto). **Fuera** de la ventana solo **recibe**, cada **F**
+  (15 min por defecto). X, Y, Z y F son **ajustes de la app**.
+- La app trabaja **aunque esté cerrada**, con esas frecuencias, y el sistema operativo **no debe poder cerrarla**;
+  gasto **mínimo** de datos y batería.
+- La interfaz muestra un **contador regresivo** hasta la próxima conexión con el servidor (enviar/recibir).
+- Lo que la app descarga lo usa para **calcular en el teléfono** (no en el servidor) todo lo que se pueda.
