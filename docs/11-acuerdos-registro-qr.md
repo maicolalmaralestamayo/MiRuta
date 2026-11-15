@@ -1741,7 +1741,9 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
   sesión.
 - **Notificación del estado del viaje** (15/11/2026, en definición; sustituye a «Viaje planificado / modificado /
   en ejecución / cancelado»): **una única notificación por viaje** que se va actualizando. Si el usuario la quita,
-  vuelve a salir cuando se detecta un cambio de estado del viaje. Al llegar el viaje a **Terminado** se elimina sola.
+  vuelve a salir cuando se detecta un cambio de estado del viaje. Se elimina sola al llegar el viaje a **Terminado**;
+  si está **cancelado** o **eliminado**, al pasar la hora de salida del viaje. Cuando el viaje cambia, añade debajo
+  la línea destacada «Atención, el viaje sufrió cambios!!!» (sin el «Antes / Ahora»).
   Formato (canal «Viajes»):
   ```
   MiRuta • Viajes
@@ -1749,4 +1751,5 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
   [Itinerario] • [ida | regreso]
   [Fecha y hora: Lun. 16/11/26 07:00]
   [Parada de salida] • [Tipo de vehículo]
+  [solo si cambió: Atención, el viaje sufrió cambios!!!]
   ```
