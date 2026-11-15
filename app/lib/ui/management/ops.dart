@@ -4,6 +4,7 @@ import '../../core/api_client.dart';
 import '../../core/formats.dart';
 import '../../core/json_api.dart';
 import '../../models/models.dart';
+import '../profile/absence_screen.dart';
 import '../widgets/busy.dart';
 import '../widgets/common.dart';
 
@@ -163,12 +164,21 @@ class Ops {
           if (a.denialReason != null) Text('Motivo: ${a.denialReason}'),
           if (a.resolutionNote != null && a.resolutionNote!.isNotEmpty) Text('Observación: ${a.resolutionNote}'),
         ]),
-        actionsAlignment: MainAxisAlignment.center,
+        actionsAlignment: MainAxisAlignment.end,
+        actionsOverflowAlignment: OverflowBarAlignment.end,
         actions: [
           cancelButton(context, label: 'Volver', icon: Icons.arrow_back),
-          if (canResolve && a.pending && !mine) ...[
-            TextButton.icon(onPressed: () => Navigator.pop(context, 'reject'), icon: const Icon(Icons.block, color: red), label: const Text('Rechazar', style: TextStyle(color: red))),
-            FilledButton.icon(onPressed: () => Navigator.pop(context, 'approve'), icon: const Icon(Icons.check), label: const Text('Aprobar')),
+          if (canResolve && a.pending) ...[
+            FilledButton.icon(
+                style: FilledButton.styleFrom(backgroundColor: red, foregroundColor: Colors.white),
+                onPressed: () => Navigator.pop(context, 'reject'),
+                icon: const Icon(Icons.block),
+                label: const Text('Rechazar')),
+            FilledButton.icon(
+                style: FilledButton.styleFrom(backgroundColor: green, foregroundColor: Colors.white),
+                onPressed: () => Navigator.pop(context, 'approve'),
+                icon: const Icon(Icons.check),
+                label: const Text('Aprobar')),
           ],
           if (mine)
             FilledButton.icon(
@@ -268,111 +278,47 @@ class Ops {
     return true;
   }
 
-  /// Declarar ausencia (de sí mismo o, para Administrador y Jefe, de otra
-  /// persona) en una de sus Entidades.
-  Future<bool> declareAbsence(List<Membership> memberships, {String? who}) async {
-    if (memberships.isEmpty) {
-      showMessage(context, 'Hace falta pertenecer a una Entidad.');
+  /// Declarar ausencia (docs/11 §11.61): de sí mismo o, para Administrador
+  /// y Jefe, de otra persona, en uno o varios de sus itinerarios.
+  Future<bool> declareAbsence(String userId, List<Placement> placements, {String? who, Set<String>? initial}) async {
+    if (placements.isEmpty) {
+      showMessage(context, 'Hace falta tener algún itinerario: la ausencia se declara por itinerario.');
       return false;
-    }
-    var membership = memberships.first;
-    if (memberships.length > 1) {
-      final picked = await pickOne<Membership>(context, 'Ausencia en…', memberships, (m) => m.entityAbbreviation,
-          subtitle: (m) => m.itineraries.isEmpty ? 'Sin itinerario' : m.itineraries.map((p) => p.itineraryName).join(', '));
-      if (picked == null) return false;
-      membership = picked;
     }
     final types = (await api.getAll('/absence-types', query: {'filter[active]': 'true'})).map(NomenclatorItem.from).toList();
     if (!context.mounted) return false;
-    final result = await showDialog<_Absence>(context: context, builder: (_) => _AbsenceDialog(types: types, who: who));
-    if (result == null) return false;
-    await api.post('/absences', resourceData('absences', attributes: {
-      'startsOn': apiDay(result.from),
-      'endsOn': result.to == null ? null : apiDay(result.to!),
-      if (result.note.isNotEmpty) 'note': result.note,
-    }, relationships: {
-      'worker': ResourceId('workers', membership.workerId),
-      'absenceType': ResourceId('absence-types', result.type.id),
-    }));
-    done('Ausencia declarada');
+    return await Navigator.of(context).push<bool>(MaterialPageRoute(
+            builder: (_) => AbsenceScreen(userId: userId, placements: placements, types: types, who: who, initial: initial))) ==
+        true;
+  }
+
+  /// «Terminar ausencia» (docs/11 §11.61): termina ayer (vuelve a viajar
+  /// desde hoy); si aún no había empezado, se elimina.
+  Future<bool> endAbsence(List<Absence> absences) async {
+    var absence = absences.first;
+    if (absences.length > 1) {
+      final picked = await pickOne<Absence>(context, 'Terminar ausencia', absences, (a) => a.typeName, subtitle: (a) => '${a.itineraryNames} • ${absencePeriod(a)}');
+      if (picked == null) return false;
+      absence = picked;
+    }
+    if (!context.mounted) return false;
+    if (!await confirm(context, 'Terminar ausencia', '¿Terminar su ausencia (${absence.typeName}) en ${absence.itineraryNames}? Desde hoy vuelve a contar como pasajero.',
+        accept: 'Terminar', icon: Icons.event_available, headerIcon: Icons.event_available)) {
+      return false;
+    }
+    final today = DateTime.now();
+    final yesterday = DateTime(today.year, today.month, today.day).subtract(const Duration(days: 1));
+    final starts = absence.startsOn;
+    if (starts == null || starts.isAfter(yesterday)) {
+      await api.delete('/absences/${absence.id}');
+    } else {
+      await api.patch('/absences/${absence.id}', resourceData('absences', id: absence.id, attributes: {'endsOn': apiDay(yesterday)}));
+    }
+    done('Ausencia terminada');
     return true;
   }
 }
 
-class _Absence {
-  final NomenclatorItem type;
-  final DateTime from;
-  final DateTime? to;
-  final String note;
-
-  const _Absence(this.type, this.from, this.to, this.note);
-}
-
-class _AbsenceDialog extends StatefulWidget {
-  final List<NomenclatorItem> types;
-  final String? who;
-
-  const _AbsenceDialog({required this.types, this.who});
-
-  @override
-  State<_AbsenceDialog> createState() => _AbsenceDialogState();
-}
-
-class _AbsenceDialogState extends State<_AbsenceDialog> {
-  NomenclatorItem? _type;
-  DateTime _from = DateTime.now();
-  DateTime? _to;
-  final _note = TextEditingController();
-
-  Future<DateTime?> _pick(DateTime initial) => showDatePicker(context: context, initialDate: initial, firstDate: DateTime.now().subtract(const Duration(days: 1)), lastDate: DateTime(2100));
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      icon: const Icon(Icons.event_busy, size: 32),
-      title: Text(widget.who == null ? 'Declarar ausencia' : 'Ausencia de ${widget.who}', textAlign: TextAlign.center),
-      content: SingleChildScrollView(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          DropdownButtonFormField<NomenclatorItem>(
-            initialValue: _type,
-            decoration: const InputDecoration(labelText: 'Tipo de ausencia'),
-            items: [for (final t in widget.types) DropdownMenuItem(value: t, child: Text(t.name))],
-            onChanged: (v) => setState(() => _type = v),
-          ),
-          const SizedBox(height: 12),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.event),
-            title: const Text('Desde'),
-            subtitle: Text(formatDate(_from)),
-            onTap: () async {
-              final d = await _pick(_from);
-              if (d != null) setState(() => _from = d);
-            },
-          ),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.event_available),
-            title: const Text('Hasta'),
-            subtitle: Text(_to == null ? 'Sin fecha de fin (indefinida)' : formatDate(_to)),
-            trailing: _to == null ? null : IconButton(tooltip: 'Sin fecha de fin', icon: const Icon(Icons.clear), onPressed: () => setState(() => _to = null)),
-            onTap: () async {
-              final d = await _pick(_to ?? _from);
-              if (d != null) setState(() => _to = d);
-            },
-          ),
-          TextField(controller: _note, decoration: const InputDecoration(labelText: 'Nota'), maxLines: 2, textInputAction: TextInputAction.done),
-        ]),
-      ),
-      actionsAlignment: MainAxisAlignment.center,
-      actions: [
-        cancelButton(context),
-        FilledButton.icon(
-          onPressed: _type == null ? null : () => Navigator.pop(context, _Absence(_type!, _from, _to, _note.text.trim())),
-          icon: const Icon(Icons.event_busy),
-          label: const Text('Declarar'),
-        ),
-      ],
-    );
-  }
-}
+/// «desde lun. 16-11-26, indefinida» / «del lun. 16-11-26 al vie. 20-11-26».
+String absencePeriod(Absence a) =>
+    a.endsOn == null ? 'desde ${formatDate(a.startsOn)}, indefinida' : 'del ${formatDate(a.startsOn)} al ${formatDate(a.endsOn)}';

@@ -9,6 +9,7 @@ import 'core/api_client.dart';
 import 'core/storage.dart';
 import 'services/notifications.dart';
 import 'services/session.dart';
+import 'services/theme_controller.dart';
 import 'services/sync.dart';
 import 'ui/auth/login_screen.dart';
 import 'ui/auth/new_password_screen.dart';
@@ -39,12 +40,18 @@ Future<void> main() async {
   await initializeDateFormatting('es');
   await Notifications.init();
   await Workmanager().initialize(callbackDispatcher);
+  await ThemeController.load();
 
   final session = Session(await ApiClient.create());
-  runApp(MultiProvider(providers: [
-    ChangeNotifierProvider.value(value: session),
-    ChangeNotifierProvider.value(value: session.connection),
-  ], child: const MiRutaApp()));
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider.value(value: session),
+        ChangeNotifierProvider.value(value: session.connection),
+      ],
+      child: const MiRutaApp(),
+    ),
+  );
   session.init();
 }
 
@@ -53,19 +60,19 @@ class MiRutaApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'MiRuta',
-      debugShowCheckedModeBanner: false,
-      theme: buildTheme(Brightness.light),
-      darkTheme: buildTheme(Brightness.dark),
-      locale: const Locale('es'),
-      supportedLocales: const [Locale('es')],
-      localizationsDelegates: const [
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-        GlobalCupertinoLocalizations.delegate,
-      ],
-      home: const WithForegroundTask(child: Root()),
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: ThemeController.mode,
+      builder: (context, mode, _) => MaterialApp(
+        title: 'MiRuta',
+        debugShowCheckedModeBanner: false,
+        themeMode: mode,
+        theme: buildTheme(Brightness.light),
+        darkTheme: buildTheme(Brightness.dark),
+        locale: const Locale('es'),
+        supportedLocales: const [Locale('es')],
+        localizationsDelegates: const [GlobalMaterialLocalizations.delegate, GlobalWidgetsLocalizations.delegate, GlobalCupertinoLocalizations.delegate],
+        home: const WithForegroundTask(child: Root()),
+      ),
     );
   }
 }

@@ -7,6 +7,7 @@ import '../../core/storage.dart';
 import '../../services/app_info.dart';
 import '../../services/app_updates.dart';
 import '../../services/session.dart';
+import '../../services/theme_controller.dart';
 import '../navigation.dart';
 import '../widgets/app_icon.dart';
 import '../widgets/common.dart';
@@ -110,6 +111,7 @@ class _LoginScreenState extends State<LoginScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
               child: Row(children: [
+                const ThemeModeSelector(),
                 const Spacer(),
                 hasServer
                     ? OutlinedButton.icon(onPressed: _openServer, icon: const Icon(Icons.dns_outlined), label: const Text('Servidor'))

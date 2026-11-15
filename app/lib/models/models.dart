@@ -610,6 +610,41 @@ class Child {
   bool get canTravel => eligible && active;
 }
 
+/// Ausencia en uno o varios de sus itinerarios (docs/11 §11.61). Sin
+/// [endsOn] es indefinida: dura hasta que la persona la termine.
+class Absence {
+  final String id;
+  final String? userId;
+  final String typeName;
+  final DateTime? startsOn;
+  final DateTime? endsOn;
+  final bool current;
+  final String? note;
+
+  /// Itinerarios que cubre: (id, nombre, abreviatura de la Entidad).
+  final List<(String, String, String)> itineraries;
+
+  const Absence({required this.id, this.userId, this.typeName = '', this.startsOn, this.endsOn, this.current = true, this.note, this.itineraries = const []});
+
+  factory Absence.from(Resource r) => Absence(
+        id: r.id,
+        userId: r.relId('user')?.id,
+        typeName: _str(r.meta['absenceTypeName']) ?? 'Ausencia',
+        startsOn: parseDay(r.string('startsOn')),
+        endsOn: parseDay(r.string('endsOn')),
+        current: r.attributes['current'] != false,
+        note: r.string('note'),
+        itineraries: [
+          for (final i in (r.meta['itineraries'] as List? ?? const []))
+            ('${(i as Map)['id']}', '${i['name'] ?? ''}', '${i['entityAbbreviation'] ?? ''}'),
+        ],
+      );
+
+  bool get indefinite => endsOn == null;
+
+  String get itineraryNames => itineraries.map((i) => i.$2).join(', ');
+}
+
 /// Elemento de un nomenclador.
 class NomenclatorItem {
   final String id;

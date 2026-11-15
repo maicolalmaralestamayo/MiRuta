@@ -74,6 +74,30 @@ abstract class _TableState<W extends StatefulWidget, D> extends State<W> {
     );
   }
 
+  /// Solicitudes pendientes de ese tipo que ve (docs/11 §11.61): las que le
+  /// toca resolver (Administrador; Jefe en su itinerario) y las propias.
+  Future<List<Application>> pendingApplications(String type) async {
+    final api = context.read<Session>().api;
+    final list = (await api.getAll('/applications', query: {'filter[type]': type, 'filter[status]': 'pendiente', 'include': 'user,entity,itinerary,stop'}))
+        .map(Application.from)
+        .toList();
+    final q = query.toLowerCase();
+    return q.isEmpty ? list : list.where((a) => '${a.userName} ${a.what}'.toLowerCase().contains(q)).toList();
+  }
+
+  /// Sección «Solicitudes»: tocar una abre su diálogo (Aprobar / Rechazar y,
+  /// si es propia, Cancelar solicitud).
+  Widget applicationsSection(String storageKey, List<Application> applications) => FoldSection<Application>(
+        storageKey: storageKey,
+        title: 'Solicitudes',
+        items: applications,
+        emptyText: 'No hay solicitudes pendientes.',
+        builder: (a) => applicationTile(a,
+            mine: a.userId == me.userId,
+            onTap: () => doneWith(() => Ops(context).showApplication(a,
+                mine: a.userId == me.userId, canResolve: me.isAdmin || (!a.isEntity && me.isChiefOf(a.itineraryId))))),
+      );
+
   Future<bool> deleteAll(String type, Iterable<String> ids, String what, String? consequences, String doneText) async {
     if (!await confirmDelete(context, what, consequences: consequences) || !mounted) return false;
     final api = context.api;
@@ -142,8 +166,9 @@ abstract class _TableState<W extends StatefulWidget, D> extends State<W> {
 class _EntitiesData {
   final List<Entity> entities;
   final List<Person> loose;
+  final List<Application> applications;
 
-  const _EntitiesData(this.entities, this.loose);
+  const _EntitiesData(this.entities, this.loose, [this.applications = const []]);
 }
 
 class EntitiesScreen extends StatefulWidget {
@@ -167,9 +192,10 @@ class _EntitiesScreenState extends _TableState<EntitiesScreen, _EntitiesData> {
     final loose = me.isAdmin
         ? (await api.getAll('/users', query: {'filter[entity]': 'none', if (query.isNotEmpty) 'filter[search]': query})).map(Person.from).toList()
         : <Person>[];
+    final applications = await pendingApplications('entidad');
     marks.retain('entity', entities.map((e) => e.id));
     marks.retain('person', loose.map((p) => p.id));
-    return _EntitiesData(entities, loose);
+    return _EntitiesData(entities, loose, applications);
   }
 
   @override
@@ -182,6 +208,7 @@ class _EntitiesScreenState extends _TableState<EntitiesScreen, _EntitiesData> {
           builder: (e) => markable('entity', e.id, (m, tap, long) => entityTile(e, selected: m, onTap: tap, onLongPress: long),
               () => openScreen(() => push(context, EntityForm(entity: e)))),
         ),
+        applicationsSection('gestion.entidades.solicitudes', data.applications),
         if (me.isAdmin)
           FoldSection<Person>(
             storageKey: 'gestion.sin_entidad',
@@ -235,8 +262,9 @@ class _ItinerariesData {
   final List<Itinerary> itineraries;
   final List<Itinerary> loose;
   final List<Worker> withoutItinerary;
+  final List<Application> applications;
 
-  const _ItinerariesData(this.itineraries, this.loose, this.withoutItinerary);
+  const _ItinerariesData(this.itineraries, this.loose, this.withoutItinerary, [this.applications = const []]);
 }
 
 class ItinerariesScreen extends StatefulWidget {
@@ -263,9 +291,10 @@ class _ItinerariesScreenState extends _TableState<ItinerariesScreen, _Itinerarie
         : <Worker>[];
     final itineraries = all.where((i) => i.entityId != null).toList();
     final loose = all.where((i) => i.entityId == null).toList();
+    final applications = await pendingApplications('itinerario');
     marks.retain('itinerary', all.map((i) => i.id));
     marks.retain('worker', people.map((w) => w.id));
-    return _ItinerariesData(itineraries, loose, people);
+    return _ItinerariesData(itineraries, loose, people, applications);
   }
 
   Widget _tile(Itinerary i) => markable('itinerary', i.id, (m, tap, long) => itineraryTile(i, selected: m, chief: me.isChiefOf(i.id), onTap: tap, onLongPress: long),
@@ -274,6 +303,7 @@ class _ItinerariesScreenState extends _TableState<ItinerariesScreen, _Itinerarie
   @override
   List<Widget> sections(_ItinerariesData data) => [
         FoldSection<Itinerary>(storageKey: 'gestion.itinerarios', title: 'Itinerarios', items: data.itineraries, emptyText: 'No hay itinerarios.', builder: _tile),
+        applicationsSection('gestion.itinerarios.solicitudes', data.applications),
         if (me.isAdmin) FoldSection<Itinerary>(storageKey: 'gestion.itinerarios_sin_entidad', title: 'Itinerarios sin Entidad', items: data.loose, emptyText: 'Todos tienen Entidad.', builder: _tile),
         if (me.manages)
           FoldSection<Worker>(

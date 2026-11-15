@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../models/models.dart';
 import '../../services/session.dart';
+import '../../services/theme_controller.dart';
 import '../management/forms.dart';
 import '../management/ops.dart';
 import '../management/tiles.dart';
@@ -23,8 +24,9 @@ class _HomeData {
   final List<Application> applications;
   final TripList trips;
   final List<Child> children;
+  final List<Absence> absences;
 
-  const _HomeData(this.applications, this.trips, this.children);
+  const _HomeData(this.applications, this.trips, this.children, [this.absences = const []]);
 }
 
 /// Inicio (docs/11 §11.60, maqueta G22): prácticamente el formulario del
@@ -45,6 +47,26 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Session get _session => context.read<Session>();
 
+  /// Ausencias en curso (para «Terminar ausencia»).
+  List<Absence> _absences = const [];
+
+  Future<void> _chooseTheme() async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        icon: const Icon(Icons.contrast, size: 32),
+        title: const Text('Tema', textAlign: TextAlign.center),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text('Claro, oscuro o automático (según el teléfono).', textAlign: TextAlign.center),
+          const SizedBox(height: 16),
+          const ThemeModeSelector(compact: false),
+        ]),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [cancelButton(context, label: 'Cerrar', icon: Icons.check)],
+      ),
+    );
+  }
+
   Future<_HomeData> _load() async {
     final session = _session;
     final api = session.api;
@@ -59,11 +81,15 @@ class _HomeScreenState extends State<HomeScreen> {
             if (mine.length == 1) 'filter[itinerary]': mine.first,
           });
     final children = (await api.getAll('/children', query: {'filter[parent]': me.userId})).map(Child.from).toList();
+    final absences = me.hasItinerary
+        ? (await api.getAll('/absences', query: {'filter[user]': me.userId, 'filter[current]': 'true'})).map(Absence.from).toList()
+        : <Absence>[];
+    _absences = absences;
     // Abrió Inicio: sus solicitudes resueltas quedan vistas.
     if ((session.counters['applicationsResolvedUnseen'] ?? 0) > 0) {
       api.post('/me/applications-seen', const {}).then((_) => session.sync()).catchError((_) {});
     }
-    return _HomeData(applications, TripList(trips.trips.where((t) => mine.contains(t.itineraryId)).toList(), trips.ends), children);
+    return _HomeData(applications, TripList(trips.trips.where((t) => mine.contains(t.itineraryId)).toList(), trips.ends), children, absences);
   }
 
   Future<void> _reload() async => _view.currentState?.reload();
@@ -105,7 +131,9 @@ class _HomeScreenState extends State<HomeScreen> {
       if (me.hasEntity) ActionItem(Icons.alt_route, 'Solicitar itinerario', () => _change(() => ops.requestItinerary(me))),
       if (me.hasItinerary) ActionItem(Icons.where_to_vote_outlined, 'Cambiar de parada', () => _change(() => _changeStop(me))),
       ActionItem(Icons.person_add_alt_1, 'Añadir hijo', () => _open(() => push(context, const ChildForm()))),
-      if (me.hasEntity) ActionItem(Icons.event_busy, 'Declarar ausencia', () => _change(() => ops.declareAbsence(me.memberships))),
+      if (me.hasItinerary) ActionItem(Icons.event_busy, 'Declarar ausencia', () => _change(() => ops.declareAbsence(me.userId, me.placements))),
+      if (_absences.isNotEmpty) ActionItem(Icons.event_available, 'Terminar ausencia', () => _change(() => ops.endAbsence(_absences))),
+      ActionItem(Icons.contrast, 'Tema: claro, oscuro o automático', _chooseTheme),
       const ActionItem.divider(),
       ActionItem(Icons.logout, 'Cerrar sesión', () async {
         if (await confirm(context, 'Cerrar sesión', '¿Cerrar la sesión en este teléfono?', accept: 'Cerrar sesión', icon: Icons.logout, destructive: true, headerIcon: Icons.logout) &&
@@ -124,7 +152,7 @@ class _HomeScreenState extends State<HomeScreen> {
         padding: const EdgeInsets.fromLTRB(24, 10, 16, 2),
         child: Text('$title (${list.length})', style: t.textTheme.titleSmall!.copyWith(color: t.colorScheme.onSurfaceVariant)),
       ),
-      for (final a in list) applicationTile(a, mine: true, onTap: () => _change(() => Ops(context).showApplication(a, mine: true, canResolve: false))),
+      for (final a in list) applicationTile(a, mine: true, onTap: () => _change(() => Ops(context).showApplication(a, mine: true, canResolve: _session.me!.isAdmin || (!a.isEntity && _session.me!.isChiefOf(a.itineraryId))))),
     ]);
   }
 
@@ -137,7 +165,7 @@ class _HomeScreenState extends State<HomeScreen> {
       actions: _actions,
       body: DataView<_HomeData>(
         key: _view,
-        kinds: const {'applications', 'trips', 'children'},
+        kinds: const {'applications', 'trips', 'children', 'absences'},
         cacheKey: 'inicio',
         load: _load,
         fallback: const _HomeData([], TripList([], {}), []),
@@ -194,6 +222,19 @@ class _HomeScreenState extends State<HomeScreen> {
                   onTap: () => _open(() => openStop(context, p.stopId!)),
                 ),
               ),
+              if (data.absences.isNotEmpty)
+                FoldSection<Absence>(
+                  storageKey: 'inicio.ausencias',
+                  title: 'Ausencias',
+                  items: data.absences,
+                  builder: (a) => InfoCard(
+                    images: const [CardImage(icon: Icons.event_busy)],
+                    title: a.typeName,
+                    lines: [a.itineraryNames, absencePeriod(a)],
+                    chip: a.indefinite ? const Chip2('Indefinida', amber) : null,
+                    onTap: () => _change(() => Ops(context).endAbsence([a])),
+                  ),
+                ),
               FoldSection<Child>(
                 storageKey: 'inicio.hijos',
                 title: 'Hijos',

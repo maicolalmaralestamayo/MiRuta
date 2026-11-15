@@ -1080,7 +1080,7 @@ class _WorkerFormState extends _FormState<WorkerForm> {
         await open(() => openEntity(context, m.entityId));
         return false;
       case 'absence':
-        return ops.declareAbsence([m], who: _self ? null : _p.fullName);
+        return ops.declareAbsence(widget.userId, _chiefOfHer && !_admin && !_self ? m.itineraries.where((p) => p.itineraryId == context.me.chiefItineraryId).toList() : m.itineraries, who: _self ? null : _p.fullName);
       case 'leave':
         return ops.leaveEntity(m, who: _self ? null : _p.fullName);
     }
