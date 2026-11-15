@@ -1871,3 +1871,8 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
     «recogido» en el regreso para que sigan siendo sensores.
   - Sin ningún permiso de ubicación el servicio no puede arrancar: «Mi estado» sale como notificación normal al abrirse
     la ventana. Al tocar «Actualización disponible» se abre Más y empieza la descarga.
+
+## 11.64 Entregables a partir de la 4.3.0 (15/11/2026; sustituye en parte a §11.55)
+
+- En las próximas actualizaciones se entrega **solo la APK de 32 bits** (armeabi-v7a), además del zip de
+  actualización del servidor (y el completo solo cuando se pida).
