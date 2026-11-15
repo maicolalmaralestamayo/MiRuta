@@ -1810,3 +1810,13 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
   Itinerario: [n]                                       (Jefe de itinerario: solo las de su itinerario)
   ```
   Solo se muestran los tipos que tienen alguna pendiente (sin «… : 0») (aceptado).
+- **Respuesta a las solicitudes del propio usuario** (15/11/2026, en definición): **una notificación por cada
+  solicitud respondida**, que se elimina sola cuando el usuario la ve en la app (Inicio). Formato propuesto (canal
+  «Solicitudes»):
+  ```
+  MiRuta • Solicitudes
+  Solicitud [aprobada | rechazada]
+  [Entidad: ESM]  o  [Itinerario: XX Aniversario • ESM] + [Parada: La llama]
+  [Fecha y hora de la respuesta: Lun. 16/11/26 08:40]
+  [destacada, solo si se rechaza: Motivo: …]
+  ```
