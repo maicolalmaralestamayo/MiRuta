@@ -1834,3 +1834,12 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
   Tamaño: [13.6 MB]  (el de la APK de la arquitectura del teléfono)
   [destacada, solo si es obligatoria: Instálela para seguir usando MiRuta]
   ```
+- **Respuesta del desarrollador** (15/11/2026, aceptada): una única notificación que se va actualizando (canal
+  «Mensajes»); al tocarla se abre la conversación y desaparece sola al leerla.
+  ```
+  MiRuta • Mensajes
+  Respuesta del desarrollador
+  [texto del último mensaje]
+  [fecha y hora: Lun. 16/11/26 09:25]
+  [destacada, solo si hay más de uno: N mensajes sin leer]
+  ```
