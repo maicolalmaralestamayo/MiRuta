@@ -1783,8 +1783,7 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
   [Estado: De camino | En parada | Viajando | Dejado | Botado | Dormido | No voy]
   [Itinerario] • [ida | regreso]
   Mi parada: [parada]
-  [destacada, si toca: Llegó tarde a la parada | El vehículo pasó sin recogerle | Sin GPS: active la ubicación |
-   Ya puede quitar la ubicación]
+  [destacada, si toca: Llegó tarde a la parada | El vehículo pasó sin recogerle | Ya puede quitar la ubicación]
   ```
 - **Viajando y Recogido se unifican en «Viajando»** (15/11/2026, aceptado): las dos significaban lo mismo (el
   trabajador va dentro del vehículo); solo cambiaba el sentido. Queda un único estado **Viajando** en la ida y en el
@@ -1792,7 +1791,8 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
   en la app (sensores, ocupación, Botado, línea del recorrido) y en las notificaciones. Estados resultantes:
   - **Ida:** De camino, En parada (primera parada), Viajando, Dejado, Botado, Dormido, No voy.
   - **Regreso:** De camino, En parada, Viajando, Botado, Dormido, No voy.
-- **«Active la ubicación» dentro de «Mi estado»** (15/11/2026, aceptado): desaparece la notificación suelta. Mientras
-  el GPS esté apagado, «Mi estado» muestra en naranja **«Active la ubicación (GPS)»**; si falta el permiso «Permitir
-  todo el tiempo», muestra **«Abra MiRuta para calcular su estado»** (en ese caso Android puede no permitir la
+- **«Active la ubicación» dentro de «Mi estado»** (15/11/2026, aceptado; corregido el mismo día): desaparece la
+  notificación suelta. Mientras el GPS esté apagado, «Mi estado» **no muestra ningún dato** (ni estado, ni
+  itinerario, ni parada): solo la línea en naranja **«Active la ubicación (GPS)»**. Si falta el permiso «Permitir
+  todo el tiempo», solo **«Abra MiRuta para calcular su estado»** (en ese caso Android puede no permitir la
   notificación fija desde segundo plano: se muestra como notificación normal con el mismo formato).
