@@ -1775,3 +1775,14 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
   - **Sin datos del vehículo** (aceptado): si ningún teléfono hace de sensor, la notificación se mantiene con los
     últimos datos conocidos; la primera línea queda solo con el **tipo de vehículo** del viaje (p. ej. «Microbús»,
     nunca un texto fijo) y se añade al final la línea destacada (naranja) **«Sin datos»**.
+- **Notificación «Mi estado»** (15/11/2026, en definición): se **fusiona con la notificación fija** que Android
+  exige mientras la app usa el GPS en segundo plano; desaparecen las «Mi estado» sueltas y la de «Ya puede quitar
+  la ubicación». Propuesta mostrada (canal «Mi estado», fija durante la ventana del viaje):
+  ```
+  MiRuta • Mi estado
+  [Estado: De camino | En parada | Viajando | Recogido | Dejado | Botado | Dormido | No voy]
+  [Itinerario] • [ida | regreso]
+  Mi parada: [parada]
+  [destacada, si toca: Llegó tarde a la parada | El vehículo pasó sin recogerle | Sin GPS: active la ubicación |
+   Ya puede quitar la ubicación]
+  ```
