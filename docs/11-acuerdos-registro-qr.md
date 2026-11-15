@@ -1739,3 +1739,14 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
 - **Contador en Recuperar acceso** (15/11/2026, aceptado): mientras haya una solicitud pendiente, la pantalla (que
   consulta su estado cada 30 s) muestra también el **contador** hasta la próxima consulta, igual que en el inicio de
   sesión.
+- **Notificación del estado del viaje** (15/11/2026, en definición; sustituye a «Viaje planificado / modificado /
+  en ejecución / cancelado»): **una única notificación por viaje** que se va actualizando. Si el usuario la quita,
+  vuelve a salir cuando se detecta un cambio de estado del viaje. Al llegar el viaje a **Terminado** se elimina sola.
+  Formato (canal «Viajes»):
+  ```
+  MiRuta • Viajes
+  Viaje [planificado | cambiado | en ejecución | cancelado | eliminado]
+  [Itinerario] • [ida | regreso]
+  [Fecha y hora: Lun. 16/11/26 07:00]
+  [Parada de salida] • [Tipo de vehículo]
+  ```
