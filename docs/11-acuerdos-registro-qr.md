@@ -1772,3 +1772,6 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
     destacada «Última parada». **Detenido en una parada**: solo «Próxima» y la línea destacada con el nombre de la
     parada y el verbo según el sentido: «Recogiendo en Coppelia» (regreso) o «Dejando en Coppelia» (ida). Sin otros
     textos de explicación.
+  - **Sin datos del vehículo** (aceptado): si ningún teléfono hace de sensor, la notificación se mantiene con los
+    últimos datos conocidos y la primera línea pasa a «[Tipo de vehículo] • sin datos» (p. ej. «Microbús • sin
+    datos»). El tipo de vehículo es siempre el del viaje, nunca un texto fijo.
