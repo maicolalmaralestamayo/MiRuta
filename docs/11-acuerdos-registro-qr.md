@@ -1715,3 +1715,10 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
   Flutter usada (3.47). Bajar de ahí obligaría a usar un Flutter antiguo; no se propone.
 - **Caché local** (15/11/2026, en definición): la app guarda en el teléfono la mayoría de los datos para no esperar
   al servidor en cada pantalla.
+  - **Forma de la caché, aceptada** (15/11/2026): se guardan en el teléfono perfil, Entidades, itinerarios,
+    paradas, hijos, solicitudes, listas de Gestión y nomencladores, ajustes, viajes de los próximos días y la
+    conversación; **no** la línea del recorrido en tiempo real. Al abrir una pantalla se muestra al momento lo
+    guardado («Actualizado hace …») y por detrás se pide **solo lo que cambió**; la consulta periódica (F o Z) trae
+    qué ha cambiado. Las modificaciones van al servidor (spinner y Cancelar) y, si salen bien, actualizan la caché.
+    Sin conexión se consulta todo pero no se modifica (salvo Incluir por QR). Al cerrar sesión se borra. En archivos
+    locales, sin paquetes nuevos.
