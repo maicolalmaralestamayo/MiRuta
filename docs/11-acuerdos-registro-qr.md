@@ -1697,3 +1697,13 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
   gasto **mínimo** de datos y batería.
 - La interfaz muestra un **contador regresivo** hasta la próxima conexión con el servidor (enviar/recibir).
 - Lo que la app descarga lo usa para **calcular en el teléfono** (no en el servidor) todo lo que se pueda.
+- **F mínimo 15 min** (15/11/2026): el ajuste no acepta valores menores de `15min` (validación al configurar).
+- **GPS solo dentro de la ventana de viaje:** fuera de la ventana la app no usa el GPS.
+- **Ubicación obligatoria para seguir el viaje:** para consultar los estados del viaje y la línea del recorrido el
+  usuario debe tener la ubicación activada (y con ella su teléfono participa como sensor). Sin ubicación, la app
+  le pide activarla antes de mostrarlos.
+- **Cómo se logra** (propuesta técnica aceptada): dentro de la ventana, **servicio en primer plano de ubicación**
+  (notificación fija) arrancado por **alarma exacta** X antes de la salida, con «ubicación todo el tiempo» y batería
+  sin restricciones; una sola petición cada Z que envía y recibe solo lo que cambió. Fuera de la ventana,
+  **WorkManager** cada F (≥ 15 min), sin GPS ni notificación fija; se reprograma al reiniciar el teléfono. Avisar
+  por fabricante (Xiaomi, Huawei, Oppo, Samsung) de los ajustes de «inicio automático» / segundo plano.
