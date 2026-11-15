@@ -276,9 +276,12 @@ class TrackingHandler extends TaskHandler {
       if (sync is Map) {
         final notifications = [for (final n in (sync['data'] as List? ?? const [])) Resource.fromJson(Map<String, dynamic>.from(n as Map))];
         final syncMeta = Map<String, dynamic>.from(sync['meta'] as Map? ?? const {});
-        await SyncService.apply(api, notifications, syncMeta, foreground: foreground);
         // Con la app abierta, ella muestra los avisos dentro y recarga lo que cambió.
-        FlutterForegroundTask.sendDataToMain({'changed': syncMeta['changed'] ?? const [], 'versions': syncMeta['versions']});
+        final result = await SyncService.apply(api, notifications, syncMeta, notify: !foreground, foreground: foreground);
+        FlutterForegroundTask.sendDataToMain({
+          'changed': result.changed.toList(),
+          if (foreground) 'notifications': [for (final n in notifications) n.attributes],
+        });
       }
     } on ApiException catch (error) {
       if (!error.isNetwork && pending != null && (error.statusCode == 422 || error.statusCode == 403 || error.statusCode == 404)) queue.removeAt(0);

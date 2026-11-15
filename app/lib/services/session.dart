@@ -178,6 +178,12 @@ class Session extends ChangeNotifier {
     if (data is! Map) return;
     final next = DateTime.tryParse('${data['nextAt'] ?? ''}');
     if (next != null) TripWindow.nextContact.value = next;
+    for (final n in (data['notifications'] as List? ?? const [])) {
+      if (n is Map) {
+        Notifications.showServer('${n['kind'] ?? ''}', '${n['title'] ?? 'MiRuta'}', '${n['body'] ?? ''}', Map<String, dynamic>.from(n['data'] as Map? ?? const {}),
+            foreground: true);
+      }
+    }
     final changed = (data['changed'] as List?)?.map((e) => '$e').toSet();
     if (changed != null) {
       SyncService.cachedCounters().then((c) {
@@ -203,6 +209,7 @@ class Session extends ChangeNotifier {
     final interval = open != null ? settings.windowEvery : settings.outsideEvery;
     if (await TrackingService.isRunning) {
       // La conexión la hace el servicio: el contador sigue su ritmo.
+      await Storage.setForeground(true);
       final current = TripWindow.nextContact.value;
       if (current == null || current.isBefore(DateTime.now())) TripWindow.nextContact.value = DateTime.now().add(interval);
       _timer = Zone.root.run(() => Timer(interval + const Duration(seconds: 2), () => _schedule()));

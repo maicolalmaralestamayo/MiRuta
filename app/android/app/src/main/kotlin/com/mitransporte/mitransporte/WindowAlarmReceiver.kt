@@ -23,7 +23,9 @@ class WindowAlarmReceiver : BroadcastReceiver() {
         when (intent.action) {
             Intent.ACTION_BOOT_COMPLETED, Intent.ACTION_MY_PACKAGE_REPLACED, "android.intent.action.QUICKBOOT_POWERON" -> {
                 val at = WindowAlarm.at(context)
-                if (at > 0) WindowAlarm.schedule(context, maxOf(at, System.currentTimeMillis() + 30_000))
+                val now = System.currentTimeMillis()
+                // Una ventana que empezó hace poco puede seguir abierta: se reabre en un momento.
+                if (at > now - 6 * 3600_000L) WindowAlarm.schedule(context, maxOf(at, now + 30_000))
             }
             else -> start(context)
         }
