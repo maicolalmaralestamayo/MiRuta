@@ -1731,6 +1731,9 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
 - **Selector de tema en un solo botón** (15/11/2026): en lugar de los tres botones Claro / Oscuro / Automático, un
   **único botón** (icono del modo actual) que al tocarlo abre un **menú** para elegir Claro, Oscuro o Automático.
   Igual en el inicio de sesión y en Inicio.
-- **Contador en las pantallas sin sesión** (15/11/2026, en definición): el inicio de sesión no consulta al servidor
-  periódicamente (solo comprueba la conexión al abrirse y al pulsar el punto). La única pantalla sin sesión que
-  consulta cada cierto tiempo es **Recuperar acceso** (cada 30 s mientras la solicitud está pendiente).
+- **Punto de conexión y contador en el inicio de sesión** (15/11/2026, aceptado): mientras la pantalla de inicio de
+  sesión esté abierta, la app **comprueba la conexión con el servidor cada 30 s** (además de al abrirse, al tocar el
+  punto y al intentar entrar), de modo que el punto rojo/verde esté siempre al día, y muestra el **contador** hasta la
+  próxima comprobación, como en la barra con sesión. Antes solo comprobaba al abrirse y al tocar el punto, y el punto
+  podía quedar desactualizado.
+- **Recuperar acceso** (en definición): ya consulta cada 30 s mientras la solicitud está pendiente.
