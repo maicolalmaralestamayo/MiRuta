@@ -1792,3 +1792,7 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
   en la app (sensores, ocupación, Botado, línea del recorrido) y en las notificaciones. Estados resultantes:
   - **Ida:** De camino, En parada (primera parada), Viajando, Dejado, Botado, Dormido, No voy.
   - **Regreso:** De camino, En parada, Viajando, Botado, Dormido, No voy.
+- **«Active la ubicación» dentro de «Mi estado»** (15/11/2026, aceptado): desaparece la notificación suelta. Mientras
+  el GPS esté apagado, «Mi estado» muestra en naranja **«Active la ubicación (GPS)»**; si falta el permiso «Permitir
+  todo el tiempo», muestra **«Abra MiRuta para calcular su estado»** (en ese caso Android puede no permitir la
+  notificación fija desde segundo plano: se muestra como notificación normal con el mismo formato).
