@@ -1754,3 +1754,14 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
   [Parada de salida] • [Tipo de vehículo]
   [solo si cambió: Atención, el viaje sufrió cambios!!!]
   ```
+- **Notificación del estado del vehículo** (15/11/2026, en definición; sustituye a «El vehículo llegó a una parada»,
+  «Vehículo detenido» y «El vehículo sigue»): **una única notificación por viaje** que se va actualizando. Si el
+  usuario la quita, vuelve a salir cuando se detecta un cambio de estado del vehículo. Al llegar el viaje a
+  **Terminado** se elimina sola. Formato (canal «Vehículo»):
+  ```
+  MiRuta • Vehículo
+  [Tipo de vehículo] • [en movimiento | detenido]
+  [Itinerario] • [ida | regreso]
+  Anterior: [parada anterior]
+  Próxima: [próxima parada]
+  ```
