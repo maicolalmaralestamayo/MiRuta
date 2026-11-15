@@ -1825,3 +1825,12 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
   «Cambió la hora», «Cambió la fecha y hora», «Cambió la fecha, hora y tipo de vehículo», «Cambió la observación».
   Campos posibles: fecha, hora, tipo de vehículo, observación y parada de salida (esta solo cambia si cambia la
   primera parada del itinerario). La línea desaparece en cuanto el viaje pasa a otro estado.
+- **Notificación de actualización de la app** (15/11/2026, aceptada): una única notificación (canal
+  «Actualizaciones»); al tocarla se abre la descarga y desaparece sola al instalar la versión.
+  ```
+  MiRuta • Actualizaciones
+  Actualización [disponible | obligatoria]
+  Versión [4.3.0]
+  Tamaño: [13.6 MB]  (el de la APK de la arquitectura del teléfono)
+  [destacada, solo si es obligatoria: Instálela para seguir usando MiRuta]
+  ```
