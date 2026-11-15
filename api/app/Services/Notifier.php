@@ -10,9 +10,15 @@ use App\Models\WorkerItinerary;
 use Carbon\Carbon;
 
 /**
- * Notificaciones del teléfono (docs/11 §11.47 y §11.50). No hay servicio de
- * envío: se guardan aquí y la app las recoge al sincronizar (GET /sync) y las
- * muestra como notificaciones locales. Cada una lleva su título y su texto.
+ * Notificaciones del teléfono (docs/11 §11.47, §11.50 y §11.63). No hay
+ * servicio de envío: se guardan aquí y la app las recoge al sincronizar
+ * (GET /sync) y las muestra como notificaciones locales. Cada una lleva su
+ * título y su texto (los usan las apps 4.2.0) y en `data` lo que la app 4.3.0
+ * necesita para componer la suya (una por viaje, una de solicitudes
+ * pendientes, una por solicitud respondida, una de mensajes…).
+ *
+ * Las del vehículo (VEHICLE_*) solo las usan las apps 4.2.0: la 4.3.0 compone
+ * la notificación del vehículo en el teléfono con la línea del recorrido.
  */
 class Notifier
 {
@@ -23,6 +29,7 @@ class Notifier
     public const TRIP_CREATED = 'viaje_creado';
     public const TRIP_CHANGED = 'viaje_modificado';
     public const TRIP_STATUS = 'viaje_estado';
+    public const TRIP_DELETED = 'viaje_eliminado';
     public const VEHICLE_LONG_STOP = 'vehiculo_detencion_larga';
     public const VEHICLE_RESUMED = 'vehiculo_reanuda';
     public const VEHICLE_AT_STOP = 'vehiculo_en_parada';
@@ -36,6 +43,7 @@ class Notifier
         self::TRIP_CREATED => 'trips',
         self::TRIP_CHANGED => 'trips',
         self::TRIP_STATUS => 'trips',
+        self::TRIP_DELETED => 'trips',
         self::VEHICLE_LONG_STOP => 'trips',
         self::VEHICLE_RESUMED => 'trips',
         self::VEHICLE_AT_STOP => 'trips',

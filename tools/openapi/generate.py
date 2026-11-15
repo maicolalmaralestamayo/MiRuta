@@ -94,12 +94,14 @@ res("installations", "Installation", {"deviceModel": STR(nullable=True), "androi
     "appVersionCode": INT(nullable=True), "blocked": BOOL(), "createdAt": DT(**RO)}, {"user": "users"})
 res("tokens", "Token", {"username": STR(writeOnly=True), "password": STR(writeOnly=True), "refreshToken": STR(), "deviceName": STR(nullable=True),
     "accessToken": STR(**RO), "tokenType": STR(**RO), "expiresIn": INT(**RO), "refreshExpiresIn": INT(**RO)}, {"user": "users"})
-res("trip-reports", "TripReport", {"workerState": STR(enum=["de_camino", "en_parada", "viajando", "dejado", "recogido", "botado", "dormido", "no_voy"]),
+res("trip-reports", "TripReport", {"workerState": STR(enum=["de_camino", "en_parada", "viajando", "dejado", "botado", "dormido", "no_voy"],
+        description="Viajando en la ida y en el regreso (4.3.0). «recogido» (apps 4.2.0) se acepta y se guarda como viajando."),
     "stopId": INT(nullable=True), "childIds": S("array", items=INT()), "childrenCount": INT(minimum=0, maximum=20),
     "vehicleState": STR(enum=["detenido", "en_movimiento"]), "nextStopIndex": INT(minimum=0), "atStop": BOOL(), "reportedAt": DT(),
     "gps": BOOL(nullable=True)},
     desc="Informe del teléfono (solo cambios, con acuse).")
-res("trip-lives", "TripLive", {"direction": STR(), "status": STR(), "departsAt": DT(), "vehicle": OBJ(), "sensors": INT(),
+res("trip-lives", "TripLive", {"direction": STR(), "status": STR(), "departsAt": DT(), "itineraryName": STR(nullable=True),
+    "vehicleTypeName": STR(nullable=True), "vehicle": OBJ(), "sensors": INT(),
     "inVehicle": OBJ(), "expectedPassengers": INT(), "notGoing": INT(), "stops": S("array", items=OBJ()), "myState": OBJ(nullable=True),
     "myStopId": STR(nullable=True), "canManage": BOOL(), "serverTime": DT()}, {"trip": "trips"},
     "Línea del recorrido. vehicle.state null = sin datos del vehículo; stops[] con latitude, longitude y passedManually.")
@@ -108,7 +110,9 @@ res("trip-workers", "TripWorker", {"fullName": STR(), "photoUrl": IMG, "expected
     "stateAt": DT(nullable=True), "childrenCount": INT(), "isChief": BOOL(), "lastSeenAt": DT(nullable=True), "gpsOk": BOOL(nullable=True),
     "sensor": BOOL(), "sensorReason": STR(enum=["sensor", "no_en_vehiculo", "sin_gps", "sin_enviar"])}, {"user": "users", "stop": "stops"})
 res("notifications", "Notification", {"kind": STR(), "title": STR(), "body": STR(), "data": OBJ(), "createdAt": DT()},
-    desc="Notificación para mostrar en el teléfono (GET /sync).")
+    desc="Notificación para mostrar en el teléfono (GET /sync). La app 4.3.0 compone la suya con `data`: viajes (tripId, status, "
+         "direction, itineraryName, departsAt, departureStop, vehicleType, changes), solicitudes respondidas (applicationId, status, type, "
+         "entity, itinerary, stop, resolvedAt, reason, note) y respuestas del desarrollador (conversationId, sentAt). kind viaje_eliminado: viaje eliminado.")
 res("qr-devices", "QrDevice", {"publicKey": STR(), "certificate": STR(**RO), "expiresAt": DT(**RO), "userId": STR(**RO), "serverPublicKey": STR(**RO)})
 res("qr-scans", "QrScan", {"qr": STR(writeOnly=True), "scannedAt": DT(nullable=True), "fullName": STR(**RO), "photoUrl": IMG,
     "sex": STR(**RO), "memberships": S("array", items=OBJ(), **RO)}, {"user": "users"})
@@ -309,7 +313,8 @@ paths["/trips/{id}/stop-passes"] = {"post": op("Viajes", "Pasó por la parada", 
 
 # Sincronización, conversaciones y ajustes
 paths["/sync"] = {"get": op("Sincronización", "Novedades desde el cursor", ok(200, "NotificationCollection"),
-    "Sin cursor: solo meta.cursor. meta: cursor, more, changed, counters, latestAppVersion, nextTrip, myTrips, versions, settingsVersion, serverTime. "
+    "Sin cursor: solo meta.cursor. meta: cursor, more, changed, counters, latestAppVersion, nextTrip, myTrips, finishedTrips, pendingApplications, "
+    "versions, settingsVersion, serverTime. "
     "Todos los GET llevan ETag y responden 304 con If-None-Match.",
     [{"name": "cursor", "in": "query", "required": False, "schema": STR(pattern=r"^\d+$")}], errs=("400", "401", "426"))}
 crud("conversations", "Conversaciones", "LCR", [filt("mine", "true"), filt("unread", "true")])
@@ -356,7 +361,7 @@ spec = {
     "openapi": "3.0.3",
     "info": {
         "title": "MiRuta API",
-        "version": "4.2.0",
+        "version": "4.3.0",
         "description": "API de MiRuta (Laravel 12): gestión del transporte de trabajadores.\n\n"
                        "- Formato [JSON:API 1.1](https://jsonapi.org/format/) (`application/vnd.api+json`).\n"
                        "- Autenticación JWT (RFC 7519) con token de renovación y rotación.\n"

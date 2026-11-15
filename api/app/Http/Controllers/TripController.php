@@ -141,7 +141,7 @@ class TripController extends Controller
             throw JsonApiException::conflict('TRIP_RUNNING', 'Un viaje en ejecución no se elimina: termínelo primero.');
         }
 
-        $trip->delete();
+        $this->trips->delete($trip);
 
         return $this->noContent();
     }
@@ -150,7 +150,32 @@ class TripController extends Controller
     {
         $trip = $this->find($request, $id);
 
-        return JsonApiResponse::make(Document::fromArray($this->trips->live($trip, $request->user())));
+        return JsonApiResponse::make(Document::fromArray(self::forClient($request, $trip, $this->trips->live($trip, $request->user()))));
+    }
+
+    /** versionCode de la 4.3.0: las apps anteriores conocen «recogido» en el regreso. */
+    public const VERSION_CODE_4_3 = 13;
+
+    /**
+     * Las apps 4.2.0 (versionCode < 13) llaman «recogido» a Viajando en el
+     * regreso (docs/11 §11.63): se les devuelve así para que su teléfono siga
+     * siendo sensor.
+     */
+    public static function legacyState(Request $request, Trip $trip, ?string $state): ?string
+    {
+        $code = \App\Http\Middleware\RequireCurrentAppVersion::versionCode($request);
+
+        return $state === TripPassenger::TRAVELLING && ! $trip->isOutbound() && $code !== null && $code < self::VERSION_CODE_4_3
+            ? TripPassenger::LEGACY_PICKED_UP : $state;
+    }
+
+    private static function forClient(Request $request, Trip $trip, array $live): array
+    {
+        if (isset($live['attributes']['myState']['state'])) {
+            $live['attributes']['myState']['state'] = self::legacyState($request, $trip, $live['attributes']['myState']['state']);
+        }
+
+        return $live;
     }
 
     /**
@@ -176,7 +201,7 @@ class TripController extends Controller
                     'fullName' => $worker?->user?->fullName(),
                     'photoUrl' => $worker?->user?->photo_path ? url($worker->user->photo_path) : null,
                     'expected' => $expected->contains('user_id', $userId),
-                    'state' => $state?->state,
+                    'state' => self::legacyState($request, $trip, $state?->state),
                     'stateAt' => $state?->state_at?->toIso8601String(),
                     'childrenCount' => (int) ($state?->children_count ?? 0),
                     'isChief' => (bool) $worker?->is_chief,
@@ -220,7 +245,7 @@ class TripController extends Controller
             'attributes.gps' => ['sometimes', 'nullable', 'boolean'],
         ]);
         $ack = $this->trips->report($request->user(), $trip, $data['attributes']);
-        $live = $this->trips->live($trip->fresh(), $request->user());
+        $live = self::forClient($request, $trip, $this->trips->live($trip->fresh(), $request->user()));
         $meta = ['ack' => true] + $ack;
 
         // Dentro de la ventana de viaje, una sola petición envía y recibe (docs/11 §11.62).
@@ -245,7 +270,7 @@ class TripController extends Controller
         ]);
         $trip = $this->trips->markStopPassed($request->user(), $trip, (int) $data['attributes']['routeIndex']);
 
-        return JsonApiResponse::make(Document::fromArray($this->trips->live($trip->fresh(), $request->user())), 201);
+        return JsonApiResponse::make(Document::fromArray(self::forClient($request, $trip, $this->trips->live($trip->fresh(), $request->user()))), 201);
     }
 
     private function find(Request $request, $id): Trip

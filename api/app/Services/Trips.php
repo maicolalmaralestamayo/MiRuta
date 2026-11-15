@@ -29,17 +29,27 @@ use Illuminate\Support\Facades\DB;
  * - Estados: planificado → en_ejecucion → terminado, o planificado → cancelado.
  *   En ejecución ya no se edita.
  * - El estado de cada trabajador lo calcula su teléfono y envía solo los
- *   cambios (report()). Los teléfonos de quienes van en el vehículo (Viajando
- *   en la ida, Recogido en el regreso) son sensores: informan si el vehículo
+ *   cambios (report()). Los teléfonos de quienes van en el vehículo (Viajando,
+ *   en la ida y en el regreso; docs/11 §11.63) son sensores: informan si el vehículo
  *   está detenido o en movimiento y cuál es su próxima parada; el servidor
  *   decide por mayoría (ajuste «Mínimo confirmaciones»).
  * - El estado del viaje cambia a mano (Administrador o Jefe) o solo: empieza
- *   cuando suficientes trabajadores están Viajando (ida) o Recogidos en la
+ *   cuando suficientes trabajadores están Viajando (ida) o Viajando desde la
  *   última parada (regreso); termina al pasar la última parada (ida) o al
  *   detenerse en la primera (regreso); y las revisiones de review() (plazos).
  */
 class Trips
 {
+    /** Lo que puede cambiar en «Viaje cambiado» (docs/11 §11.63), en el orden en que se nombra. */
+    public const CHANGE_DATE = 'fecha';
+    public const CHANGE_TIME = 'hora';
+    public const CHANGE_VEHICLE = 'tipo_vehiculo';
+    public const CHANGE_OBSERVATION = 'observacion';
+    public const CHANGE_DEPARTURE = 'parada_salida';
+
+    /** Estado de la notificación de un viaje eliminado (el viaje ya no existe). */
+    public const STATUS_DELETED = 'eliminado';
+
     public function __construct(private Access $access, private Settings $settings, private Notifier $notifier, private ChildEligibility $children)
     {
     }
@@ -136,7 +146,7 @@ class Trips
         }
 
         $this->notifier->send($this->notifier->tripAudience($trip), Notifier::TRIP_CREATED, 'Viaje planificado',
-            $this->describe($trip).'.', $this->data($trip));
+            ucfirst($this->describe($trip)).'.', $this->data($trip));
 
         return $trip;
     }
@@ -155,6 +165,7 @@ class Trips
         $date = $changes['date'] ?? $trip->date->toDateString();
         $time = $changes['departureTime'] ?? $trip->departure_time;
         $before = $this->describe($trip);
+        $old = ['date' => $trip->date->toDateString(), 'time' => $trip->departure_time, 'vehicle' => (int) $trip->vehicle_type_id, 'observation' => $trip->observation];
 
         if (isset($changes['date']) || isset($changes['departureTime'])) {
             $departsAt = $this->departure($date, $time);
@@ -182,8 +193,18 @@ class Trips
             throw JsonApiException::conflict('TRIP_EXISTS', 'Ya hay un viaje de '.$trip->direction.' de ese itinerario ese día.', '/data/attributes/date');
         }
 
-        $this->notifier->send($this->notifier->tripAudience($trip), Notifier::TRIP_CHANGED, 'Viaje modificado',
-            'Antes: '.$before.'. Ahora: '.$this->describe($trip).'.', $this->data($trip));
+        // Qué cambió (docs/11 §11.63): la app lo muestra en «Cambió la fecha, hora y …».
+        $changed = array_keys(array_filter([
+            self::CHANGE_DATE => $old['date'] !== $trip->date->toDateString(),
+            self::CHANGE_TIME => $old['time'] !== $trip->departure_time,
+            self::CHANGE_VEHICLE => $old['vehicle'] !== (int) $trip->vehicle_type_id,
+            self::CHANGE_OBSERVATION => (string) $old['observation'] !== (string) $trip->observation,
+        ]));
+
+        if ($changed) {
+            $this->notifier->send($this->notifier->tripAudience($trip), Notifier::TRIP_CHANGED, 'Viaje modificado',
+                'Antes: '.$before.'. Ahora: '.$this->describe($trip).'.', $this->data($trip, $changed));
+        }
 
         return $trip;
     }
@@ -283,6 +304,44 @@ class Trips
         return $trip;
     }
 
+    /**
+     * Elimina el viaje (a mano o por «Plazo eliminación») y lo avisa: la app
+     * pone «Viaje eliminado» en la notificación de ese viaje (docs/11 §11.63).
+     */
+    public function delete(Trip $trip): void
+    {
+        $audience = $this->notifier->tripAudience($trip);
+        $data = ['status' => self::STATUS_DELETED] + $this->data($trip);
+        $description = $this->describe($trip);
+        $trip->delete();
+        $this->notifier->send($audience, Notifier::TRIP_DELETED, 'Viaje eliminado', 'Se eliminó el '.$description.'.', $data);
+    }
+
+    /**
+     * Cambios del recorrido de un itinerario (añadir, quitar u ordenar sus
+     * paradas): si cambia la parada de salida de sus viajes planificados, se
+     * avisa como «Viaje cambiado» con «Cambió la parada de salida».
+     *
+     * @param int[] $itineraryIds
+     */
+    public function watchDeparture(array $itineraryIds, callable $change): mixed
+    {
+        $planned = fn () => Trip::whereIn('itinerary_id', $itineraryIds ?: [0])->where('status', Trip::PLANNED)->whereNull('route')->get();
+        $before = $planned()->mapWithKeys(fn (Trip $t) => [$t->id => $t->routeStopIds()[0] ?? null])->all();
+        $result = $change();
+
+        foreach ($planned() as $trip) {
+            $departure = $trip->routeStopIds()[0] ?? null;
+
+            if (array_key_exists($trip->id, $before) && $departure !== null && $before[$trip->id] !== $departure) {
+                $this->notifier->send($this->notifier->tripAudience($trip), Notifier::TRIP_CHANGED, 'Viaje modificado',
+                    'Cambió la parada de salida del '.$this->describe($trip).'.', $this->data($trip, [self::CHANGE_DEPARTURE]));
+            }
+        }
+
+        return $result;
+    }
+
     public function cancel(Trip $trip): Trip
     {
         $trip->forceFill(['status' => Trip::CANCELLED, 'status_changed_at' => Carbon::now()])->save();
@@ -366,7 +425,8 @@ class Trips
      */
     private function applyWorkerState(Trip $trip, WorkerItinerary $worker, ?TripPassenger $passenger, array $report, Carbon $now, Carbon $reportedAt): array
     {
-        $state = $report['workerState'];
+        // «recogido» llega de los teléfonos con la 4.2.0: es Viajando (docs/11 §11.63).
+        $state = TripPassenger::normalize($report['workerState']);
         $allowed = $trip->isOutbound() ? TripPassenger::OUTBOUND_STATES : TripPassenger::RETURN_STATES;
 
         if (! in_array($state, $allowed, true)) {
@@ -388,7 +448,7 @@ class Trips
                 return [true, null];
             }
 
-            if (in_array($passenger->state, TripPassenger::FINAL_STATES, true)) {
+            if (TripPassenger::isFinal($passenger->state, $trip->isOutbound())) {
                 return [false, 'ESTADO_FINAL'];
             }
 
@@ -458,7 +518,7 @@ class Trips
 
     private function isSensorState(Trip $trip, string $state): bool
     {
-        return $state === ($trip->isOutbound() ? TripPassenger::TRAVELLING : TripPassenger::PICKED_UP);
+        return $state === TripPassenger::TRAVELLING;
     }
 
     /*
@@ -487,7 +547,7 @@ class Trips
 
     /**
      * Ida: al menos «Mínimo confirmaciones» trabajadores Viajando. Regreso: al
-     * menos ese número de Recogidos en la última parada (la de salida). Si se
+     * menos ese número de Viajando desde la última parada (la de salida). Si se
      * esperan menos, basta con todos los esperados.
      */
     private function shouldStart(Trip $trip): bool
@@ -502,7 +562,7 @@ class Trips
             $count = TripPassenger::where('trip_id', $trip->id)->where('state', TripPassenger::TRAVELLING)->count();
             $expected = $this->expectedQuery($trip)->count();
         } else {
-            $count = TripPassenger::where('trip_id', $trip->id)->where('state', TripPassenger::PICKED_UP)->where('stop_id', $route[0])->count();
+            $count = TripPassenger::where('trip_id', $trip->id)->where('state', TripPassenger::TRAVELLING)->where('stop_id', $route[0])->count();
             $expected = $this->expectedQuery($trip)->where('stop_id', $route[0])->count();
         }
 
@@ -522,7 +582,7 @@ class Trips
         $since = Carbon::now()->subSeconds(3 * $this->settings->seconds('frecuencia_calculo'));
 
         return array_map('intval', TripPassenger::where('trip_id', $trip->id)
-            ->where('state', $trip->isOutbound() ? TripPassenger::TRAVELLING : TripPassenger::PICKED_UP)
+            ->where('state', TripPassenger::TRAVELLING)
             ->where('last_seen_at', '>=', $since)
             // Sin posición del GPS no puede informar del vehículo.
             ->where(fn ($q) => $q->whereNull('gps_ok')->orWhere('gps_ok', true))
@@ -650,7 +710,7 @@ class Trips
      * - Planificado sin salir: se elimina pasado «Plazo eliminación» desde la
      *   salida (o desde su último estado, si es posterior);
      * - En ejecución: termina pasada «Duración máxima» desde que empezó, o
-     *   pasada «Espera cierre» desde el último Dejado (ida) o Recogido (regreso);
+     *   pasada «Espera cierre» desde el último Dejado (ida) o Viajando (regreso);
      * - detenciones largas.
      *
      * @return array{deleted: int, finished: int}
@@ -666,7 +726,7 @@ class Trips
             $from = $trip->status_changed_at && $trip->status_changed_at->gt($trip->departs_at) ? $trip->status_changed_at : $trip->departs_at;
 
             if ($from->copy()->addSeconds($deleteAfter)->lte($now)) {
-                $trip->delete();
+                $this->delete($trip);
                 $deleted++;
             }
         }
@@ -682,7 +742,7 @@ class Trips
             }
 
             $last = TripPassenger::where('trip_id', $trip->id)
-                ->where('state', $trip->isOutbound() ? TripPassenger::DROPPED : TripPassenger::PICKED_UP)->max('state_at');
+                ->where('state', $trip->isOutbound() ? TripPassenger::DROPPED : TripPassenger::TRAVELLING)->max('state_at');
 
             if ($last && $trip->arrived_at === null && Carbon::parse($last)->addSeconds($closeAfter)->lte($now)) {
                 $this->finish($trip, 'espera_cierre');
@@ -753,7 +813,7 @@ class Trips
 
     /**
      * Por qué cada trabajador del viaje es o no sensor (docs/11 §11.61):
-     * sensor, no_en_vehiculo (no está Viajando / Recogido), sin_gps (su
+     * sensor, no_en_vehiculo (no está Viajando), sin_gps (su
      * último envío fue sin posición) o sin_enviar (no envía desde
      * last_seen_at; quizá la app esté cerrada o sin conexión).
      *
@@ -802,7 +862,7 @@ class Trips
         $passengers = TripPassenger::where('trip_id', $trip->id)->get();
         $expected = $this->expectedQuery($trip)->get(['id', 'user_id', 'stop_id']);
         $outbound = $trip->isOutbound();
-        $inVehicleState = $outbound ? TripPassenger::TRAVELLING : TripPassenger::PICKED_UP;
+        $inVehicleState = TripPassenger::TRAVELLING;
         $inVehicle = $passengers->where('state', $inVehicleState);
         $statesByStop = [];
 
@@ -851,6 +911,9 @@ class Trips
                 'direction' => $trip->direction,
                 'status' => $trip->status,
                 'departsAt' => $trip->departs_at->toIso8601String(),
+                // Para la notificación del vehículo que compone la app (docs/11 §11.63).
+                'itineraryName' => Itinerary::find($trip->itinerary_id)?->name,
+                'vehicleTypeName' => $capacity?->name,
                 'vehicle' => [
                     'state' => $trip->vehicle_state,
                     'since' => $trip->vehicle_state_since?->toIso8601String(),
@@ -936,9 +999,27 @@ class Trips
         return 'viaje de '.$trip->direction.' de '.($itinerary?->name ?? '').' del '.SpanishDate::date($trip->departs_at).' a las '.$trip->departure_time;
     }
 
-    private function data(Trip $trip): array
+    /**
+     * Datos de las notificaciones del viaje: con ellos la app compone la suya
+     * (docs/11 §11.63): itinerario, sentido, salida, parada de salida, tipo de
+     * vehículo y, en «Viaje cambiado», qué cambió.
+     *
+     * @param string[] $changes
+     */
+    private function data(Trip $trip, array $changes = []): array
     {
-        return ['tripId' => (string) $trip->id, 'status' => $trip->status, 'direction' => $trip->direction];
+        $departure = $trip->routeStopIds()[0] ?? null;
+
+        return [
+            'tripId' => (string) $trip->id,
+            'status' => $trip->status,
+            'direction' => $trip->direction,
+            'itineraryName' => Itinerary::find($trip->itinerary_id)?->name,
+            'departsAt' => $trip->departs_at?->toIso8601String(),
+            'departureStop' => $departure ? Stop::find($departure)?->landmark : null,
+            'vehicleType' => VehicleType::find($trip->vehicle_type_id)?->name,
+            'changes' => array_values($changes),
+        ];
     }
 
     private function notifyAtStop(Trip $trip, string $kind, string $title, string $body): void

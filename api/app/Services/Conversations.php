@@ -71,7 +71,7 @@ class Conversations
 
         if ($fromDeveloper) {
             $this->notifier->send([(int) $conversation->user_id], Notifier::DEVELOPER_REPLY, 'Respuesta del desarrollador',
-                mb_substr($body, 0, 200), ['conversationId' => (string) $conversation->id]);
+                mb_substr($body, 0, 200), ['conversationId' => (string) $conversation->id, 'sentAt' => $message->created_at?->toIso8601String()]);
         }
 
         return $message;

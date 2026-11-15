@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: MiRuta API
-  version: 4.2.0
+  version: 4.3.0
   description: 'API de MiRuta (Laravel 12): gestión del transporte de trabajadores.
 
 
@@ -3342,7 +3342,8 @@ paths:
         '426':
           $ref: '#/components/responses/UpdateRequired'
       description: 'Sin cursor: solo meta.cursor. meta: cursor, more, changed, counters, latestAppVersion, nextTrip, myTrips,
-        versions, settingsVersion, serverTime. Todos los GET llevan ETag y responden 304 con If-None-Match.'
+        finishedTrips, pendingApplications, versions, settingsVersion, serverTime. Todos los GET llevan ETag y responden 304
+        con If-None-Match.'
       parameters:
       - name: cursor
         in: query
@@ -6254,10 +6255,11 @@ components:
               - en_parada
               - viajando
               - dejado
-              - recogido
               - botado
               - dormido
               - no_voy
+              description: Viajando en la ida y en el regreso (4.3.0). «recogido» (apps 4.2.0) se acepta y se guarda como
+                viajando.
             stopId:
               type: integer
               nullable: true
@@ -6345,6 +6347,12 @@ components:
             departsAt:
               type: string
               format: date-time
+            itineraryName:
+              type: string
+              nullable: true
+            vehicleTypeName:
+              type: string
+              nullable: true
             vehicle:
               type: object
               additionalProperties: true
@@ -6586,7 +6594,10 @@ components:
           $ref: '#/components/schemas/Links'
     Notification:
       type: object
-      description: Notificación para mostrar en el teléfono (GET /sync).
+      description: 'Notificación para mostrar en el teléfono (GET /sync). La app 4.3.0 compone la suya con `data`: viajes
+        (tripId, status, direction, itineraryName, departsAt, departureStop, vehicleType, changes), solicitudes respondidas
+        (applicationId, status, type, entity, itinerary, stop, resolvedAt, reason, note) y respuestas del desarrollador (conversationId,
+        sentAt). kind viaje_eliminado: viaje eliminado.'
       required:
       - type
       properties:

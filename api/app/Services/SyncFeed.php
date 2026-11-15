@@ -24,6 +24,8 @@ use Illuminate\Support\Facades\DB;
  *
  * - meta.myTrips: los viajes en que la persona es pasajero esperado (de ayer a
  *   7 días, y los cerrados en el último día) para su ventana de viaje.
+ * - meta.finishedTrips: viajes que terminaron (la app quita sus notificaciones).
+ * - meta.pendingApplications: solicitudes pendientes que le toca resolver, por tipo.
  * - meta.versions: huella de cada grupo de datos (Entidades, itinerarios…):
  *   si cambia, la app vuelve a pedir esos datos (solo lo que cambió, con
  *   If-None-Match); si no, usa su caché.
@@ -118,6 +120,9 @@ class SyncFeed
                 'itineraryId' => (string) $nextTrip->itinerary_id,
             ] : null,
             'myTrips' => $this->myTrips($user),
+            'finishedTrips' => $this->finishedTrips($user),
+            // Por tipo, para la notificación «N solicitudes pendientes» (docs/11 §11.63).
+            'pendingApplications' => $this->applications->pendingByType($user),
             'versions' => $this->versions(),
             'settingsVersion' => $this->settings->version(),
             'serverTime' => Carbon::now()->toIso8601String(),
@@ -170,6 +175,19 @@ class SyncFeed
         }
 
         return $result;
+    }
+
+    /**
+     * Viajes que ve y que terminaron en los últimos dos días: la app quita
+     * sus notificaciones del viaje y del vehículo (docs/11 §11.63).
+     *
+     * @return string[]
+     */
+    public function finishedTrips(User $user): array
+    {
+        return $this->trips->visibleQuery($user)->where('status', Trip::FINISHED)
+            ->where('status_changed_at', '>=', Carbon::now()->subDays(2))
+            ->orderByDesc('status_changed_at')->limit(50)->pluck('id')->map(fn ($id) => (string) $id)->all();
     }
 
     /**

@@ -3,10 +3,12 @@
 namespace App\Services;
 
 use App\JsonApi\JsonApiException;
+use App\Models\AccessRecovery;
 use App\Models\Application;
 use App\Models\DenialReason;
 use App\Models\Entity;
 use App\Models\Itinerary;
+use App\Models\Stop;
 use App\Models\User;
 use App\Models\Worker;
 use Carbon\Carbon;
@@ -182,6 +184,30 @@ class Applications
     }
 
     /**
+     * Pendientes que le toca resolver, por tipo (notificación «N solicitudes
+     * pendientes», docs/11 §11.63): Entidad e «Olvidé algo» solo el
+     * Administrador; itinerario, el Administrador todas y el Jefe las de su
+     * itinerario.
+     *
+     * @return array{entity: int, itinerary: int, accessRecovery: int}
+     */
+    public function pendingByType(User $user): array
+    {
+        if ($this->access->isAdmin($user)) {
+            $counts = Application::where('status', Application::PENDING)->selectRaw('type, count(*) as c')->groupBy('type')->pluck('c', 'type');
+
+            return [
+                'entity' => (int) ($counts[Application::TYPE_ENTITY] ?? 0),
+                'itinerary' => (int) ($counts[Application::TYPE_ITINERARY] ?? 0),
+                'accessRecovery' => AccessRecovery::where('status', AccessRecovery::STATUS_PENDING)
+                    ->where(fn ($q) => $q->whereNull('expires_at')->orWhere('expires_at', '>', Carbon::now()))->count(),
+            ];
+        }
+
+        return ['entity' => 0, 'itinerary' => $this->pendingToResolve($user), 'accessRecovery' => 0];
+    }
+
+    /**
      * Las suyas resueltas que aún no vio.
      */
     public function unseenResolved(User $user): int
@@ -228,9 +254,20 @@ class Applications
         $approved = $application->status === Application::APPROVED;
         $reason = $approved ? '' : ' Motivo: '.DenialReason::find($application->denial_reason_id)?->name.'.';
 
+        // Con estos datos la app 4.3.0 compone «Solicitud aprobada / rechazada» (docs/11 §11.63).
         $this->notifier->send([(int) $application->user_id], Notifier::APPLICATION_RESOLVED,
             $approved ? 'Solicitud aprobada' : 'Solicitud rechazada',
             'Su solicitud de '.$target.' fue '.($approved ? 'aprobada.' : 'rechazada.'.$reason),
-            ['applicationId' => (string) $application->id, 'status' => $application->status]);
+            [
+                'applicationId' => (string) $application->id,
+                'status' => $application->status,
+                'type' => $application->type,
+                'entity' => Entity::find($application->entity_id)?->abbreviation,
+                'itinerary' => $application->itinerary_id ? Itinerary::find($application->itinerary_id)?->name : null,
+                'stop' => $application->stop_id ? Stop::find($application->stop_id)?->landmark : null,
+                'resolvedAt' => ($application->resolved_at ?? Carbon::now())->toIso8601String(),
+                'reason' => $approved ? null : DenialReason::find($application->denial_reason_id)?->name,
+                'note' => $approved ? null : $application->resolution_note,
+            ]);
     }
 }

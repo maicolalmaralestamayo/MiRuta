@@ -26,7 +26,7 @@ use Illuminate\Support\Facades\DB;
  */
 class Organization
 {
-    public function __construct(private Access $access)
+    public function __construct(private Access $access, private Trips $trips)
     {
     }
 
@@ -53,7 +53,9 @@ class Organization
 
     public function deleteStop(Stop $stop): void
     {
-        DB::transaction(function () use ($stop) {
+        $affected = ItineraryStop::where('stop_id', $stop->id)->pluck('itinerary_id')->map(fn ($id) => (int) $id)->all();
+
+        $this->trips->watchDeparture($affected, fn () => DB::transaction(function () use ($stop) {
             $itineraryIds = ItineraryStop::where('stop_id', $stop->id)->pluck('itinerary_id')->all();
             WorkerItinerary::where('stop_id', $stop->id)->update(['stop_id' => null]);
             $stop->delete();
@@ -61,7 +63,7 @@ class Organization
             foreach ($itineraryIds as $itineraryId) {
                 $this->renumber((int) $itineraryId);
             }
-        });
+        }));
     }
 
     /**
@@ -73,13 +75,13 @@ class Organization
             throw JsonApiException::conflict('STOP_ALREADY_IN_ITINERARY', 'La parada ya está en ese itinerario.', '/data/relationships/stop');
         }
 
-        return DB::transaction(function () use ($itinerary, $stop, $position) {
+        return $this->trips->watchDeparture([(int) $itinerary->id], fn () => DB::transaction(function () use ($itinerary, $stop, $position) {
             $count = ItineraryStop::where('itinerary_id', $itinerary->id)->count();
             $position = $position === null ? $count + 1 : max(1, min($position, $count + 1));
             ItineraryStop::where('itinerary_id', $itinerary->id)->where('position', '>=', $position)->increment('position');
 
             return ItineraryStop::create(['itinerary_id' => $itinerary->id, 'stop_id' => $stop->id, 'position' => $position]);
-        });
+        }));
     }
 
     /**
@@ -89,13 +91,13 @@ class Organization
      */
     public function removeStop(ItineraryStop $link): void
     {
-        DB::transaction(function () use ($link) {
+        $this->trips->watchDeparture([(int) $link->itinerary_id], fn () => DB::transaction(function () use ($link) {
             WorkerItinerary::where('itinerary_id', $link->itinerary_id)->where('stop_id', $link->stop_id)->update(['stop_id' => null]);
             Application::where('itinerary_id', $link->itinerary_id)->where('stop_id', $link->stop_id)
                 ->where('status', Application::PENDING)->update(['stop_id' => null]);
             $link->delete();
             $this->renumber((int) $link->itinerary_id);
-        });
+        }));
     }
 
     /**
@@ -131,11 +133,11 @@ class Organization
                 'Hay que enviar todas las paradas del itinerario, cada una una vez.', ['pointer' => '/data']);
         }
 
-        DB::transaction(function () use ($itinerary, $stopIds) {
+        $this->trips->watchDeparture([(int) $itinerary->id], fn () => DB::transaction(function () use ($itinerary, $stopIds) {
             foreach ($stopIds as $index => $stopId) {
                 ItineraryStop::where('itinerary_id', $itinerary->id)->where('stop_id', $stopId)->update(['position' => $index + 1]);
             }
-        });
+        }));
     }
 
     private function renumber(int $itineraryId): void

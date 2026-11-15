@@ -60,7 +60,7 @@ final class SettingCatalog
 
         // Estado del trabajador (se calcula en el teléfono)
         'velocidad_humana' => ['estado_trabajador', 'Velocidad humana', self::TYPE_SPEED, '10km/hor', '1km/hor', '40km/hor',
-            'Por encima de esta velocidad va en el vehículo (Viajando o Recogido).'],
+            'Por encima de esta velocidad va en el vehículo (Viajando).'],
         'tolerancia_gps' => ['estado_trabajador', 'Tolerancia GPS', self::TYPE_DISTANCE, '20m', '1m', '500m',
             'Diferencia mínima entre dos distancias para considerar que se movió; también, umbral de «misma posición» del sensor.'],
         'distancia_abandono' => ['estado_trabajador', 'Distancia abandono', self::TYPE_DISTANCE, '1km', '100m', '50km',
@@ -76,7 +76,7 @@ final class SettingCatalog
         'duracion_maxima' => ['estado_viaje', 'Duración máxima', self::TYPE_DURATION, '5hor', '10min', '2dia',
             'Un viaje En ejecución pasa a Terminado pasado este tiempo desde que empezó.'],
         'espera_cierre' => ['estado_viaje', 'Espera cierre', self::TYPE_DURATION, '2hor', '1min', '1dia',
-            'Termina el viaje si pasa este tiempo desde el último Dejado (ida) o Recogido (regreso) sin llegar a la parada final.'],
+            'Termina el viaje si pasa este tiempo desde el último Dejado (ida) o Viajando (regreso) sin llegar a la parada final.'],
 
         // Notificaciones
         'detencion_larga' => ['notificaciones', 'Detención larga', self::TYPE_DURATION, '5min', '30seg', '2hor',

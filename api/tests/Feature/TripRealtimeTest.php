@@ -106,7 +106,7 @@ class TripRealtimeTest extends TestCase
         $this->report($a, $trip, ['workerState' => 'de_camino', 'reportedAt' => $at])->assertJsonPath('meta.applied', true);
         $this->report($a, $trip, ['workerState' => 'en_parada', 'reportedAt' => Carbon::now()->subMinute()->toIso8601String()])
             ->assertJsonPath('meta.applied', false)->assertJsonPath('meta.reason', 'INFORME_ANTERIOR');
-        $this->report($a, $trip, ['workerState' => 'recogido'])->assertStatus(422)->assertJsonPath('errors.0.code', 'WORKER_STATE_INVALID');
+        $this->report($a, $trip, ['workerState' => 'dejado_mal'])->assertStatus(422)->assertJsonPath('errors.0.code', 'WORKER_STATE_INVALID');
 
         // Con un solo trabajador esperado, basta él para empezar.
         $this->report($a, $trip, ['workerState' => 'viajando'])->assertJsonPath('data.attributes.status', 'en_ejecucion');
@@ -135,7 +135,7 @@ class TripRealtimeTest extends TestCase
             ->assertJsonPath('data.attributes.inVehicle.total', 3);
     }
 
-    public function test_regreso_empieza_con_recogidos_en_la_ultima_parada_y_termina_detenido_en_la_primera(): void
+    public function test_regreso_empieza_con_viajando_en_la_ultima_parada_y_termina_detenido_en_la_primera(): void
     {
         $trip = $this->trip('regreso');
         [$a, $b, $c] = $this->workers([2, 2, 2]);
@@ -146,7 +146,7 @@ class TripRealtimeTest extends TestCase
 
         $this->report($waiting, $trip, ['workerState' => 'en_parada']);
         foreach ([$a, $b, $c] as $w) {
-            $response = $this->report($w, $trip, ['workerState' => 'recogido']);
+            $response = $this->report($w, $trip, ['workerState' => 'viajando']);
         }
         $response->assertJsonPath('data.attributes.status', 'en_ejecucion')->assertJsonPath('data.attributes.stops.1.counts.en_parada', 1);
 
@@ -178,7 +178,7 @@ class TripRealtimeTest extends TestCase
             $this->report($w, $trip, ['vehicleState' => 'detenido', 'atStop' => true, 'nextStopIndex' => 1]);
         }
         $this->assertSame(1, Notification::where('user_id', $waiting->user_id)->where('kind', 'vehiculo_en_parada')->count());
-        $this->report($waiting, $trip, ['workerState' => 'recogido']);
+        $this->report($waiting, $trip, ['workerState' => 'viajando']);
 
         // Pasa la parada intermedia y se detiene en la primera: termina.
         foreach ([$a, $b, $c, $waiting] as $w) {
