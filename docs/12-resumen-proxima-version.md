@@ -2,7 +2,7 @@
 
 Resumen **consolidado** de lo acordado en `docs/11-acuerdos-registro-qr.md` §11.19–§11.52, con la **última decisión**
 de cada tema (lo sustituido no aparece). **Servidor implementado** (Laravel 12; API en `docs/13-api-proxima-version.md`);
-**app implementada** (versión 4.2.0, `docs/05-app.md`).
+**app implementada** (versión 4.3.0, `docs/05-app.md`).
 
 ## 1. Plataforma
 
@@ -85,26 +85,32 @@ de cada tema (lo sustituido no aparece). **Servidor implementado** (Laravel 12; 
 
 - **Estados del trabajador**, calculados **en el teléfono** (envía solo cambios, con acuse y reintento):
   - Ida: De camino a la parada ⇄ En la parada → **Viajando** → **Dejado** (fin); o **No voy a viajar**.
-  - Regreso: De camino a la parada ⇄ En la parada → **Recogido** (fin); **Botado**, **Dormido**; o **No voy a viajar**.
+  - Regreso: De camino a la parada ⇄ En la parada → **Viajando** (fin); **Botado**, **Dormido**; o **No voy a viajar**.
+  - Viajando y Recogido son **un solo estado, Viajando**, en la ida y en el regreso (4.3.0).
   - Reglas: radio de parada, tolerancia del GPS, velocidad humana, 6 cálculos seguidos para Dejado, distancia de
     abandono, salida o paso del vehículo.
-- **Sensores:** los teléfonos Viajando / Recogidos calculan si el vehículo está **Detenido** o **En movimiento** y su
+- **Sensores:** los teléfonos Viajando calculan si el vehículo está **Detenido** o **En movimiento** y su
   **próxima parada**; el servidor decide por **mayoría** (mínimo 3). Detenido en una parada = **Dejando / Recogiendo**;
   en el trayecto, sin causa hasta que la indiquen.
-- **Estado del viaje:** a mano (Administrador o Jefe), o automático (3 trabajadores Viajando o Recogidos en la última
-  parada; llegada a la parada final; 2 h tras el último Dejado o Recogido; 5 h de duración máxima; eliminación a las
+- **Estado del viaje:** a mano (Administrador o Jefe), o automático (3 trabajadores Viajando, en el regreso desde la última
+  parada; llegada a la parada final; 2 h tras el último Dejado o Viajando del regreso; 5 h de duración máxima; eliminación a las
   5 h si nunca salió).
 - **Lo calcula el servidor:** personas en el vehículo y por parada, hora de paso por cada parada, cantidad de sensores.
 - **Línea:** siempre en el mismo sitio, orden de paradas según ida o regreso, cantidades (sin ceros), tarjeta de
-  «N esperando en [primera parada]», Viajando o Recogidos, sensores destacados, «Mi estado». **Sin horas estimadas.**
-- **Ubicación obligatoria** para ver el viaje en curso; recordatorios de activar el GPS (10 min antes) y de quitarlo.
+  «N esperando en [primera parada]», Viajando, sensores destacados, «Mi estado». **Sin horas estimadas.**
+- **Ubicación obligatoria** para ver el viaje en curso; los avisos de activar el GPS y de quitarlo van en «Mi estado».
 
-## 10. Notificaciones (del teléfono, sin pantalla de avisos)
+## 10. Notificaciones (del teléfono, sin pantalla de avisos; 4.3.0)
 
-- Viaje: creación y cambios de estado (no eliminación ni terminación), cambios mientras está planificado, sus propios
-  estados; a quienes están En la parada: detención de más de 5 min, reanudación y llegada a cada parada.
-- Trabajador: solicitudes aprobadas o denegadas; respuestas del desarrollador; **actualizaciones de la app**.
-- Administrador y Jefe: solicitudes recibidas.
+Siempre en la cortina (con la app abierta o cerrada), cada una actualizada en su sitio, en seis canales:
+
+1. **Viajes:** una por viaje (planificado, cambiado + «Cambió la …», en ejecución, cancelado, eliminado).
+2. **Vehículo:** una por viaje en ejecución (tipo • en movimiento/detenido, Anterior/Próxima, Recogiendo/Dejando en,
+   Primera/Última parada, Sin datos).
+3. **Mi estado:** la fija del servicio de ubicación (estado, itinerario, Mi parada; avisos de GPS y de permiso).
+4. **Solicitudes:** una de pendientes (Administrador / Jefe) y una por cada respuesta a las propias.
+5. **Mensajes:** una de respuestas del desarrollador.
+6. **Actualizaciones:** una de versión disponible/obligatoria.
 
 ## 10 bis. Actualizaciones de la app
 
@@ -182,3 +188,17 @@ ajustes por Entidad / itinerario / parada / usuario.
 - **Caché local** en archivos: se muestra al momento lo guardado («Actualizado hace …») y se pregunta solo lo que
   cambió (ETag/304 y huellas de `GET sync`); sin conexión, solo consulta; se borra al cerrar sesión.
 - **Servidor:** migración de actualización 4.1.0 → 4.2.0 con «Actualizar base de datos» (docs/10 §10.3 bis).
+
+## 17. Versión 4.3.0 (15/11/2026, docs/11 §11.63)
+
+- **Tema en un solo botón** con el icono del modo actual y un menú (Claro, Oscuro, Automático), en el inicio de
+  sesión y en la barra de Inicio.
+- **Sin sesión:** el inicio de sesión comprueba la conexión cada 30 s con su contador; Recuperar acceso muestra el
+  contador de la consulta de la solicitud pendiente.
+- **Viajando y Recogido unificados en Viajando** (base de datos, servidor, app y notificaciones). Estados: ida = De
+  camino, En parada, Viajando, Dejado, Botado, Dormido, No voy; regreso = De camino, En parada, Viajando, Botado,
+  Dormido, No voy.
+- **Notificaciones nuevas** (§10): seis canales, una notificación por cosa que se actualiza en su sitio, línea
+  destacada en naranja, siempre en la cortina; sin aviso dentro de la app.
+- **Servidor:** migración de actualización 4.2.0 → 4.3.0 con «Actualizar base de datos» (convierte los «recogido»);
+  acepta «recogido» de los teléfonos con la 4.2.0.

@@ -1,13 +1,13 @@
 # 10. Traspaso de tecnología — MiRuta
 
-> **Versión 4.2.0 (docs/12 §16):** servidor **Laravel 12 con PHP 8.2** (el del hospedaje, 8.2.35) y MariaDB 10.3 o
+> **Versión 4.3.0 (docs/12 §17):** servidor **Laravel 12 con PHP 8.2** (el del hospedaje, 8.2.35) y MariaDB 10.3 o
 > superior. El `.zip` del servidor trae **`vendor/` ya instalado** (sin dependencias de desarrollo y con el autoload
 > optimizado): no hace falta Composer ni SSH en el hospedaje. Todo lo que hay que ejecutar en el servidor (instalar o
 > actualizar la base de datos, tareas, limpiezas) se hace con los endpoints de mantenimiento de la API, desde la app
-> (docs/13 §13.13). La base de datos de la 4.2.0 se instala **desde cero** (*Instalar base de datos*) o, sobre una
-> 4.1.0 (o 4.0.0) ya instalada, con *Actualizar base de datos*, sin perder datos: la migración
-> `2026_11_15_000001_upgrade_4_2` pasa las ausencias a «por itinerario» y ajusta los ajustes de la ventana de viaje
-> (§10.3 bis). No se actualiza sobre una 3.x. En esta versión no se entregan imágenes de Docker ni un SQL inicial:
+> (docs/13 §13.13). La base de datos de la 4.3.0 se instala **desde cero** (*Instalar base de datos*) o, sobre una
+> 4.2.0 (o anterior, desde la 4.0.0) ya instalada, con *Actualizar base de datos*, sin perder datos: la migración
+> `2026_11_16_000001_upgrade_4_3` convierte el estado «Recogido» en «Viajando» (§10.3 ter) y, si viene de una 4.1.0,
+> también se aplica `2026_11_15_000001_upgrade_4_2` (§10.3 bis). No se actualiza sobre una 3.x. En esta versión no se entregan imágenes de Docker ni un SQL inicial:
 > la base de datos se instala desde la app.
 
 Qué se entrega y cómo poner en marcha MiRuta en cada entorno: el hospedaje, un ordenador con Docker y un
@@ -16,15 +16,19 @@ ordenador sin Docker. Se da por hecho que Docker, Apache o nginx, PHP y MySQL/Ma
 ## 10.1 Qué se entrega
 
 ```
-4.2.0/
-├── miruta-4.2.0-64bits.apk               App para casi todos los teléfonos (Android 7.0 o superior)
-└── miruta-4.2.0-32bits.apk               App para teléfonos antiguos de 32 bits
+4.3.0/
+├── miruta-4.3.0-64bits.apk               App para casi todos los teléfonos (Android 7.0 o superior)
+└── miruta-4.3.0-32bits.apk               App para teléfonos antiguos de 32 bits
 hosting/
-├── miruta-servidor-4.2.0.zip             Servidor para el hospedaje o para un ordenador sin Docker (instalación nueva)
-└── miruta-actualizacion-4.2.0.zip        Actualización de un servidor ya instalado (conserva su configuracion.php)
+├── miruta-servidor-<versión>.zip         Servidor para el hospedaje o para un ordenador sin Docker (instalación nueva)
+└── miruta-actualizacion-4.3.0.zip        Actualización de un servidor ya instalado (conserva su configuracion.php)
 ```
 
-Contenido de `miruta-servidor-4.2.0.zip`:
+En la 4.3.0 se entrega solo la **actualización** (el hospedaje ya tiene la 4.2.0). Para una instalación nueva se
+genera `miruta-servidor-4.3.0.zip` con `tools/release/build-hosting-package.sh 4.3.0` (o se instala la
+`miruta-servidor-4.2.0.zip` y se le aplica la actualización 4.3.0).
+
+Contenido de `miruta-servidor-<versión>.zip`:
 
 | Carpeta o archivo | Para qué |
 |---|---|
@@ -47,7 +51,7 @@ Sin la clave de firma ninguna versión nueva de la app se instalará encima de e
 
 ## 10.2 La app
 
-1. Copie al teléfono **`miruta-4.2.0-64bits.apk`**. Use la de 32 bits solo si el teléfono no admite la de 64.
+1. Copie al teléfono **`miruta-4.3.0-64bits.apk`**. Use la de 32 bits solo si el teléfono no admite la de 64.
    Ábrala y permita «instalar apps desconocidas».
 2. La app trae puesta la dirección del hospedaje: `http://www.twintechnology.cu/miruta`. Para usar otro
    servidor, en la pantalla de inicio de sesión pulse el **botón del servidor**, elija el protocolo y escriba la
@@ -70,14 +74,32 @@ Sin la clave de firma ninguna versión nueva de la app se instalará encima de e
 - Como Administrador: *Más → Mantenimiento del servidor*.
 - Sin sesión: botón del servidor → *Mantenimiento del servidor* → clave de mantenimiento.
 
-**Símbolos.** La app va ofuscada. Si un usuario envía el texto de un error de la versión 4.2.0, se traduce a nombres
-legibles con Flutter y los símbolos que deja la compilación en `app/build/symbols/4.2.0+12/` (guárdelos si los
+**Símbolos.** La app va ofuscada. Si un usuario envía el texto de un error de la versión 4.3.0, se traduce a nombres
+legibles con Flutter y los símbolos que deja la compilación en `app/build/symbols/4.3.0+13/` (guárdelos si los
 necesita; no se entregan aparte):
 
 ```bash
-flutter symbolize -i error.txt -d 4.2.0+12/app.android-arm64.symbols   # app de 64 bits
-flutter symbolize -i error.txt -d 4.2.0+12/app.android-arm.symbols     # app de 32 bits
+flutter symbolize -i error.txt -d 4.3.0+13/app.android-arm64.symbols   # app de 64 bits
+flutter symbolize -i error.txt -d 4.3.0+13/app.android-arm.symbols     # app de 32 bits
 ```
+
+## 10.3 ter Actualizar el hospedaje de la 4.2.0 a la 4.3.0
+
+El hospedaje ya tiene la 4.2.0 con datos. **Antes de nada, exporte la base de datos** en SQL con el gestor del
+hospedaje (por si hubiera que volver atrás).
+
+1. **Subir la actualización.** Use `miruta-actualizacion-4.3.0.zip` (no lleva `configuracion.php`) igual que en el
+   paso 1 de §10.3 bis: los 2 archivos de su `subida-rapida/` a `/htdocs/miruta/` y
+   `http://www.twintechnology.cu/miruta/desempaquetar.php?clave=CLAVE` con la clave de mantenimiento que ya tenía.
+2. **Actualizar la base de datos.** *Más → Mantenimiento del servidor →* **Actualizar base de datos**. Aplica la
+   migración `2026_11_16_000001_upgrade_4_3`: los estados «recogido» guardados pasan a «viajando» (Viajando y
+   Recogido son ya un solo estado) y la columna deja de admitir «recogido». *Estado del servidor* debe mostrar la
+   versión 4.3.0 y ninguna migración pendiente.
+3. **Actualizar las apps.** Suba los dos APK de la 4.3.0 en *Más → Actualizaciones de la app* (puede marcarla
+   Obligatoria) o instálelos a mano encima de la 4.2.0. Mientras haya teléfonos con la 4.2.0, el servidor les acepta
+   «Recogido» (lo guarda como Viajando) y les sigue dando sus notificaciones de antes. Al abrir la 4.3.0 desaparecen
+   los canales de notificaciones viejos y aparecen los seis nuevos (Viajes, Vehículo, Mi estado, Solicitudes,
+   Mensajes, Actualizaciones), que el usuario puede ajustar en los ajustes de Android.
 
 ## 10.3 bis Actualizar el hospedaje de la 4.1.0 a la 4.2.0
 

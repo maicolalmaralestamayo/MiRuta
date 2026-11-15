@@ -1726,7 +1726,7 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
   (el trabajador no siempre conoce la fecha exacta) y dura hasta que él la termine («Terminar ausencia» en
   Acciones). El campo se rotula «Hasta (opcional, vacío = indefinida)».
 
-## 11.63 Cambios tras la 4.2.0 (15/11/2026, pendiente de implementar)
+## 11.63 Cambios tras la 4.2.0 (15/11/2026; implementado en la 4.3.0)
 
 - **Selector de tema en un solo botón** (15/11/2026): en lugar de los tres botones Claro / Oscuro / Automático, un
   **único botón** (icono del modo actual) que al tocarlo abre un **menú** para elegir Claro, Oscuro o Automático.
@@ -1856,3 +1856,18 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
   6. **Actualizaciones**: una de versión disponible/obligatoria.
 - **Notificaciones: revisión final aceptada** (15/11/2026): el usuario dio el visto bueno al conjunto completo
   (29 variantes en 6 canales) tal como se describe arriba.
+- **Decisiones de la implementación (4.3.0)** (15/11/2026):
+  - La notificación del **vehículo** la compone el **teléfono** (servicio de ubicación de la ventana de viaje) con la
+    línea del recorrido que ya recibe cada Z: la reciben los trabajadores del viaje cuyo servicio está activo. El
+    servidor sigue guardando los avisos viejos del vehículo solo para los teléfonos con la 4.2.0.
+  - «Primera parada» mientras el vehículo no se ha movido desde la salida; «Última parada» cuando la pasó (ida) o está
+    detenido en ella; en el regreso, Viajando cuenta como estado definitivo y quita la del vehículo.
+  - La línea destacada se pinta en naranja con el formato HTML de Android; en «Mi estado» (la notificación fija, que
+    no admite formato) es la última línea. La cabecera muestra «MiRuta • [canal]».
+  - El servidor envía en cada notificación los datos para componerla (qué cambió en «Viaje cambiado», incluida la
+    parada de salida al cambiar las paradas del itinerario) y avisa «Viaje eliminado» (a mano o por «Plazo
+    eliminación»); `GET sync` dice qué viajes terminaron y cuántas solicitudes pendientes hay de cada tipo.
+  - «Recogido» que envíe un teléfono con la 4.2.0 se guarda como Viajando, y a esos teléfonos se les devuelve
+    «recogido» en el regreso para que sigan siendo sensores.
+  - Sin ningún permiso de ubicación el servicio no puede arrancar: «Mi estado» sale como notificación normal al abrirse
+    la ventana. Al tocar «Actualización disponible» se abre Más y empieza la descarga.
