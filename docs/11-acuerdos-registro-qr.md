@@ -1799,3 +1799,13 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
   (GPS)» se abren los ajustes de ubicación del teléfono. Si faltan las dos cosas, primero el GPS y luego el permiso
   (aceptado con imagen, 15/11/2026) (en ese caso Android puede no permitir la
   notificación fija desde segundo plano: se muestra como notificación normal con el mismo formato).
+- **Notificación de solicitudes pendientes** (15/11/2026, en definición; sustituye a «Solicitud de Entidad»,
+  «Solicitud de itinerario» y «Solicitud «Olvidé algo»»): **una única notificación** que se va actualizando con
+  las solicitudes pendientes que le tocan a ese usuario, y que se elimina sola cuando no queda ninguna. Formato
+  (canal «Solicitudes»):
+  ```
+  MiRuta • Solicitudes
+  [N] solicitud(es) pendiente(s)
+  Entidad: [n] • Itinerario: [n] • Olvidé algo: [n]     (Administrador)
+  Itinerario: [n]                                       (Jefe de itinerario: solo las de su itinerario)
+  ```
