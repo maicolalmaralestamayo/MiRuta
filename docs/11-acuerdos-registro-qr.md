@@ -1722,3 +1722,6 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
     qué ha cambiado. Las modificaciones van al servidor (spinner y Cancelar) y, si salen bien, actualizan la caché.
     Sin conexión se consulta todo pero no se modifica (salvo Incluir por QR). Al cerrar sesión se borra. En archivos
     locales, sin paquetes nuevos.
+- **Ausencia indefinida** (15/11/2026): la fecha **«Hasta» es opcional**; sin ella la ausencia es **indefinida**
+  (el trabajador no siempre conoce la fecha exacta) y dura hasta que él la termine («Terminar ausencia» en
+  Acciones). El campo se rotula «Hasta (opcional, vacío = indefinida)».
