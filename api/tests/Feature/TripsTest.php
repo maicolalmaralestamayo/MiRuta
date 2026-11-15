@@ -62,12 +62,35 @@ class TripsTest extends TestCase
         // En la línea del recorrido su parada es la de ese itinerario.
         $this->jsonApiAs($worker, 'GET', "/api/v1/trips/{$tripC}/live")->assertJsonPath('data.attributes.stops.0.mine', true);
 
-        // La ausencia en una Entidad no afecta a los viajes de la otra.
+        // La ausencia cubre solo los itinerarios marcados (docs/11 §11.61).
         $type = AbsenceType::create(['name' => 'Vacaciones']);
-        Absence::create(['worker_id' => $worker->id, 'absence_type_id' => $type->id, 'starts_on' => Carbon::today()->toDateString()]);
-        $this->jsonApiAs($admin, 'GET', "/api/v1/trips/{$tripC}")->assertJsonPath('data.meta.expectedPassengers', 1);
+        $this->jsonApiAs($worker, 'POST', '/api/v1/absences', [
+            'data' => ['type' => 'absences', 'attributes' => ['startsOn' => Carbon::today()->toDateString()], 'relationships' => [
+                'absenceType' => ['data' => ['type' => 'absence-types', 'id' => (string) $type->id]],
+                'itineraries' => ['data' => [['type' => 'itineraries', 'id' => (string) $a->id], ['type' => 'itineraries', 'id' => (string) $c->id]]],
+            ]],
+        ])->assertCreated()->assertJsonCount(2, 'data.meta.itineraries');
         $tripA = Trip::where('itinerary_id', $a->id)->first();
+        $tripB = Trip::where('itinerary_id', $b->id)->first();
+        $this->jsonApiAs($admin, 'GET', "/api/v1/trips/{$tripC}")->assertJsonPath('data.meta.expectedPassengers', 0);
         $this->jsonApiAs($admin, 'GET', "/api/v1/trips/{$tripA->id}")->assertJsonPath('data.meta.expectedPassengers', 0);
+        $this->jsonApiAs($admin, 'GET', "/api/v1/trips/{$tripB->id}")->assertJsonPath('data.meta.expectedPassengers', 1);
+
+        // «Terminar ausencia»: con fecha final ayer vuelve a ser pasajero esperado.
+        $absence = Absence::first();
+        $absence->update(['starts_on' => Carbon::yesterday()->toDateString()]);
+        $this->jsonApiAs($worker, 'PATCH', "/api/v1/absences/{$absence->id}", self::resource('absences', ['endsOn' => Carbon::yesterday()->toDateString()], [], (string) $absence->id))
+            ->assertOk()->assertJsonPath('data.attributes.current', false);
+        $this->jsonApiAs($admin, 'GET', "/api/v1/trips/{$tripA->id}")->assertJsonPath('data.meta.expectedPassengers', 1);
+
+        // Solo en sus itinerarios.
+        $foreign = $this->createItinerary($this->createEntity('AJENA'));
+        $this->jsonApiAs($worker, 'POST', '/api/v1/absences', [
+            'data' => ['type' => 'absences', 'attributes' => ['startsOn' => Carbon::today()->toDateString()], 'relationships' => [
+                'absenceType' => ['data' => ['type' => 'absence-types', 'id' => (string) $type->id]],
+                'itineraries' => ['data' => [['type' => 'itineraries', 'id' => (string) $foreign->id]]],
+            ]],
+        ])->assertStatus(422)->assertJsonPath('errors.0.code', 'ITINERARY_NOT_MINE');
     }
 
     public function test_quien_ve_los_viajes(): void

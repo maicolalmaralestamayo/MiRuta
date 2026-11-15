@@ -108,6 +108,7 @@ Route::middleware('auth.token')->group(function () {
     Route::get('trips/{id}/live', [C\TripController::class, 'live'])->where('id', '[0-9]+');
     Route::get('trips/{id}/passengers', [C\TripController::class, 'passengers'])->where('id', '[0-9]+');
     Route::post('trips/{id}/reports', [C\TripController::class, 'report'])->where('id', '[0-9]+');
+    Route::post('trips/{id}/stop-passes', [C\TripController::class, 'stopPass'])->where('id', '[0-9]+');
 
     // Conversaciones con el desarrollador
     $resource('conversations', C\ConversationController::class, ['index', 'show', 'store']);

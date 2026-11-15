@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\JsonApi\JsonApiException;
-use App\Models\Absence;
 use App\Models\DetentionCause;
 use App\Models\Itinerary;
 use App\Models\ItineraryStop;
@@ -79,16 +78,22 @@ class Trips
 
     /**
      * Pasajeros esperados: los activos del itinerario con parada en él y sin
-     * una ausencia ese día en su Entidad (docs/11 §11.33). Cada persona cuenta
-     * en cada uno de sus itinerarios.
+     * una ausencia ese día en ese itinerario (docs/11 §11.33 y §11.61). Cada
+     * persona cuenta en cada uno de sus itinerarios.
      */
     public function expectedQuery(Trip $trip): Builder
     {
         $date = $trip->date->toDateString();
+        $absent = DB::table('absence_itinerary')->join('absences', 'absences.id', '=', 'absence_itinerary.absence_id')
+            ->where('absence_itinerary.itinerary_id', $trip->itinerary_id)
+            ->where('absences.starts_on', '<=', $date)
+            ->where(fn ($q) => $q->whereNull('absences.ends_on')->orWhere('absences.ends_on', '>=', $date))
+            ->whereNotNull('absences.user_id')
+            ->select('absences.user_id');
 
         return WorkerItinerary::where('itinerary_id', $trip->itinerary_id)->whereNotNull('stop_id')
             ->whereIn('worker_id', Worker::where('active', true)->select('id'))
-            ->whereNotIn('worker_id', Absence::covering($date)->select('worker_id'));
+            ->whereNotIn('user_id', $absent);
     }
 
     /*
@@ -252,9 +257,10 @@ class Trips
                 'status_changed_at' => $now,
                 'route' => implode(',', $route),
                 // La parada de salida queda pasada al empezar (docs/11 §11.43).
-                'next_stop_index' => min(1, max(0, count($route) - 1)),
-                'vehicle_state' => Trip::MOVING,
-                'vehicle_state_since' => $now,
+                'next_stop_index' => max((int) $trip->next_stop_index, min(1, max(0, count($route) - 1))),
+                // Sin datos del vehículo hasta que informen los sensores (docs/11 §11.61).
+                'vehicle_state' => null,
+                'vehicle_state_since' => null,
                 'vehicle_at_stop' => false,
             ])->save();
 
@@ -334,6 +340,11 @@ class Trips
             }
 
             $passenger->last_seen_at = $now;
+
+            if (array_key_exists('gps', $report) && $report['gps'] !== null) {
+                $passenger->gps_ok = (bool) $report['gps'];
+            }
+
             $passenger->save();
 
             $result['sensor'] = $this->isSensorState($trip, $passenger->state);
@@ -501,8 +512,8 @@ class Trips
     }
 
     /**
-     * Sensores activos: van en el vehículo y su teléfono envió algo en los
-     * últimos 3 cálculos (docs/11 §11.46).
+     * Sensores activos: van en el vehículo, su teléfono envió algo en los
+     * últimos 3 cálculos (docs/11 §11.46) y tenía posición del GPS.
      *
      * @return int[] ids de las personas
      */
@@ -513,6 +524,8 @@ class Trips
         return array_map('intval', TripPassenger::where('trip_id', $trip->id)
             ->where('state', $trip->isOutbound() ? TripPassenger::TRAVELLING : TripPassenger::PICKED_UP)
             ->where('last_seen_at', '>=', $since)
+            // Sin posición del GPS no puede informar del vehículo.
+            ->where(fn ($q) => $q->whereNull('gps_ok')->orWhere('gps_ok', true))
             ->pluck('user_id')->all());
     }
 
@@ -684,6 +697,92 @@ class Trips
         return ['deleted' => $deleted, 'finished' => $finished];
     }
 
+    /**
+     * «Pasó por la parada X», a mano (docs/11 §11.61): el Jefe del itinerario
+     * o el Administrador. Cuenta igual que la confirmación de los sensores:
+     * hora de paso (también de las saltadas), avance de la próxima parada y,
+     * en los teléfonos, Dormido / Botado. Marcar la salida de un viaje
+     * Planificado lo pone En ejecución; pasar la parada final lo termina.
+     */
+    public function markStopPassed(User $actor, Trip $trip, int $index): Trip
+    {
+        $this->requireManager($actor, $trip);
+
+        if (! $trip->isOpen()) {
+            throw JsonApiException::conflict('TRIP_CLOSED', 'El viaje ya terminó o se canceló.');
+        }
+
+        $route = $trip->routeStopIds();
+
+        if ($index < 0 || $index >= count($route)) {
+            throw new JsonApiException(422, 'STOP_INDEX_INVALID', 'Parada no válida', 'La parada no es del recorrido del viaje.', ['pointer' => '/data/attributes/routeIndex']);
+        }
+
+        if ($trip->status === Trip::PLANNED) {
+            $trip = $this->start($trip);
+            $route = $trip->routeStopIds();
+        }
+
+        $now = Carbon::now();
+
+        DB::transaction(function () use ($trip, $index, $route, $now, $actor) {
+            for ($i = 0; $i <= $index; $i++) {
+                $pass = TripStopPass::firstOrCreate(['trip_id' => $trip->id, 'route_index' => $i], ['stop_id' => $route[$i] ?? null, 'passed_at' => $now]);
+
+                if ($i === $index && $pass->wasRecentlyCreated) {
+                    $pass->marked_by = $actor->id;
+                    $pass->save();
+                }
+            }
+
+            if ($index + 1 > (int) $trip->next_stop_index) {
+                $trip->next_stop_index = $index + 1;
+                $trip->vehicle_at_stop = false;
+                $trip->save();
+            }
+        });
+
+        // Ida: pasó la última parada. Regreso: llegó a la final (la primera del itinerario).
+        if ($trip->status === Trip::RUNNING && $index >= count($route) - 1) {
+            $trip->arrived_at = $now;
+            $this->finish($trip, 'llegada');
+        }
+
+        return $trip;
+    }
+
+    /**
+     * Por qué cada trabajador del viaje es o no sensor (docs/11 §11.61):
+     * sensor, no_en_vehiculo (no está Viajando / Recogido), sin_gps (su
+     * último envío fue sin posición) o sin_enviar (no envía desde
+     * last_seen_at; quizá la app esté cerrada o sin conexión).
+     *
+     * @return array{sensor: bool, reason: string}
+     */
+    public function sensorStatus(Trip $trip, ?TripPassenger $passenger): array
+    {
+        if (! $passenger) {
+            return ['sensor' => false, 'reason' => 'sin_enviar'];
+        }
+
+        $since = Carbon::now()->subSeconds(3 * $this->settings->seconds('frecuencia_calculo'));
+        $recent = $passenger->last_seen_at !== null && $passenger->last_seen_at->gte($since);
+
+        if (! $this->isSensorState($trip, $passenger->state)) {
+            return ['sensor' => false, 'reason' => 'no_en_vehiculo'];
+        }
+
+        if (! $recent) {
+            return ['sensor' => false, 'reason' => 'sin_enviar'];
+        }
+
+        if ($passenger->gps_ok === false) {
+            return ['sensor' => false, 'reason' => 'sin_gps'];
+        }
+
+        return ['sensor' => true, 'reason' => 'sensor'];
+    }
+
     /*
     |--------------------------------------------------------------------------
     | Línea del recorrido
@@ -708,8 +807,8 @@ class Trips
         $statesByStop = [];
 
         foreach ($passengers as $passenger) {
-            // Ida: De camino y En la parada son respecto a la primera parada.
-            $stopId = $outbound && in_array($passenger->state, [TripPassenger::ON_THE_WAY, TripPassenger::AT_STOP], true)
+            // Ida: De camino, En la parada, Botado y Dormido son respecto a la primera parada.
+            $stopId = $outbound && in_array($passenger->state, [TripPassenger::ON_THE_WAY, TripPassenger::AT_STOP, TripPassenger::LEFT_BEHIND, TripPassenger::LATE], true)
                 ? ($route[0] ?? null)
                 : $passenger->stop_id;
 
@@ -728,8 +827,11 @@ class Trips
                 'stopId' => (string) $stopId,
                 'landmark' => $stop?->landmark,
                 'street' => $stop?->street,
+                'latitude' => $stop?->latitude !== null ? (float) $stop->latitude : null,
+                'longitude' => $stop?->longitude !== null ? (float) $stop->longitude : null,
                 'passed' => $pass !== null,
                 'passedAt' => $pass?->passed_at?->toIso8601String(),
+                'passedManually' => $pass !== null && $pass->marked_by !== null,
                 'expected' => $outbound ? ($index === 0 ? $expected->count() : $expected->where('stop_id', $stopId)->count()) : $expected->where('stop_id', $stopId)->count(),
                 'counts' => (object) ($statesByStop[$stopId] ?? []),
                 'mine' => $viewer !== null && $expected->where('user_id', $viewer->id)->where('stop_id', $stopId)->isNotEmpty(),
@@ -776,6 +878,9 @@ class Trips
                     'childrenCount' => (int) $mine->children_count,
                     'sensor' => $this->isSensorState($trip, $mine->state),
                 ] : null,
+                'myStopId' => $viewer ? (($id = $expected->firstWhere('user_id', $viewer->id)?->stop_id
+                    ?? WorkerItinerary::where('user_id', $viewer->id)->where('itinerary_id', $trip->itinerary_id)->value('stop_id')) ? (string) $id : null) : null,
+                'canManage' => $viewer !== null && $this->canManage($viewer, $trip),
                 'serverTime' => Carbon::now()->toIso8601String(),
             ],
             'relationships' => [

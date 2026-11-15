@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: MiRuta API
-  version: 4.1.0
+  version: 4.2.0
   description: 'API de MiRuta (Laravel 12): gestión del transporte de trabajadores.
 
 
@@ -1824,10 +1824,22 @@ paths:
         '426':
           $ref: '#/components/responses/UpdateRequired'
       parameters:
+      - name: filter[user]
+        in: query
+        required: false
+        description: Id de la persona
+        schema:
+          type: string
+      - name: filter[itinerary]
+        in: query
+        required: false
+        description: Id
+        schema:
+          type: string
       - name: filter[worker]
         in: query
         required: false
-        description: Id de pertenencia
+        description: Id de pertenencia (4.1.0)
         schema:
           type: string
       - name: filter[current]
@@ -3257,7 +3269,52 @@ paths:
           $ref: '#/components/responses/Unprocessable'
         '426':
           $ref: '#/components/responses/UpdateRequired'
-      description: Estado del trabajador y, si es sensor, del vehículo. Idempotente.
+      description: Estado del trabajador y, si es sensor, del vehículo. Idempotente. Con ?cursor=N incluye en meta.sync lo
+        de GET /sync (una sola petición en la ventana de viaje).
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          type: string
+          pattern: ^\d+$
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/TripReportDocument'
+  /trips/{id}/stop-passes:
+    post:
+      tags:
+      - Viajes
+      summary: Pasó por la parada
+      responses:
+        '201':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/TripLiveDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '426':
+          $ref: '#/components/responses/UpdateRequired'
+      description: Administrador o Jefe del itinerario. Cuenta como la confirmación de los sensores; en un viaje Planificado
+        lo pone En ejecución; la parada final lo termina.
       parameters:
       - $ref: '#/components/parameters/Id'
       requestBody:
@@ -3265,7 +3322,7 @@ paths:
         content:
           application/vnd.api+json:
             schema:
-              $ref: '#/components/schemas/TripReportDocument'
+              $ref: '#/components/schemas/TripStopPassDocument'
   /sync:
     get:
       tags:
@@ -3284,8 +3341,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '426':
           $ref: '#/components/responses/UpdateRequired'
-      description: 'Sin cursor: solo meta.cursor. meta: cursor, more, changed, counters, latestAppVersion, nextTrip, settingsVersion,
-        serverTime.'
+      description: 'Sin cursor: solo meta.cursor. meta: cursor, more, changed, counters, latestAppVersion, nextTrip, myTrips,
+        versions, settingsVersion, serverTime. Todos los GET llevan ETag y responden 304 con If-None-Match.'
       parameters:
       - name: cursor
         in: query
@@ -4891,7 +4948,8 @@ components:
           $ref: '#/components/schemas/Links'
     Absence:
       type: object
-      description: Absence
+      description: 'Ausencia en uno o varios itinerarios de la persona: relationships.itineraries (lista) al crear o cambiar;
+        meta.itineraries. Sin endsOn es indefinida; «Terminar ausencia» = PATCH con endsOn.'
       required:
       - type
       properties:
@@ -4915,6 +4973,9 @@ components:
             indefinite:
               type: boolean
               readOnly: true
+            current:
+              type: boolean
+              readOnly: true
             note:
               type: string
               nullable: true
@@ -4926,7 +4987,7 @@ components:
         relationships:
           type: object
           properties:
-            worker:
+            user:
               type: object
               properties:
                 data:
@@ -6221,6 +6282,9 @@ components:
             reportedAt:
               type: string
               format: date-time
+            gps:
+              type: boolean
+              nullable: true
         meta:
           type: object
           additionalProperties: true
@@ -6260,7 +6324,7 @@ components:
           $ref: '#/components/schemas/Links'
     TripLive:
       type: object
-      description: Línea del recorrido.
+      description: Línea del recorrido. vehicle.state null = sin datos del vehículo; stops[] con latitude, longitude y passedManually.
       required:
       - type
       properties:
@@ -6302,6 +6366,11 @@ components:
               type: object
               additionalProperties: true
               nullable: true
+            myStopId:
+              type: string
+              nullable: true
+            canManage:
+              type: boolean
             serverTime:
               type: string
               format: date-time
@@ -6352,6 +6421,62 @@ components:
           additionalProperties: true
         links:
           $ref: '#/components/schemas/Links'
+    TripStopPass:
+      type: object
+      description: «Pasó por la parada X», a mano (Administrador o Jefe).
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - trip-stop-passes
+        id:
+          type: string
+          readOnly: true
+        attributes:
+          type: object
+          properties:
+            routeIndex:
+              type: integer
+              minimum: 0
+        meta:
+          type: object
+          additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+    TripStopPassDocument:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/TripStopPass'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        meta:
+          type: object
+          additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+    TripStopPassCollection:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/TripStopPass'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        meta:
+          type: object
+          additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
     TripWorker:
       type: object
       description: TripWorker
@@ -6389,6 +6514,22 @@ components:
               type: integer
             isChief:
               type: boolean
+            lastSeenAt:
+              type: string
+              format: date-time
+              nullable: true
+            gpsOk:
+              type: boolean
+              nullable: true
+            sensor:
+              type: boolean
+            sensorReason:
+              type: string
+              enum:
+              - sensor
+              - no_en_vehiculo
+              - sin_gps
+              - sin_enviar
         meta:
           type: object
           additionalProperties: true

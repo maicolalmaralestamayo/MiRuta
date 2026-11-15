@@ -91,6 +91,7 @@ $app = Application::configure(basePath: $basePath)
         $middleware->group('api', [
             \App\Http\Middleware\RequireJsonApi::class,
             \App\Http\Middleware\RequireCurrentAppVersion::class,
+            \App\Http\Middleware\ConditionalGet::class,
         ]);
         $middleware->append(\App\Http\Middleware\RunScheduledTasks::class);
         $middleware->alias([

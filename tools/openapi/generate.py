@@ -59,8 +59,10 @@ res("applications", "Application", {"type": STR(enum=["entidad", "itinerario"]),
     "entityAbbreviation": STR(writeOnly=True), "resolutionNote": STR(nullable=True), "resolvedAt": DT(nullable=True, **RO),
     "seenAt": DT(nullable=True, **RO), "createdAt": DT(**RO)},
     {"user": "users", "entity": "entities", "itinerary": "itineraries", "stop": "stops", "denialReason": "denial-reasons", "resolvedBy": "users"})
-res("absences", "Absence", {"startsOn": DATE(), "endsOn": DATE(nullable=True), "indefinite": BOOL(**RO), "note": STR(nullable=True)},
-    {"worker": "workers", "absenceType": "absence-types"})
+res("absences", "Absence", {"startsOn": DATE(), "endsOn": DATE(nullable=True), "indefinite": BOOL(**RO), "current": BOOL(**RO),
+    "note": STR(nullable=True)}, {"user": "users", "absenceType": "absence-types"},
+    "Ausencia en uno o varios itinerarios de la persona: relationships.itineraries (lista) al crear o cambiar; meta.itineraries. "
+    "Sin endsOn es indefinida; «Terminar ausencia» = PATCH con endsOn.")
 res("children", "Child", {**NAMES, "identityCard": CARD, "fullName": STR(**RO), "sex": STR(**RO), "birthDate": DATE(**RO),
     "eligibleUntil": DATE(**RO), "eligible": BOOL(**RO), "active": BOOL(), "photoUrl": IMG}, {"parent": "users"})
 res("vehicle-types", "VehicleType", {**NOMEN, "seats": INT(minimum=0), "standing": INT(minimum=0), "total": INT(**RO)})
@@ -94,13 +96,17 @@ res("tokens", "Token", {"username": STR(writeOnly=True), "password": STR(writeOn
     "accessToken": STR(**RO), "tokenType": STR(**RO), "expiresIn": INT(**RO), "refreshExpiresIn": INT(**RO)}, {"user": "users"})
 res("trip-reports", "TripReport", {"workerState": STR(enum=["de_camino", "en_parada", "viajando", "dejado", "recogido", "botado", "dormido", "no_voy"]),
     "stopId": INT(nullable=True), "childIds": S("array", items=INT()), "childrenCount": INT(minimum=0, maximum=20),
-    "vehicleState": STR(enum=["detenido", "en_movimiento"]), "nextStopIndex": INT(minimum=0), "atStop": BOOL(), "reportedAt": DT()},
+    "vehicleState": STR(enum=["detenido", "en_movimiento"]), "nextStopIndex": INT(minimum=0), "atStop": BOOL(), "reportedAt": DT(),
+    "gps": BOOL(nullable=True)},
     desc="Informe del teléfono (solo cambios, con acuse).")
 res("trip-lives", "TripLive", {"direction": STR(), "status": STR(), "departsAt": DT(), "vehicle": OBJ(), "sensors": INT(),
     "inVehicle": OBJ(), "expectedPassengers": INT(), "notGoing": INT(), "stops": S("array", items=OBJ()), "myState": OBJ(nullable=True),
-    "serverTime": DT()}, {"trip": "trips"}, "Línea del recorrido.")
+    "myStopId": STR(nullable=True), "canManage": BOOL(), "serverTime": DT()}, {"trip": "trips"},
+    "Línea del recorrido. vehicle.state null = sin datos del vehículo; stops[] con latitude, longitude y passedManually.")
+res("trip-stop-passes", "TripStopPass", {"routeIndex": INT(minimum=0)}, desc="«Pasó por la parada X», a mano (Administrador o Jefe).")
 res("trip-workers", "TripWorker", {"fullName": STR(), "photoUrl": IMG, "expected": BOOL(), "state": STR(nullable=True),
-    "stateAt": DT(nullable=True), "childrenCount": INT(), "isChief": BOOL()}, {"user": "users", "stop": "stops"})
+    "stateAt": DT(nullable=True), "childrenCount": INT(), "isChief": BOOL(), "lastSeenAt": DT(nullable=True), "gpsOk": BOOL(nullable=True),
+    "sensor": BOOL(), "sensorReason": STR(enum=["sensor", "no_en_vehiculo", "sin_gps", "sin_enviar"])}, {"user": "users", "stop": "stops"})
 res("notifications", "Notification", {"kind": STR(), "title": STR(), "body": STR(), "data": OBJ(), "createdAt": DT()},
     desc="Notificación para mostrar en el teléfono (GET /sync).")
 res("qr-devices", "QrDevice", {"publicKey": STR(), "certificate": STR(**RO), "expiresAt": DT(**RO), "userId": STR(**RO), "serverPublicKey": STR(**RO)})
@@ -265,7 +271,7 @@ paths["/management-summary"] = {"get": op("Gestión", "Cantidades de las tarjeta
 crud("applications", "Gestión", filters=[filt("status", "Lista: pendiente,aprobada,rechazada"), filt("type", "entidad o itinerario"),
      filt("entity", "Id"), filt("itinerary", "Id"), filt("mine", "true o false")],
      notes={"U": "status aprobada, o rechazada con relationships.denialReason.", "D": "Quien la hizo."})
-crud("absences", "Gestión", filters=[filt("worker", "Id de pertenencia"), filt("current", "true")])
+crud("absences", "Gestión", filters=[filt("user", "Id de la persona"), filt("itinerary", "Id"), filt("worker", "Id de pertenencia (4.1.0)"), filt("current", "true")])
 crud("children", "Hijos", filters=[filt("parent", "Id de persona"), filt("active", "true o false"), filt("eligible", "true o false")])
 paths["/children/{id}/photo"] = {
     "post": op("Hijos", "Subir la foto", ok(200, "ChildDocument"), params=[ID], multipart={"photo": STR(format="binary")}),
@@ -295,11 +301,16 @@ crud("trips", "Viajes", filters=[filt("status", "Lista: planificado,en_ejecucion
 paths["/trips/{id}/live"] = {"get": op("Viajes", "Línea del recorrido", ok(200, "TripLiveDocument"), params=[ID])}
 paths["/trips/{id}/passengers"] = {"get": op("Viajes", "Trabajadores del viaje", ok(200, "TripWorkerCollection"), params=[ID])}
 paths["/trips/{id}/reports"] = {"post": op("Viajes", "Informe del teléfono", ok(200, "TripLiveDocument", "Acuse (meta.ack, meta.applied, meta.reason) y línea del recorrido"),
-    "Estado del trabajador y, si es sensor, del vehículo. Idempotente.", [ID], "TripReportDocument", errs=("400", "401", "403", "404", "415", "422", "426"))}
+    "Estado del trabajador y, si es sensor, del vehículo. Idempotente. Con ?cursor=N incluye en meta.sync lo de GET /sync (una sola petición en la ventana de viaje).",
+    [ID, {"name": "cursor", "in": "query", "required": False, "schema": STR(pattern=r"^\d+$")}], "TripReportDocument", errs=("400", "401", "403", "404", "415", "422", "426"))}
+paths["/trips/{id}/stop-passes"] = {"post": op("Viajes", "Pasó por la parada", ok(201, "TripLiveDocument"),
+    "Administrador o Jefe del itinerario. Cuenta como la confirmación de los sensores; en un viaje Planificado lo pone En ejecución; la parada final lo termina.",
+    [ID], "TripStopPassDocument", errs=("400", "401", "403", "404", "409", "415", "422", "426"))}
 
 # Sincronización, conversaciones y ajustes
 paths["/sync"] = {"get": op("Sincronización", "Novedades desde el cursor", ok(200, "NotificationCollection"),
-    "Sin cursor: solo meta.cursor. meta: cursor, more, changed, counters, latestAppVersion, nextTrip, settingsVersion, serverTime.",
+    "Sin cursor: solo meta.cursor. meta: cursor, more, changed, counters, latestAppVersion, nextTrip, myTrips, versions, settingsVersion, serverTime. "
+    "Todos los GET llevan ETag y responden 304 con If-None-Match.",
     [{"name": "cursor", "in": "query", "required": False, "schema": STR(pattern=r"^\d+$")}], errs=("400", "401", "426"))}
 crud("conversations", "Conversaciones", "LCR", [filt("mine", "true"), filt("unread", "true")])
 paths["/conversations/{id}/messages"] = {
@@ -345,7 +356,7 @@ spec = {
     "openapi": "3.0.3",
     "info": {
         "title": "MiRuta API",
-        "version": "4.1.0",
+        "version": "4.2.0",
         "description": "API de MiRuta (Laravel 12): gestión del transporte de trabajadores.\n\n"
                        "- Formato [JSON:API 1.1](https://jsonapi.org/format/) (`application/vnd.api+json`).\n"
                        "- Autenticación JWT (RFC 7519) con token de renovación y rotación.\n"

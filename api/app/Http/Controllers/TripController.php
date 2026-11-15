@@ -10,6 +10,7 @@ use App\Models\Trip;
 use App\Models\TripPassenger;
 use App\Models\WorkerItinerary;
 use App\Services\Access;
+use App\Services\SyncFeed;
 use App\Services\Trips;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -24,14 +25,16 @@ use Illuminate\Support\Facades\DB;
  *   a mano; relationships.detentionCause: causa de la detención.
  * - GET trips/{id}/live: la línea del recorrido.
  * - POST trips/{id}/reports: informe del teléfono (estado del trabajador y,
- *   si es sensor, del vehículo); responde con la línea del recorrido.
+ *   si es sensor, del vehículo); responde con la línea del recorrido y, con
+ *   ?cursor=N, también lo de GET sync (meta.sync).
+ * - POST trips/{id}/stop-passes: «Pasó por la parada X» a mano.
  */
 class TripController extends Controller
 {
     public const SORTABLE = ['id' => 'id', 'departsAt' => 'departs_at', 'createdAt' => 'created_at', 'updatedAt' => 'updated_at'];
     public const INCLUDABLE = ['itinerary', 'vehicleType', 'detentionCause', 'createdBy'];
 
-    public function __construct(private Trips $trips, private Access $access)
+    public function __construct(private Trips $trips, private Access $access, private SyncFeed $feed)
     {
     }
 
@@ -165,6 +168,7 @@ class TripController extends Controller
         foreach ($userIds as $userId) {
             $worker = $workers[$userId] ?? null;
             $state = $states[$userId] ?? null;
+            $sensor = $this->trips->sensorStatus($trip, $state);
             $rows[] = [
                 'type' => 'trip-workers',
                 'id' => $trip->id.'-'.$userId,
@@ -176,6 +180,11 @@ class TripController extends Controller
                     'stateAt' => $state?->state_at?->toIso8601String(),
                     'childrenCount' => (int) ($state?->children_count ?? 0),
                     'isChief' => (bool) $worker?->is_chief,
+                    // Por qué es o no sensor (docs/11 §11.61).
+                    'lastSeenAt' => $state?->last_seen_at?->toIso8601String(),
+                    'gpsOk' => $state?->gps_ok,
+                    'sensor' => $sensor['sensor'],
+                    'sensorReason' => $sensor['reason'],
                 ],
                 'relationships' => [
                     'user' => ['data' => ['type' => 'users', 'id' => (string) $userId]],
@@ -208,11 +217,35 @@ class TripController extends Controller
             'attributes.atStop' => ['sometimes', 'boolean'],
             'attributes.nextStopIndex' => ['sometimes', 'integer', 'min:0'],
             'attributes.reportedAt' => ['sometimes', 'date'],
+            'attributes.gps' => ['sometimes', 'nullable', 'boolean'],
         ]);
         $ack = $this->trips->report($request->user(), $trip, $data['attributes']);
         $live = $this->trips->live($trip->fresh(), $request->user());
+        $meta = ['ack' => true] + $ack;
 
-        return JsonApiResponse::make(Document::fromArray($live, ['ack' => true] + $ack));
+        // Dentro de la ventana de viaje, una sola petición envía y recibe (docs/11 §11.62).
+        if ($request->query('cursor') !== null) {
+            [$notifications, $syncMeta] = $this->feed->build($request->user(), $request->query('cursor'), $request);
+            $meta['sync'] = ['data' => $notifications, 'meta' => $syncMeta];
+        }
+
+        return JsonApiResponse::make(Document::fromArray($live, $meta));
+    }
+
+    /**
+     * «Pasó por la parada X» a mano (Administrador o Jefe del itinerario):
+     * attributes.routeIndex (posición en el recorrido, 0 = salida). Responde
+     * con la línea del recorrido.
+     */
+    public function stopPass(Request $request, $id)
+    {
+        $trip = $this->find($request, $id);
+        $data = $this->validateResource($request, 'trip-stop-passes', [
+            'attributes.routeIndex' => ['required', 'integer', 'min:0'],
+        ]);
+        $trip = $this->trips->markStopPassed($request->user(), $trip, (int) $data['attributes']['routeIndex']);
+
+        return JsonApiResponse::make(Document::fromArray($this->trips->live($trip->fresh(), $request->user())), 201);
     }
 
     private function find(Request $request, $id): Trip

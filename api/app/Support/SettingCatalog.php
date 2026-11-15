@@ -23,6 +23,7 @@ final class SettingCatalog
 
     /** Grupos, en el orden en que se muestran. */
     public const GROUPS = [
+        'ventana' => 'Ventana viaje',
         'general' => 'Generales',
         'estado_trabajador' => 'Estado trabajador',
         'estado_viaje' => 'Estado viaje',
@@ -41,11 +42,19 @@ final class SettingCatalog
      * Mínimo y máximo con el mismo formato que el valor (texto con unidades o entero).
      */
     public const SETTINGS = [
+        // Ventana de viaje (docs/11 §11.62): X, Y, Z y F
+        'anticipacion_viaje' => ['ventana', 'Inicio ventana', self::TYPE_DURATION, '10min', '1min', '3hor',
+            'X: la ventana de viaje empieza este tiempo antes de la salida planificada (servicio de ubicación, recordatorio de activar la ubicación e inicio del cálculo del estado del trabajador).'],
+        'fin_ventana' => ['ventana', 'Fin ventana', self::TYPE_DURATION, '5min', '0seg', '2hor',
+            'Y: la ventana de viaje termina este tiempo después de que el viaje termine para el trabajador (su estado definitivo o el fin del viaje).'],
+        'frecuencia_calculo' => ['ventana', 'Frecuencia ventana', self::TYPE_DURATION, '10seg', '2seg', '5min',
+            'Z: dentro de la ventana, cada cuánto el teléfono calcula su estado (y el del vehículo) y envía y recibe datos del servidor en una sola petición. Un sensor que no envía nada en 3 veces este tiempo deja de contar.'],
+        'frecuencia_reposo' => ['ventana', 'Frecuencia fuera ventana', self::TYPE_DURATION, '15min', '15min', '1dia',
+            'F: fuera de la ventana de viaje, cada cuánto el teléfono solo recibe datos del servidor, sin GPS (mínimo 15 min, límite de Android).'],
+
         // Generales
         'radio_parada' => ['general', 'Radio parada', self::TYPE_DISTANCE, '100m', '10m', '2km',
             'Distancia a una parada dentro de la cual se está en ella (trabajador y vehículo).'],
-        'anticipacion_viaje' => ['general', 'Anticipación viaje', self::TYPE_DURATION, '10min', '1min', '3hor',
-            'Antes de la salida: recordatorio de activar la ubicación e inicio del cálculo del estado del trabajador.'],
         'minimo_confirmaciones' => ['general', 'Mínimo confirmaciones', self::TYPE_INTEGER, 3, 1, 50,
             'Trabajadores o teléfonos que deben coincidir para cambiar el estado del viaje o del vehículo.'],
 
@@ -56,8 +65,6 @@ final class SettingCatalog
             'Diferencia mínima entre dos distancias para considerar que se movió; también, umbral de «misma posición» del sensor.'],
         'distancia_abandono' => ['estado_trabajador', 'Distancia abandono', self::TYPE_DISTANCE, '1km', '100m', '50km',
             'Alejándose a velocidad humana más allá de esta distancia, «No voy a viajar» es definitivo.'],
-        'frecuencia_calculo' => ['estado_trabajador', 'Frecuencia cálculo', self::TYPE_DURATION, '10seg', '2seg', '5min',
-            'Cada cuánto calcula el teléfono su estado y el del vehículo (y consulta al servidor durante el viaje). Un sensor que no envía nada en 3 cálculos deja de contar.'],
         'calculos_consecutivos' => ['estado_trabajador', 'Cálculos consecutivos', self::TYPE_INTEGER, 6, 1, 100,
             'Cálculos seguidos a velocidad humana en el radio de una parada para quedar Dejado (ida).'],
         'espera_final' => ['estado_trabajador', 'Espera final', self::TYPE_DURATION, '10min', '1min', '5hor',
@@ -76,10 +83,6 @@ final class SettingCatalog
             'Se avisa a quienes están En la parada si el vehículo lleva detenido más de este tiempo.'],
 
         // Sincronización
-        'frecuencia_reposo' => ['sincronizacion', 'Frecuencia reposo', self::TYPE_DURATION, '1hor', '1min', '1dia',
-            'Consulta al servidor cuando no hay viajes ese día.'],
-        'frecuencia_dia_viaje' => ['sincronizacion', 'Frecuencia día viaje', self::TYPE_DURATION, '15min', '10seg', '6hor',
-            'Consulta al servidor cuando hay un viaje ese día.'],
         'frecuencia_chat' => ['sincronizacion', 'Frecuencia chat', self::TYPE_DURATION, '5seg', '2seg', '10min',
             'Consulta de la conversación mientras está abierta.'],
 
