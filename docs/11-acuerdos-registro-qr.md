@@ -1780,9 +1780,15 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
   la ubicación». Propuesta mostrada (canal «Mi estado», fija durante la ventana del viaje):
   ```
   MiRuta • Mi estado
-  [Estado: De camino | En parada | Viajando | Recogido | Dejado | Botado | Dormido | No voy]
+  [Estado: De camino | En parada | Viajando | Dejado | Botado | Dormido | No voy]
   [Itinerario] • [ida | regreso]
   Mi parada: [parada]
   [destacada, si toca: Llegó tarde a la parada | El vehículo pasó sin recogerle | Sin GPS: active la ubicación |
    Ya puede quitar la ubicación]
   ```
+- **Viajando y Recogido se unifican en «Viajando»** (15/11/2026, aceptado): las dos significaban lo mismo (el
+  trabajador va dentro del vehículo); solo cambiaba el sentido. Queda un único estado **Viajando** en la ida y en el
+  regreso, en la base de datos (la actualización convierte los registros «recogido» en «viajando»), en el servidor,
+  en la app (sensores, ocupación, Botado, línea del recorrido) y en las notificaciones. Estados resultantes:
+  - **Ida:** De camino, En parada (primera parada), Viajando, Dejado, Botado, Dormido, No voy.
+  - **Regreso:** De camino, En parada, Viajando, Botado, Dormido, No voy.
