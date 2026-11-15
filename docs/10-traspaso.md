@@ -5,7 +5,7 @@
 > optimizado): no hace falta Composer ni SSH en el hospedaje. Todo lo que hay que ejecutar en el servidor (instalar o
 > actualizar la base de datos, tareas, limpiezas) se hace con los endpoints de mantenimiento de la API, desde la app
 > (docs/13 §13.13). La base de datos de la 4.2.0 se instala **desde cero** (*Instalar base de datos*) o, sobre una
-> 4.2.0 (o 4.0.0) ya instalada, con *Actualizar base de datos*, sin perder datos: la migración
+> 4.1.0 (o 4.0.0) ya instalada, con *Actualizar base de datos*, sin perder datos: la migración
 > `2026_11_15_000001_upgrade_4_2` pasa las ausencias a «por itinerario» y ajusta los ajustes de la ventana de viaje
 > (§10.3 bis). No se actualiza sobre una 3.x. En esta versión no se entregan imágenes de Docker ni un SQL inicial:
 > la base de datos se instala desde la app.
