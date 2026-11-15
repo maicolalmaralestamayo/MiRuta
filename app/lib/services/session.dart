@@ -1,10 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
+import 'package:miruta_alarm/miruta_alarm.dart';
 import 'package:workmanager/workmanager.dart';
 
 import '../core/api_client.dart';
 import '../core/json_api.dart';
+import '../core/local_cache.dart';
 import '../core/storage.dart';
 import '../core/username.dart';
 import '../models/models.dart';
@@ -16,6 +19,7 @@ import 'qr/qr_device.dart';
 import 'qr/qr_queue.dart';
 import 'sync.dart';
 import 'tracking/tracking_service.dart';
+import 'tracking/trip_window.dart';
 
 enum SessionState { loading, loggedOut, ready }
 
@@ -43,12 +47,14 @@ class Session extends ChangeNotifier {
   bool updateRequired = false;
 
   Timer? _timer;
-  Duration? _interval;
 
   /// La app está a la vista (no en segundo plano).
   bool _foreground = true;
 
   Session(this.api) {
+    try {
+      FlutterForegroundTask.addTaskDataCallback(_onServiceData);
+    } catch (_) {}
     api.onSessionExpired = () {
       if (state == SessionState.ready) _clear();
     };
@@ -134,41 +140,77 @@ class Session extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Sincroniza (GET sync) y avisa a las pantallas de lo que cambió.
-  Future<void> sync({bool all = false}) async {
+  /// Sincroniza (GET sync) y avisa a las pantallas de lo que cambió. Con el
+  /// servicio de la ventana de viaje activo, la petición la hace él (una sola
+  /// cada Z, docs/11 §11.62): aquí solo se le pide que conecte ya.
+  Future<void> sync({bool all = false, bool now = false}) async {
     if (state != SessionState.ready) return;
     try {
       await Storage.setForeground(_foreground);
+      if (await TrackingService.isRunning) {
+        if (now) TrackingService.syncNow();
+        _schedule();
+        return;
+      }
       final result = await SyncService.run(api, foreground: _foreground);
+      _apply(result.changed, all: all);
       counters = result.counters;
       nextTrip = result.nextTrip;
       if (result.settingsChanged) settings = await AppSettings.cached();
-      if (result.changed.contains('applications')) await reloadMe();
-      if (all || result.changed.isNotEmpty) {
-        lastChanged = all ? const {'all'} : result.changed;
-        revision++;
-      }
       notifyListeners();
-      _schedule();
-      await maybeStartTracking();
+      await TripWindow.reschedule(settings, foreground: _foreground);
     } catch (_) {
       // Sin conexión: el punto de conexión lo indica.
+    }
+    _schedule();
+  }
+
+  void _apply(Set<String> changed, {bool all = false}) {
+    if (changed.contains('applications') || changed.contains('workers')) reloadMe().catchError((_) {});
+    if (all || changed.isNotEmpty) {
+      lastChanged = all ? const {'all'} : changed;
+      revision++;
+    }
+  }
+
+  /// Lo que envía el servicio del viaje tras cada petición (con la app abierta).
+  void _onServiceData(Object data) {
+    if (data is! Map) return;
+    final next = DateTime.tryParse('${data['nextAt'] ?? ''}');
+    if (next != null) TripWindow.nextContact.value = next;
+    final changed = (data['changed'] as List?)?.map((e) => '$e').toSet();
+    if (changed != null) {
+      SyncService.cachedCounters().then((c) {
+        counters = c;
+        _apply(changed);
+        notifyListeners();
+      });
     }
   }
 
   /// Botón Actualizar (docs/11 §11.48 y §11.56): solo las notificaciones
   /// pendientes (y los contadores); los datos los recarga la pantalla visible.
-  Future<void> refresh() => sync();
+  /// Conecta ya y reinicia el contador.
+  Future<void> refresh() => sync(now: true);
 
-  /// Consulta periódica con la app abierta: «Frecuencia día viaje» si hay
-  /// un viaje ese día y «Frecuencia reposo» si no.
-  void _schedule() {
-    final interval = SyncService.frequency(nextTrip, settings);
-    if (_timer != null && interval == _interval) return;
-    _interval = interval;
+  /// Próxima consulta con la app abierta (docs/11 §11.62): dentro de la
+  /// ventana de viaje cada Z; fuera, cada F. El contador de la barra la muestra.
+  Future<void> _schedule() async {
     _timer?.cancel();
+    _timer = null;
+    if (state != SessionState.ready || !_foreground) return;
+    final open = await TripWindow.open(settings: settings);
+    final interval = open != null ? settings.windowEvery : settings.outsideEvery;
+    if (await TrackingService.isRunning) {
+      // La conexión la hace el servicio: el contador sigue su ritmo.
+      final current = TripWindow.nextContact.value;
+      if (current == null || current.isBefore(DateTime.now())) TripWindow.nextContact.value = DateTime.now().add(interval);
+      _timer = Zone.root.run(() => Timer(interval + const Duration(seconds: 2), () => _schedule()));
+      return;
+    }
+    TripWindow.nextContact.value = DateTime.now().add(interval);
     // En la zona raíz: no hereda el spinner de la operación que lo programó.
-    _timer = Zone.root.run(() => Timer.periodic(interval < const Duration(seconds: 30) ? const Duration(seconds: 30) : interval, (_) => sync()));
+    _timer = Zone.root.run(() => Timer(interval, () => sync()));
   }
 
   void pause() {
@@ -186,26 +228,8 @@ class Session extends ChangeNotifier {
     sync();
   }
 
-  /// Empieza a calcular su estado desde «Anticipación viaje» antes de la
-  /// salida (docs/11 §11.41), si la ubicación está activada.
-  Future<void> maybeStartTracking({bool force = false}) async {
-    final trip = nextTrip;
-    final person = me;
-    if (trip == null || person == null || trip.itineraryId == null) return;
-    if (trip.status != 'planificado' && trip.status != 'en_ejecucion') return;
-    if (!force && DateTime.now().isBefore(trip.departsAt.subtract(settings.duration('anticipacion_viaje')))) return;
-    final membership = person.placements.where((p) => p.itineraryId == trip.itineraryId && p.stopId != null).firstOrNull;
-    if (membership == null) return;
-    try {
-      if (await TrackingService.runningTripId() == trip.id) return;
-      if (!await TrackingService.locationReady()) return;
-      final full = Trip.from((await api.get('/trips/${trip.id}', query: {'include': 'itinerary'})).resource);
-      final stops = (await api.getAll('/stops', query: {'filter[itinerary]': trip.itineraryId, 'sort': 'position'})).map(Stop.from).toList();
-      await TrackingService.start(trip: full, stops: stops, myStopId: membership.stopId!, settings: settings);
-    } catch (_) {
-      // Se intenta en la siguiente consulta.
-    }
-  }
+  /// Abre la ventana de viaje si toca (con la app a la vista).
+  Future<void> maybeStartTracking() => TripWindow.reschedule(settings, foreground: _foreground);
 
   void _onUpdateRequired(Map<String, dynamic> meta) {
     if (updateRequired && state == SessionState.loggedOut) return;
@@ -234,10 +258,14 @@ class Session extends ChangeNotifier {
   Future<void> _clear({bool notify = true}) async {
     _timer?.cancel();
     _timer = null;
+    TripWindow.nextContact.value = null;
     try {
       await TrackingService.stop();
+      await MirutaAlarm.cancel();
       await Workmanager().cancelAll();
     } catch (_) {}
+    // La caché local se borra al cerrar sesión (docs/11 §11.62).
+    await LocalCache.clear();
     try {
       await Notifications.cancelAll();
     } catch (_) {}
@@ -252,6 +280,9 @@ class Session extends ChangeNotifier {
 
   @override
   void dispose() {
+    try {
+      FlutterForegroundTask.removeTaskDataCallback(_onServiceData);
+    } catch (_) {}
     _timer?.cancel();
     super.dispose();
   }

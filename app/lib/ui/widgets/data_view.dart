@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/api_exception.dart';
 import '../../core/formats.dart';
+import '../../core/local_cache.dart';
 import '../../services/session.dart';
 import 'app_scaffold.dart';
 import 'common.dart';
 
 /// Carga datos y los vuelve a cargar con el botón Actualizar o cuando GET
-/// sync avisa de cambios en [kinds]. Sin conexión muestra lo último cargado
-/// con el aviso «Sin conexión: datos del dd-mm hh:mm» (docs/11 §11.26).
+/// sync avisa de cambios en [kinds] (o en las huellas de los datos). Primero
+/// muestra lo guardado en el teléfono («Actualizado hace …») y por detrás
+/// pregunta al servidor solo si cambió (docs/11 §11.62). Sin conexión muestra
+/// lo guardado con el aviso «Sin conexión: solo consulta».
 class DataView<T> extends StatefulWidget {
   final Future<T> Function() load;
   final Widget Function(BuildContext context, T data, Future<void> Function() reload) builder;
@@ -52,14 +56,34 @@ class DataViewState<T> extends State<DataView<T>> {
     _session = context.read<Session>();
     _revision = _session!.revision;
     _session!.addListener(_onSession);
-    reload();
+    _start();
+  }
+
+  /// Primero lo guardado en el teléfono (al momento) y después, por detrás,
+  /// lo que haya cambiado en el servidor (docs/11 §11.62).
+  Future<void> _start() async {
+    if (_data == null) {
+      try {
+        final trace = CacheTrace(cacheOnly: true);
+        final data = await trace.run(widget.load);
+        if (mounted && _data == null) {
+          setState(() {
+            _data = data;
+            _loadedAt = trace.oldest;
+          });
+        }
+      } catch (_) {
+        // Nada guardado todavía.
+      }
+    }
+    await reload();
   }
 
   void _onSession() {
     final session = _session!;
     if (session.revision == _revision) return;
     _revision = session.revision;
-    if (session.lastChanged.contains('all') || session.lastChanged.any(widget.kinds.contains)) reload();
+    if (session.lastChanged.contains('all') || session.lastChanged.contains('data') || session.lastChanged.any(widget.kinds.contains)) reload();
   }
 
   @override
@@ -83,12 +107,14 @@ class DataViewState<T> extends State<DataView<T>> {
   Future<void> reload() async {
     if (mounted) setState(() => _loading = true);
     try {
-      final data = await widget.load();
+      final trace = CacheTrace();
+      final data = await trace.run(widget.load);
       if (!mounted) return;
       setState(() {
         _data = data;
-        _loadedAt = DateTime.now();
-        _error = null;
+        // Sin conexión, de cuándo es lo guardado que se muestra.
+        _loadedAt = trace.offline ? (trace.oldest ?? _loadedAt) : DateTime.now();
+        _error = trace.offline ? ApiException.network() : null;
         _loading = false;
       });
       if (widget.cacheKey != null) _cache[widget.cacheKey!] = (data, _loadedAt!);
@@ -109,15 +135,32 @@ class DataViewState<T> extends State<DataView<T>> {
       return const Center(child: CircularProgressIndicator());
     }
     final content = RefreshIndicator(onRefresh: reload, child: widget.builder(context, data, reload));
-    if (_error == null) return content;
+    final t = Theme.of(context);
+    if (_error == null) {
+      final at = _loadedAt;
+      // Lo guardado mientras se comprueba si cambió: «Actualizado hace …».
+      if (at == null || DateTime.now().difference(at) < const Duration(minutes: 1)) return content;
+      return Column(children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+          child: Row(children: [
+            Icon(_loading ? Icons.sync : Icons.history, size: 14, color: t.colorScheme.onSurfaceVariant),
+            const SizedBox(width: 6),
+            Text('Actualizado ${agoText(at)}', style: t.textTheme.labelSmall!.copyWith(color: t.colorScheme.onSurfaceVariant)),
+          ]),
+        ),
+        Expanded(child: content),
+      ]);
+    }
     return Column(children: [
       Material(
-        color: const Color(0xFFFFF3E0),
+        color: t.colorScheme.secondaryContainer,
         child: ListTile(
           dense: true,
-          leading: const Icon(Icons.cloud_off, color: amber),
-          title: Text(_loadedAt == null ? errorText(_error) : 'Sin conexión: datos del ${formatDateTime(_loadedAt)}'),
-          trailing: IconButton(tooltip: 'Reintentar', icon: const Icon(Icons.refresh), onPressed: reload),
+          leading: Icon(Icons.cloud_off, color: t.colorScheme.onSecondaryContainer),
+          title: Text(_loadedAt == null ? errorText(_error) : 'Sin conexión: solo consulta. Actualizado ${agoText(_loadedAt)} (${formatDateTime(_loadedAt)})',
+              style: TextStyle(color: t.colorScheme.onSecondaryContainer)),
+          trailing: IconButton(tooltip: 'Reintentar', icon: Icon(Icons.refresh, color: t.colorScheme.onSecondaryContainer), onPressed: reload),
         ),
       ),
       Expanded(child: content),

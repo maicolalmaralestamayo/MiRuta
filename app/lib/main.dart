@@ -16,8 +16,9 @@ import 'ui/auth/new_password_screen.dart';
 import 'ui/home/home_shell.dart';
 import 'ui/theme.dart';
 
-/// Tarea en segundo plano: GET sync con «Frecuencia reposo» o «Frecuencia
-/// día viaje» (docs/11 §11.44), y notificaciones del teléfono.
+/// Tarea en segundo plano fuera de la ventana de viaje: GET sync cada F
+/// («Frecuencia fuera ventana», docs/11 §11.62), sin GPS; muestra las
+/// notificaciones y programa la alarma de la próxima ventana de viaje.
 @pragma('vm:entry-point')
 void callbackDispatcher() {
   Workmanager().executeTask((task, inputData) async {

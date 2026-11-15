@@ -852,8 +852,25 @@ class LiveStop {
   final int expected;
   final Map<String, int> counts;
   final bool mine;
+  final double? latitude;
+  final double? longitude;
 
-  const LiveStop({required this.index, required this.stopId, this.landmark = '', this.street, this.passed = false, this.passedAt, this.expected = 0, this.counts = const {}, this.mine = false});
+  /// Marcada a mano («Pasó por la parada»).
+  final bool passedManually;
+
+  const LiveStop(
+      {required this.index,
+      required this.stopId,
+      this.landmark = '',
+      this.street,
+      this.passed = false,
+      this.passedAt,
+      this.expected = 0,
+      this.counts = const {},
+      this.mine = false,
+      this.latitude,
+      this.longitude,
+      this.passedManually = false});
 
   factory LiveStop.fromJson(Map<String, dynamic> j) => LiveStop(
         index: _int(j['index']),
@@ -865,6 +882,9 @@ class LiveStop {
         expected: _int(j['expected']),
         counts: j['counts'] is Map ? {for (final e in (j['counts'] as Map).entries) '${e.key}': _int(e.value)} : const {},
         mine: j['mine'] == true,
+        latitude: (j['latitude'] as num?)?.toDouble(),
+        longitude: (j['longitude'] as num?)?.toDouble(),
+        passedManually: j['passedManually'] == true,
       );
 }
 
@@ -891,6 +911,12 @@ class TripLive {
   final String? myStopId;
   final bool mySensor;
 
+  /// Parada de quien consulta en ese itinerario (si viaja en él).
+  final String? viewerStopId;
+
+  /// Quien consulta puede gestionar el viaje (Administrador o Jefe del itinerario).
+  final bool canManage;
+
   const TripLive({
     required this.tripId,
     this.direction = 'ida',
@@ -912,6 +938,8 @@ class TripLive {
     this.myState,
     this.myStopId,
     this.mySensor = false,
+    this.viewerStopId,
+    this.canManage = false,
   });
 
   factory TripLive.from(Resource r) {
@@ -939,6 +967,8 @@ class TripLive {
       myState: _str(mine?['state']),
       myStopId: _str(mine?['stopId']),
       mySensor: mine?['sensor'] == true,
+      viewerStopId: r.string('myStopId'),
+      canManage: r.boolean('canManage'),
     );
   }
 

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/api_exception.dart';
 import '../../core/json_api.dart';
+import '../../core/units.dart';
 import '../../models/models.dart';
 import '../../services/app_settings.dart';
 import '../../services/session.dart';
@@ -49,6 +50,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     for (final s in list) {
       final value = _controllers[s.key]!.text.trim();
       if (value == s.value) continue;
+      // F no admite menos de 15 min (docs/11 §11.62): Android no repite antes las tareas en segundo plano.
+      if (s.key == 'frecuencia_reposo' && value.isNotEmpty && (parseDuration(value) ?? Duration.zero) < const Duration(minutes: 15)) {
+        _errors[s.key] = 'Mínimo 15min (límite de Android)';
+        continue;
+      }
       try {
         await api.patch('/settings/${s.key}', resourceData('settings', id: s.key, attributes: {'value': value.isEmpty ? null : value}));
         changed++;

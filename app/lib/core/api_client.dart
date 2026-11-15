@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'api_exception.dart';
 import 'busy_scope.dart';
 import 'json_api.dart';
+import 'local_cache.dart';
 import 'storage.dart';
 import '../services/installation.dart';
 
@@ -149,10 +150,45 @@ class ApiClient {
   // Métodos
 
   /// [headers]: cabeceras extra (p. ej. la clave de mantenimiento; con ellas no se envía la sesión).
-  Future<JsonApiDocument> get(String path, {Map<String, dynamic>? query, bool guest = false, Map<String, String>? headers}) async =>
-      _document(await _send(() => _dio.get(path,
+  ///
+  /// Con sesión, lo que se puede guardar pasa por la caché local (docs/11
+  /// §11.62): se pregunta con If-None-Match (304 = no cambió: se usa lo
+  /// guardado) y, sin conexión, se devuelve lo guardado (solo consulta).
+  Future<JsonApiDocument> get(String path, {Map<String, dynamic>? query, bool guest = false, Map<String, String>? headers}) async {
+    final cached = !guest && headers == null && LocalCache.cacheable(path);
+    if (!cached) {
+      return _document(await _send(() => _dio.get(path,
           queryParameters: query,
           options: guest || headers != null ? Options(headers: headers, extra: {'auth': headers == null && !guest ? true : false, 'installation': guest}) : null)));
+    }
+    final key = LocalCache.keyFor(path, query);
+    final entry = await LocalCache.read(key);
+    final trace = CacheTrace.current;
+    if (trace != null && trace.cacheOnly) {
+      if (entry == null) throw const CacheMiss();
+      trace.used(entry.savedAt);
+      return JsonApiDocument.fromJson(entry.body);
+    }
+    try {
+      final response = await _send(() => _dio.get(path,
+          queryParameters: query, options: Options(headers: {if (entry?.etag != null) 'If-None-Match': entry!.etag})));
+      if (response.statusCode == 304 && entry != null) {
+        unawaited(LocalCache.write(key, entry.body, entry.etag));
+        trace?.used(DateTime.now());
+        return JsonApiDocument.fromJson(entry.body);
+      }
+      final data = response.data;
+      if (data is Map) unawaited(LocalCache.write(key, Map<String, dynamic>.from(data), response.headers.value('etag')));
+      trace?.used(DateTime.now());
+      return _document(response);
+    } on ApiException catch (error) {
+      if (error.isNetwork && entry != null) {
+        trace?.used(entry.savedAt, stale: true);
+        return JsonApiDocument.fromJson(entry.body);
+      }
+      rethrow;
+    }
+  }
 
   /// Todas las páginas de una colección.
   Future<List<Resource>> getAll(String path, {Map<String, dynamic>? query, int pageSize = 100}) async {

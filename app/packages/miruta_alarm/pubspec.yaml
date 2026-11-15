@@ -1,0 +1,19 @@
+name: miruta_alarm
+description: "MiRuta: alarma exacta que abre la ventana de viaje (docs/11 §11.62). Paquete local de la app, sin dependencias externas."
+version: 1.0.0
+publish_to: 'none'
+
+environment:
+  sdk: ^3.13.7
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: com.mitransporte.miruta_alarm
+        pluginClass: MirutaAlarmPlugin

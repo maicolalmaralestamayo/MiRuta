@@ -14,6 +14,7 @@ class AppSettings {
   static const defaults = {
     'radio_parada': '100m',
     'anticipacion_viaje': '10min',
+    'fin_ventana': '5min',
     'minimo_confirmaciones': '3',
     'velocidad_humana': '10km/hor',
     'tolerancia_gps': '20m',
@@ -25,8 +26,7 @@ class AppSettings {
     'duracion_maxima': '5hor',
     'espera_cierre': '2hor',
     'detencion_larga': '5min',
-    'frecuencia_reposo': '1hor',
-    'frecuencia_dia_viaje': '15min',
+    'frecuencia_reposo': '15min',
     'frecuencia_chat': '5seg',
     'longitud_mensaje': '1000',
   };
@@ -45,6 +45,24 @@ class AppSettings {
   double speed(String key) => parseSpeed(raw(key)) ?? parseSpeed(defaults[key]) ?? 0;
 
   int integer(String key) => int.tryParse(raw(key)) ?? int.tryParse(defaults[key] ?? '') ?? 0;
+
+  /// Ventana de viaje (docs/11 §11.62): X antes de la salida.
+  Duration get windowBefore => duration('anticipacion_viaje');
+
+  /// Y después de que el viaje termine para el trabajador.
+  Duration get windowAfter => duration('fin_ventana');
+
+  /// Z: dentro de la ventana, envía y recibe (mínimo 5 s).
+  Duration get windowEvery {
+    final z = duration('frecuencia_calculo');
+    return z < const Duration(seconds: 5) ? const Duration(seconds: 5) : z;
+  }
+
+  /// F: fuera de la ventana, solo recibe (mínimo 15 min, límite de Android).
+  Duration get outsideEvery {
+    final f = duration('frecuencia_reposo');
+    return f < const Duration(minutes: 15) ? const Duration(minutes: 15) : f;
+  }
 
   Map<String, dynamic> toJson() => {'values': values, 'version': version};
 

@@ -46,7 +46,7 @@ class Chip2 extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
         decoration: BoxDecoration(color: color.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(12)),
-        child: Text(text, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
+        child: Text(text, style: TextStyle(color: readable(context, color), fontSize: 12, fontWeight: FontWeight.w600)),
       );
 }
 
@@ -232,7 +232,7 @@ class NoticeCard extends StatelessWidget {
         padding: const EdgeInsets.all(14),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Icon(icon, color: color),
+            Icon(icon, color: readable(context, color)),
             const SizedBox(width: 10),
             Expanded(child: Text(title, style: t.textTheme.titleMedium!.copyWith(fontWeight: FontWeight.w600))),
           ]),

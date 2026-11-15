@@ -59,6 +59,10 @@ class Storage {
 
   static Future<void> setApiUrl(String url) async => (await _prefs).setString('api_url', url);
 
+  /// Vuelve a leer las preferencias (las cambian también la tarea en segundo
+  /// plano y el servicio del viaje, en otros aislamientos).
+  static Future<void> reload() async => (await _prefs).reload();
+
   static Future<bool> getBool(String key, {bool fallback = false}) async => (await _prefs).getBool(key) ?? fallback;
 
   static Future<void> setBool(String key, bool value) async => (await _prefs).setBool(key, value);

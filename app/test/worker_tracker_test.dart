@@ -91,10 +91,34 @@ void main() {
       expect(r.states, ['de_camino']);
     });
 
-    test('Al empezar el viaje, quien no está en la parada no va', () {
+    test('Ida: llega a la primera parada después de la salida: Dormido; luego se aleja: No voy', () {
       final r = Run(WorkerTracker(outbound: true, route: route, myIndex: 2));
       r.at(-500);
-      final step = r.at(-450, status: 'en_ejecucion');
+      r.at(-300, status: 'en_ejecucion');
+      expect(r.tracker.state, 'de_camino');
+      r.at(-50, status: 'en_ejecucion');
+      expect(r.tracker.state, 'dormido');
+      final step = r.at(-200, status: 'en_ejecucion');
+      expect(step.newState, 'no_voy');
+      expect(step.finished, isTrue);
+    });
+
+    test('Ida: estaba en la primera parada al salir el vehículo: Botado (y si luego sale en él, Viajando)', () {
+      final r = Run(WorkerTracker(outbound: true, route: route, myIndex: 2));
+      r.at(-30);
+      expect(r.tracker.state, 'en_parada');
+      r.at(-25, status: 'en_ejecucion');
+      expect(r.tracker.state, 'botado');
+      r.at(200, status: 'en_ejecucion');
+      expect(r.tracker.state, 'viajando');
+      expect(r.tracker.isSensor, isTrue);
+    });
+
+    test('Ida: no llega tras la salida: No voy pasada la espera final', () {
+      final r = Run(WorkerTracker(outbound: true, route: route, myIndex: 2));
+      r.at(-500);
+      r.at(-480, status: 'en_ejecucion');
+      final step = r.at(-470, seconds: 601, status: 'en_ejecucion');
       expect(step.newState, 'no_voy');
       expect(step.finished, isTrue);
     });
@@ -117,9 +141,7 @@ void main() {
     test('Botado: estaba en la parada, pasó el vehículo y no lo recogió', () {
       final r = Run(WorkerTracker(outbound: false, route: back, myIndex: 1));
       r.at(1020);
-      for (var i = 0; i < 6; i++) {
-        r.at(1010, passed: true, status: 'en_ejecucion');
-      }
+      r.at(1010, passed: true, status: 'en_ejecucion');
       expect(r.tracker.state, 'botado');
       r.at(1010, seconds: 601, passed: true, status: 'en_ejecucion');
       expect(r.tracker.finished, isTrue, reason: 'pasada la espera final deja de calcular');

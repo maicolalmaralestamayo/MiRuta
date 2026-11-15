@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../services/session.dart';
+import '../../services/tracking/trip_window.dart';
 import '../navigation.dart';
 import 'actions.dart';
 import 'common.dart';
@@ -85,7 +88,7 @@ class _AppScaffoldState extends State<AppScaffold> {
       title: subtitle == null
           ? Text(title)
           : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title), Text(subtitle!, style: const TextStyle(fontSize: 12, color: Colors.white))]),
-      actions: [if (ready) RefreshButton(onRefresh: _refresh), const ConnectionDot(), const SizedBox(width: 4)],
+      actions: [if (ready) RefreshButton(onRefresh: _refresh), const SizedBox(width: 6), const ConnectionDot(), const SizedBox(width: 4)],
     );
     final m = marks;
     if (m == null) return normal;
@@ -135,8 +138,10 @@ class _AppScaffoldState extends State<AppScaffold> {
   }
 }
 
-/// Botón Actualizar de la barra (docs/11 §11.48 y §11.56): solo las
-/// notificaciones pendientes y los datos de la pantalla visible.
+/// Botón Actualizar de la barra (docs/11 §11.48, §11.56 y §11.62): solo las
+/// notificaciones pendientes y los datos de la pantalla visible. Muestra la
+/// cuenta atrás hasta la próxima conexión con el servidor («↻ 7 s» dentro de
+/// la ventana de viaje, «↻ 12:34» fuera); al tocarlo conecta ya y la reinicia.
 class RefreshButton extends StatefulWidget {
   final Future<void> Function()? onRefresh;
 
@@ -148,25 +153,71 @@ class RefreshButton extends StatefulWidget {
 
 class _RefreshButtonState extends State<RefreshButton> {
   bool _busy = false;
+  Timer? _tick;
+
+  @override
+  void initState() {
+    super.initState();
+    _tick = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted && TripWindow.nextContact.value != null) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _tick?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _press() async {
+    setState(() => _busy = true);
+    try {
+      await context.read<Session>().refresh();
+      await widget.onRefresh?.call();
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return IconButton(
-      tooltip: 'Actualizar',
-      onPressed: _busy
-          ? null
-          : () async {
-              setState(() => _busy = true);
-              try {
-                await context.read<Session>().refresh();
-                await widget.onRefresh?.call();
-              } finally {
-                if (mounted) setState(() => _busy = false);
-              }
-            },
-      icon: _busy ? const BusyIndicator(size: 18, color: Colors.white) : const Icon(Icons.refresh, color: Colors.white),
+    final label = countdownText(TripWindow.nextContact.value);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Material(
+        color: Colors.white.withValues(alpha: 0.16),
+        shape: const StadiumBorder(),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: _busy ? null : _press,
+          child: Tooltip(
+            message: 'Actualizar (próxima conexión con el servidor)',
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: label == null ? 8 : 10),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                _busy ? const BusyIndicator(size: 16, color: Colors.white) : const Icon(Icons.refresh, color: Colors.white, size: 20),
+                if (label != null) ...[
+                  const SizedBox(width: 4),
+                  Text(label, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700, fontFeatures: [FontFeature.tabularFigures()])),
+                ],
+              ]),
+            ),
+          ),
+        ),
+      ),
     );
   }
+}
+
+/// «7 s» (menos de un minuto) o «12:34» (minutos y segundos); null sin cuenta.
+String? countdownText(DateTime? next, {DateTime? now}) {
+  if (next == null) return null;
+  var seconds = next.difference(now ?? DateTime.now()).inSeconds;
+  if (seconds < 0) seconds = 0;
+  if (seconds < 60) return '$seconds s';
+  final m = seconds ~/ 60;
+  final s = seconds % 60;
+  return '$m:${s.toString().padLeft(2, '0')}';
 }
 
 /// Barra principal con el número de solicitudes en Gestión.

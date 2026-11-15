@@ -4,6 +4,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:mitransporte/core/api_client.dart';
+import 'package:mitransporte/core/local_cache.dart';
 import 'package:mitransporte/models/models.dart';
 import 'package:mitransporte/services/session.dart';
 import 'package:mitransporte/ui/auth/login_screen.dart';
@@ -24,6 +25,7 @@ Session newSession() => Session(ApiClient.withDio(Dio(BaseOptions(baseUrl: '')))
 
 void main() {
   setUp(() async {
+    LocalCache.enabled = false;
     SharedPreferences.setMockInitialValues({});
     FlutterSecureStorage.setMockInitialValues({});
     PackageInfo.setMockInitialValues(appName: 'MiRuta', packageName: 'x', version: '4.0.0', buildNumber: '10', buildSignature: '');

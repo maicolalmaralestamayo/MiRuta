@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../../models/models.dart';
 import '../../services/session.dart';
 import '../../services/theme_controller.dart';
+import '../../services/tracking/trip_permissions.dart';
+import '../../services/tracking/trip_window.dart';
 import '../management/forms.dart';
 import '../management/ops.dart';
 import '../management/tiles.dart';
@@ -13,6 +15,7 @@ import '../profile/my_qr_screen.dart';
 import '../profile/profile_screen.dart';
 import '../trips/trip_card.dart';
 import '../trips/trip_form_screen.dart';
+import '../trips/trip_permissions_screen.dart';
 import '../widgets/actions.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/cards.dart';
@@ -26,7 +29,10 @@ class _HomeData {
   final List<Child> children;
   final List<Absence> absences;
 
-  const _HomeData(this.applications, this.trips, this.children, [this.absences = const []]);
+  /// Viaja en algún viaje próximo y faltan permisos para la app cerrada.
+  final bool needsPermissions;
+
+  const _HomeData(this.applications, this.trips, this.children, [this.absences = const [], this.needsPermissions = false]);
 }
 
 /// Inicio (docs/11 §11.60, maqueta G22): prácticamente el formulario del
@@ -89,7 +95,9 @@ class _HomeScreenState extends State<HomeScreen> {
     if ((session.counters['applicationsResolvedUnseen'] ?? 0) > 0) {
       api.post('/me/applications-seen', const {}).then((_) => session.sync()).catchError((_) {});
     }
-    return _HomeData(applications, TripList(trips.trips.where((t) => mine.contains(t.itineraryId)).toList(), trips.ends), children, absences);
+    final upcoming = (await TripWindow.current(settings: session.settings)).isNotEmpty;
+    final needsPermissions = upcoming && !(await TripPermissions.check()).complete;
+    return _HomeData(applications, TripList(trips.trips.where((t) => mine.contains(t.itineraryId)).toList(), trips.ends), children, absences, needsPermissions);
   }
 
   Future<void> _reload() async => _view.currentState?.reload();
@@ -180,6 +188,16 @@ class _HomeScreenState extends State<HomeScreen> {
             physics: const AlwaysScrollableScrollPhysics(),
             children: [
               _PersonHeader(me: me),
+              if (data.needsPermissions)
+                NoticeCard(
+                  icon: Icons.battery_alert,
+                  title: 'Permisos para sus viajes',
+                  detail: 'Para que MiRuta calcule su estado con la app cerrada, permita la ubicación «todo el tiempo» y la batería sin restricciones. '
+                      'Si no, solo funcionará con la app abierta.',
+                  buttonIcon: Icons.settings,
+                  buttonText: 'Revisar permisos',
+                  onPressed: () => _open(() => push(context, const TripPermissionsScreen())),
+                ),
               _QrCard(onTap: () => push(context, const MyQrScreen())),
               FoldSection<Trip>(
                 storageKey: 'inicio.viajes',

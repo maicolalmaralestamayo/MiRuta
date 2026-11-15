@@ -1,8 +1,17 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- Ubicación: cálculo del estado del trabajador durante el viaje y «Usar mi ubicación actual» -->
+    <!-- Ubicación: cálculo del estado del trabajador durante el viaje y «Usar mi ubicación actual».
+         «Permitir todo el tiempo» para calcular con la app cerrada (docs/11 §11.62). -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <!-- Ventana de viaje: alarma exacta X antes de la salida que arranca el servicio
+         de ubicación aunque la app esté cerrada (Android 12: SCHEDULE_EXACT_ALARM;
+         Android 13+: USE_EXACT_ALARM, la app no se distribuye por Google Play). -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <!-- Batería sin restricciones (lo pide la pantalla de permisos del viaje) -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <!-- Servicio en primer plano durante el viaje -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
@@ -67,6 +76,15 @@
             android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
             android:foregroundServiceType="location"
             android:exported="false" />
+
+        <!-- Ventana de viaje: alarma exacta y reprogramación al reiniciar (docs/11 §11.62) -->
+        <receiver android:name=".WindowAlarmReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
 
         <!-- Actualizaciones de la app (ota_update) -->
         <provider

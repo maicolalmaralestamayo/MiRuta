@@ -99,18 +99,19 @@ class _ConversationScreenState extends State<ConversationScreen> {
           child: Container(
             margin: const EdgeInsets.symmetric(vertical: 8),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-            decoration: BoxDecoration(color: const Color(0xFFE1F0FA), borderRadius: BorderRadius.circular(8)),
-            child: Text(formatDate(m.createdAt), style: const TextStyle(fontSize: 12)),
+            decoration: BoxDecoration(color: Theme.of(context).colorScheme.secondaryContainer, borderRadius: BorderRadius.circular(8)),
+            child: Text(formatDate(m.createdAt), style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSecondaryContainer)),
           ),
         ));
       }
       items.add(_Bubble(message: m));
     }
+    final dark = Theme.of(context).brightness == Brightness.dark;
     return AppScaffold(
       title: widget.person ?? 'Desarrollador',
       subtitle: widget.topic == null ? null : 'Motivo: ${widget.topic}',
       tab: MainTab.more,
-      background: const Color(0xFFECE5DD),
+      background: dark ? const Color(0xFF0B141A) : const Color(0xFFECE5DD),
       bottom: SafeArea(
         top: false,
         child: Padding(
@@ -127,7 +128,7 @@ class _ConversationScreenState extends State<ConversationScreen> {
                   hintText: 'Mensaje',
                   counterText: '',
                   filled: true,
-                  fillColor: Colors.white,
+                  fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(24)),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 ),
@@ -157,16 +158,20 @@ class _Bubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final mine = message.mine;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final background = mine ? (dark ? const Color(0xFF5A3E10) : const Color(0xFFFFE0B2)) : (dark ? const Color(0xFF1F2C34) : Colors.white);
+    final foreground = dark ? Colors.white : Colors.black87;
     return Align(
       alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
         constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.78),
         margin: const EdgeInsets.symmetric(vertical: 3),
         padding: const EdgeInsets.fromLTRB(10, 6, 10, 4),
-        decoration: BoxDecoration(color: mine ? const Color(0xFFFFE0B2) : Colors.white, borderRadius: BorderRadius.circular(10)),
+        decoration: BoxDecoration(color: background, borderRadius: BorderRadius.circular(10)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          if (!mine && message.fromDeveloper) const Text('Desarrollador', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF000080))),
-          Text(message.body, style: const TextStyle(fontSize: 15)),
+          if (!mine && message.fromDeveloper)
+            Text('Desarrollador', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: dark ? const Color(0xFFFFA500) : const Color(0xFF000080))),
+          Text(message.body, style: TextStyle(fontSize: 15, color: foreground)),
           Align(alignment: Alignment.centerRight, child: Text(formatTime(message.createdAt), style: const TextStyle(fontSize: 11, color: grey))),
         ]),
       ),

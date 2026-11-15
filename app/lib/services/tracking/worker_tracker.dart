@@ -16,9 +16,10 @@
 /// solo pasa a Dejado tras «Cálculos consecutivos» a velocidad humana dentro
 /// del radio de alguna parada del recorrido.
 ///
-/// Regreso: la referencia es su parada. Cuando el vehículo pasó por ella: si
-/// estaba En la parada y no sale a velocidad de vehículo → Botado; si llega
-/// después → Dormido. Tras «Espera final» deja de calcular.
+/// Regreso: la referencia es su parada. Ida y regreso (docs/11 §11.61): cuando
+/// el vehículo pasó por la parada de referencia, si estaba En la parada y no
+/// está Viajando / Recogido → Botado; si llega después → Dormido. Tras
+/// «Espera final» deja de calcular; si se aleja, No voy a viajar.
 ///
 /// Viajando (ida) y Recogido (regreso) convierten el teléfono en sensor del
 /// vehículo: Detenido / En movimiento (umbral: Tolerancia GPS), próxima parada
@@ -105,7 +106,8 @@ class RouteStop {
 class TripInfo {
   final String status;
 
-  /// Regreso: el vehículo ya pasó por la parada del trabajador.
+  /// El vehículo ya pasó por la parada de referencia del trabajador (ida: la
+  /// primera, es decir, el viaje salió; regreso: la suya).
   final bool vehiclePassedMyStop;
 
   /// Próxima parada según el servidor (0 = salida).
@@ -211,9 +213,16 @@ class WorkerTracker {
 
     if (isSensor) return _sensorStep(point, speed, moved, trip);
 
-    // Botado / Dormido: si se aleja, No voy; pasada la espera final, deja de calcular.
+    final passed = trip.vehiclePassedMyStop || (outbound && trip.status == 'en_ejecucion');
+    final away = d2 > config.stopRadius && d2 - d1 > config.gpsTolerance;
+    final fast = (d2 - d1) / seconds > config.humanSpeed;
+
+    // Botado / Dormido (docs/11 §11.61): si se aleja, No voy (o, si un Botado
+    // sale a velocidad de vehículo, sí subió: Viajando / Recogido); pasada la
+    // espera final, deja de calcular.
     if (state == 'botado' || state == 'dormido') {
-      if (d2 > config.stopRadius && d2 - d1 > config.gpsTolerance) {
+      if (away) {
+        if (state == 'botado' && fast) return _change(outbound ? 'viajando' : 'recogido');
         definitive = true;
         finished = true;
         return _change('no_voy', finished: true);
@@ -225,21 +234,19 @@ class WorkerTracker {
       return const TrackerStep();
     }
 
-    // Regreso: el vehículo ya pasó por su parada.
-    if (!outbound && trip.vehiclePassedMyStop) {
+    // El vehículo ya pasó por la parada de referencia (ida: salió de la
+    // primera; regreso: pasó por la suya). Regla simplificada (docs/11 §11.61):
+    // Botado = estaba En la parada antes y no está Viajando / Recogido;
+    // Dormido = llega a En la parada después.
+    if (passed) {
       passedAt ??= now;
       if (state == 'en_parada') {
-        if (d2 > config.stopRadius && d2 - d1 > config.gpsTolerance && (d2 - d1) / seconds > config.humanSpeed) {
-          return _change('recogido');
-        }
-        slowCount = speed <= config.humanSpeed ? slowCount + 1 : 0;
-        if (slowCount >= config.consecutive) {
-          waitingSince = now;
-          return _change('botado');
-        }
-        return const TrackerStep();
+        if (away && fast) return _change(outbound ? 'viajando' : 'recogido');
+        waitingSince = now;
+        return _change('botado');
       }
       if (d2 <= config.stopRadius) {
+        reachedStop = true;
         waitingSince = now;
         return _change('dormido');
       }
@@ -248,13 +255,8 @@ class WorkerTracker {
         finished = true;
         return _change('no_voy', finished: true);
       }
-    }
-
-    // Ida en ejecución: quien no está en el vehículo ni en la parada de salida no va.
-    if (outbound && trip.status == 'en_ejecucion' && state != 'en_parada') {
-      definitive = true;
-      finished = true;
-      return _change('no_voy', finished: true);
+      if ((d1 - d2).abs() <= config.gpsTolerance) return const TrackerStep();
+      return _change(d2 < d1 ? 'de_camino' : 'no_voy');
     }
 
     String next;
@@ -269,7 +271,7 @@ class WorkerTracker {
       next = outbound ? 'viajando' : 'recogido';
     } else {
       next = 'no_voy';
-      if (d2 > config.abandonDistance || (outbound && trip.status == 'en_ejecucion')) {
+      if (d2 > config.abandonDistance) {
         definitive = true;
         finished = true;
         return _change('no_voy', finished: true);

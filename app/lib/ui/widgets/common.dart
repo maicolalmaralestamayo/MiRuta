@@ -18,6 +18,10 @@ const blue2 = Color(0xFF1565C0);
 const purple = Color(0xFF6A1B9A);
 const amber = Color(0xFFE65100);
 
+/// Color de estado legible también en el tema oscuro (más claro sobre fondo oscuro).
+Color readable(BuildContext context, Color color) =>
+    Theme.of(context).brightness == Brightness.dark ? Color.lerp(color, Colors.white, 0.45)! : color;
+
 extension SessionContext on BuildContext {
   Session get session => read<Session>();
 
@@ -63,7 +67,12 @@ void showError(BuildContext context, Object error) {
     showResult(ScaffoldMessenger.of(context), 'Operación cancelada', cancelled: true);
     return;
   }
-  final message = error is ApiException ? error.message : (error is StateError ? error.message : 'Ocurrió un error inesperado.');
+  // Sin conexión solo se consulta lo guardado (docs/11 §11.62); salvo «Incluir por QR».
+  final message = error is ApiException && error.isNetwork
+      ? 'Sin conexión: solo se puede consultar lo guardado en el teléfono. Los cambios necesitan el servidor.'
+      : error is ApiException
+          ? error.message
+          : (error is StateError ? error.message : 'Ocurrió un error inesperado.');
   ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()
     ..showSnackBar(SnackBar(content: Text(message), backgroundColor: Theme.of(context).colorScheme.error));
