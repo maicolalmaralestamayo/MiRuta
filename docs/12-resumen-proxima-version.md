@@ -2,7 +2,7 @@
 
 Resumen **consolidado** de lo acordado en `docs/11-acuerdos-registro-qr.md` §11.19–§11.52, con la **última decisión**
 de cada tema (lo sustituido no aparece). **Servidor implementado** (Laravel 12; API en `docs/13-api-proxima-version.md`);
-**app implementada** (versión 4.0.0, `docs/05-app.md`).
+**app implementada** (versión 4.2.0, `docs/05-app.md`).
 
 ## 1. Plataforma
 
@@ -127,7 +127,10 @@ de cada tema (lo sustituido no aparece). **Servidor implementado** (Laravel 12; 
 - Estado trabajador: Velocidad humana `10km/hor`, Tolerancia GPS `20m`, Distancia abandono `1km`, Frecuencia cálculo
   `10seg`, Cálculos consecutivos `6`, Espera final `10min`.
 - Estado viaje: Plazo eliminación `5hor`, Duración máxima `5hor`, Espera cierre `2hor`.
-- Sincronización: Frecuencia reposo `1hor`, Frecuencia día viaje `15min`, Frecuencia chat `5seg`.
+- Ventana viaje (4.2.0): Inicio ventana (X) `10min`, Fin ventana (Y) `5min`, Frecuencia ventana (Z) `10seg`,
+  Frecuencia fuera ventana (F) `15min` (mínimo `15min`). Sustituyen a Anticipación viaje, Frecuencia cálculo,
+  Frecuencia reposo y Frecuencia día viaje.
+- Sincronización: Frecuencia chat `5seg`.
 - Notificaciones: Detención larga `5min`.
 - Más los de contraseñas, acceso, «Olvidé algo», conversaciones y archivos.
 
@@ -156,3 +159,26 @@ ajustes por Entidad / itinerario / parada / usuario.
 - **Toda la app:** spinner con «Cancelar» en las operaciones con el servidor y mensajes escuetos; Actualizar solo la
   pantalla visible y las notificaciones; sin contraseñas propuestas; notificaciones dentro de la app si está abierta;
   «Salir sin guardar» y teclado en todos los formularios; modales con ícono, título, pregunta y botones.
+
+## 16. Versión 4.2.0 (15/11/2026, docs/11 §11.61–§11.62)
+
+- **Ausencias por itinerario:** una ausencia cubre uno o varios itinerarios de la persona (de cualquiera de sus
+  Entidades), no toda la Entidad; «Hasta» opcional (vacío = indefinida); «Terminar ausencia» en Acciones de Inicio.
+- **Solicitudes:** el diálogo de una solicitud muestra **Aprobar** y **Rechazar** (con motivo) a quien puede
+  resolverla (Administrador; Jefe en su itinerario) y **Cancelar solicitud** si es propia. Las listas de Entidades e
+  Itinerarios tienen la sección **«Solicitudes»**.
+- **Tiempo real:** «Sin datos del vehículo» hasta que informan los sensores (el servidor ya no supone «En movimiento»
+  al empezar); por qué cada trabajador es o no sensor (tocar los sensores); **Dormido y Botado también en la ida**,
+  respecto a la primera parada, con la regla simplificada (Dormido = llega después del paso; Botado = estaba antes y
+  no subió), sin «Cálculos consecutivos» para Botado; **«Pasó por la parada X»** a mano para el Jefe y el
+  Administrador, que cuenta como la confirmación de los sensores.
+- **Ventana de viaje y segundo plano:** de X antes de la salida a Y después de que el viaje termine para el
+  trabajador, envía y recibe cada Z en una sola petición con un servicio de ubicación en primer plano que arranca una
+  alarma exacta aunque la app esté cerrada (notificación fija); fuera, solo recibe cada F (≥ 15 min) sin GPS; se
+  reprograma al reiniciar. Pantalla de permisos (ubicación todo el tiempo, batería sin restricciones, alarmas, consejo
+  por fabricante) y, sin ellos, solo con la app abierta. La ubicación solo es obligatoria para los trabajadores del
+  viaje. Contador hasta la próxima conexión junto al botón Actualizar.
+- **Tema** claro, oscuro o automático (inicio de sesión e Inicio → Acciones).
+- **Caché local** en archivos: se muestra al momento lo guardado («Actualizado hace …») y se pregunta solo lo que
+  cambió (ETag/304 y huellas de `GET sync`); sin conexión, solo consulta; se borra al cerrar sesión.
+- **Servidor:** migración de actualización 4.1.0 → 4.2.0 con «Actualizar base de datos» (docs/10 §10.3 bis).

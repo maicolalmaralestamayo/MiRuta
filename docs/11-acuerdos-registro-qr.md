@@ -1639,7 +1639,7 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
   Actualizaciones de la app, Mantenimiento del servidor). Desaparecen las pantallas **Perfil** (se ve/edita desde
   Acciones de Inicio), **Hijos** y **Mi QR** como entradas sueltas.
 
-## 11.61 Cambios para la próxima versión (desde 13/11/2026; NO implementar hasta la señal)
+## 11.61 Cambios para la próxima versión (desde 13/11/2026; implementado en la 4.2.0)
 
 - **Ausencias por itinerario:** declarar una ausencia se asocia a **itinerarios** (no a la Entidad): en la misma
   ausencia se pueden marcar **uno o varios** de sus itinerarios (13/11/2026).
@@ -1687,7 +1687,7 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
     conceden, sigue funcionando **solo con la app abierta** y lo recuerda antes de cada viaje. Mientras calcula,
     notificación fija de Android («MiRuta: En la parada • 4 sensores») hasta el estado definitivo.
 
-## 11.62 Ventana de viaje y sincronización en segundo plano (15/11/2026; para la próxima versión)
+## 11.62 Ventana de viaje y sincronización en segundo plano (15/11/2026; implementado en la 4.2.0)
 
 - **Ventana de viaje** de cada trabajador: empieza **X** antes de la salida planificada y termina **Y** después de
   que **el viaje termina para ese trabajador** (su estado definitivo o el fin del viaje). Dentro de la ventana el

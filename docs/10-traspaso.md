@@ -1,12 +1,13 @@
 # 10. Traspaso de tecnología — MiRuta
 
-> **Versión 4.1.0 (docs/12 §15):** servidor **Laravel 12 con PHP 8.2** (el del hospedaje, 8.2.35) y MariaDB 10.3 o
+> **Versión 4.2.0 (docs/12 §16):** servidor **Laravel 12 con PHP 8.2** (el del hospedaje, 8.2.35) y MariaDB 10.3 o
 > superior. El `.zip` del servidor trae **`vendor/` ya instalado** (sin dependencias de desarrollo y con el autoload
 > optimizado): no hace falta Composer ni SSH en el hospedaje. Todo lo que hay que ejecutar en el servidor (instalar o
 > actualizar la base de datos, tareas, limpiezas) se hace con los endpoints de mantenimiento de la API, desde la app
-> (docs/13 §13.13). La base de datos de la 4.1.0 se instala **desde cero** (*Instalar base de datos*) o, sobre una
-> 4.0.0 ya instalada, con *Actualizar base de datos*, que pasa las pertenencias al esquema nuevo (varios itinerarios
-> por Entidad). No se actualiza sobre una 3.x. En esta versión no se entregan imágenes de Docker ni un SQL inicial:
+> (docs/13 §13.13). La base de datos de la 4.2.0 se instala **desde cero** (*Instalar base de datos*) o, sobre una
+> 4.2.0 (o 4.0.0) ya instalada, con *Actualizar base de datos*, sin perder datos: la migración
+> `2026_11_15_000001_upgrade_4_2` pasa las ausencias a «por itinerario» y ajusta los ajustes de la ventana de viaje
+> (§10.3 bis). No se actualiza sobre una 3.x. En esta versión no se entregan imágenes de Docker ni un SQL inicial:
 > la base de datos se instala desde la app.
 
 Qué se entrega y cómo poner en marcha MiRuta en cada entorno: el hospedaje, un ordenador con Docker y un
@@ -15,14 +16,15 @@ ordenador sin Docker. Se da por hecho que Docker, Apache o nginx, PHP y MySQL/Ma
 ## 10.1 Qué se entrega
 
 ```
-4.1.0/
-├── miruta-4.1.0-64bits.apk               App para casi todos los teléfonos (Android 7.0 o superior)
-└── miruta-4.1.0-32bits.apk               App para teléfonos antiguos de 32 bits
+4.2.0/
+├── miruta-4.2.0-64bits.apk               App para casi todos los teléfonos (Android 7.0 o superior)
+└── miruta-4.2.0-32bits.apk               App para teléfonos antiguos de 32 bits
 hosting/
-└── miruta-servidor-4.1.0.zip             Servidor para el hospedaje o para un ordenador sin Docker
+├── miruta-servidor-4.2.0.zip             Servidor para el hospedaje o para un ordenador sin Docker (instalación nueva)
+└── miruta-actualizacion-4.2.0.zip        Actualización de un servidor ya instalado (conserva su configuracion.php)
 ```
 
-Contenido de `miruta-servidor-4.1.0.zip`:
+Contenido de `miruta-servidor-4.2.0.zip`:
 
 | Carpeta o archivo | Para qué |
 |---|---|
@@ -45,7 +47,7 @@ Sin la clave de firma ninguna versión nueva de la app se instalará encima de e
 
 ## 10.2 La app
 
-1. Copie al teléfono **`miruta-4.1.0-64bits.apk`**. Use la de 32 bits solo si el teléfono no admite la de 64.
+1. Copie al teléfono **`miruta-4.2.0-64bits.apk`**. Use la de 32 bits solo si el teléfono no admite la de 64.
    Ábrala y permita «instalar apps desconocidas».
 2. La app trae puesta la dirección del hospedaje: `http://www.twintechnology.cu/miruta`. Para usar otro
    servidor, en la pantalla de inicio de sesión pulse el **botón del servidor**, elija el protocolo y escriba la
@@ -68,18 +70,43 @@ Sin la clave de firma ninguna versión nueva de la app se instalará encima de e
 - Como Administrador: *Más → Mantenimiento del servidor*.
 - Sin sesión: botón del servidor → *Mantenimiento del servidor* → clave de mantenimiento.
 
-**Símbolos.** La app va ofuscada. Si un usuario envía el texto de un error de la versión 4.1.0, se traduce a nombres
-legibles con Flutter y los símbolos que deja la compilación en `app/build/symbols/4.1.0+11/` (guárdelos si los
+**Símbolos.** La app va ofuscada. Si un usuario envía el texto de un error de la versión 4.2.0, se traduce a nombres
+legibles con Flutter y los símbolos que deja la compilación en `app/build/symbols/4.2.0+12/` (guárdelos si los
 necesita; no se entregan aparte):
 
 ```bash
-flutter symbolize -i error.txt -d 4.1.0+11/app.android-arm64.symbols   # app de 64 bits
-flutter symbolize -i error.txt -d 4.1.0+11/app.android-arm.symbols     # app de 32 bits
+flutter symbolize -i error.txt -d 4.2.0+12/app.android-arm64.symbols   # app de 64 bits
+flutter symbolize -i error.txt -d 4.2.0+12/app.android-arm.symbols     # app de 32 bits
 ```
+
+## 10.3 bis Actualizar el hospedaje de la 4.1.0 a la 4.2.0
+
+El hospedaje ya tiene la 4.1.0 con datos. **Antes de nada, exporte la base de datos** en SQL con el gestor del
+hospedaje (por si hubiera que volver atrás).
+
+1. **Subir la actualización.** Use `miruta-actualizacion-4.2.0.zip`: **no lleva `configuracion.php`**, así que
+   conserva la base de datos, las claves y la clave de mantenimiento del servidor. Suba a `/htdocs/miruta/` los 2
+   archivos de su `subida-rapida/` y abra `http://www.twintechnology.cu/miruta/desempaquetar.php?clave=CLAVE` con la
+   **clave de mantenimiento que ya tenía** (la de su `configuracion.php`). Sustituye el código y `vendor/`; no
+   toca `uploads/` ni `configuracion.php`.
+2. **Actualizar la base de datos.** En la app (Administrador): *Más → Mantenimiento del servidor →* **Actualizar
+   base de datos** (o, sin sesión, botón del servidor → *Mantenimiento del servidor* → clave). Aplica la migración
+   `2026_11_15_000001_upgrade_4_2`:
+   - las ausencias de la 4.1.0 (de una Entidad) pasan a ser de la persona y a cubrir los itinerarios que tenía en
+     esa Entidad; las nuevas se declaran por itinerario (uno o varios) y «Hasta» es opcional;
+   - se guardan el GPS de cada informe y quién marcó a mano «Pasó por la parada»;
+   - desaparece el ajuste «Frecuencia día viaje» y «Frecuencia fuera ventana» (antes «Frecuencia reposo») no admite
+     menos de 15 min (si tenía menos, vuelve al valor por omisión).
+   *Estado del servidor* debe mostrar la versión 4.2.0 y ninguna migración pendiente.
+3. **Revisar los ajustes** (*Más → Ajustes de la app → Ventana viaje*): Inicio ventana (X, `10min`), Fin ventana
+   (Y, `5min`), Frecuencia ventana (Z, `10seg`) y Frecuencia fuera ventana (F, `15min`).
+4. **Actualizar las apps.** Suba los dos APK en *Más → Actualizaciones de la app* (puede marcarla Obligatoria) o
+   instálelos a mano encima de la 4.1.0 (misma clave de firma). Al abrir la 4.2.0 en un viaje, cada trabajador verá la
+   pantalla de **permisos del viaje** (ubicación «Permitir todo el tiempo», batería sin restricciones, alarmas).
 
 ## 10.3 Entorno 1: el hospedaje (solo FTP)
 
-Use `miruta-servidor-4.1.0.zip`. Su `configuracion.php` ya trae la base de datos, la carpeta temporal y unas
+Use `miruta-servidor-4.2.0.zip`. Su `configuracion.php` ya trae la base de datos, la carpeta temporal y unas
 claves generadas para este servidor.
 
 1. **Subir.** Con FileZilla (FTP explícito sobre TLS, modo pasivo, transferencia binaria, como mucho 2
@@ -108,7 +135,7 @@ En esta versión no se entregan imágenes de Docker (docs/11 §11.55); para gene
 falta Internet.
 
 ```bash
-docker load -i miruta-4.1.0-imagenes.tar.gz
+docker load -i miruta-4.2.0-imagenes.tar.gz
 docker compose -f compose.yml up -d
 ```
 
@@ -146,7 +173,7 @@ php -r "echo 'base64:'.base64_encode(random_bytes(32)), PHP_EOL, bin2hex(random_
 
 ## 10.5 Entorno 3: un ordenador sin Docker (Apache o nginx, PHP y MySQL/MariaDB)
 
-Use `miruta-servidor-4.1.0.zip`. Hace falta:
+Use `miruta-servidor-4.2.0.zip`. Hace falta:
 
 - **PHP 8.2 o superior**, con las extensiones `pdo_mysql`, `mbstring`, `openssl`, `fileinfo`, `tokenizer`,
   `ctype`, `xml` y `dom` (y `zip` para la subida rápida);
