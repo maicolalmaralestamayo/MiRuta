@@ -1725,3 +1725,12 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
 - **Ausencia indefinida** (15/11/2026): la fecha **«Hasta» es opcional**; sin ella la ausencia es **indefinida**
   (el trabajador no siempre conoce la fecha exacta) y dura hasta que él la termine («Terminar ausencia» en
   Acciones). El campo se rotula «Hasta (opcional, vacío = indefinida)».
+
+## 11.63 Cambios tras la 4.2.0 (15/11/2026, pendiente de implementar)
+
+- **Selector de tema en un solo botón** (15/11/2026): en lugar de los tres botones Claro / Oscuro / Automático, un
+  **único botón** (icono del modo actual) que al tocarlo abre un **menú** para elegir Claro, Oscuro o Automático.
+  Igual en el inicio de sesión y en Inicio.
+- **Contador en las pantallas sin sesión** (15/11/2026, en definición): el inicio de sesión no consulta al servidor
+  periódicamente (solo comprueba la conexión al abrirse y al pulsar el punto). La única pantalla sin sesión que
+  consulta cada cierto tiempo es **Recuperar acceso** (cada 30 s mientras la solicitud está pendiente).
