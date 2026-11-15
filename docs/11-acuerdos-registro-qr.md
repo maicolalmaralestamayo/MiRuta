@@ -1810,8 +1810,8 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
   Itinerario: [n]                                       (Jefe de itinerario: solo las de su itinerario)
   ```
   Solo se muestran los tipos que tienen alguna pendiente (sin «… : 0») (aceptado).
-- **Respuesta a las solicitudes del propio usuario** (15/11/2026, en definición): **una notificación por cada
-  solicitud respondida**, que se elimina sola cuando el usuario la ve en la app (Inicio). Formato propuesto (canal
+- **Respuesta a las solicitudes del propio usuario** (15/11/2026, aceptada con imagen): **una notificación por cada
+  solicitud respondida**, que se elimina sola cuando el usuario la ve en la app (Inicio). Formato (canal
   «Solicitudes»):
   ```
   MiRuta • Solicitudes
@@ -1820,3 +1820,7 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
   [Fecha y hora de la respuesta: Lun. 16/11/26 08:40]
   [destacada, solo si se rechaza: Motivo: …]
   ```
+- **Qué cambió en el viaje** (15/11/2026, en definición): en la notificación «Viaje cambiado», debajo de «Atención,
+  el viaje sufrió cambios!!!», una línea destacada por cada campo cambiado: «Cambió la fecha», «Cambió la hora»,
+  «Cambió el tipo de vehículo», «Cambió la observación» (son los campos que se pueden cambiar de un viaje
+  Planificado). Desaparecen igual que la línea «Atención…», en cuanto el viaje pasa a otro estado.
