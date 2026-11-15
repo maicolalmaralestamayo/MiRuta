@@ -1743,7 +1743,8 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
   en ejecución / cancelado»): **una única notificación por viaje** que se va actualizando. Si el usuario la quita,
   vuelve a salir cuando se detecta un cambio de estado del viaje. Se elimina sola al llegar el viaje a **Terminado**;
   si está **cancelado** o **eliminado**, al pasar la hora de salida del viaje. Cuando el viaje cambia, añade debajo
-  la línea destacada «Atención, el viaje sufrió cambios!!!» (sin el «Antes / Ahora»).
+  la línea destacada «Atención, el viaje sufrió cambios!!!» (sin el «Antes / Ahora»); la línea desaparece en
+  cuanto el viaje pasa a otro estado (solo se ve mientras el último cambio sea «cambiado»).
   Formato (canal «Viajes»):
   ```
   MiRuta • Viajes
