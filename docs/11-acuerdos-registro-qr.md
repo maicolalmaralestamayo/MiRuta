@@ -1707,3 +1707,5 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
   sin restricciones; una sola petición cada Z que envía y recibe solo lo que cambió. Fuera de la ventana,
   **WorkManager** cada F (≥ 15 min), sin GPS ni notificación fija; se reprograma al reiniciar el teléfono. Avisar
   por fabricante (Xiaomi, Huawei, Oppo, Samsung) de los ajustes de «inicio automático» / segundo plano.
+- **A quién obliga la ubicación** (15/11/2026): solo a los **trabajadores de ese viaje** (los posibles sensores). El
+  **Administrador** y los **Jefes que no viajan en él** pueden ver los estados y la línea sin activar la ubicación.
