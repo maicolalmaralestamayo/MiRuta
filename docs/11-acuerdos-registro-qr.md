@@ -1709,3 +1709,9 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
   por fabricante (Xiaomi, Huawei, Oppo, Samsung) de los ajustes de «inicio automático» / segundo plano.
 - **A quién obliga la ubicación** (15/11/2026): solo a los **trabajadores de ese viaje** (los posibles sensores). El
   **Administrador** y los **Jefes que no viajan en él** pueden ver los estados y la línea sin activar la ubicación.
+- **Tema claro, oscuro o automático** (15/11/2026): el usuario lo elige (por defecto **Automático**, según el
+  teléfono), **también desde la pantalla de inicio de sesión**. Se guarda en el teléfono.
+- **Versión mínima de Android:** la app ya pide **Android 7.0 (API 24)**, que es el mínimo que admite la versión de
+  Flutter usada (3.47). Bajar de ahí obligaría a usar un Flutter antiguo; no se propone.
+- **Caché local** (15/11/2026, en definición): la app guarda en el teléfono la mayoría de los datos para no esperar
+  al servidor en cada pantalla.
