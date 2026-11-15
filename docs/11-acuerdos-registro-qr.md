@@ -1794,5 +1794,6 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
 - **«Active la ubicación» dentro de «Mi estado»** (15/11/2026, aceptado; corregido el mismo día): desaparece la
   notificación suelta. Mientras el GPS esté apagado, «Mi estado» **no muestra ningún dato** (ni estado, ni
   itinerario, ni parada): solo la línea en naranja **«Active la ubicación (GPS)»**. Si falta el permiso «Permitir
-  todo el tiempo», solo **«Abra MiRuta para calcular su estado»** (en ese caso Android puede no permitir la
+  todo el tiempo» (sin él Android no entrega la ubicación al servicio con la app cerrada), solo **«Permita la
+  ubicación todo el tiempo»**; al tocarla se abren los ajustes de permisos de MiRuta (en ese caso Android puede no permitir la
   notificación fija desde segundo plano: se muestra como notificación normal con el mismo formato).
