@@ -1768,5 +1768,7 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
   - **Quién la recibe** (aceptado): todos los trabajadores del viaje mientras está en ejecución; a cada uno se le
     quita al llegar a un estado definitivo (Dejado, Recogido, Botado, Dormido o No voy).
   - **Líneas de paradas** (aceptado): en movimiento o detenido entre paradas, «Anterior» y «Próxima»; en la primera
-    parada, solo «Próxima»; en la última, solo «Anterior». **Detenido recogiendo** en una parada: solo «Próxima» y
-    una última línea destacada (naranja) «Recogiendo en parada». Sin otros textos de explicación.
+    parada, solo «Próxima» y la línea destacada (naranja) «Primera parada»; en la última, solo «Anterior» y la línea
+    destacada «Última parada». **Detenido en una parada**: solo «Próxima» y la línea destacada con el nombre de la
+    parada y el verbo según el sentido: «Recogiendo en Coppelia» (regreso) o «Dejando en Coppelia» (ida). Sin otros
+    textos de explicación.
