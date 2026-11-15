@@ -1736,4 +1736,6 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
   punto y al intentar entrar), de modo que el punto rojo/verde esté siempre al día, y muestra el **contador** hasta la
   próxima comprobación, como en la barra con sesión. Antes solo comprobaba al abrirse y al tocar el punto, y el punto
   podía quedar desactualizado.
-- **Recuperar acceso** (en definición): ya consulta cada 30 s mientras la solicitud está pendiente.
+- **Contador en Recuperar acceso** (15/11/2026, aceptado): mientras haya una solicitud pendiente, la pantalla (que
+  consulta su estado cada 30 s) muestra también el **contador** hasta la próxima consulta, igual que en el inicio de
+  sesión.
