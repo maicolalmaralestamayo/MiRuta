@@ -1752,7 +1752,7 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
   [Itinerario] • [ida | regreso]
   [Fecha y hora: Lun. 16/11/26 07:00]
   [Parada de salida] • [Tipo de vehículo]
-  [solo si cambió: Atención, el viaje sufrió cambios!!!]
+  [solo si cambió, destacada: Cambió la fecha, hora y …]
   ```
 - **Notificación del estado del vehículo** (15/11/2026, en definición; sustituye a «El vehículo llegó a una parada»,
   «Vehículo detenido» y «El vehículo sigue»): **una única notificación por viaje** que se va actualizando. Si el
@@ -1820,7 +1820,8 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
   [Fecha y hora de la respuesta: Lun. 16/11/26 08:40]
   [destacada, solo si se rechaza: Motivo: …]
   ```
-- **Qué cambió en el viaje** (15/11/2026, en definición): en la notificación «Viaje cambiado», debajo de «Atención,
-  el viaje sufrió cambios!!!», una línea destacada por cada campo cambiado: «Cambió la fecha», «Cambió la hora»,
-  «Cambió el tipo de vehículo», «Cambió la observación» (son los campos que se pueden cambiar de un viaje
-  Planificado). Desaparecen igual que la línea «Atención…», en cuanto el viaje pasa a otro estado.
+- **Qué cambió en el viaje** (15/11/2026, aceptado; **sustituye a la línea «Atención, el viaje sufrió cambios!!!»**,
+  que se quita): en «Viaje cambiado», **una sola línea destacada** con solo los campos que cambiaron, unidos:
+  «Cambió la hora», «Cambió la fecha y hora», «Cambió la fecha, hora y tipo de vehículo», «Cambió la observación».
+  Campos posibles: fecha, hora, tipo de vehículo, observación y parada de salida (esta solo cambia si cambia la
+  primera parada del itinerario). La línea desaparece en cuanto el viaje pasa a otro estado.
