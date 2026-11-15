@@ -1843,3 +1843,14 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
   [fecha y hora: Lun. 16/11/26 09:25]
   [destacada, solo si hay más de uno: N mensajes sin leer]
   ```
+- **Sin aviso dentro de la app** (15/11/2026, aceptado; sustituye a §11.56 «con la app abierta se muestran dentro de
+  la app»): todas las notificaciones salen **siempre en la cortina** del teléfono, con la app abierta o cerrada; se
+  quita el aviso de 6 s de abajo con «Ver».
+- **Resumen de notificaciones acordado** (15/11/2026): canales y notificaciones de la próxima versión:
+  1. **Viajes**: una por viaje (planificado, cambiado + «Cambió la …», en ejecución, cancelado, eliminado).
+  2. **Vehículo**: una por viaje en ejecución (tipo • en movimiento/detenido, Anterior/Próxima, Recogiendo/Dejando en,
+     Primera/Última parada, Sin datos).
+  3. **Mi estado**: la fija del servicio de ubicación (estado, itinerario, Mi parada; avisos de GPS y permiso).
+  4. **Solicitudes**: una de pendientes (Administrador / Jefe) y una por cada respuesta a las propias.
+  5. **Mensajes**: una de respuestas del desarrollador.
+  6. **Actualizaciones**: una de versión disponible/obligatoria.
