@@ -1967,10 +1967,16 @@ Lista del usuario (archivo `problemas_miruta4.3.txt`, capturas en `docs/capturas
     - el contador mostraba ~15 min (F) estando el viaje dentro de la ventana (debía ser Z = 10 s);
     - la tarjeta Mi estado debe mostrar siempre la parada en todos los estados;
     - con el viaje en ejecución y el vehículo ya pasado, seguía «En la parada» y no pasó a Dormido ni Botado.
-    - **Propuesta mostrada** (16/11/2026, en definición): tarjetas de Sensores y Mi estado **del mismo tamaño**; Mi
-      estado muestra **siempre la parada** debajo del estado; la tarjeta inferior sin el número grande redundante:
-      planificado «1 trabajador esperando en La llama» + «Capacidad 41»; en ejecución «1 en el vehículo» + «1
-      trabajador y 0 niños • capacidad 41». Iconos actuales sin cambios.
+    - **Decidido** (16/11/2026, sustituye a la propuesta mostrada):
+      - Se **mantiene el diseño de la línea** que ya tiene la app; se **elimina la tarjeta inferior** (ocupación).
+      - Tarjetas de Sensores y Mi estado del mismo tamaño; revisar los **plurales** de las tarjetas.
+      - **Mi estado** muestra la parada en todos los estados salvo **Viajando** (sin nombre de parada); en **Dejado**,
+        la parada **donde se le dejó** (no donde subió).
+      - **Ida y regreso con todos los estados del trabajador** (desde la próxima versión): en la ida, los trabajadores
+        de otros campus pueden esperar en paradas distintas de la primera, así que ambos sentidos usan De camino
+        («Acercándose»), En la parada, Viajando, Dejado, Botado, Dormido y No voy.
+      - **Cada parada de la línea** muestra cuántos trabajadores hay en cada estado **Acercándose, En la parada,
+        Dormido, Botado y Dejado** (en ida y en regreso); las cantidades en cero no se muestran.
 18. Revisar a fondo sensores, estados (trabajador, viaje, vehículo) y la pantalla «Ver recorrido».
 19. Revisar a fondo las notificaciones: cuándo se activan y los tiempos de consulta.
 
