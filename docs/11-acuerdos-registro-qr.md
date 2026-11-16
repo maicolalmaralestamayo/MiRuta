@@ -1947,6 +1947,10 @@ Lista del usuario (archivo `problemas_miruta4.3.txt`, capturas en `docs/capturas
 14. Textos de acciones siempre **CRUD**: menús con Consultar, Crear, Actualizar, Eliminar; spinners de carga con
     «Consultando …»; spinners de acciones con «Creando / Actualizando / Eliminando …» (no «Asociando parada»,
     «Planificar viaje»: «Actualizando Parada», «Crear Viaje»).
+    - **Decidido** (16/11/2026): las actualizaciones con significado propio se nombran **verbo CRUD + objeto +
+      «: acción»**: «Actualizar Solicitud: Aprobar», «Actualizar Solicitud: Rechazar», «Actualizar Viaje: Cancelar»,
+      «Actualizar Viaje: Iniciar», «Actualizar Ausencia: Terminar», «Actualizar Viaje: Marcar paso por parada»; el
+      spinner dice solo «Actualizando [Objeto]».
 15. La ida y el regreso deben tener fechas y horarios distintos.
 16. Al planificar, si el viaje existente está cancelado o eliminado, sí se puede crear otro.
 17. Sensores y «Ver recorrido» (capturas):
