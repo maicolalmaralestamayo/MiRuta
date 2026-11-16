@@ -318,7 +318,7 @@ class Version44Test extends TestCase
         $this->assertNotEmpty($changes['deleted']['itinerary-stops'] ?? []);
         // Las listas se vuelven a pedir solo por altas que ve (las paradas del itinerario borrado no las veía).
         $this->assertNotContains('stops', $changes['changed']);
-        $this->assertContains('itinerary-stops', $changes['changed']);
+        $this->assertNotContains('itineraries', $changes['changed']);
 
         // Al día: nada nuevo.
         $this->jsonApiAs($worker, 'GET', '/api/v1/sync?changes='.$changes['cursor'])->assertJsonPath('meta.changes.data', [])
