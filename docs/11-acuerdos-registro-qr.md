@@ -1967,6 +1967,10 @@ Lista del usuario (archivo `problemas_miruta4.3.txt`, capturas en `docs/capturas
     - el contador mostraba ~15 min (F) estando el viaje dentro de la ventana (debía ser Z = 10 s);
     - la tarjeta Mi estado debe mostrar siempre la parada en todos los estados;
     - con el viaje en ejecución y el vehículo ya pasado, seguía «En la parada» y no pasó a Dormido ni Botado.
+    - **Propuesta mostrada** (16/11/2026, en definición): tarjetas de Sensores y Mi estado **del mismo tamaño**; Mi
+      estado muestra **siempre la parada** debajo del estado; la tarjeta inferior sin el número grande redundante:
+      planificado «1 trabajador esperando en La llama» + «Capacidad 41»; en ejecución «1 en el vehículo» + «1
+      trabajador y 0 niños • capacidad 41». Iconos actuales sin cambios.
 18. Revisar a fondo sensores, estados (trabajador, viaje, vehículo) y la pantalla «Ver recorrido».
 19. Revisar a fondo las notificaciones: cuándo se activan y los tiempos de consulta.
 
