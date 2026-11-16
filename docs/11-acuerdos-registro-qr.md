@@ -1977,6 +1977,9 @@ Lista del usuario (archivo `problemas_miruta4.3.txt`, capturas en `docs/capturas
         («Acercándose»), En la parada, Viajando, Dejado, Botado, Dormido y No voy.
       - **Cada parada de la línea** muestra cuántos trabajadores hay en cada estado **Acercándose, En la parada,
         Dormido, Botado y Dejado** (en ida y en regreso); las cantidades en cero no se muestran.
+      - **Dos paradas por trabajador e itinerario** (16/11/2026, decidido): «**Parada de casa**» (la actual) y
+        «**Parada de trabajo**» (su campus; por defecto la **primera parada** del itinerario). Ida: sube en la de
+        trabajo y baja en la de casa. Regreso: sube en la de casa y baja en la de trabajo.
 18. Revisar a fondo sensores, estados (trabajador, viaje, vehículo) y la pantalla «Ver recorrido».
 19. Revisar a fondo las notificaciones: cuándo se activan y los tiempos de consulta.
 
