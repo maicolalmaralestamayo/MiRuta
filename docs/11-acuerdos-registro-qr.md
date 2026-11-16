@@ -1940,6 +1940,10 @@ Lista del usuario (archivo `problemas_miruta4.3.txt`, capturas en `docs/capturas
       mostrando el registro guardado.
 13. En los formularios, las **relaciones se eligen al llenar los campos** y se guarda una sola vez (p. ej. al crear
     una parada se elige ya su itinerario).
+    - **Decidido** (16/11/2026): **al crear y al actualizar**, las relaciones se eligen y se quitan en el propio
+      formulario y quedan **pendientes** (marcadas) hasta tocar **Guardar**, que lo guarda todo de una vez con un solo
+      spinner («Creando Parada» / «Actualizando Parada»). Si se sale sin guardar, se pierden y sale «Salir sin
+      guardar». Ya no se guarda cada relación al momento.
 14. Textos de acciones siempre **CRUD**: menús con Consultar, Crear, Actualizar, Eliminar; spinners de carga con
     «Consultando …»; spinners de acciones con «Creando / Actualizando / Eliminando …» (no «Asociando parada»,
     «Planificar viaje»: «Actualizando Parada», «Crear Viaje»).
