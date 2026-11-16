@@ -1957,6 +1957,8 @@ Lista del usuario (archivo `problemas_miruta4.3.txt`, capturas en `docs/capturas
       Regreso mañana 06:00 a. m. (puntos 20 y 21); horas en formato de 12 h con a. m./p. m. El selector de hora **no
       está en la pantalla**: se abre (como diálogo) al tocar la Hora de salida de cada sentido.
 16. Al planificar, si el viaje existente está cancelado o eliminado, sí se puede crear otro.
+    - **Decidido** (16/11/2026): la regla «un viaje por itinerario, sentido y fecha» solo cuenta los viajes que no
+      están Cancelados ni Eliminados.
 17. Sensores y «Ver recorrido» (capturas):
     - con «mínimo de confirmaciones» = 1 y un trabajador esperando, no aparecen sensores;
     - «Esperando en La llama» con «1 trabajador esperado» es redundante;
