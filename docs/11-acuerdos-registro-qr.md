@@ -2072,3 +2072,20 @@ tarjetas, icono de la app); los iconos de las imágenes de muestra son solo ilus
 - **Horas de 12 h** en la app (viajes, línea, pasos); las notificaciones conservan el formato aceptado en §11.63.
 - **«Crear Viaje»:** si se crean la ida y el regreso, el formulario sigue con el viaje de ida.
 
+
+## 11.66 Simulador de trabajadores (16/11/2026, pendiente de implementar en la 4.5.0)
+
+El usuario prueba solo; necesita simular varios trabajadores. Decidido:
+
+- **Dónde**: en el **servidor**, manejado desde la app por el **Administrador** en Más → Mantenimiento → «Simulación».
+- **Qué se elige**: itinerario, cantidad de trabajadores simulados, **vehículo simulado o real**, y **porcentajes de
+  comportamiento** (por defecto 70 % viajan normal, 10 % Retrasado, 10 % No recogido, 10 % No voy).
+- **Vehículo simulado**: el servidor lo mueve de parada en parada a velocidad fija con detenciones de 1 min (para
+  probar desde casa). **Vehículo real**: los simulados reaccionan a lo que reportan los teléfonos reales (p. ej. el
+  del usuario viajando).
+- **Trabajadores simulados**: se reparten al azar entre las paradas y según los porcentajes; envían sus estados y
+  observaciones de sensor como teléfonos reales (algunos hacen de sensores, según «mínimo de confirmaciones»).
+- **Aislado de los datos reales**: viaje de prueba («Simulación» en la lista de viajes), trabajadores marcados como
+  simulados, fuera de Gestión y de las estadísticas; las notificaciones de la simulación solo le llegan al
+  Administrador que la inició. «Eliminar simulación» lo borra todo.
+- **Versión**: 4.5.0, después de entregar la 4.4.0.
