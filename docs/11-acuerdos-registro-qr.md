@@ -1903,6 +1903,11 @@ Lista del usuario (archivo `problemas_miruta4.3.txt`, capturas en `docs/capturas
 4. Cada ubicación enviada al servidor lleva su **fecha y hora** de captura, para ordenar cronológicamente las
    ubicaciones (trabajador y vehículo) aunque falle la conexión y fijar mejor la hora de cada estado (viaje,
    vehículo, trabajador).
+   - **Decidido** (16/11/2026): no se envían coordenadas. **Todo lo que calcula el teléfono** (cambios de estado del
+     trabajador y observaciones de sensor sobre el vehículo: en movimiento/detenido, en parada, próxima parada) se
+     envía **con la fecha y hora de captura** y se guarda **en cola** si no hay conexión (hoy las observaciones del
+     vehículo no llevaban hora ni cola y se perdían). El servidor los ordena por hora de captura para fijar la hora
+     de cada estado del viaje, del vehículo (paso por paradas) y del trabajador.
 5. Al crear o actualizar una parada, la ubicación también se puede **pegar del portapapeles**.
 6. Botones de los modales siempre **uno debajo del otro**.
 7. Botones Cancelar siempre en **gris**; Eliminar siempre en **rojo**; Confirmar siempre en el **color principal**.
