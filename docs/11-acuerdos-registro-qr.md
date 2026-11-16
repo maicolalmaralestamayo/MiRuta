@@ -1904,6 +1904,12 @@ Lista del usuario (archivo `problemas_miruta4.3.txt`, capturas en `docs/capturas
     registra qué tabla cambió y cuándo; tras el login la app carga en segundo plano todo lo que necesita y, con la
     consulta frecuente, detecta cambios y actualiza lo local sin avisar ni mostrar spinner. Poda del registro: 1 mes
     (configurable). El usuario pide repensar el proceso.
+    - **Decidido** (16/11/2026): el registro guarda **tabla, registro (id), operación (crear/actualizar/eliminar) y
+      fecha y hora**. Tras el login la app descarga en segundo plano todo lo que el usuario puede ver; en cada
+      consulta pide «qué cambió desde la última vez» y el servidor devuelve solo los registros cambiados (y los ids
+      eliminados), que la app aplica en el teléfono sin avisar. Las pantallas abren con los datos locales; spinner
+      solo si aún no hay nada guardado. Poda: 1 mes (configurable); un teléfono que lleve más tiempo sin conectarse
+      vuelve a descargarlo todo. Sustituye a las huellas `meta.versions` de la 4.2.
 12. En la pantalla de consulta/edición de cada tabla, opción **Crear** (para crear varios seguidos sin volver atrás).
 13. En los formularios, las **relaciones se eligen al llenar los campos** y se guarda una sola vez (p. ej. al crear
     una parada se elige ya su itinerario).
