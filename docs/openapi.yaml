@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: MiRuta API
-  version: 4.3.0
+  version: 4.4.0
   description: 'API de MiRuta (Laravel 12): gestión del transporte de trabajadores.
 
 
@@ -2609,6 +2609,304 @@ paths:
       description: 'Administrador. En uso: 409 NOMENCLATOR_IN_USE (desactivarlo).'
       parameters:
       - $ref: '#/components/parameters/Id'
+  /entity-denial-reasons:
+    get:
+      tags:
+      - Nomencladores
+      summary: Listar entity-denial-reasons
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/EntityDenialReasonCollection'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '426':
+          $ref: '#/components/responses/UpdateRequired'
+      parameters:
+      - name: filter[active]
+        in: query
+        required: false
+        description: true o false (solo Administrador)
+        schema:
+          type: string
+      - name: filter[search]
+        in: query
+        required: false
+        description: Nombre
+        schema:
+          type: string
+      - $ref: '#/components/parameters/PageNumber'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/Sort'
+      - $ref: '#/components/parameters/Include'
+    post:
+      tags:
+      - Nomencladores
+      summary: Crear entity-denial-reasons
+      responses:
+        '201':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/EntityDenialReasonDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '426':
+          $ref: '#/components/responses/UpdateRequired'
+      description: Administrador.
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/EntityDenialReasonDocument'
+  /entity-denial-reasons/{id}:
+    get:
+      tags:
+      - Nomencladores
+      summary: Ver entity-denial-reasons
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/EntityDenialReasonDocument'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '426':
+          $ref: '#/components/responses/UpdateRequired'
+      parameters:
+      - $ref: '#/components/parameters/Id'
+    patch:
+      tags:
+      - Nomencladores
+      summary: Modificar entity-denial-reasons
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/EntityDenialReasonDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '426':
+          $ref: '#/components/responses/UpdateRequired'
+      description: Administrador.
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/EntityDenialReasonDocument'
+    delete:
+      tags:
+      - Nomencladores
+      summary: Eliminar entity-denial-reasons
+      responses:
+        '204':
+          description: Hecho, sin contenido
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '426':
+          $ref: '#/components/responses/UpdateRequired'
+      description: 'Administrador. En uso: 409 NOMENCLATOR_IN_USE (desactivarlo).'
+      parameters:
+      - $ref: '#/components/parameters/Id'
+  /itinerary-denial-reasons:
+    get:
+      tags:
+      - Nomencladores
+      summary: Listar itinerary-denial-reasons
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/ItineraryDenialReasonCollection'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '426':
+          $ref: '#/components/responses/UpdateRequired'
+      parameters:
+      - name: filter[active]
+        in: query
+        required: false
+        description: true o false (solo Administrador)
+        schema:
+          type: string
+      - name: filter[search]
+        in: query
+        required: false
+        description: Nombre
+        schema:
+          type: string
+      - $ref: '#/components/parameters/PageNumber'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/Sort'
+      - $ref: '#/components/parameters/Include'
+    post:
+      tags:
+      - Nomencladores
+      summary: Crear itinerary-denial-reasons
+      responses:
+        '201':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/ItineraryDenialReasonDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '426':
+          $ref: '#/components/responses/UpdateRequired'
+      description: Administrador.
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/ItineraryDenialReasonDocument'
+  /itinerary-denial-reasons/{id}:
+    get:
+      tags:
+      - Nomencladores
+      summary: Ver itinerary-denial-reasons
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/ItineraryDenialReasonDocument'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '426':
+          $ref: '#/components/responses/UpdateRequired'
+      parameters:
+      - $ref: '#/components/parameters/Id'
+    patch:
+      tags:
+      - Nomencladores
+      summary: Modificar itinerary-denial-reasons
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/ItineraryDenialReasonDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '426':
+          $ref: '#/components/responses/UpdateRequired'
+      description: Administrador.
+      parameters:
+      - $ref: '#/components/parameters/Id'
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/ItineraryDenialReasonDocument'
+    delete:
+      tags:
+      - Nomencladores
+      summary: Eliminar itinerary-denial-reasons
+      responses:
+        '204':
+          description: Hecho, sin contenido
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '426':
+          $ref: '#/components/responses/UpdateRequired'
+      description: 'Administrador. En uso: 409 NOMENCLATOR_IN_USE (desactivarlo).'
+      parameters:
+      - $ref: '#/components/parameters/Id'
   /denial-reasons:
     get:
       tags:
@@ -3269,8 +3567,8 @@ paths:
           $ref: '#/components/responses/Unprocessable'
         '426':
           $ref: '#/components/responses/UpdateRequired'
-      description: Estado del trabajador y, si es sensor, del vehículo. Idempotente. Con ?cursor=N incluye en meta.sync lo
-        de GET /sync (una sola petición en la ventana de viaje).
+      description: Cambios del trabajador y observaciones del vehículo (si es sensor) con su hora de captura. Idempotente.
+        Con ?cursor=N incluye en meta.sync lo de GET /sync (una sola petición en la ventana de viaje), también ?changes=N.
       parameters:
       - $ref: '#/components/parameters/Id'
       - name: cursor
@@ -3279,6 +3577,11 @@ paths:
         schema:
           type: string
           pattern: ^\d+$
+      - name: changes
+        in: query
+        required: false
+        schema:
+          type: string
       requestBody:
         required: true
         content:
@@ -3342,8 +3645,9 @@ paths:
         '426':
           $ref: '#/components/responses/UpdateRequired'
       description: 'Sin cursor: solo meta.cursor. meta: cursor, more, changed, counters, latestAppVersion, nextTrip, myTrips,
-        finishedTrips, pendingApplications, versions, settingsVersion, serverTime. Todos los GET llevan ETag y responden 304
-        con If-None-Match.'
+        finishedTrips, pendingApplications, versions (apps 4.3.0), settingsVersion, serverTime. Con ?changes=N (4.4.0), meta.changes:
+        cursor, full (volver a descargarlo todo), more, data (registros cambiados que ve, como en GET tipo/id), deleted ({tipo:
+        [ids]}) y changed (tipos con cambios). Todos los GET llevan ETag y responden 304 con If-None-Match.'
       parameters:
       - name: cursor
         in: query
@@ -3351,6 +3655,12 @@ paths:
         schema:
           type: string
           pattern: ^\d+$
+      - name: changes
+        in: query
+        required: false
+        schema:
+          type: string
+        description: 'Cursor del registro de cambios (vacío: empezar)'
   /conversations:
     get:
       tags:
@@ -4820,7 +5130,8 @@ components:
           $ref: '#/components/schemas/Links'
     Application:
       type: object
-      description: Application
+      description: 'relationships.denialReason: entity-denial-reasons (solicitud de Entidad) o itinerary-denial-reasons (de
+        itinerario); al rechazar, la app 4.3.0 envía denial-reasons y el id se busca en la tabla del tipo de la solicitud.'
       required:
       - type
       properties:
@@ -5340,9 +5651,138 @@ components:
           additionalProperties: true
         links:
           $ref: '#/components/schemas/Links'
+    EntityDenialReason:
+      type: object
+      description: Motivo de rechazo de una solicitud de Entidad (4.4.0).
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - entity-denial-reasons
+        id:
+          type: string
+          readOnly: true
+        attributes:
+          type: object
+          properties:
+            name:
+              type: string
+              maxLength: 100
+            description:
+              type: string
+              nullable: true
+            observation:
+              type: string
+              nullable: true
+            active:
+              type: boolean
+        meta:
+          type: object
+          additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+    EntityDenialReasonDocument:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/EntityDenialReason'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        meta:
+          type: object
+          additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+    EntityDenialReasonCollection:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/EntityDenialReason'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        meta:
+          type: object
+          additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+    ItineraryDenialReason:
+      type: object
+      description: Motivo de rechazo de una solicitud de itinerario (4.4.0).
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - itinerary-denial-reasons
+        id:
+          type: string
+          readOnly: true
+        attributes:
+          type: object
+          properties:
+            name:
+              type: string
+              maxLength: 100
+            description:
+              type: string
+              nullable: true
+            observation:
+              type: string
+              nullable: true
+            active:
+              type: boolean
+        meta:
+          type: object
+          additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+    ItineraryDenialReasonDocument:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/ItineraryDenialReason'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        meta:
+          type: object
+          additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+    ItineraryDenialReasonCollection:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ItineraryDenialReason'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        meta:
+          type: object
+          additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
     DenialReason:
       type: object
-      description: DenialReason
+      description: 'Solo para la app 4.3.0 (consulta): con filter[applicationType]=entidad, los de Entidad; si no, los de
+        itinerario. Crear, cambiar o eliminar: 409 APP_UPDATE_NEEDED.'
       required:
       - type
       properties:
@@ -5367,12 +5807,6 @@ components:
               nullable: true
             active:
               type: boolean
-            applicationType:
-              type: string
-              enum:
-              - entidad
-              - itinerario
-              nullable: true
         meta:
           type: object
           additionalProperties: true
@@ -6234,7 +6668,7 @@ components:
           $ref: '#/components/schemas/Links'
     TripReport:
       type: object
-      description: Informe del teléfono (solo cambios, con acuse).
+      description: Informe del teléfono (solo cambios, con acuse; meta.accepted = eventos recibidos).
       required:
       - type
       properties:
@@ -6248,18 +6682,18 @@ components:
         attributes:
           type: object
           properties:
+            events:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+              description: '4.4.0: cambios en cola, cada uno con capturedAt (hora de captura). kind worker: state (de_camino,
+                en_parada, viajando, dejado, no_recogido, retrasado, no_voy), stopId (parada detectada), childIds, childrenCount.
+                kind vehicle: vehicleState, atStop, nextStopIndex. Se aplican en el orden de capturedAt.'
             workerState:
               type: string
-              enum:
-              - de_camino
-              - en_parada
-              - viajando
-              - dejado
-              - botado
-              - dormido
-              - no_voy
-              description: Viajando en la ida y en el regreso (4.3.0). «recogido» (apps 4.2.0) se acepta y se guarda como
-                viajando.
+              description: 4.3.0 (un solo cambio). botado, dormido y recogido se aceptan y se guardan como no_recogido, retrasado
+                y viajando.
             stopId:
               type: integer
               nullable: true
@@ -6326,7 +6760,9 @@ components:
           $ref: '#/components/schemas/Links'
     TripLive:
       type: object
-      description: Línea del recorrido. vehicle.state null = sin datos del vehículo; stops[] con latitude, longitude y passedManually.
+      description: Línea del recorrido. vehicle.state null = sin datos del vehículo; stops[] con latitude, longitude, passedManually,
+        expected (parada habitual) y counts (de_camino, en_parada, retrasado, no_recogido, dejado en la parada detectada);
+        myState con stopId y stopName (parada detectada).
       required:
       - type
       properties:
@@ -6377,6 +6813,9 @@ components:
             myStopId:
               type: string
               nullable: true
+              description: Parada habitual (opcional)
+            travels:
+              type: boolean
             canManage:
               type: boolean
             serverTime:
