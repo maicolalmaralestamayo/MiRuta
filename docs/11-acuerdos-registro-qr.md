@@ -1976,7 +1976,8 @@ Lista del usuario (archivo `problemas_miruta4.3.txt`, capturas en `docs/capturas
         de otros campus pueden esperar en paradas distintas de la primera, así que ambos sentidos usan De camino
         («Acercándose»), En la parada, Viajando, Dejado, Botado, Dormido y No voy.
       - **Cada parada de la línea** muestra cuántos trabajadores hay en cada estado **Acercándose, En la parada,
-        Dormido, Botado y Dejado** (en ida y en regreso); las cantidades en cero no se muestran.
+        Dormido, Botado y Dejado** (en ida y en regreso; ahora De camino, En la parada, Retrasado, No recogido y
+        Dejado); las cantidades en cero no se muestran.
       - **Subir y bajar en cualquier parada** (16/11/2026, decidido; **anula** la idea de «Parada de casa / Parada de
         trabajo», que se descarta): el trabajador puede tomar el vehículo en **cualquier parada** del itinerario y
         bajarse en **cualquiera**. La app **detecta la parada por cercanía** a las paradas del itinerario, tanto para
@@ -1988,6 +1989,19 @@ Lista del usuario (archivo `problemas_miruta4.3.txt`, capturas en `docs/capturas
       - **Nombres de los estados** (16/11/2026, decidido), iguales en toda la app y en las notificaciones: **De camino,
         En la parada, Viajando, Dejado, Botado, Dormido, No voy** (donde arriba dice «Acercándose» se entiende «De
         camino»; «En parada» pasa a «En la parada»).
+      - **Botado → «No recogido» y Dormido → «Retrasado»** (16/11/2026, decidido): nuevos nombres en toda la app,
+        notificaciones y base de datos. Estados: **De camino, En la parada, Viajando, Dejado, No recogido, Retrasado,
+        No voy**.
+      - **Reglas de los estados con parada detectada** (16/11/2026, decidido; iguales en ida y regreso):
+        - **De camino**: se mueve hacia una parada; «su parada» se recalcula en cada cálculo como la más cercana a él
+          de las que el vehículo **aún no ha pasado**.
+        - **En la parada**: dentro del radio de una parada que el vehículo aún no ha pasado.
+        - **Viajando**: se mueve con el vehículo (velocidad de vehículo) después de que el vehículo llegue a su parada.
+        - **No recogido**: estaba En la parada, el vehículo pasó por esa parada y él no pasó a Viajando.
+        - **Retrasado**: estaba De camino y el vehículo pasó por su parada antes de que llegara.
+        - **Dejado**: estaba Viajando y se separa del vehículo (se queda quieto o se aleja mientras el vehículo
+          sigue); queda Dejado en la parada más cercana.
+        - **Finales**: Dejado, No recogido, Retrasado y No voy.
 18. Revisar a fondo sensores, estados (trabajador, viaje, vehículo) y la pantalla «Ver recorrido».
 19. Revisar a fondo las notificaciones: cuándo se activan y los tiempos de consulta.
 
