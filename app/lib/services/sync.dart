@@ -121,11 +121,11 @@ class SyncService {
       await LocalCache.feedApplied();
       return true;
     }
-    changed = await LocalCache.applyChanges(CacheChanges.fromJson(changes));
+    final (any, lists) = await LocalCache.applyChanges(CacheChanges.fromJson(changes));
+    changed = any;
     if (next != null) await Storage.setString(_changesKey, next);
-    // Las listas de tipos con altas, por detrás.
-    final stale = await LocalCache.staleKeys();
-    if (stale.isNotEmpty) changed = await Prefetch.refreshStale(api, stale) || changed;
+    // Las listas de tipos con altas, por detrás (las demás marcadas se preguntan al abrirlas).
+    if (lists.isNotEmpty) changed = await Prefetch.refreshStale(api, lists.toSet()) || changed;
     return changed;
   }
 

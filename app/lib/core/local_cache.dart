@@ -194,13 +194,14 @@ class LocalCache {
 
   static Future<void> feedApplied() => Storage.setString(_changesAtKey, DateTime.now().toIso8601String());
 
-  /// Aplica el registro de cambios a todo lo guardado. Devuelve true si algo
-  /// cambió (las pantallas abiertas vuelven a leer lo guardado).
-  static Future<bool> applyChanges(CacheChanges changes) async {
-    if (!enabled) return false;
+  /// Aplica el registro de cambios a todo lo guardado. Devuelve si algo
+  /// cambió (las pantallas abiertas vuelven a leer lo guardado) y las listas
+  /// con altas, que hay que volver a pedir.
+  static Future<(bool, List<String>)> applyChanges(CacheChanges changes) async {
+    if (!enabled) return (false, const <String>[]);
     if (changes.isEmpty) {
       await feedApplied();
-      return false;
+      return (false, const <String>[]);
     }
     var any = false;
     final stale = <String>[];
@@ -222,7 +223,7 @@ class LocalCache {
     }
     await markStale(stale);
     await feedApplied();
-    return any || stale.isNotEmpty;
+    return (any || stale.isNotEmpty, stale);
   }
 
   /// Compara las huellas de meta.versions de GET sync con las guardadas:
