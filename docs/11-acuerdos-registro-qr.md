@@ -1935,6 +1935,9 @@ Lista del usuario (archivo `problemas_miruta4.3.txt`, capturas en `docs/capturas
       solo si aún no hay nada guardado. Poda: 1 mes (configurable); un teléfono que lleve más tiempo sin conectarse
       vuelve a descargarlo todo. Sustituye a las huellas `meta.versions` de la 4.2.
 12. En la pantalla de consulta/edición de cada tabla, opción **Crear** (para crear varios seguidos sin volver atrás).
+    - **Decidido** (16/11/2026): en el menú **Acciones** de cada formulario, «**Crear [objeto]**» (p. ej. «Crear
+      Parada»), que abre un formulario vacío del mismo tipo sin volver a la lista. Tras guardar, el formulario sigue
+      mostrando el registro guardado.
 13. En los formularios, las **relaciones se eligen al llenar los campos** y se guarda una sola vez (p. ej. al crear
     una parada se elige ya su itinerario).
 14. Textos de acciones siempre **CRUD**: menús con Consultar, Crear, Actualizar, Eliminar; spinners de carga con
@@ -1959,3 +1962,6 @@ Lista del usuario (archivo `problemas_miruta4.3.txt`, capturas en `docs/capturas
 
 **Inicio**
 22. Opción «Ocultar solicitudes aprobadas».
+
+**Regla general** (16/11/2026): **no se cambia ningún icono** que la app ya tiene (barra de navegación, menús,
+tarjetas, icono de la app); los iconos de las imágenes de muestra son solo ilustrativos.
