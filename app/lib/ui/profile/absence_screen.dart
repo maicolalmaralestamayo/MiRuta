@@ -75,7 +75,7 @@ class _AbsenceScreenState extends State<AbsenceScreen> {
           },
         },
       });
-    }, success: 'Ausencia declarada');
+    }, label: 'Creando Ausencia');
     if (ok && mounted) Navigator.pop(context, true);
   }
 
@@ -85,7 +85,7 @@ class _AbsenceScreenState extends State<AbsenceScreen> {
     return LeaveGuard(
       dirty: () => _dirty,
       child: AppScaffold.list(
-        title: widget.who == null ? 'Declarar ausencia' : 'Ausencia de ${widget.who}',
+        title: widget.who == null ? 'Crear Ausencia' : 'Ausencia de ${widget.who}',
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
@@ -152,7 +152,7 @@ class _AbsenceScreenState extends State<AbsenceScreen> {
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: FilledButton.icon(onPressed: widget.placements.isEmpty ? null : _save, icon: const Icon(Icons.event_busy), label: const Text('Declarar ausencia')),
+            child: FilledButton.icon(onPressed: widget.placements.isEmpty ? null : _save, icon: const Icon(Icons.event_busy), label: const Text('Guardar')),
           ),
         ],
       ),

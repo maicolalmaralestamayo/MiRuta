@@ -53,8 +53,9 @@ class _ConversationsScreenState extends State<ConversationsScreen> {
     return AppScaffold(
       title: 'Conversaciones',
       tab: MainTab.more,
-      actions: () => [ActionItem(Icons.add_comment_outlined, 'Escribir al desarrollador', _new)],
+      actions: () => [ActionItem(Icons.add_comment_outlined, 'Crear Conversación', _new)],
       body: DataView<List<Conversation>>(
+        what: 'Conversaciones',
         key: _view,
         kinds: const {'conversations'},
         load: _load,

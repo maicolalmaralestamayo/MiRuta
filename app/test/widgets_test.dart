@@ -104,7 +104,8 @@ void main() {
     expect(find.text('Perfil'), findsNothing);
     await tester.tap(find.text('Acciones'));
     await tester.pumpAndSettle();
-    for (final label in ['Ver o editar el perfil', 'Solicitar Entidad', 'Añadir hijo', 'Cerrar sesión']) {
+    // Nombres CRUD (docs/11 §11.65).
+    for (final label in ['Consultar Perfil', 'Crear Solicitud: Entidad', 'Crear Hijo', 'Cerrar sesión']) {
       expect(find.text(label), findsOneWidget, reason: label);
     }
   });

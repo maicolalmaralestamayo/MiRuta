@@ -6,6 +6,7 @@ import '../../core/formats.dart';
 import '../../core/local_cache.dart';
 import '../../services/session.dart';
 import 'app_scaffold.dart';
+import 'busy.dart';
 import 'common.dart';
 
 /// Carga datos y los vuelve a cargar con el botón Actualizar o cuando GET
@@ -25,7 +26,10 @@ class DataView<T> extends StatefulWidget {
   /// con lo que ya se sabe de la persona), con el aviso de sin conexión.
   final T? fallback;
 
-  const DataView({super.key, required this.load, required this.builder, this.kinds = const {}, this.cacheKey, this.fallback});
+  /// Qué se consulta, para el spinner «Consultando [what]» (docs/11 §11.65).
+  final String what;
+
+  const DataView({super.key, required this.load, required this.builder, this.kinds = const {}, this.cacheKey, this.fallback, this.what = 'datos'});
 
   @override
   State<DataView<T>> createState() => DataViewState<T>();
@@ -59,31 +63,56 @@ class DataViewState<T> extends State<DataView<T>> {
     _start();
   }
 
-  /// Primero lo guardado en el teléfono (al momento) y después, por detrás,
-  /// lo que haya cambiado en el servidor (docs/11 §11.62).
+  /// Primero lo guardado en el teléfono (al momento). El registro de cambios
+  /// lo mantiene al día (docs/11 §11.65): si está activo y todo lo usado lo
+  /// cubre, no se pregunta al servidor; si no, se pregunta por detrás (solo
+  /// si cambió). El spinner sale solo si aún no hay nada guardado.
   Future<void> _start() async {
-    if (_data == null) {
-      try {
-        final trace = CacheTrace(cacheOnly: true);
-        final data = await trace.run(widget.load);
-        if (mounted && _data == null) {
-          setState(() {
-            _data = data;
-            _loadedAt = trace.oldest;
-          });
-        }
-      } catch (_) {
-        // Nada guardado todavía.
+    var fresh = false;
+    try {
+      final trace = CacheTrace(cacheOnly: true);
+      final data = await trace.run(widget.load);
+      fresh = !trace.stale && await LocalCache.feedActive();
+      if (mounted && (_data == null || fresh)) {
+        setState(() {
+          _data = data;
+          _loadedAt = fresh ? DateTime.now() : trace.oldest;
+          if (fresh) _loading = false;
+        });
       }
+    } catch (_) {
+      // Nada guardado todavía.
     }
-    await reload();
+    if (!fresh) await reload();
+  }
+
+  /// Vuelve a leer lo guardado (el registro de cambios lo puso al día), sin
+  /// spinner ni petición; si falta algo, se pregunta al servidor.
+  Future<void> _reloadFromCache() async {
+    try {
+      final trace = CacheTrace(cacheOnly: true);
+      final data = await trace.run(widget.load);
+      if (!mounted) return;
+      setState(() {
+        _data = data;
+        _loadedAt = DateTime.now();
+      });
+      if (widget.cacheKey != null) _cache[widget.cacheKey!] = (data, _loadedAt!);
+    } catch (_) {
+      await reload();
+    }
   }
 
   void _onSession() {
     final session = _session!;
     if (session.revision == _revision) return;
     _revision = session.revision;
-    if (session.lastChanged.contains('all') || session.lastChanged.contains('data') || session.lastChanged.any(widget.kinds.contains)) reload();
+    final changed = session.lastChanged;
+    if (changed.contains('all') || changed.contains('data') || changed.any(widget.kinds.contains)) {
+      reload();
+    } else if (changed.contains('cache')) {
+      _reloadFromCache();
+    }
   }
 
   @override
@@ -132,7 +161,8 @@ class DataViewState<T> extends State<DataView<T>> {
     final data = _data ?? (_error != null ? widget.fallback : null);
     if (data == null) {
       if (_error != null) return ErrorView(message: errorText(_error), onRetry: reload);
-      return const Center(child: CircularProgressIndicator());
+      // Nada guardado aún: «Consultando …» con «✕ Cancelar» (vuelve a la pantalla anterior).
+      return BusyPanel(text: 'Consultando ${widget.what}', onCancel: () => Navigator.maybePop(context));
     }
     final content = RefreshIndicator(onRefresh: reload, child: widget.builder(context, data, reload));
     final t = Theme.of(context);

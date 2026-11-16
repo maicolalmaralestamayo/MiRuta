@@ -10,13 +10,15 @@ import '../../core/json_api.dart';
 import '../../core/username.dart';
 import '../../models/models.dart';
 import '../../services/session.dart';
+import '../../services/shared_location.dart';
+import '../../services/tracking/worker_tracker.dart' show GeoPoint;
 import '../auth/password_fields.dart';
 import '../navigation.dart';
 import '../profile/children_screen.dart';
 import '../widgets/actions.dart';
 import '../widgets/app_scaffold.dart';
-import '../widgets/busy.dart';
 import '../widgets/cards.dart';
+import '../theme.dart';
 import '../widgets/common.dart';
 import 'ops.dart';
 import 'tiles.dart';
@@ -35,7 +37,7 @@ Future<bool> pickAndUpload(BuildContext context, String path, String field) asyn
   if (source == null) return false;
   final file = await ImagePicker().pickImage(source: source, maxWidth: 1024, maxHeight: 1024, imageQuality: 85);
   if (file == null || !context.mounted) return false;
-  return runAction(context, () => context.api.upload(path, field, file.path), success: 'Imagen guardada');
+  return runAction(context, () => context.api.upload(path, field, file.path), label: 'Actualizando Imagen');
 }
 
 // ---------------------------------------------------------------------------
@@ -44,21 +46,21 @@ Future<bool> pickAndUpload(BuildContext context, String path, String field) asyn
 
 Future<bool?> openEntity(BuildContext context, String id) async {
   Entity? entity;
-  final ok = await runAction(context, () async => entity = Entity.from((await context.api.get('/entities/$id')).resource));
+  final ok = await runAction(context, label: 'Consultando Entidad', () async => entity = Entity.from((await context.api.get('/entities/$id')).resource));
   if (!ok || entity == null || !context.mounted) return null;
   return push<bool>(context, EntityForm(entity: entity));
 }
 
 Future<bool?> openItinerary(BuildContext context, String id) async {
   Itinerary? itinerary;
-  final ok = await runAction(context, () async => itinerary = Itinerary.from((await context.api.get('/itineraries/$id', query: {'include': 'entity'})).resource));
+  final ok = await runAction(context, label: 'Consultando Itinerario', () async => itinerary = Itinerary.from((await context.api.get('/itineraries/$id', query: {'include': 'entity'})).resource));
   if (!ok || itinerary == null || !context.mounted) return null;
   return push<bool>(context, ItineraryForm(itinerary: itinerary));
 }
 
 Future<bool?> openStop(BuildContext context, String id) async {
   Stop? stop;
-  final ok = await runAction(context, () async => stop = Stop.from((await context.api.get('/stops/$id')).resource));
+  final ok = await runAction(context, label: 'Consultando Parada', () async => stop = Stop.from((await context.api.get('/stops/$id')).resource));
   if (!ok || stop == null || !context.mounted) return null;
   return push<bool>(context, StopForm(stop: stop));
 }
@@ -69,15 +71,25 @@ Future<bool?> openWorker(BuildContext context, String userId, {Person? person}) 
 // Base de los formularios
 // ---------------------------------------------------------------------------
 
-/// Base de los formularios (docs/11 §11.56 a §11.59): los campos del objeto
-/// con el interruptor «Activado», sus relaciones debajo (cargadas aparte y
-/// gestionadas desde ellas), «Salir sin guardar» si hay cambios, el teclado
-/// recorre los campos y Guardar y Eliminar en el menú Acciones.
+/// Base de los formularios (docs/11 §11.56 a §11.59 y §11.65): los campos
+/// del objeto con el interruptor «Activado» y sus relaciones debajo. Las
+/// relaciones se eligen y se quitan en el propio formulario, al crear y al
+/// actualizar, y quedan **pendientes** (marcadas) hasta Guardar, que lo guarda
+/// todo de una vez con un solo spinner («Creando Parada» / «Actualizando
+/// Parada»). Si se sale sin guardar, se pierden («Salir sin guardar»). Tras
+/// guardar, el formulario sigue mostrando el registro guardado; «Crear
+/// [Objeto]» en Acciones abre uno vacío del mismo tipo.
 abstract class _FormState<T extends StatefulWidget> extends State<T> {
   final form = GlobalKey<FormState>();
   bool active = true;
   List<Object?>? _initial;
   bool _leaving = false;
+
+  /// Relaciones elegidas o quitadas, pendientes de Guardar.
+  final pending = <PendingOp>[];
+
+  /// Id del registro recién creado (para guardar sus relaciones pendientes).
+  String? createdId;
 
   /// Datos relacionados cargados (o el error al cargarlos).
   bool relationsLoading = false;
@@ -87,7 +99,7 @@ abstract class _FormState<T extends StatefulWidget> extends State<T> {
 
   bool get isNew;
 
-  /// «Itinerario», «Parada»… para los mensajes («Itinerario creado»).
+  /// «Itinerario», «Parada»… para los textos («Crear Parada», «Creando Parada»).
   String get noun;
 
   bool get feminine => false;
@@ -95,11 +107,21 @@ abstract class _FormState<T extends StatefulWidget> extends State<T> {
   /// Valores editables, para saber si hay cambios sin guardar.
   List<Object?> snapshot();
 
-  Future<void> save();
+  /// Guarda los campos; al crear, devuelve el registro creado.
+  Future<Resource?> save();
 
   Future<void> remove() async {}
 
   bool get canDelete => false;
+
+  /// Puede crear otro del mismo tipo («Crear [Objeto]»).
+  bool get canCreate => false;
+
+  /// Formulario vacío del mismo tipo.
+  Widget? emptyForm() => null;
+
+  /// Formulario del registro recién creado (el formulario sigue mostrándolo).
+  Widget? savedForm(Resource created) => null;
 
   /// Carga las relaciones del objeto (y lo recarga el botón Actualizar).
   Future<void> loadRelations() async {}
@@ -119,7 +141,7 @@ abstract class _FormState<T extends StatefulWidget> extends State<T> {
 
   void markClean() => _initial = snapshot();
 
-  bool get dirty => !_leaving && canEdit && _initial != null && !listEquals(_initial, snapshot());
+  bool get dirty => !_leaving && canEdit && _initial != null && (pending.isNotEmpty || !listEquals(_initial, snapshot()));
 
   Future<void> reloadRelations() async {
     if (!mounted) return;
@@ -133,31 +155,79 @@ abstract class _FormState<T extends StatefulWidget> extends State<T> {
     if (mounted) setState(() => relationsLoading = false);
   }
 
-  String done(String verb) => '$noun ${feminine ? '${verb}a' : '${verb}o'}';
-
-  Future<void> _save() async {
-    if (!form.currentState!.validate()) return;
-    final ok = await runAction(context, save, success: done(isNew ? 'cread' : 'actualizad'));
-    if (ok && mounted) {
-      _leaving = true;
-      Navigator.pop(context, true);
+  /// Guarda los campos y las relaciones pendientes con un solo spinner.
+  Future<bool> _save() async {
+    if (!form.currentState!.validate()) return false;
+    Resource? created;
+    final ok = await runAction(context, () async {
+      created = await save();
+      createdId = created?.id;
+      for (final op in [...pending]) {
+        await op.run();
+        if (mounted) setState(() => pending.remove(op));
+      }
+    }, label: '${isNew ? 'Creando' : 'Actualizando'} $noun');
+    if (!ok || !mounted) return false;
+    if (isNew && created != null) {
+      // El formulario sigue mostrando el registro guardado.
+      final next = savedForm(created!);
+      if (next != null) {
+        _leaving = true;
+        await Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => next), result: true);
+        return true;
+      }
     }
+    markClean();
+    await reloadRelations();
+    if (mounted) await context.read<Session>().reloadMe().catchError((_) {});
+    return true;
+  }
+
+  /// «Crear [Objeto]»: un formulario vacío del mismo tipo, sin volver a la lista.
+  Future<void> _createAnother() async {
+    final next = emptyForm();
+    if (next == null) return;
+    if (dirty) {
+      switch (await confirmLeave(context)) {
+        case LeaveChoice.cancel:
+          return;
+        case LeaveChoice.save:
+          if (!await _save() || !mounted) return;
+        case LeaveChoice.leave:
+          break;
+      }
+    }
+    if (!mounted) return;
+    _leaving = true;
+    await Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => next), result: true);
   }
 
   /// Elimina con [path] tras confirmar (con sus consecuencias).
   Future<void> deleteWith(String path, String what, String consequences) async {
     if (!await confirmDelete(context, what, consequences: consequences) || !mounted) return;
-    final ok = await runAction(context, () => api.delete(path), success: done('eliminad'));
+    final ok = await runAction(context, () => api.delete(path), label: 'Eliminando $noun');
     if (ok && mounted) {
       _leaving = true;
       Navigator.pop(context, true);
     }
   }
 
-  /// Operación de una relación (con spinner): al terminar recarga las relaciones.
-  Future<void> relation(Future<bool> Function() action) async {
+  /// Elige o quita una relación: queda pendiente hasta Guardar (docs/11 §11.65).
+  Future<void> relation(Future<bool> Function(Ops ops) action) async {
+    await action(Ops(context, defer: defer));
+    if (mounted) setState(() {});
+  }
+
+  /// Apunta un cambio de relación pendiente.
+  void defer(PendingOp op) {
+    if (mounted) setState(() => pending.add(op));
+  }
+
+  /// Una acción sobre otro objeto (p. ej. «Actualizar Solicitud: Aprobar»),
+  /// que se hace al momento; al terminar recarga las relaciones.
+  Future<void> now(Future<bool> Function() action, {String? label}) async {
     var changed = false;
-    await runAction(context, () async => changed = await action());
+    await runAction(context, () async => changed = await action(), label: label);
     if (changed && mounted) {
       await reloadRelations();
       if (mounted) await context.read<Session>().reloadMe().catchError((_) {});
@@ -172,15 +242,38 @@ abstract class _FormState<T extends StatefulWidget> extends State<T> {
 
   List<ActionItem> actions() => [
         if (canEdit) ActionItem(Icons.save_outlined, 'Guardar', _save),
-        if (canDelete && !isNew) ActionItem(Icons.delete_outline, 'Eliminar', remove, destructive: true),
+        if (canCreate) ActionItem(Icons.add, 'Crear $noun', _createAnother),
+        if (canDelete && !isNew) ActionItem(Icons.delete_outline, 'Eliminar $noun', remove, destructive: true),
       ];
 
   String? text(TextEditingController c) => c.text.trim().isEmpty ? null : c.text.trim();
+
+  /// Cambios de relaciones pendientes de Guardar, marcados (se pueden deshacer).
+  Widget pendingSection() => pending.isEmpty
+      ? const SizedBox.shrink()
+      : Card(
+          margin: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+          shape: RoundedRectangleBorder(side: const BorderSide(color: orange, width: 1.5), borderRadius: BorderRadius.circular(12)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 10, 16, 2),
+              child: Text('Pendiente de guardar', style: TextStyle(fontWeight: FontWeight.w700, color: amber)),
+            ),
+            for (final op in pending)
+              ListTile(
+                dense: true,
+                leading: Icon(op.icon, color: amber),
+                title: Text(op.label),
+                trailing: IconButton(tooltip: 'Deshacer', icon: const Icon(Icons.undo), onPressed: () => setState(() => pending.remove(op))),
+              ),
+          ]),
+        );
 
   /// Pantalla del formulario con sus campos y sus relaciones.
   Widget formScaffold({required String title, required List<Widget> fields, List<Widget> relations = const [], List<ActionItem> Function()? extra}) {
     return LeaveGuard(
       dirty: () => dirty,
+      onSave: canEdit ? _save : null,
       child: AppScaffold(
         title: title,
         tab: MainTab.management,
@@ -191,9 +284,8 @@ abstract class _FormState<T extends StatefulWidget> extends State<T> {
           onChanged: () => setState(() {}),
           child: ListView(padding: const EdgeInsets.only(bottom: 120), children: [
             ...fields,
-            if (isNew && relations.isNotEmpty)
-              const HintText('Guarde primero para ver y gestionar sus relaciones.')
-            else if (relationsError != null && !relationsLoading)
+            pendingSection(),
+            if (relationsError != null && !relationsLoading)
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: Row(children: [
@@ -283,6 +375,17 @@ class _EntityFormState extends _FormState<EntityForm> {
   bool get canDelete => me.isAdmin;
 
   @override
+  bool get canCreate => me.isAdmin;
+
+  @override
+  Widget emptyForm() => const EntityForm();
+
+  @override
+  Widget savedForm(Resource created) => EntityForm(entity: Entity.from(created));
+
+  String get _id => _e?.id ?? createdId!;
+
+  @override
   List<Object?> snapshot() => [_abbreviation.text, _number.text, _name.text, _description.text, _observation.text, active];
 
   @override
@@ -299,7 +402,7 @@ class _EntityFormState extends _FormState<EntityForm> {
   }
 
   @override
-  Future<void> save() async {
+  Future<Resource?> save() async {
     final attributes = {
       'abbreviation': _abbreviation.text.trim().toUpperCase(),
       'number': text(_number),
@@ -308,11 +411,9 @@ class _EntityFormState extends _FormState<EntityForm> {
       'observation': text(_observation),
       'active': active,
     };
-    if (isNew) {
-      await api.post('/entities', resourceData('entities', attributes: attributes));
-    } else {
-      await api.patch('/entities/${_e!.id}', resourceData('entities', id: _e!.id, attributes: attributes));
-    }
+    if (isNew) return (await api.post('/entities', resourceData('entities', attributes: attributes))).resource;
+    await api.patch('/entities/${_e!.id}', resourceData('entities', id: _e!.id, attributes: attributes));
+    return null;
   }
 
   @override
@@ -323,28 +424,31 @@ class _EntityFormState extends _FormState<EntityForm> {
   Future<void> _addPerson() async {
     final choice = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => AppDialog(
         icon: const Icon(Icons.person_add_alt_1, size: 32),
-        title: const Text('Adicionar persona', textAlign: TextAlign.center),
+        title: 'Adicionar persona',
         content: const Text('¿La persona ya tiene cuenta en MiRuta?', textAlign: TextAlign.center),
-        actionsAlignment: MainAxisAlignment.center,
-        actions: [
+        buttons: [
+          primaryButton(context, 'Elegir', Icons.search, () => Navigator.pop(context, 'existing')),
+          otherButton(context, 'Crear Trabajador', Icons.badge_outlined, () => Navigator.pop(context, 'new')),
           cancelButton(context),
-          TextButton.icon(onPressed: () => Navigator.pop(context, 'new'), icon: const Icon(Icons.badge_outlined), label: const Text('Registrar nueva')),
-          FilledButton.icon(onPressed: () => Navigator.pop(context, 'existing'), icon: const Icon(Icons.search), label: const Text('Elegir')),
         ],
       ),
     );
     if (!mounted || choice == null) return;
     if (choice == 'new') {
+      if (isNew) {
+        showMessage(context, 'Guarde primero la Entidad para registrar en ella una persona nueva.');
+        return;
+      }
       await open(() => push<bool>(context, RegisterWorkerForm(entity: _e)));
       return;
     }
-    await relation(() async {
-      final person = await Ops(context).pickPerson('Adicionar persona a ${_e!.abbreviation}', exclude: _workers.map((w) => w.person.id).toSet());
+    await relation((ops) async {
+      final person = await ops.pickPerson('Adicionar persona a ${_abbreviation.text.trim().toUpperCase()}', exclude: _workers.map((w) => w.person.id).toSet());
       if (person == null) return false;
-      await api.post('/workers', resourceData('workers', relationships: {'entity': ResourceId('entities', _e!.id), 'user': ResourceId('users', person.id)}));
-      if (mounted) Ops(context).done('Persona adicionada');
+      await ops.write('Adicionar persona: ${person.fullName}', Icons.person_add_alt_1,
+          () async => api.post('/workers', resourceData('workers', relationships: {'entity': ResourceId('entities', _id), 'user': ResourceId('users', person.id)})));
       return true;
     });
   }
@@ -357,7 +461,7 @@ class _EntityFormState extends _FormState<EntityForm> {
       title: 'Entidad',
       extra: () => [
         if (!isNew && me.membershipIn(_e!.id) != null && !admin)
-          ActionItem(Icons.logout, 'Salir de la Entidad', () => relation(() => Ops(context).leaveEntity(me.membershipIn(_e!.id)!))),
+          ActionItem(Icons.logout, 'Actualizar Entidad: Salir', () => relation((ops) => ops.leaveEntity(me.membershipIn(_e!.id)!))),
       ],
       fields: [
         PhotoHeader(
@@ -380,9 +484,8 @@ class _EntityFormState extends _FormState<EntityForm> {
         FormText(controller: _observation, label: 'Observación', readOnly: !edit, maxLines: 3, last: true),
         ActiveSwitch(value: active, onChanged: edit ? (v) => setState(() => active = v) : null),
       ],
-      relations: isNew
-          ? const [SizedBox()]
-          : [
+      relations: [
+              if (!isNew)
               FoldSection<Itinerary>(
                 storageKey: 'form.entidad.itinerarios',
                 title: 'Itinerarios',
@@ -390,7 +493,7 @@ class _EntityFormState extends _FormState<EntityForm> {
                 emptyText: 'No tiene itinerarios.',
                 builder: (i) => itineraryTile(i, showEntity: false, chief: me.isChiefOf(i.id), onTap: () => open(() => push<bool>(context, ItineraryForm(itinerary: i)))),
               ),
-              if (admin) RelationButton(Icons.add_road, 'Crear itinerario', () => open(() => push<bool>(context, ItineraryForm(entityId: _e!.id, entityAbbreviation: _e!.abbreviation)))),
+              if (admin && !isNew) RelationButton(Icons.add_road, 'Crear Itinerario', () => open(() => push<bool>(context, ItineraryForm(entityId: _e!.id, entityAbbreviation: _e!.abbreviation)))),
               FoldSection<Worker>(
                 storageKey: 'form.entidad.trabajadores',
                 title: 'Trabajadores',
@@ -406,7 +509,7 @@ class _EntityFormState extends _FormState<EntityForm> {
                   items: _applications,
                   emptyText: 'No hay solicitudes pendientes.',
                   builder: (a) => applicationTile(a, mine: a.userId == me.userId,
-                      onTap: () => relation(() => Ops(context).showApplication(a, mine: a.userId == me.userId, canResolve: admin))),
+                      onTap: () => now(() => Ops(context).showApplication(a, mine: a.userId == me.userId, canResolve: admin), label: 'Actualizando Solicitud')),
                 ),
             ],
     );
@@ -462,7 +565,19 @@ class _ItineraryFormState extends _FormState<ItineraryForm> {
   @override
   bool get canDelete => me.isAdmin;
 
-  bool get _manages => !isNew && (me.isAdmin || me.isChiefOf(_i!.id));
+  @override
+  bool get canCreate => me.isAdmin;
+
+  @override
+  Widget emptyForm() => const ItineraryForm();
+
+  @override
+  Widget savedForm(Resource created) => ItineraryForm(itinerary: Itinerary.from(created));
+
+  String get _id => _i?.id ?? createdId!;
+
+  /// Gestiona sus paradas y personas (también al crearlo, el Administrador).
+  bool get _manages => isNew ? me.isAdmin : (me.isAdmin || me.isChiefOf(_i!.id));
 
   @override
   List<Object?> snapshot() => [_name.text, _description.text, _observation.text, active, _entityId];
@@ -494,12 +609,11 @@ class _ItineraryFormState extends _FormState<ItineraryForm> {
   }
 
   @override
-  Future<void> save() async {
+  Future<Resource?> save() async {
     final attributes = {'name': _name.text.trim(), 'description': text(_description), 'observation': text(_observation), 'active': active};
     final entity = _entityId == null ? null : ResourceId('entities', _entityId!);
     if (isNew) {
-      await api.post('/itineraries', resourceData('itineraries', attributes: attributes, relationships: {'entity': entity}));
-      return;
+      return (await api.post('/itineraries', resourceData('itineraries', attributes: attributes, relationships: {'entity': entity}))).resource;
     }
     if (_entityId != _i!.entityId && _workers.isNotEmpty) {
       final message = _entityId == null
@@ -512,6 +626,7 @@ class _ItineraryFormState extends _FormState<ItineraryForm> {
     await api.patch('/itineraries/${_i!.id}', resourceData('itineraries', id: _i!.id, attributes: attributes, relationships: {
       if (_entityId != _i!.entityId) 'entity': entity,
     }));
+    return null;
   }
 
   @override
@@ -521,90 +636,94 @@ class _ItineraryFormState extends _FormState<ItineraryForm> {
   Future<void> _reorder(int from, int to) async {
     final ordered = [..._stops];
     ordered.insert(to, ordered.removeAt(from));
-    setState(() => _stops = ordered);
-    await relation(() async {
-      await api.patch('/itineraries/${_i!.id}/relationships/stops', {
+    setState(() {
+      _stops = ordered;
+      // Un solo cambio pendiente con el último orden.
+      pending.removeWhere((op) => op.label == 'Ordenar paradas');
+    });
+    defer(PendingOp('Ordenar paradas', Icons.drag_indicator, () async {
+      await api.patch('/itineraries/$_id/relationships/stops', {
         'data': [for (final s in ordered) ResourceId('stops', s.id).toJson()],
       });
-      if (mounted) Ops(context).done('Orden guardado');
-      return true;
-    });
+    }));
   }
 
   /// «Adicionar parada»: una existente o una nueva.
   Future<void> _addStop() async {
     final choice = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => AppDialog(
         icon: const Icon(Icons.add_location_alt_outlined, size: 32),
-        title: const Text('Adicionar parada', textAlign: TextAlign.center),
+        title: 'Adicionar parada',
         content: const Text('¿Añadir una parada que ya existe o crear una nueva?', textAlign: TextAlign.center),
-        actionsAlignment: MainAxisAlignment.center,
-        actions: [
+        buttons: [
+          primaryButton(context, 'Existente', Icons.search, () => Navigator.pop(context, 'existing')),
+          otherButton(context, 'Crear Parada', Icons.add_location_alt_outlined, () => Navigator.pop(context, 'new')),
           cancelButton(context),
-          TextButton.icon(onPressed: () => Navigator.pop(context, 'new'), icon: const Icon(Icons.add_location_alt_outlined), label: const Text('Crear nueva')),
-          FilledButton.icon(onPressed: () => Navigator.pop(context, 'existing'), icon: const Icon(Icons.search), label: const Text('Existente')),
         ],
       ),
     );
     if (!mounted || choice == null) return;
     if (choice == 'new') {
+      if (isNew) {
+        showMessage(context, 'Guarde primero el itinerario para crear en él una parada nueva.');
+        return;
+      }
       await open(() => push<bool>(context, StopForm(itineraryId: _i!.id)));
       return;
     }
-    await relation(() async {
-      final all = (await api.getAll('/stops')).map(Stop.from).where((s) => s.positionIn(_i!.id) == null).toList();
+    await relation((ops) async {
+      final all = (await api.getAll('/stops')).map(Stop.from).where((s) => isNew || s.positionIn(_i!.id) == null).toList();
       if (!mounted) return false;
       final stop = await pickOne<Stop>(context, 'Adicionar parada', all, (s) => s.landmark, subtitle: (s) => s.address, search: true);
       if (stop == null) return false;
-      await api.post('/itinerary-stops', resourceData('itinerary-stops', relationships: {
-        'itinerary': ResourceId('itineraries', _i!.id),
-        'stop': ResourceId('stops', stop.id),
-      }));
-      if (mounted) Ops(context).done('Parada adicionada');
+      await ops.write('Adicionar parada: ${stop.landmark}', Icons.add_location_alt_outlined,
+          () async => api.post('/itinerary-stops', resourceData('itinerary-stops', relationships: {
+                'itinerary': ResourceId('itineraries', _id),
+                'stop': ResourceId('stops', stop.id),
+              })));
       return true;
     });
   }
 
-  Future<bool> _removeStop() async {
+  Future<bool> _removeStop(Ops ops) async {
     final stop = await pickOne<Stop>(context, 'Quitar parada del itinerario', _stops, (s) => '${s.positionIn(_i!.id) ?? ''}. ${s.landmark}', subtitle: (s) => s.address);
     if (stop == null || !mounted) return false;
-    if (!await confirm(context, 'Quitar parada', '¿Quitar ${stop.landmark} de ${_i!.name}? La parada se conserva; quien la tenía en este itinerario queda sin parada.',
+    if (!await confirm(context, 'Quitar parada', '¿Quitar ${stop.landmark} de ${_i!.name}? La parada se conserva; quien la tenía como parada habitual en este itinerario queda sin ella.',
         accept: 'Quitar', icon: Icons.playlist_remove, destructive: true, headerIcon: Icons.place)) {
       return false;
     }
     final link = stop.linkIn(_i!.id);
-    if (link != null) await api.delete('/itinerary-stops/${link.itineraryStopId}');
-    if (mounted) Ops(context).done('Parada quitada');
+    if (link != null) await ops.write('Quitar parada: ${stop.landmark}', Icons.playlist_remove, () => api.delete('/itinerary-stops/${link.itineraryStopId}'));
     return true;
   }
 
   /// «Adicionar persona» al itinerario: el Administrador, cualquiera (entra
   /// en su Entidad); el Jefe, las de su Entidad. Parada opcional.
-  Future<bool> _addPerson() async {
-    if (_i!.entityId == null) {
+  Future<bool> _addPerson(Ops ops) async {
+    if (_entityId == null) {
       showMessage(context, 'Asocie primero una Entidad al itinerario.');
       return false;
     }
-    final ops = Ops(context);
-    final person = await ops.pickPerson('Adicionar persona a ${_i!.name}',
-        query: me.isAdmin ? const {} : {'filter[entity]': _i!.entityId}, exclude: _workers.map((p) => p.userId ?? '').toSet());
+    final person = await ops.pickPerson('Adicionar persona a ${_name.text.trim()}',
+        query: me.isAdmin ? const {} : {'filter[entity]': _entityId}, exclude: _workers.map((p) => p.userId ?? '').toSet());
     if (person == null || !mounted) return false;
-    final stop = await ops.pickStopOf(_i!.id);
+    // Parada habitual (opcional): solo para planificar (docs/11 §11.65).
+    final stop = isNew ? (cancelled: false, stop: null) : await ops.pickStopOf(_i!.id, title: 'Parada habitual (opcional)');
     if (stop.cancelled) return false;
-    await api.post('/worker-itineraries', resourceData('worker-itineraries', relationships: {
-      'user': ResourceId('users', person.id),
-      'itinerary': ResourceId('itineraries', _i!.id),
-      if (stop.stop != null) 'stop': ResourceId('stops', stop.stop!.id),
-    }));
-    ops.done('Persona adicionada');
+    await ops.write('Adicionar persona: ${person.fullName}${stop.stop == null ? '' : ' (parada habitual ${stop.stop!.landmark})'}', Icons.person_add_alt_1,
+        () async => api.post('/worker-itineraries', resourceData('worker-itineraries', relationships: {
+              'user': ResourceId('users', person.id),
+              'itinerary': ResourceId('itineraries', _id),
+              if (stop.stop != null) 'stop': ResourceId('stops', stop.stop!.id),
+            })));
     return true;
   }
 
-  Future<bool> _assignChief() async {
-    final p = await pickOne<Placement>(context, 'Jefe de ${_i!.name}', _workers, (p) => p.userName ?? '', subtitle: (p) => p.isChief ? 'Ya es Jefe' : (p.stopLandmark ?? 'Sin parada'));
+  Future<bool> _assignChief(Ops ops) async {
+    final p = await pickOne<Placement>(context, 'Jefe de ${_i!.name}', _workers, (p) => p.userName ?? '', subtitle: (p) => p.isChief ? 'Ya es Jefe' : (p.stopLandmark ?? 'Sin parada habitual'));
     if (p == null || !mounted) return false;
-    return Ops(context).setChief(p, !p.isChief);
+    return ops.setChief(p, !p.isChief);
   }
 
   @override
@@ -615,8 +734,8 @@ class _ItineraryFormState extends _FormState<ItineraryForm> {
     return formScaffold(
       title: 'Itinerario',
       extra: () => [
-        if (manages && _stops.isNotEmpty) ActionItem(Icons.playlist_remove, 'Quitar parada', () => relation(_removeStop)),
-        if (!isNew && me.isAdmin && _workers.isNotEmpty) ActionItem(Icons.badge_outlined, 'Asignar o quitar Jefe', () => relation(_assignChief)),
+        if (manages && _stops.isNotEmpty) ActionItem(Icons.playlist_remove, 'Actualizar Itinerario: Quitar parada', () => relation(_removeStop)),
+        if (!isNew && me.isAdmin && _workers.isNotEmpty) ActionItem(Icons.badge_outlined, 'Actualizar Itinerario: Asignar o quitar Jefe', () => relation(_assignChief)),
       ],
       fields: [
         PhotoHeader(
@@ -637,16 +756,14 @@ class _ItineraryFormState extends _FormState<ItineraryForm> {
         FormText(controller: _observation, label: 'Observación', readOnly: !edit, maxLines: 3, last: true),
         ActiveSwitch(value: active, onChanged: edit ? (v) => setState(() => active = v) : null),
       ],
-      relations: isNew
-          ? const [SizedBox()]
-          : [
+      relations: [
               FoldSection<Stop>(
                 storageKey: 'form.itinerario.paradas',
                 title: draggable ? 'Paradas (arrastre para ordenar)' : 'Paradas',
                 items: _stops,
                 paginate: false,
                 emptyText: 'No tiene paradas.',
-                builder: (s) => stopTile(s, position: s.positionIn(_i!.id), extra: s.address, onTap: () => open(() => push<bool>(context, StopForm(stop: s)))),
+                builder: (s) => stopTile(s, position: isNew ? null : s.positionIn(_i!.id), extra: s.address, onTap: () => open(() => push<bool>(context, StopForm(stop: s)))),
                 child: draggable
                     ? ReorderableListView(
                         shrinkWrap: true,
@@ -683,7 +800,7 @@ class _ItineraryFormState extends _FormState<ItineraryForm> {
                   items: _applications,
                   emptyText: 'No hay solicitudes pendientes.',
                   builder: (a) => applicationTile(a, mine: a.userId == me.userId,
-                      onTap: () => relation(() => Ops(context).showApplication(a, mine: a.userId == me.userId, canResolve: manages))),
+                      onTap: () => now(() => Ops(context).showApplication(a, mine: a.userId == me.userId, canResolve: manages), label: 'Actualizando Solicitud')),
                 ),
             ],
     );
@@ -749,7 +866,18 @@ class _StopFormState extends _FormState<StopForm> {
   bool get feminine => true;
 
   @override
-  bool get canDelete => canEdit;
+  bool get canDelete => canEdit && !isNew;
+
+  @override
+  bool get canCreate => me.isAdmin || me.chiefItineraryId != null;
+
+  @override
+  Widget emptyForm() => StopForm(itineraryId: widget.itineraryId ?? (me.isAdmin ? null : me.chiefItineraryId));
+
+  @override
+  Widget savedForm(Resource created) => StopForm(stop: Stop.from(created));
+
+  String get _id => widget.stop?.id ?? createdId!;
 
   // Las coordenadas que vienen ya puestas (compartidas) también son un cambio.
   @override
@@ -792,10 +920,30 @@ class _StopFormState extends _FormState<StopForm> {
     }
   }
 
+  /// «Pegar ubicación» (docs/11 §11.65): «lat, lng», enlaces de Google Maps,
+  /// OsmAnd y OpenStreetMap y geo:lat,lng.
+  Future<void> _pasteLocation() async {
+    final clip = await Clipboard.getData(Clipboard.kTextPlain);
+    GeoPoint? point;
+    try {
+      // Los enlaces cortos de Google Maps se resuelven por Internet.
+      point = await SharedLocation.resolve(clip?.text ?? '');
+    } catch (_) {}
+    if (!mounted) return;
+    if (point == null) {
+      showMessage(context, 'No se reconoce una ubicación en lo copiado');
+      return;
+    }
+    setState(() {
+      _latitude = double.parse(point!.latitude.toStringAsFixed(6));
+      _longitude = double.parse(point.longitude.toStringAsFixed(6));
+    });
+  }
+
   @override
-  Future<void> save() async {
+  Future<Resource?> save() async {
     if (_latitude == null || _longitude == null) {
-      throw StateError('Falta la ubicación: pulse «Usar mi ubicación actual» o compártala desde otra app.');
+      throw StateError('Falta la ubicación: pulse «Usar mi ubicación actual», «Pegar ubicación» o compártala desde otra app.');
     }
     final attributes = {
       'landmark': _landmark.text.trim(),
@@ -807,12 +955,13 @@ class _StopFormState extends _FormState<StopForm> {
       'active': active,
     };
     if (isNew) {
-      await api.post('/stops', resourceData('stops', attributes: attributes, relationships: {
+      return (await api.post('/stops', resourceData('stops', attributes: attributes, relationships: {
         if (widget.itineraryId != null) 'itinerary': ResourceId('itineraries', widget.itineraryId!),
-      }));
-    } else {
-      await api.patch('/stops/${widget.stop!.id}', resourceData('stops', id: widget.stop!.id, attributes: attributes));
+      })))
+          .resource;
     }
+    await api.patch('/stops/${widget.stop!.id}', resourceData('stops', id: widget.stop!.id, attributes: attributes));
+    return null;
   }
 
   @override
@@ -820,9 +969,12 @@ class _StopFormState extends _FormState<StopForm> {
       'Quien la tenía queda sin parada (conserva su itinerario). Si la usa otro itinerario, el Jefe no puede eliminarla: solo quitarla del suyo.');
 
   /// «Asociar itinerario»: el Administrador, cualquiera; el Jefe, el suyo.
-  Future<bool> _associate() async {
-    final stop = _stop!;
-    var list = (await Ops(context).itineraries()).where((i) => stop.positionIn(i.id) == null).toList();
+  /// También al crear la parada (queda pendiente hasta Guardar).
+  Future<bool> _associate(Ops ops) async {
+    final stop = _stop;
+    var list = (await ops.itineraries())
+        .where((i) => (stop == null || stop.positionIn(i.id) == null) && i.id != widget.itineraryId)
+        .toList();
     if (!me.isAdmin) list = list.where((i) => i.id == me.chiefItineraryId).toList();
     if (!mounted) return false;
     if (list.isEmpty) {
@@ -831,15 +983,15 @@ class _StopFormState extends _FormState<StopForm> {
     }
     final itinerary = await pickOne<Itinerary>(context, 'Asociar itinerario', list, (i) => i.name, subtitle: (i) => i.entityAbbreviation ?? 'Sin Entidad', search: list.length > 8);
     if (itinerary == null) return false;
-    await api.post('/itinerary-stops', resourceData('itinerary-stops', relationships: {
-      'itinerary': ResourceId('itineraries', itinerary.id),
-      'stop': ResourceId('stops', stop.id),
-    }));
-    if (mounted) Ops(context).done('Itinerario asociado');
+    await ops.write('Asociar itinerario: ${itinerary.name}', Icons.playlist_add,
+        () async => api.post('/itinerary-stops', resourceData('itinerary-stops', relationships: {
+              'itinerary': ResourceId('itineraries', itinerary.id),
+              'stop': ResourceId('stops', _id),
+            })));
     return true;
   }
 
-  Future<bool> _dissociate() async {
+  Future<bool> _dissociate(Ops ops) async {
     final links = _stop!.itineraries.where((l) => me.isAdmin || me.isChiefOf(l.itineraryId)).toList();
     final link = await pickOne<StopLink>(context, 'Quitar de un itinerario', links, (l) => l.name, subtitle: (l) => l.entityAbbreviation ?? 'Sin Entidad');
     if (link == null || !mounted) return false;
@@ -847,20 +999,20 @@ class _StopFormState extends _FormState<StopForm> {
         accept: 'Quitar', icon: Icons.playlist_remove, destructive: true, headerIcon: Icons.route)) {
       return false;
     }
-    await api.delete('/itinerary-stops/${link.itineraryStopId}');
-    if (mounted) Ops(context).done('Itinerario quitado');
+    await ops.write('Quitar del itinerario ${link.name}', Icons.playlist_remove, () => api.delete('/itinerary-stops/${link.itineraryStopId}'));
     return true;
   }
 
   @override
   Widget build(BuildContext context) {
     final edit = canEdit;
-    final manages = !isNew && (me.isAdmin || me.chiefItineraryId != null);
+    final manages = me.isAdmin || me.chiefItineraryId != null;
     final links = _stop?.itineraries ?? const <StopLink>[];
     return formScaffold(
       title: 'Parada',
       extra: () => [
-        if (manages && links.any((l) => me.isAdmin || me.isChiefOf(l.itineraryId))) ActionItem(Icons.playlist_remove, 'Quitar de un itinerario', () => relation(_dissociate)),
+        if (!isNew && manages && links.any((l) => me.isAdmin || me.isChiefOf(l.itineraryId)))
+          ActionItem(Icons.playlist_remove, 'Actualizar Parada: Quitar de un itinerario', () => relation(_dissociate)),
       ],
       fields: [
         PhotoHeader(
@@ -884,17 +1036,23 @@ class _StopFormState extends _FormState<StopForm> {
         if (edit)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
-            child: OutlinedButton.icon(
-              onPressed: _locating ? null : _useCurrentLocation,
-              icon: _locating ? const BusyIndicator(size: 18) : const Icon(Icons.my_location),
-              label: const Text('Usar mi ubicación actual'),
-            ),
+            child: Row(children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _locating ? null : _useCurrentLocation,
+                  icon: _locating ? const BusyIndicator(size: 18) : const Icon(Icons.my_location),
+                  label: const Text('Usar mi ubicación actual', textAlign: TextAlign.center),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(onPressed: _pasteLocation, icon: const Icon(Icons.content_paste), label: const Text('Pegar ubicación')),
+              ),
+            ]),
           ),
         ActiveSwitch(value: active, onChanged: edit ? (v) => setState(() => active = v) : null),
       ],
-      relations: isNew
-          ? const [SizedBox()]
-          : [
+      relations: [
               FoldSection<StopLink>(
                 storageKey: 'form.parada.itinerarios',
                 title: 'Itinerarios',
@@ -910,9 +1068,9 @@ class _StopFormState extends _FormState<StopForm> {
               if (manages) RelationButton(Icons.playlist_add, 'Asociar itinerario', () => relation(_associate)),
               FoldSection<Placement>(
                 storageKey: 'form.parada.trabajadores',
-                title: 'Trabajadores',
+                title: 'Trabajadores con esta parada habitual',
                 items: _workers,
-                emptyText: 'Nadie la tiene como parada.',
+                emptyText: 'Nadie la tiene como parada habitual.',
                 builder: (p) => placementPersonTile(p, line: '${p.entityAbbreviation} • ${p.itineraryName}', onTap: () => open(() => openWorker(context, p.userId ?? ''))),
               ),
             ],
@@ -1002,7 +1160,7 @@ class _WorkerFormState extends _FormState<WorkerForm> {
   }
 
   @override
-  Future<void> save() async {
+  Future<Resource?> save() async {
     if (_admin) {
       await api.patch('/users/${_p.id}', resourceData('users', id: _p.id, attributes: {
         ...PersonName(firstName: _first.text, middleName: _middle.text, firstSurname: _firstSurname.text, secondSurname: _secondSurname.text).toAttributes(),
@@ -1015,6 +1173,7 @@ class _WorkerFormState extends _FormState<WorkerForm> {
         await api.patch('/workers/${m.workerId}', resourceData('workers', id: m.workerId, attributes: {'active': active}));
       }
     }
+    return null;
   }
 
   @override
@@ -1026,14 +1185,14 @@ class _WorkerFormState extends _FormState<WorkerForm> {
 
   bool _canChange(Placement p) => _admin || _self || me.isChiefOf(p.itineraryId);
 
-  Future<bool> _placementOptions(Placement p) async {
+  Future<bool> _placementOptions(Ops ops, Placement p) async {
     final choice = await showModalBottomSheet<String>(
       context: context,
       builder: (context) => SafeArea(
         child: Wrap(children: [
           ListTile(title: Text(p.itineraryName, style: const TextStyle(fontWeight: FontWeight.w600)), subtitle: Text('${p.entityAbbreviation} • ${p.stopLandmark ?? 'Sin parada'}')),
           ListTile(leading: const Icon(Icons.route), title: const Text('Ver el itinerario'), onTap: () => Navigator.pop(context, 'open')),
-          if (_canChange(p)) ListTile(leading: const Icon(Icons.where_to_vote_outlined), title: const Text('Cambiar de parada'), onTap: () => Navigator.pop(context, 'stop')),
+          if (_canChange(p)) ListTile(leading: const Icon(Icons.where_to_vote_outlined), title: const Text('Parada habitual'), onTap: () => Navigator.pop(context, 'stop')),
           if (_admin) ListTile(leading: const Icon(Icons.badge_outlined), title: Text(p.isChief ? 'Quitar rol de Jefe' : 'Asignar rol de Jefe'), onTap: () => Navigator.pop(context, 'chief')),
           if (_canChange(p))
             ListTile(leading: const Icon(Icons.logout, color: red), title: Text(_self ? 'Salir del itinerario' : 'Quitar del itinerario', style: const TextStyle(color: red)), onTap: () => Navigator.pop(context, 'remove')),
@@ -1041,7 +1200,6 @@ class _WorkerFormState extends _FormState<WorkerForm> {
       ),
     );
     if (!mounted) return false;
-    final ops = Ops(context);
     switch (choice) {
       case 'open':
         await open(() => openItinerary(context, p.itineraryId));
@@ -1056,7 +1214,7 @@ class _WorkerFormState extends _FormState<WorkerForm> {
     return false;
   }
 
-  Future<bool> _membershipOptions(Membership m) async {
+  Future<bool> _membershipOptions(Ops ops, Membership m) async {
     final choice = await showModalBottomSheet<String>(
       context: context,
       builder: (context) => SafeArea(
@@ -1074,13 +1232,13 @@ class _WorkerFormState extends _FormState<WorkerForm> {
       ),
     );
     if (!mounted) return false;
-    final ops = Ops(context);
     switch (choice) {
       case 'open':
         await open(() => openEntity(context, m.entityId));
         return false;
       case 'absence':
-        return ops.declareAbsence(widget.userId, _chiefOfHer && !_admin && !_self ? m.itineraries.where((p) => p.itineraryId == context.me.chiefItineraryId).toList() : m.itineraries, who: _self ? null : _p.fullName);
+        // La ausencia es otro objeto: se crea en su pantalla.
+        return Ops(context).declareAbsence(widget.userId, _chiefOfHer && !_admin && !_self ? m.itineraries.where((p) => p.itineraryId == context.me.chiefItineraryId).toList() : m.itineraries, who: _self ? null : _p.fullName);
       case 'leave':
         return ops.leaveEntity(m, who: _self ? null : _p.fullName);
     }
@@ -1093,15 +1251,14 @@ class _WorkerFormState extends _FormState<WorkerForm> {
   Widget build(BuildContext context) {
     final edit = _admin && _loaded;
     final card = _card.text.trim();
-    final ops = Ops(context);
     final canChildren = _admin || _self;
     return formScaffold(
       title: 'Trabajador',
       extra: () => [
-        if (_admin) ActionItem(Icons.add_business_outlined, 'Asociar Entidad', () => relation(() => ops.associateEntity([widget.userId], exclude: _p.memberships.map((m) => m.entityId).toSet()))),
+        if (_admin) ActionItem(Icons.add_business_outlined, 'Actualizar Trabajador: Asociar Entidad', () => relation((ops) => ops.associateEntity([widget.userId], exclude: _p.memberships.map((m) => m.entityId).toSet()))),
         if (_admin || me.chiefItineraryId != null)
-          ActionItem(Icons.add_road, 'Añadir itinerario', () => relation(() => ops.addItinerary(me, widget.userId, exclude: {for (final m in _p.memberships) ...m.itineraries.map((p) => p.itineraryId)}))),
-        if (canChildren) ActionItem(Icons.person_add_alt_1, 'Añadir hijo', _openChild),
+          ActionItem(Icons.add_road, 'Actualizar Trabajador: Añadir itinerario', () => relation((ops) => ops.addItinerary(me, widget.userId, exclude: {for (final m in _p.memberships) ...m.itineraries.map((p) => p.itineraryId)}))),
+        if (canChildren) ActionItem(Icons.person_add_alt_1, 'Crear Hijo', _openChild),
       ],
       fields: [
         PhotoHeader(url: _p.photoUrl, icon: Icons.person),
@@ -1125,16 +1282,16 @@ class _WorkerFormState extends _FormState<WorkerForm> {
           paginate: false,
           emptyText: 'No pertenece a ninguna Entidad.',
           builder: (m) => Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            membershipTile(m, onTap: () => relation(() => _membershipOptions(m))),
-            for (final p in m.itineraries) placementTile(p, indent: true, onTap: () => relation(() => _placementOptions(p))),
+            membershipTile(m, onTap: () => relation((ops) => _membershipOptions(ops, m))),
+            for (final p in m.itineraries) placementTile(p, indent: true, onTap: () => relation((ops) => _placementOptions(ops, p))),
             if (_canAddIn(m))
               RelationButton(Icons.add_road, 'Añadir itinerario en ${m.entityAbbreviation}', indent: true,
-                  () => relation(() => ops.addItinerary(me, widget.userId, entityId: m.entityId, exclude: m.itineraries.map((p) => p.itineraryId).toSet()))),
+                  () => relation((ops) => ops.addItinerary(me, widget.userId, entityId: m.entityId, exclude: m.itineraries.map((p) => p.itineraryId).toSet()))),
           ]),
         ),
         if (_admin)
           RelationButton(Icons.add_business_outlined, 'Asociar Entidad',
-              () => relation(() => ops.associateEntity([widget.userId], exclude: _p.memberships.map((m) => m.entityId).toSet()))),
+              () => relation((ops) => ops.associateEntity([widget.userId], exclude: _p.memberships.map((m) => m.entityId).toSet()))),
         FoldSection<Child>(
           storageKey: 'form.trabajador.hijos',
           title: 'Hijos',
@@ -1200,7 +1357,7 @@ class _RegisterWorkerFormState extends State<RegisterWorkerForm> {
       return;
     }
     JsonApiDocument? document;
-    final ok = await runAction(context, () async {
+    final ok = await runAction(context, label: 'Creando Trabajador', () async {
       document = await context.api.post('/workers', resourceData('workers', attributes: {
         ...PersonName(firstName: _first.text, middleName: _middle.text, firstSurname: _firstSurname.text, secondSurname: _secondSurname.text).toAttributes(),
         'identityCard': _card.text.trim(),
@@ -1211,27 +1368,28 @@ class _RegisterWorkerFormState extends State<RegisterWorkerForm> {
     if (!ok || !mounted) return;
     final meta = document!.meta;
     _done = true;
-    showResult(ScaffoldMessenger.of(context), meta['created'] == false ? 'Ya tenía cuenta: Entidad asociada' : 'Trabajador registrado');
     if (meta['created'] != false) {
       await showDialog<void>(
         context: context,
-        builder: (context) => AlertDialog(
+        builder: (context) => AppDialog(
           icon: const Icon(Icons.how_to_reg, size: 32, color: green),
-          title: const Text('Trabajador registrado', textAlign: TextAlign.center),
+          title: 'Trabajador creado',
           content: SelectableText('Comuníquele sus datos de acceso (deberá cambiar la contraseña al entrar):\n\nUsuario: ${meta['username']}\nContraseña: ${_password.text}'),
-          actionsAlignment: MainAxisAlignment.center,
-          actions: [
-            TextButton.icon(
-              onPressed: () => Clipboard.setData(ClipboardData(text: 'Usuario: ${meta['username']}\nContraseña: ${_password.text}')),
-              icon: const Icon(Icons.copy),
-              label: const Text('Copiar'),
-            ),
-            FilledButton.icon(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.check), label: const Text('Aceptar')),
+          buttons: [
+            primaryButton(context, 'Copiar', Icons.copy, () => Clipboard.setData(ClipboardData(text: 'Usuario: ${meta['username']}\nContraseña: ${_password.text}'))),
+            cancelButton(context, label: 'Cerrar'),
           ],
         ),
       );
     }
-    if (mounted) Navigator.pop(context, true);
+    if (!mounted) return;
+    // El formulario sigue mostrando lo guardado: la ficha del trabajador.
+    final userId = document!.resource.relId('user')?.id;
+    if (userId != null) {
+      await Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => WorkerForm(userId: userId)), result: true);
+    } else {
+      Navigator.pop(context, true);
+    }
   }
 
   @override
@@ -1240,9 +1398,9 @@ class _RegisterWorkerFormState extends State<RegisterWorkerForm> {
     return LeaveGuard(
       dirty: () => _dirty,
       child: AppScaffold(
-        title: 'Registrar trabajador',
+        title: 'Crear Trabajador',
         tab: MainTab.management,
-        actions: () => [ActionItem(Icons.person_add_alt_1, 'Registrar', _register)],
+        actions: () => [ActionItem(Icons.person_add_alt_1, 'Crear Trabajador', _register)],
         body: Form(
           key: _form,
           child: ListView(padding: const EdgeInsets.only(top: 8, bottom: 120), children: [

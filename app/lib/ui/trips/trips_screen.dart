@@ -103,13 +103,12 @@ class _TripsScreenState extends State<TripsScreen> {
 
   Future<void> _changeStatus(Trip trip, String status, String verb) async {
     final cancelling = status == TripStatus.cancelled;
-    if (!await confirm(context, '$verb viaje', '¿$verb el ${trip.title.toLowerCase()} de ${trip.itineraryName ?? ''}?',
-        accept: '$verb viaje', icon: Icons.check, destructive: cancelling, headerIcon: cancelling ? Icons.cancel_outlined : Icons.directions_bus_outlined,
-        cancel: 'Volver', cancelIcon: Icons.arrow_back)) {
+    if (!await confirm(context, 'Actualizar Viaje: $verb', '¿$verb el ${trip.title.toLowerCase()} de ${trip.itineraryName ?? ''}?',
+        accept: verb, icon: Icons.check, destructive: cancelling, headerIcon: cancelling ? Icons.cancel_outlined : Icons.directions_bus_outlined)) {
       return;
     }
     if (!mounted) return;
-    if (await runAction(context, () => context.read<Session>().api.patch('/trips/${trip.id}', resourceData('trips', id: trip.id, attributes: {'status': status})), success: const {TripStatus.running: 'Viaje empezado', TripStatus.finished: 'Viaje terminado', TripStatus.cancelled: 'Viaje cancelado'}[status] ?? 'Viaje actualizado')) {
+    if (await runAction(context, () => context.read<Session>().api.patch('/trips/${trip.id}', resourceData('trips', id: trip.id, attributes: {'status': status})), label: 'Actualizando Viaje')) {
       _marks.clear();
       _view.currentState?.reload();
     }
@@ -121,7 +120,7 @@ class _TripsScreenState extends State<TripsScreen> {
     final canPlan = me.isAdmin || me.chiefItineraryId != null;
     if (!_marks.active) {
       return [
-        if (canPlan) ActionItem(Icons.event_note, 'Planificar viaje', () async {
+        if (canPlan) ActionItem(Icons.event_note, 'Crear Viaje', () async {
           await push(context, PlanTripScreen(itineraryId: me.isAdmin ? _itinerary : me.chiefItineraryId));
           _view.currentState?.reload();
         }),
@@ -143,15 +142,15 @@ class _TripsScreenState extends State<TripsScreen> {
     final manage = one != null && (me.isAdmin || me.isChiefOf(one.itineraryId));
     return [
       ...markActions(_marks, trips.map((t) => t.id)),
-      if (one != null) ActionItem(Icons.edit_outlined, 'Editar', () => _openForm(one)),
-      if (one != null) ActionItem(Icons.timeline, 'Ver recorrido', () => push(context, TripLineScreen(tripId: one.id))),
-      if (one != null) ActionItem(Icons.groups_outlined, 'Trabajadores', () => push(context, TripWorkersScreen(trip: one))),
-      if (manage && one.isPlanned) ActionItem(Icons.play_arrow, 'Empezar viaje', () => _changeStatus(one, TripStatus.running, 'Empezar')),
-      if (manage && one.isRunning) ActionItem(Icons.flag_outlined, 'Terminar viaje', () => _changeStatus(one, TripStatus.finished, 'Terminar')),
+      if (one != null) ActionItem(Icons.edit_outlined, 'Consultar Viaje', () => _openForm(one)),
+      if (one != null) ActionItem(Icons.timeline, 'Consultar Recorrido', () => push(context, TripLineScreen(tripId: one.id))),
+      if (one != null) ActionItem(Icons.groups_outlined, 'Consultar Trabajadores', () => push(context, TripWorkersScreen(trip: one))),
+      if (manage && one.isPlanned) ActionItem(Icons.play_arrow, 'Actualizar Viaje: Iniciar', () => _changeStatus(one, TripStatus.running, 'Iniciar')),
+      if (manage && one.isRunning) ActionItem(Icons.flag_outlined, 'Actualizar Viaje: Terminar', () => _changeStatus(one, TripStatus.finished, 'Terminar')),
       if (manage && one.isPlanned && (me.isAdmin || one.createdById == me.userId))
-        ActionItem(Icons.cancel_outlined, 'Cancelar viaje', () => _changeStatus(one, TripStatus.cancelled, 'Cancelar'), destructive: true),
+        ActionItem(Icons.cancel_outlined, 'Actualizar Viaje: Cancelar', () => _changeStatus(one, TripStatus.cancelled, 'Cancelar'), destructive: true),
       if (marked.isNotEmpty && marked.every((t) => !t.isRunning && (me.isAdmin || me.isChiefOf(t.itineraryId))))
-        ActionItem(Icons.delete_outline, 'Eliminar', () async {
+        ActionItem(Icons.delete_outline, 'Eliminar Viaje', () async {
           if (!await confirmDelete(context, marked.length == 1 ? 'el ${marked.first.title.toLowerCase()}' : '${marked.length} viajes', consequences: 'Se pierden sus estados y su recorrido.')) return;
           if (!mounted) return;
           final api = context.read<Session>().api;
@@ -159,7 +158,7 @@ class _TripsScreenState extends State<TripsScreen> {
             for (final t in marked) {
               await api.delete('/trips/${t.id}');
             }
-          }, success: marked.length == 1 ? 'Viaje eliminado' : 'Viajes eliminados')) {
+          }, label: 'Eliminando Viaje')) {
             _marks.clear();
             _view.currentState?.reload();
           }
@@ -212,6 +211,7 @@ class _TripsScreenState extends State<TripsScreen> {
       marks: _marks,
       actions: _actions,
       body: DataView<TripList>(
+        what: 'Viajes',
         key: _view,
         kinds: const {'trips'},
         cacheKey: 'viajes',

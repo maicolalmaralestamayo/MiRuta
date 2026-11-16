@@ -10,13 +10,24 @@ import '../navigation.dart';
 import '../widgets/actions.dart';
 import '../widgets/app_scaffold.dart';
 import '../widgets/cards.dart';
-import '../widgets/busy.dart';
 import '../widgets/common.dart';
 import '../widgets/data_view.dart';
 import 'trip_line_screen.dart';
 import 'trip_workers_screen.dart';
 
 String _hhmm(TimeOfDay t) => '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+
+/// Selector de hora de 12 h con a. m. / p. m., en un diálogo que se abre al
+/// tocar la Hora de salida (docs/11 §11.65, puntos 15 y 21).
+Future<TimeOfDay?> pickTime12(BuildContext context, TimeOfDay initial) => showTimePicker(
+      context: context,
+      initialTime: initial,
+      initialEntryMode: TimePickerEntryMode.dial,
+      helpText: 'Hora de salida',
+      cancelText: 'Cancelar',
+      confirmText: 'Confirmar',
+      builder: (context, child) => MediaQuery(data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: false), child: child!),
+    );
 
 TimeOfDay? _parseTime(String text) {
   final parts = text.split(':');
@@ -76,27 +87,28 @@ class _TripFormScreenState extends State<TripFormScreen> {
     return me.isAdmin || me.isChiefOf(t.itineraryId);
   }
 
-  Future<void> _save(Trip t) async {
-    await context.read<Session>().api.patch('/trips/${t.id}', resourceData('trips', id: t.id, attributes: {
-      'date': apiDay(_date!),
-      'departureTime': _hhmm(_time!),
-      'observation': _observation.text.trim().isEmpty ? null : _observation.text.trim(),
-    }, relationships: {'vehicleType': ResourceId('vehicle-types', _vehicleType!)}));
+  Future<bool> _save(Trip t) async {
+    final ok = await runAction(context, label: 'Actualizando Viaje', () async {
+      await context.read<Session>().api.patch('/trips/${t.id}', resourceData('trips', id: t.id, attributes: {
+        'date': apiDay(_date!),
+        'departureTime': _hhmm(_time!),
+        'observation': _observation.text.trim().isEmpty ? null : _observation.text.trim(),
+      }, relationships: {'vehicleType': ResourceId('vehicle-types', _vehicleType!)}));
+    });
+    if (!ok) return false;
     _initial = _snapshot();
-    if (mounted) showResult(ScaffoldMessenger.of(context), 'Viaje actualizado');
     _view.currentState?.reload();
+    return true;
   }
 
   Future<void> _status(Trip t, String status, String verb) async {
     final cancelling = status == TripStatus.cancelled;
-    if (!await confirm(context, '$verb viaje', '¿$verb el ${t.title.toLowerCase()}?',
-        accept: '$verb viaje', icon: Icons.check, destructive: cancelling, headerIcon: cancelling ? Icons.cancel_outlined : Icons.directions_bus_outlined,
-        cancel: 'Volver', cancelIcon: Icons.arrow_back)) {
+    if (!await confirm(context, 'Actualizar Viaje: $verb', '¿$verb el ${t.title.toLowerCase()}?',
+        accept: verb, icon: Icons.check, destructive: cancelling, headerIcon: cancelling ? Icons.cancel_outlined : Icons.directions_bus_outlined)) {
       return;
     }
     if (!mounted) return;
     await context.read<Session>().api.patch('/trips/${t.id}', resourceData('trips', id: t.id, attributes: {'status': status}));
-    if (mounted) showResult(ScaffoldMessenger.of(context), const {TripStatus.running: 'Viaje empezado', TripStatus.finished: 'Viaje terminado', TripStatus.cancelled: 'Viaje cancelado'}[status] ?? 'Viaje actualizado');
     _view.currentState?.reload();
   }
 
@@ -108,7 +120,6 @@ class _TripFormScreenState extends State<TripFormScreen> {
     final cause = await pickOne<NomenclatorItem>(context, 'Causa de la detención', [none, ...causes], (c) => c.name);
     if (cause == null) return;
     await api.patch('/trips/${t.id}', resourceData('trips', id: t.id, relationships: {'detentionCause': cause.id.isEmpty ? null : ResourceId('detention-causes', cause.id)}));
-    if (mounted) showResult(ScaffoldMessenger.of(context), 'Causa indicada');
   }
 
   List<ActionItem> _actions() {
@@ -119,20 +130,20 @@ class _TripFormScreenState extends State<TripFormScreen> {
     final manage = _canManage(t);
     return [
       if (manage && t.isPlanned) ActionItem(Icons.save_outlined, 'Guardar', () => _save(t)),
-      ActionItem(Icons.timeline, 'Ver recorrido', () => push(context, TripLineScreen(tripId: t.id))),
-      ActionItem(Icons.groups_outlined, 'Trabajadores', () => push(context, TripWorkersScreen(trip: t))),
-      if (manage && t.isPlanned) ActionItem(Icons.play_arrow, 'Empezar viaje', () => _status(t, TripStatus.running, 'Empezar')),
-      if (manage && t.isRunning) ActionItem(Icons.flag_outlined, 'Terminar viaje', () => _status(t, TripStatus.finished, 'Terminar')),
-      if (manage && t.isRunning && t.vehicleState == 'detenido') ActionItem(Icons.report_outlined, 'Causa de detención', () => _detentionCause(t)),
+      if (manage) ActionItem(Icons.event_available, 'Crear Viaje', () => Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => PlanTripScreen(itineraryId: t.itineraryId)), result: true)),
+      ActionItem(Icons.timeline, 'Consultar Recorrido', () => push(context, TripLineScreen(tripId: t.id))),
+      ActionItem(Icons.groups_outlined, 'Consultar Trabajadores', () => push(context, TripWorkersScreen(trip: t))),
+      if (manage && t.isPlanned) ActionItem(Icons.play_arrow, 'Actualizar Viaje: Iniciar', () => _status(t, TripStatus.running, 'Empezar')),
+      if (manage && t.isRunning) ActionItem(Icons.flag_outlined, 'Actualizar Viaje: Terminar', () => _status(t, TripStatus.finished, 'Terminar')),
+      if (manage && t.isRunning && t.vehicleState == 'detenido') ActionItem(Icons.report_outlined, 'Actualizar Viaje: Causa de detención', () => _detentionCause(t)),
       if (manage && t.isPlanned && (me.isAdmin || t.createdById == me.userId))
-        ActionItem(Icons.cancel_outlined, 'Cancelar viaje', () => _status(t, TripStatus.cancelled, 'Cancelar'), destructive: true),
+        ActionItem(Icons.cancel_outlined, 'Actualizar Viaje: Cancelar', () => _status(t, TripStatus.cancelled, 'Cancelar'), destructive: true),
       if (manage && !t.isRunning)
-        ActionItem(Icons.delete_outline, 'Eliminar', () async {
+        ActionItem(Icons.delete_outline, 'Eliminar Viaje', () async {
           if (!await confirmDelete(context, 'el ${t.title.toLowerCase()}')) return;
           if (!mounted) return;
           await context.read<Session>().api.delete('/trips/${t.id}');
           _editable = false;
-          if (mounted) showResult(ScaffoldMessenger.of(context), 'Viaje eliminado');
           if (mounted) Navigator.pop(context, true);
         }, destructive: true),
     ];
@@ -142,11 +153,16 @@ class _TripFormScreenState extends State<TripFormScreen> {
   Widget build(BuildContext context) {
     return LeaveGuard(
       dirty: () => _dirty,
+      onSave: () async {
+        final t = _view.currentState?.data?.$1;
+        return t != null && await _save(t);
+      },
       child: AppScaffold(
       title: 'Viaje',
       tab: MainTab.trips,
       actions: _actions,
       body: DataView<(Trip, List<NomenclatorItem>)>(
+        what: 'Viaje',
         key: _view,
         kinds: const {'trips'},
         load: _load,
@@ -174,12 +190,12 @@ class _TripFormScreenState extends State<TripFormScreen> {
             FormText(
               key: ValueKey('t$_time'),
               label: 'Hora de salida',
-              value: _time == null ? '' : _hhmm(_time!),
+              value: _time == null ? '' : time12(_time!.hour, _time!.minute),
               icon: Icons.schedule,
               enabled: edit,
               onTap: edit
                   ? () async {
-                      final v = await showTimePicker(context: context, initialTime: _time ?? const TimeOfDay(hour: 7, minute: 0), builder: (context, child) => MediaQuery(data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true), child: child!));
+                      final v = await pickTime12(context, _time ?? const TimeOfDay(hour: 7, minute: 0));
                       if (v != null) setState(() => _time = v);
                     }
                   : null,
@@ -215,8 +231,24 @@ extension on Trip {
   String get updatedKey => '$id|$date|$departureTime|$vehicleTypeId|$observation';
 }
 
-/// Planificar un viaje a mano (docs/11 §11.33): casillas Ida y Regreso, cada
-/// una con su hora y su tipo de vehículo; se crean dos viajes independientes.
+/// Un sentido de «Crear Viaje»: su interruptor, Fecha, Hora de salida y Tipo de vehículo.
+class _Leg {
+  final String direction;
+  final String label;
+  bool enabled = true;
+  DateTime date;
+  TimeOfDay time;
+  String? vehicleType;
+
+  _Leg(this.direction, this.label, this.date, this.time);
+
+  List<Object?> get snapshot => [enabled, date, time, vehicleType];
+}
+
+/// «Crear Viaje» (docs/11 §11.33 y §11.65): Ida y Regreso, cada uno con su
+/// interruptor, su Fecha, su Hora de salida (12 h, en un diálogo al tocarla) y
+/// su Tipo de vehículo. Por omisión, Ida hoy a las 05:00 p. m. y Regreso
+/// mañana a las 06:00 a. m. Se crean viajes independientes.
 class PlanTripScreen extends StatefulWidget {
   final String? itineraryId;
 
@@ -226,28 +258,35 @@ class PlanTripScreen extends StatefulWidget {
   State<PlanTripScreen> createState() => _PlanTripScreenState();
 }
 
+/// Fechas y horas por omisión de «Crear Viaje» (código puro, con pruebas).
+({DateTime outboundDate, TimeOfDay outboundTime, DateTime returnDate, TimeOfDay returnTime}) planDefaults(DateTime now) {
+  final today = DateTime(now.year, now.month, now.day);
+  return (
+    outboundDate: today,
+    outboundTime: const TimeOfDay(hour: 17, minute: 0),
+    returnDate: today.add(const Duration(days: 1)),
+    returnTime: const TimeOfDay(hour: 6, minute: 0),
+  );
+}
+
 class _PlanTripScreenState extends State<PlanTripScreen> {
   Itinerary? _itinerary;
   List<Itinerary> _itineraries = const [];
   List<NomenclatorItem> _types = const [];
-  DateTime _date = DateTime.now().add(const Duration(days: 1));
-  bool _outbound = true;
-  bool _return = true;
-  TimeOfDay _outboundTime = const TimeOfDay(hour: 7, minute: 0);
-  TimeOfDay _returnTime = const TimeOfDay(hour: 17, minute: 30);
-  String? _outboundType;
-  String? _returnType;
+  late final List<_Leg> _legs;
   final _observation = TextEditingController();
   List<Object?>? _initial;
   bool _planned = false;
 
-  List<Object?> _snapshot() => [_itinerary?.id, _date, _outbound, _return, _outboundTime, _returnTime, _outboundType, _returnType, _observation.text];
+  List<Object?> _snapshot() => [_itinerary?.id, for (final l in _legs) ...l.snapshot, _observation.text];
 
   bool get _dirty => !_planned && _initial != null && !listEquals(_initial, _snapshot());
 
   @override
   void initState() {
     super.initState();
+    final d = planDefaults(DateTime.now());
+    _legs = [_Leg('ida', 'Ida', d.outboundDate, d.outboundTime), _Leg('regreso', 'Regreso', d.returnDate, d.returnTime)];
     _init();
   }
 
@@ -263,8 +302,9 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
         _itineraries = list;
         _types = types;
         _itinerary = list.where((i) => i.id == widget.itineraryId).firstOrNull ?? (list.length == 1 ? list.first : null);
-        _outboundType = types.firstOrNull?.id;
-        _returnType = types.firstOrNull?.id;
+        for (final l in _legs) {
+          l.vehicleType = types.firstOrNull?.id;
+        }
         _initial = _snapshot();
       });
     } catch (error) {
@@ -272,54 +312,75 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
     }
   }
 
-  Future<void> _plan() async {
+  Future<bool> _plan() async {
     final itinerary = _itinerary;
     if (itinerary == null) throw StateError('Elija el itinerario.');
-    if (!_outbound && !_return) throw StateError('Marque Ida, Regreso o los dos.');
+    if (!_legs.any((l) => l.enabled)) throw StateError('Active Ida, Regreso o los dos.');
     final api = context.read<Session>().api;
     final created = <String>[];
-    for (final (direction, enabled, time, type) in [('ida', _outbound, _outboundTime, _outboundType), ('regreso', _return, _returnTime, _returnType)]) {
-      if (!enabled) continue;
-      if (type == null) throw StateError('Elija el tipo de vehículo.');
-      await api.post('/trips', resourceData('trips', attributes: {
-        'direction': direction,
-        'date': apiDay(_date),
-        'departureTime': _hhmm(time),
-        if (_observation.text.trim().isNotEmpty) 'observation': _observation.text.trim(),
-      }, relationships: {
-        'itinerary': ResourceId('itineraries', itinerary.id),
-        'vehicleType': ResourceId('vehicle-types', type),
-      }));
-      created.add(direction);
-    }
-    if (!mounted) return;
+    final ok = await runAction(context, label: 'Creando Viaje', () async {
+      for (final l in _legs.where((l) => l.enabled)) {
+        if (l.vehicleType == null) throw StateError('Elija el tipo de vehículo de ${l.label.toLowerCase()}.');
+        final document = await api.post('/trips', resourceData('trips', attributes: {
+          'direction': l.direction,
+          'date': apiDay(l.date),
+          'departureTime': _hhmm(l.time),
+          if (_observation.text.trim().isNotEmpty) 'observation': _observation.text.trim(),
+        }, relationships: {
+          'itinerary': ResourceId('itineraries', itinerary.id),
+          'vehicleType': ResourceId('vehicle-types', l.vehicleType!),
+        }));
+        created.add(document.resource.id);
+        // Si uno ya se creó, no se repite al reintentar.
+        if (mounted) setState(() => l.enabled = false);
+      }
+    });
+    if (!ok || !mounted || created.isEmpty) return false;
     _planned = true;
-    showResult(ScaffoldMessenger.of(context), created.length == 2 ? 'Viajes planificados' : 'Viaje planificado');
-    Navigator.pop(context, true);
+    // El formulario sigue mostrando lo guardado: el (primer) viaje creado.
+    await Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => TripFormScreen(tripId: created.first)), result: true);
+    return true;
   }
 
-  Widget _leg(String label, bool value, ValueChanged<bool> onChanged, TimeOfDay time, ValueChanged<TimeOfDay> onTime, String? type, ValueChanged<String?> onType) {
+  Widget _leg(_Leg l) {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       child: Column(children: [
-        CheckboxListTile(value: value, onChanged: (v) => onChanged(v ?? false), title: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)), controlAffinity: ListTileControlAffinity.leading),
-        if (value) ...[
-          ListTile(
-            leading: const Icon(Icons.schedule),
-            title: const Text('Hora de salida'),
-            subtitle: Text(_hhmm(time)),
+        SwitchListTile(
+          value: l.enabled,
+          onChanged: (v) => setState(() => l.enabled = v),
+          title: Text(l.label, style: const TextStyle(fontWeight: FontWeight.w600)),
+          secondary: Icon(l.direction == 'ida' ? Icons.east : Icons.west),
+        ),
+        if (l.enabled) ...[
+          FormText(
+            key: ValueKey('${l.direction}${l.date}'),
+            label: 'Fecha',
+            value: formatDate(l.date),
+            icon: Icons.event,
             onTap: () async {
-              final v = await showTimePicker(context: context, initialTime: time, builder: (context, child) => MediaQuery(data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true), child: child!));
-              if (v != null) onTime(v);
+              final today = DateTime.now();
+              final d = await showDatePicker(context: context, initialDate: l.date, firstDate: DateTime(today.year, today.month, today.day), lastDate: DateTime(2100));
+              if (d != null) setState(() => l.date = d);
+            },
+          ),
+          FormText(
+            key: ValueKey('${l.direction}${l.time}'),
+            label: 'Hora de salida',
+            value: time12(l.time.hour, l.time.minute),
+            icon: Icons.schedule,
+            onTap: () async {
+              final v = await pickTime12(context, l.time);
+              if (v != null) setState(() => l.time = v);
             },
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
             child: DropdownButtonFormField<String>(
-              initialValue: type,
+              initialValue: l.vehicleType,
               decoration: const InputDecoration(labelText: 'Tipo de vehículo'),
               items: [for (final v in _types) DropdownMenuItem(value: v.id, child: Text(v.vehicleLabel))],
-              onChanged: onType,
+              onChanged: (v) => setState(() => l.vehicleType = v),
             ),
           ),
         ],
@@ -331,10 +392,11 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
   Widget build(BuildContext context) {
     return LeaveGuard(
       dirty: () => _dirty,
+      onSave: _plan,
       child: AppScaffold.list(
-      title: 'Planificar viaje',
+      title: 'Crear Viaje',
       tab: MainTab.trips,
-      actions: () => [ActionItem(Icons.event_available, 'Planificar', _plan)],
+      actions: () => [ActionItem(Icons.save_outlined, 'Guardar', _plan)],
       children: [
         SelectorCard(
           icon: Icons.route,
@@ -346,18 +408,7 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
             if (i != null) setState(() => _itinerary = i);
           },
         ),
-        FormText(
-          key: ValueKey(_date),
-          label: 'Fecha',
-          value: formatDate(_date),
-          icon: Icons.event,
-          onTap: () async {
-            final d = await showDatePicker(context: context, initialDate: _date, firstDate: DateTime.now(), lastDate: DateTime(2100));
-            if (d != null) setState(() => _date = d);
-          },
-        ),
-        _leg('Ida', _outbound, (v) => setState(() => _outbound = v), _outboundTime, (v) => setState(() => _outboundTime = v), _outboundType, (v) => setState(() => _outboundType = v)),
-        _leg('Regreso', _return, (v) => setState(() => _return = v), _returnTime, (v) => setState(() => _returnTime = v), _returnType, (v) => setState(() => _returnType = v)),
+        for (final l in _legs) _leg(l),
         FormText(controller: _observation, label: 'Observación', maxLines: 2, last: true),
       ],
     ),

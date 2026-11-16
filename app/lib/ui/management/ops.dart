@@ -5,7 +5,6 @@ import '../../core/formats.dart';
 import '../../core/json_api.dart';
 import '../../models/models.dart';
 import '../profile/absence_screen.dart';
-import '../widgets/busy.dart';
 import '../widgets/common.dart';
 
 /// Operaciones de Gestión que se usan desde varias pantallas (Inicio, listas
@@ -16,13 +15,25 @@ import '../widgets/common.dart';
 class Ops {
   final BuildContext context;
 
-  Ops(this.context);
+  /// En un formulario, las relaciones quedan pendientes hasta Guardar
+  /// (docs/11 §11.65): los cambios se le pasan en vez de hacerse al momento.
+  final void Function(PendingOp op)? defer;
+
+  Ops(this.context, {this.defer});
 
   ApiClient get api => context.api;
 
-  /// Mensaje escueto del resultado («Itinerario añadido»…).
-  void done(String message) {
-    if (context.mounted) showResult(ScaffoldMessenger.of(context), message);
+  /// Antes, el mensaje escueto del resultado; desde la 4.4.0 no se muestra nada.
+  void done(String message) {}
+
+  /// Un cambio de una relación: pendiente (en un formulario) o al momento.
+  Future<void> write(String label, IconData icon, Future<void> Function() call) async {
+    final sink = defer;
+    if (sink != null) {
+      sink(PendingOp(label, icon, call));
+    } else {
+      await call();
+    }
   }
 
   Future<List<Entity>> entities() async => (await api.getAll('/entities')).map(Entity.from).toList();
@@ -108,19 +119,23 @@ class Ops {
   /// Rechazar solicitudes con el motivo del nomenclador y una observación.
   Future<bool> reject(List<Application> applications) async {
     final types = applications.map((a) => a.type).toSet();
-    final reasons = (await api.getAll('/denial-reasons', query: {'filter[active]': 'true', if (types.length == 1) 'filter[applicationType]': types.first}))
-        .map(NomenclatorItem.from)
-        .toList();
+    if (types.length > 1) {
+      showMessage(context, 'Rechace por separado las solicitudes de Entidad y las de itinerario: cada una tiene sus motivos.');
+      return false;
+    }
+    // Motivos separados por tipo de solicitud (docs/11 §11.65).
+    final type = types.first == 'entidad' ? 'entity-denial-reasons' : 'itinerary-denial-reasons';
+    final reasons = (await api.getAll('/$type', query: {'filter[active]': 'true'})).map(NomenclatorItem.from).toList();
     if (!context.mounted) return false;
     final reason = await pickOne<NomenclatorItem>(context, 'Motivo del rechazo', reasons, (r) => r.name, subtitle: (r) => r.description ?? '');
     if (reason == null || !context.mounted) return false;
-    final note = await promptText(context, 'Observación (opcional)', label: 'Observación', maxLines: 3, accept: 'Rechazar', icon: Icons.block);
+    final note = await promptText(context, 'Observación (opcional)', label: 'Observación', maxLines: 3, accept: 'Confirmar', icon: Icons.block);
     if (note == null) return false;
     for (final a in applications) {
       await api.patch('/applications/${a.id}', resourceData('applications', id: a.id, attributes: {
         'status': 'rechazada',
         if (note.isNotEmpty) 'resolutionNote': note,
-      }, relationships: {'denialReason': ResourceId('denial-reasons', reason.id)}));
+      }, relationships: {'denialReason': ResourceId(type, reason.id)}));
     }
     done(applications.length == 1 ? 'Solicitud rechazada' : 'Solicitudes rechazadas');
     return true;
@@ -137,10 +152,10 @@ class Ops {
   /// Cancelar una solicitud propia pendiente (o eliminar una resuelta).
   Future<bool> withdraw(Application a) async {
     final ok = a.pending
-        ? await confirm(context, 'Cancelar solicitud', '¿Cancelar su solicitud de entrar en ${a.isEntity ? a.entityAbbreviation ?? 'la Entidad' : a.itineraryName ?? 'el itinerario'}?',
-            accept: 'Cancelar solicitud', icon: Icons.check, destructive: true, headerIcon: Icons.cancel_outlined, cancel: 'Volver', cancelIcon: Icons.arrow_back)
-        : await confirm(context, 'Eliminar solicitud', '¿Quitar de la lista esta solicitud ya resuelta?',
-            accept: 'Eliminar', icon: Icons.delete_outline, destructive: true, headerIcon: Icons.delete_outline, cancel: 'Volver', cancelIcon: Icons.arrow_back);
+        ? await confirm(context, 'Eliminar Solicitud', '¿Retirar su solicitud de entrar en ${a.isEntity ? a.entityAbbreviation ?? 'la Entidad' : a.itineraryName ?? 'el itinerario'}?',
+            accept: 'Eliminar', icon: Icons.delete_outline, destructive: true, headerIcon: Icons.cancel_outlined)
+        : await confirm(context, 'Eliminar Solicitud', '¿Quitar de la lista esta solicitud ya resuelta?',
+            accept: 'Eliminar', icon: Icons.delete_outline, destructive: true, headerIcon: Icons.delete_outline);
     if (!ok) return false;
     await api.delete('/applications/${a.id}');
     done(a.pending ? 'Solicitud cancelada' : 'Solicitud eliminada');
@@ -152,9 +167,9 @@ class Ops {
   Future<bool> showApplication(Application a, {required bool mine, required bool canResolve}) async {
     final choice = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => AppDialog(
         icon: Icon(a.isEntity ? Icons.apartment : Icons.route, size: 32),
-        title: Text('Solicitud de ${a.isEntity ? 'Entidad' : 'itinerario'}', textAlign: TextAlign.center),
+        title: 'Solicitud de ${a.isEntity ? 'Entidad' : 'itinerario'}',
         content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           if (!mine) Text('Persona: ${a.userName ?? ''}'),
           Text('Solicita: ${a.what}'),
@@ -164,29 +179,14 @@ class Ops {
           if (a.denialReason != null) Text('Motivo: ${a.denialReason}'),
           if (a.resolutionNote != null && a.resolutionNote!.isNotEmpty) Text('Observación: ${a.resolutionNote}'),
         ]),
-        actionsAlignment: MainAxisAlignment.end,
-        actionsOverflowAlignment: OverflowBarAlignment.end,
-        actions: [
-          cancelButton(context, label: 'Volver', icon: Icons.arrow_back),
+        // La acción arriba y Cancelar abajo (docs/11 §11.65).
+        buttons: [
           if (canResolve && a.pending) ...[
-            FilledButton.icon(
-                style: FilledButton.styleFrom(backgroundColor: red, foregroundColor: Colors.white),
-                onPressed: () => Navigator.pop(context, 'reject'),
-                icon: const Icon(Icons.block),
-                label: const Text('Rechazar')),
-            FilledButton.icon(
-                style: FilledButton.styleFrom(backgroundColor: green, foregroundColor: Colors.white),
-                onPressed: () => Navigator.pop(context, 'approve'),
-                icon: const Icon(Icons.check),
-                label: const Text('Aprobar')),
+            primaryButton(context, 'Actualizar Solicitud: Aprobar', Icons.check, () => Navigator.pop(context, 'approve')),
+            dangerButton(context, 'Actualizar Solicitud: Rechazar', Icons.block, () => Navigator.pop(context, 'reject')),
           ],
-          if (mine)
-            FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: red, foregroundColor: Colors.white),
-              onPressed: () => Navigator.pop(context, 'withdraw'),
-              icon: Icon(a.pending ? Icons.cancel_outlined : Icons.delete_outline),
-              label: Text(a.pending ? 'Cancelar solicitud' : 'Eliminar'),
-            ),
+          if (mine) dangerButton(context, 'Eliminar Solicitud', a.pending ? Icons.cancel_outlined : Icons.delete_outline, () => Navigator.pop(context, 'withdraw')),
+          cancelButton(context),
         ],
       ),
     );
@@ -207,10 +207,11 @@ class Ops {
     if (!context.mounted) return false;
     final entity = await pickOne<Entity>(context, 'Asociar Entidad', list, (e) => e.abbreviation, subtitle: (e) => e.name, search: list.length > 8);
     if (entity == null || !context.mounted) return false;
-    for (final id in userIds) {
-      await api.post('/workers', resourceData('workers', relationships: {'entity': ResourceId('entities', entity.id), 'user': ResourceId('users', id)}));
-    }
-    done('Entidad asociada');
+    await write('Asociar Entidad ${entity.abbreviation}', Icons.add_business_outlined, () async {
+      for (final id in userIds) {
+        await api.post('/workers', resourceData('workers', relationships: {'entity': ResourceId('entities', entity.id), 'user': ResourceId('users', id)}));
+      }
+    });
     return true;
   }
 
@@ -228,21 +229,21 @@ class Ops {
     if (itinerary == null || !context.mounted) return false;
     final stop = await pickStopOf(itinerary.id);
     if (stop.cancelled) return false;
-    await api.post('/worker-itineraries', resourceData('worker-itineraries', relationships: {
-      'user': ResourceId('users', userId),
-      'itinerary': ResourceId('itineraries', itinerary.id),
-      if (stop.stop != null) 'stop': ResourceId('stops', stop.stop!.id),
-    }));
-    done('Itinerario añadido');
+    await write('Añadir itinerario ${itinerary.name}${stop.stop == null ? '' : ' (parada habitual ${stop.stop!.landmark})'}', Icons.add_road,
+        () async => api.post('/worker-itineraries', resourceData('worker-itineraries', relationships: {
+              'user': ResourceId('users', userId),
+              'itinerary': ResourceId('itineraries', itinerary.id),
+              if (stop.stop != null) 'stop': ResourceId('stops', stop.stop!.id),
+            })));
     return true;
   }
 
-  /// «Cambiar de parada» en uno de sus itinerarios.
+  /// Cambiar la «Parada habitual» (opcional; docs/11 §11.65) en uno de sus itinerarios.
   Future<bool> changeStop(Placement p) async {
-    final stop = await pickStopOf(p.itineraryId, title: 'Parada en ${p.itineraryName}', current: p.stopId);
+    final stop = await pickStopOf(p.itineraryId, title: 'Parada habitual en ${p.itineraryName}', current: p.stopId);
     if (stop.cancelled) return false;
-    await api.patch('/worker-itineraries/${p.id}', resourceData('worker-itineraries', id: p.id, relationships: {'stop': stop.stop == null ? null : ResourceId('stops', stop.stop!.id)}));
-    done('Parada cambiada');
+    await write('Parada habitual en ${p.itineraryName}: ${stop.stop?.landmark ?? 'sin parada'}', Icons.where_to_vote_outlined,
+        () async => api.patch('/worker-itineraries/${p.id}', resourceData('worker-itineraries', id: p.id, relationships: {'stop': stop.stop == null ? null : ResourceId('stops', stop.stop!.id)})));
     return true;
   }
 
@@ -254,15 +255,14 @@ class Ops {
         accept: who == null ? 'Salir' : 'Quitar', icon: Icons.logout, destructive: true, headerIcon: Icons.route)) {
       return false;
     }
-    await api.delete('/worker-itineraries/${p.id}');
-    done('Itinerario quitado');
+    await write('Quitar del itinerario ${p.itineraryName}', Icons.logout, () => api.delete('/worker-itineraries/${p.id}'));
     return true;
   }
 
   /// «Asignar rol de Jefe» / «Quitar rol de Jefe» (Administrador).
   Future<bool> setChief(Placement p, bool chief) async {
-    await api.patch('/worker-itineraries/${p.id}', resourceData('worker-itineraries', id: p.id, attributes: {'isChief': chief}));
-    done(chief ? 'Jefe asignado' : 'Rol de Jefe quitado');
+    await write('${chief ? 'Asignar' : 'Quitar'} rol de Jefe en ${p.itineraryName} (${p.userName ?? ''})', Icons.badge_outlined,
+        () async => api.patch('/worker-itineraries/${p.id}', resourceData('worker-itineraries', id: p.id, attributes: {'isChief': chief})));
     return true;
   }
 
@@ -273,8 +273,7 @@ class Ops {
         accept: who == null ? 'Salir' : 'Sacar', icon: Icons.logout, destructive: true, headerIcon: Icons.apartment)) {
       return false;
     }
-    await api.delete('/workers/${m.workerId}');
-    done(who == null ? 'Salió de la Entidad' : 'Persona sacada de la Entidad');
+    await write('Salir de la Entidad ${m.entityAbbreviation}', Icons.logout, () => api.delete('/workers/${m.workerId}'));
     return true;
   }
 
@@ -322,3 +321,12 @@ class Ops {
 /// «desde lun. 16-11-26, indefinida» / «del lun. 16-11-26 al vie. 20-11-26».
 String absencePeriod(Absence a) =>
     a.endsOn == null ? 'desde ${formatDate(a.startsOn)}, indefinida' : 'del ${formatDate(a.startsOn)} al ${formatDate(a.endsOn)}';
+
+/// Cambio de una relación pendiente de guardar en un formulario (docs/11 §11.65).
+class PendingOp {
+  final String label;
+  final IconData icon;
+  final Future<void> Function() run;
+
+  const PendingOp(this.label, this.icon, this.run);
+}

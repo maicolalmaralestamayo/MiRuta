@@ -116,6 +116,7 @@ class _AccessRecoveriesScreenState extends State<AccessRecoveriesScreen> {
       title: 'Olvidé algo',
       tab: MainTab.more,
       body: DataView<List<Resource>>(
+        what: 'Solicitudes',
         key: _view,
         kinds: const {'access-recoveries'},
         load: _load,

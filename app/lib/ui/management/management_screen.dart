@@ -55,8 +55,8 @@ class _ManagementScreenState extends State<ManagementScreen> {
   List<ActionItem> _actions() {
     final me = context.read<Session>().me!;
     return [
-      if (me.manages) ActionItem(Icons.qr_code_scanner, 'Incluir por QR', () => _open(const IncludeByQrScreen())),
-      if (me.isAdmin) ActionItem(Icons.person_add_alt_1, 'Registrar trabajador', () => _open(const RegisterWorkerForm())),
+      if (me.manages) ActionItem(Icons.qr_code_scanner, 'Crear Trabajador: Incluir por QR', () => _open(const IncludeByQrScreen())),
+      if (me.isAdmin) ActionItem(Icons.person_add_alt_1, 'Crear Trabajador', () => _open(const RegisterWorkerForm())),
       if (me.isAdmin) ActionItem(Icons.add_business_outlined, 'Crear Entidad', () => _open(const EntityForm())),
       if (me.isAdmin) ActionItem(Icons.add_road, 'Crear itinerario', () => _open(const ItineraryForm())),
       if (me.isAdmin || me.chiefItineraryId != null) ActionItem(Icons.add_location_alt_outlined, 'Crear parada', () => _open(StopForm(itineraryId: me.isAdmin ? null : me.chiefItineraryId))),
@@ -73,6 +73,7 @@ class _ManagementScreenState extends State<ManagementScreen> {
       tab: MainTab.management,
       actions: _actions,
       body: DataView<_Summary>(
+        what: 'Gestión',
         key: _view,
         kinds: const {'applications'},
         cacheKey: 'gestion.resumen',

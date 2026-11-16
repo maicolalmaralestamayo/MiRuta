@@ -692,7 +692,9 @@ class Nomenclator {
   static const vehicleTypes = Nomenclator('vehicle-types', 'Tipos de vehículo', 'tipo de vehículo');
   static const absenceTypes = Nomenclator('absence-types', 'Tipos de ausencia', 'tipo de ausencia');
   static const conversationTopics = Nomenclator('conversation-topics', 'Motivos de conversación', 'motivo de conversación');
-  static const denialReasons = Nomenclator('denial-reasons', 'Motivos de denegación', 'motivo de denegación');
+  /// Motivos de rechazo separados por tipo de solicitud (docs/11 §11.65).
+  static const entityDenialReasons = Nomenclator('entity-denial-reasons', 'Motivos de rechazo de Entidad', 'motivo de rechazo de Entidad');
+  static const itineraryDenialReasons = Nomenclator('itinerary-denial-reasons', 'Motivos de rechazo de itinerario', 'motivo de rechazo de itinerario');
   static const detentionCauses = Nomenclator('detention-causes', 'Causas de detención', 'causa de detención', feminine: true);
 
   /// «Tipo de vehículo creado», «Causas de detención eliminadas»…
@@ -702,7 +704,10 @@ class Nomenclator {
     return '$subject $verb$ending';
   }
 
-  static const all = [vehicleTypes, absenceTypes, conversationTopics, denialReasons, detentionCauses];
+  /// «Tipo de vehículo» (para «Crear Tipo de vehículo»).
+  String get singularCap => '${singular[0].toUpperCase()}${singular.substring(1)}';
+
+  static const all = [vehicleTypes, absenceTypes, conversationTopics, entityDenialReasons, itineraryDenialReasons, detentionCauses];
 }
 
 /// Estados del viaje.

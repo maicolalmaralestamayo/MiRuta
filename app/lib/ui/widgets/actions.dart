@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../theme.dart';
+import 'busy.dart';
 import 'common.dart';
 import 'marks.dart';
 
@@ -132,7 +133,8 @@ class _ActionsOverlayState extends State<ActionsOverlay> {
     setState(() => _open = false);
     final action = item.onPressed;
     if (action == null) return;
-    await runAction(context, () async => await action());
+    // El spinner dice «[Acción] [Objeto]»: «Crear Parada» → «Creando Parada» (docs/11 §11.65).
+    await runAction(context, () async => await action(), label: progressiveLabel(item.label));
   }
 
   @override

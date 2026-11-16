@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/storage.dart';
 import '../../models/models.dart';
 import '../../services/notifications.dart';
 import '../../services/session.dart';
@@ -57,6 +58,24 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Ausencias en curso (para «Terminar ausencia»).
   List<Absence> _absences = const [];
 
+  /// Solicitudes aprobadas a la vista (docs/11 §11.65, punto 22): por omisión
+  /// ocultas; el teléfono recuerda la elección. Pendientes y rechazadas, siempre.
+  static const _approvedKey = 'inicio.solicitudes_aprobadas';
+  bool _showApproved = false;
+
+  @override
+  void initState() {
+    super.initState();
+    Storage.getBool(_approvedKey).then((v) {
+      if (mounted && v != _showApproved) setState(() => _showApproved = v);
+    });
+  }
+
+  void _toggleApproved() {
+    setState(() => _showApproved = !_showApproved);
+    Storage.setBool(_approvedKey, _showApproved);
+  }
+
   Future<_HomeData> _load() async {
     final session = _session;
     final api = session.api;
@@ -92,6 +111,13 @@ class _HomeScreenState extends State<HomeScreen> {
     if (await action() && mounted) await _reload();
   }
 
+  /// Igual, con su spinner (fuera del menú Acciones).
+  Future<void> _changeWith(String label, Future<bool> Function() action) async {
+    var changed = false;
+    await runAction(context, () async => changed = await action(), label: label);
+    if (changed && mounted) await _reload();
+  }
+
   Future<void> _open(Future<Object?> Function() opener) async {
     await opener();
     if (mounted) await _reload();
@@ -105,8 +131,8 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     var p = placements.first;
     if (placements.length > 1) {
-      final picked = await pickOne<Placement>(context, 'Cambiar de parada en…', placements, (p) => p.itineraryName,
-          subtitle: (p) => '${p.entityAbbreviation} • ${p.stopLandmark ?? 'Sin parada'}');
+      final picked = await pickOne<Placement>(context, 'Parada habitual en…', placements, (p) => p.itineraryName,
+          subtitle: (p) => '${p.entityAbbreviation} • ${p.stopLandmark ?? 'Sin parada habitual'}');
       if (picked == null) return false;
       p = picked;
     }
@@ -118,14 +144,14 @@ class _HomeScreenState extends State<HomeScreen> {
     final me = _session.me!;
     final ops = Ops(context);
     return [
-      ActionItem(Icons.person_outline, 'Ver o editar el perfil', () => _open(() => push(context, const ProfileScreen()))),
+      ActionItem(Icons.person_outline, 'Consultar Perfil', () => _open(() => push(context, const ProfileScreen()))),
       const ActionItem.divider(),
-      ActionItem(Icons.add_business_outlined, 'Solicitar Entidad', () => _change(ops.requestEntity)),
-      if (me.hasEntity) ActionItem(Icons.alt_route, 'Solicitar itinerario', () => _change(() => ops.requestItinerary(me))),
-      if (me.hasItinerary) ActionItem(Icons.where_to_vote_outlined, 'Cambiar de parada', () => _change(() => _changeStop(me))),
-      ActionItem(Icons.person_add_alt_1, 'Añadir hijo', () => _open(() => push(context, const ChildForm()))),
-      if (me.hasItinerary) ActionItem(Icons.event_busy, 'Declarar ausencia', () => _change(() => ops.declareAbsence(me.userId, me.placements))),
-      if (_absences.isNotEmpty) ActionItem(Icons.event_available, 'Terminar ausencia', () => _change(() => ops.endAbsence(_absences))),
+      ActionItem(Icons.add_business_outlined, 'Crear Solicitud: Entidad', () => _change(ops.requestEntity)),
+      if (me.hasEntity) ActionItem(Icons.alt_route, 'Crear Solicitud: Itinerario', () => _change(() => ops.requestItinerary(me))),
+      if (me.hasItinerary) ActionItem(Icons.where_to_vote_outlined, 'Actualizar Trabajador: Parada habitual', () => _change(() => _changeStop(me))),
+      ActionItem(Icons.person_add_alt_1, 'Crear Hijo', () => _open(() => push(context, const ChildForm()))),
+      if (me.hasItinerary) ActionItem(Icons.event_busy, 'Crear Ausencia', () => _change(() => ops.declareAbsence(me.userId, me.placements))),
+      if (_absences.isNotEmpty) ActionItem(Icons.event_available, 'Actualizar Ausencia: Terminar', () => _change(() => ops.endAbsence(_absences))),
       const ActionItem.divider(),
       ActionItem(Icons.logout, 'Cerrar sesión', () async {
         if (await confirm(context, 'Cerrar sesión', '¿Cerrar la sesión en este teléfono?', accept: 'Cerrar sesión', icon: Icons.logout, destructive: true, headerIcon: Icons.logout) &&
@@ -136,15 +162,21 @@ class _HomeScreenState extends State<HomeScreen> {
     ];
   }
 
-  Widget _applications(String title, List<Application> list) {
-    if (list.isEmpty) return const SizedBox.shrink();
+  Widget _applications(String title, List<Application> all) {
+    if (all.isEmpty) return const SizedBox.shrink();
     final t = Theme.of(context);
+    final approved = all.where((a) => a.status == 'aprobada').length;
+    final list = _showApproved ? all : all.where((a) => a.status != 'aprobada').toList();
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Padding(
-        padding: const EdgeInsets.fromLTRB(24, 10, 16, 2),
-        child: Text('$title (${list.length})', style: t.textTheme.titleSmall!.copyWith(color: t.colorScheme.onSurfaceVariant)),
+        padding: const EdgeInsets.fromLTRB(24, 10, 8, 2),
+        child: Row(children: [
+          Expanded(child: Text('$title (${list.length})', style: t.textTheme.titleSmall!.copyWith(color: t.colorScheme.onSurfaceVariant))),
+          if (approved > 0)
+            TextButton(onPressed: _toggleApproved, child: Text(approvedToggleText(_showApproved))),
+        ]),
       ),
-      for (final a in list) applicationTile(a, mine: true, onTap: () => _change(() => Ops(context).showApplication(a, mine: true, canResolve: _session.me!.isAdmin || (!a.isEntity && _session.me!.isChiefOf(a.itineraryId))))),
+      for (final a in list) applicationTile(a, mine: true, onTap: () => _changeWith('Actualizando Solicitud', () => Ops(context).showApplication(a, mine: true, canResolve: _session.me!.isAdmin || (!a.isEntity && _session.me!.isChiefOf(a.itineraryId))))),
     ]);
   }
 
@@ -158,6 +190,7 @@ class _HomeScreenState extends State<HomeScreen> {
       // Tema en un solo botón (docs/11 §11.63), igual que en el inicio de sesión.
       barActions: const [ThemeModeSelector(color: Colors.white)],
       body: DataView<_HomeData>(
+        what: 'Inicio',
         key: _view,
         kinds: const {'applications', 'trips', 'children', 'absences'},
         cacheKey: 'inicio',
@@ -189,14 +222,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 storageKey: 'inicio.viajes',
                 title: 'Viajes activos',
                 items: data.trips.trips,
-                emptyText: me.seesTrips ? 'No hay viajes planificados ni en ejecución.' : 'Para ver viajes necesita un itinerario con parada.',
+                emptyText: me.seesTrips ? 'No hay viajes planificados ni en ejecución.' : 'Para ver viajes necesita un itinerario.',
                 builder: (t) => TripCard(trip: t, departure: data.trips.departureOf(t), onTap: () => _open(() => push(context, TripFormScreen(tripId: t.id)))),
               ),
               FoldSection<Membership>(
                 storageKey: 'inicio.entidades',
                 title: 'Entidades',
                 items: me.memberships,
-                emptyText: 'Aún no tiene Entidad. Use Acciones → Solicitar Entidad.',
+                emptyText: 'Aún no tiene Entidad. Use Acciones → Crear Solicitud: Entidad.',
                 builder: (m) => membershipTile(m, onTap: () => _open(() => openEntity(context, m.entityId))),
               ),
               _applications('Solicitudes de Entidad', entityApps),
@@ -204,7 +237,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 storageKey: 'inicio.itinerarios',
                 title: 'Itinerarios',
                 items: placements,
-                emptyText: me.hasEntity ? 'Aún no tiene itinerario. Use Acciones → Solicitar itinerario.' : 'Primero solicite entrar en una Entidad.',
+                emptyText: me.hasEntity ? 'Aún no tiene itinerario. Use Acciones → Crear Solicitud: Itinerario.' : 'Primero solicite entrar en una Entidad.',
                 builder: (p) => InfoCard(
                   images: [CardImage(url: p.itineraryImageUrl, icon: Icons.route, dim: !p.itineraryActive)],
                   title: p.itineraryName,
@@ -216,9 +249,9 @@ class _HomeScreenState extends State<HomeScreen> {
               _applications('Solicitudes de itinerario', itineraryApps),
               FoldSection<Placement>(
                 storageKey: 'inicio.paradas',
-                title: 'Paradas',
+                title: 'Paradas habituales',
                 items: stops,
-                emptyText: me.hasItinerary ? 'Aún no tiene parada. Use Acciones → Cambiar de parada.' : 'Sin itinerario no hay parada.',
+                emptyText: me.hasItinerary ? 'Sin parada habitual (es opcional: la app detecta la parada en cada viaje).' : 'Sin itinerario no hay parada.',
                 builder: (p) => InfoCard(
                   images: [CardImage(url: p.stopImageUrl, icon: Icons.place)],
                   title: p.stopLandmark ?? '',
@@ -341,3 +374,6 @@ class _QrCard extends StatelessWidget {
     );
   }
 }
+
+/// Texto de la opción de Inicio (docs/11 §11.65): alterna según el estado.
+String approvedToggleText(bool showing) => showing ? 'Ocultar solicitudes aprobadas' : 'Mostrar solicitudes aprobadas';

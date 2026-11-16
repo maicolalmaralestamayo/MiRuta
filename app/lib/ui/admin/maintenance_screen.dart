@@ -88,6 +88,7 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
       tab: MainTab.more,
       actions: _actions,
       body: DataView<Map<String, dynamic>>(
+        what: 'Servidor',
         key: _view,
         load: _load,
         builder: (context, status, reload) {

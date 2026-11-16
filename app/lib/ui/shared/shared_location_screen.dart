@@ -72,7 +72,7 @@ class _SharedLocationScreenState extends State<SharedLocationScreen> {
     final me = context.read<Session>().me!;
     final api = context.read<Session>().api;
     var stops = const <Stop>[];
-    if (!await runAction(context, () async => stops = (await api.getAll('/stops', query: {if (!me.isAdmin) 'filter[itinerary]': me.chiefItineraryId})).map(Stop.from).toList())) return;
+    if (!await runAction(context, label: 'Consultando Paradas', () async => stops = (await api.getAll('/stops', query: {if (!me.isAdmin) 'filter[itinerary]': me.chiefItineraryId})).map(Stop.from).toList())) return;
     if (!mounted) return;
     final stop = await pickOne<Stop>(context, 'Parada', stops, (s) => s.landmark, subtitle: (s) => s.address, search: true);
     if (stop == null || !mounted) return;
@@ -81,7 +81,7 @@ class _SharedLocationScreenState extends State<SharedLocationScreen> {
       return;
     }
     if (!mounted) return;
-    final ok = await runAction(context, () => api.patch('/stops/${stop.id}', resourceData('stops', id: stop.id, attributes: {
+    final ok = await runAction(context, label: 'Actualizando Parada', () => api.patch('/stops/${stop.id}', resourceData('stops', id: stop.id, attributes: {
           'latitude': double.parse(_point!.latitude.toStringAsFixed(6)),
           'longitude': double.parse(_point!.longitude.toStringAsFixed(6)),
         })), success: 'Parada actualizada');

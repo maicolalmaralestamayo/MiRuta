@@ -81,8 +81,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: AppScaffold(
       title: 'Ajustes de la app',
       tab: MainTab.more,
-      actions: () => [ActionItem(Icons.save_outlined, 'Guardar cambios', _save)],
+      actions: () => [ActionItem(Icons.save_outlined, 'Actualizar Ajustes', _save)],
       body: DataView<List<Setting>>(
+        what: 'Ajustes',
         key: _view,
         load: _load,
         builder: (context, list, reload) {

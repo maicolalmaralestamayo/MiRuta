@@ -26,6 +26,7 @@ class TripWorkersScreen extends StatelessWidget {
       subtitle: '${trip.itineraryName ?? ''} • ${trip.directionName} • ${formatDate(trip.date)}',
       tab: MainTab.trips,
       body: DataView<(List<TripWorker>, List<Stop>)>(
+        what: 'Trabajadores',
         kinds: const {'trips'},
         load: () async {
           final api = context.read<Session>().api;

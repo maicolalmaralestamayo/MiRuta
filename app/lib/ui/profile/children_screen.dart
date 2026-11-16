@@ -50,34 +50,54 @@ class _ChildFormState extends State<ChildForm> {
     _initial;
   }
 
-  Future<void> _save() async {
-    if (!_form.currentState!.validate()) return;
+  Future<bool> _save() async {
+    if (!_form.currentState!.validate()) return false;
     final attributes = {
       ...PersonName(firstName: _first.text, middleName: _middle.text, firstSurname: _firstSurname.text, secondSurname: _secondSurname.text).toAttributes(),
       'identityCard': _card.text.trim(),
     };
     final me = context.me;
+    Resource? saved;
     final ok = await runAction(context, () async {
       if (_c == null) {
-        await context.api.post(
+        saved = (await context.api.post(
           '/children',
           resourceData('children', attributes: attributes, relationships: {if (widget.parentId != null && widget.parentId != me.userId) 'parent': ResourceId('users', widget.parentId!)}),
-        );
+        ))
+            .resource;
       } else {
-        await context.api.patch('/children/${_c!.id}', resourceData('children', id: _c!.id, attributes: {...attributes, 'active': _active}));
+        saved = (await context.api.patch('/children/${_c!.id}', resourceData('children', id: _c!.id, attributes: {...attributes, 'active': _active}))).resource;
       }
-    }, success: _c == null ? 'Hijo añadido' : 'Hijo actualizado');
-    if (ok && mounted) {
-      _leaving = true;
-      Navigator.pop(context, true);
+    }, label: _c == null ? 'Creando Hijo' : 'Actualizando Hijo');
+    if (!ok || !mounted || saved == null) return false;
+    // El formulario sigue mostrando lo guardado (docs/11 §11.65).
+    _leaving = true;
+    await Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => ChildForm(child: Child.from(saved!), parentId: widget.parentId)), result: true);
+    return true;
+  }
+
+  /// «Crear Hijo»: uno vacío, sin volver a la lista.
+  Future<void> _createAnother() async {
+    if (_dirty) {
+      switch (await confirmLeave(context)) {
+        case LeaveChoice.cancel:
+          return;
+        case LeaveChoice.save:
+          if (!await _save() || !mounted) return;
+        case LeaveChoice.leave:
+          break;
+      }
     }
+    if (!mounted) return;
+    _leaving = true;
+    await Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => ChildForm(parentId: widget.parentId)), result: true);
   }
 
   Future<void> _delete() async {
     final api = context.api;
     if (!await confirmDelete(context, 'a ${_c!.fullName} de la lista de hijos', consequences: 'Si otra persona lo tiene declarado, lo conserva.')) return;
     if (!mounted) return;
-    final ok = await runAction(context, () => api.delete('/children/${_c!.id}'), success: 'Hijo quitado');
+    final ok = await runAction(context, () => api.delete('/children/${_c!.id}'), label: 'Eliminando Hijo');
     if (ok && mounted) {
       _leaving = true;
       Navigator.pop(context, true);
@@ -90,10 +110,15 @@ class _ChildFormState extends State<ChildForm> {
     final birth = _c?.birthDate ?? IdentityCard.birthDate(card);
     return LeaveGuard(
       dirty: () => _dirty,
+      onSave: _save,
       child: AppScaffold(
         title: 'Hijo',
         tab: MainTab.home,
-        actions: () => [ActionItem(Icons.save_outlined, 'Guardar', _save), if (_c != null) ActionItem(Icons.delete_outline, 'Eliminar', _delete, destructive: true)],
+        actions: () => [
+          ActionItem(Icons.save_outlined, 'Guardar', _save),
+          ActionItem(Icons.person_add_alt_1, 'Crear Hijo', _createAnother),
+          if (_c != null) ActionItem(Icons.delete_outline, 'Eliminar Hijo', _delete, destructive: true),
+        ],
         body: Form(
           key: _form,
           onChanged: () => setState(() {}),

@@ -55,7 +55,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         'username': Username.normalize(_username.text),
       }));
       if (mounted) await context.read<Session>().reloadMe();
-    }, success: 'Perfil actualizado');
+    }, label: 'Actualizando Perfil');
     if (ok && mounted) setState(() => _initial = _snapshot());
   }
 
@@ -70,7 +70,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     await runAction(context, () async {
       await context.api.delete('/me/photo');
       if (mounted) await context.read<Session>().reloadMe();
-    }, success: 'Foto quitada');
+    }, label: 'Eliminando Foto');
     if (mounted) setState(() => _me = context.read<Session>().me!);
   }
 
@@ -85,10 +85,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       title: 'Perfil',
       tab: MainTab.home,
       actions: () => [
-        ActionItem(Icons.save_outlined, 'Guardar perfil', _save),
-        ActionItem(Icons.password, 'Cambiar contraseña', _changePassword),
-        ActionItem(Icons.photo_camera_outlined, 'Cambiar foto', _photo),
-        if (_me.photoUrl != null) ActionItem(Icons.hide_image_outlined, 'Quitar foto', _removePhoto, destructive: true),
+        ActionItem(Icons.save_outlined, 'Actualizar Perfil', _save),
+        ActionItem(Icons.password, 'Actualizar Contraseña', _changePassword),
+        ActionItem(Icons.photo_camera_outlined, 'Actualizar Foto', _photo),
+        if (_me.photoUrl != null) ActionItem(Icons.hide_image_outlined, 'Eliminar Foto', _removePhoto, destructive: true),
       ],
       body: Form(
         key: _form,
@@ -160,7 +160,7 @@ class _PasswordDialogState extends State<_PasswordDialog> {
                   setState(() => _busy = true);
                   final body = resourceData('users', attributes: {'password': _password.text});
                   body['meta'] = {'currentPassword': _current.text};
-                  final ok = await runAction(context, () => context.api.patch('/me', body), success: 'Contraseña cambiada');
+                  final ok = await runAction(context, () => context.api.patch('/me', body), label: 'Actualizando Contraseña');
                   if (!context.mounted) return;
                   if (ok) {
                     Navigator.pop(context);

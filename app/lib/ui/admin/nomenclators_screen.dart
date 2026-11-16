@@ -20,7 +20,8 @@ IconData nomenclatorIcon(String type) => switch (type) {
       'vehicle-types' => Icons.directions_bus,
       'absence-types' => Icons.event_busy,
       'conversation-topics' => Icons.forum_outlined,
-      'denial-reasons' => Icons.block,
+      // Motivos de rechazo (separados por tipo de solicitud desde la 4.4.0): el mismo icono.
+      'entity-denial-reasons' || 'itinerary-denial-reasons' || 'denial-reasons' => Icons.block,
       _ => Icons.report_outlined,
     };
 
@@ -90,20 +91,19 @@ class _NomenclatorsScreenState extends State<NomenclatorsScreen> {
 
   List<ActionItem> _actions() {
     final data = _view.currentState?.data ?? const {};
-    if (!_marks.active) return [for (final n in _list) ActionItem(nomenclatorIcon(n.type), 'Crear ${n.singular}', () => _open(n))];
+    if (!_marks.active) return [for (final n in _list) ActionItem(nomenclatorIcon(n.type), 'Crear ${n.singularCap}', () => _open(n))];
     final n = _list.firstWhere((n) => n.type == _marks.type);
     final items = data[n.type] ?? const [];
     final marked = _marks.of(n.type, items, (i) => i.id);
     return [
       ...markActions(_marks, items.map((i) => i.id)),
-      if (marked.length == 1) ActionItem(Icons.edit_outlined, 'Editar', () => _open(n, marked.first)),
-      ActionItem(Icons.delete_outline, 'Eliminar', () => _delete(n, marked), destructive: true),
+      if (marked.length == 1) ActionItem(Icons.edit_outlined, 'Actualizar ${n.singularCap}', () => _open(n, marked.first)),
+      ActionItem(Icons.delete_outline, 'Eliminar ${n.singularCap}', () => _delete(n, marked), destructive: true),
     ];
   }
 
   String _line(NomenclatorItem i) => switch (i.kind) {
         'vehicle-types' => '${i.seats} asientos • ${i.standing} de pie • ${i.total} en total',
-        'denial-reasons' => '${switch (i.applicationType) { 'entidad' => 'Solicitudes de Entidad', 'itinerario' => 'Solicitudes de itinerario', _ => 'Todas las solicitudes' }} • usado ${i.usageCount}',
         _ => '${i.description ?? ''}${i.description == null ? '' : ' • '}usado ${i.usageCount}',
       };
 
@@ -115,6 +115,7 @@ class _NomenclatorsScreenState extends State<NomenclatorsScreen> {
       marks: _marks,
       actions: _actions,
       body: DataView<Map<String, List<NomenclatorItem>>>(
+        what: 'Nomencladores',
         key: _view,
         load: _load,
         builder: (context, data, reload) => ListView(padding: const EdgeInsets.only(bottom: 96), physics: const AlwaysScrollableScrollPhysics(), children: [
@@ -162,12 +163,11 @@ class _NomenclatorFormState extends State<NomenclatorForm> {
   late final _observation = TextEditingController(text: widget.item?.observation);
   late final _seats = TextEditingController(text: '${widget.item?.seats ?? 0}');
   late final _standing = TextEditingController(text: '${widget.item?.standing ?? 0}');
-  late String? _applicationType = widget.item?.applicationType;
   late bool _active = widget.item?.active ?? true;
   late final List<Object?> _initial = _snapshot();
   bool _leaving = false;
 
-  List<Object?> _snapshot() => [_name.text, _description.text, _observation.text, _seats.text, _standing.text, _applicationType, _active];
+  List<Object?> _snapshot() => [_name.text, _description.text, _observation.text, _seats.text, _standing.text, _active];
 
   bool get _dirty => !_leaving && !listEquals(_initial, _snapshot());
 
@@ -179,8 +179,8 @@ class _NomenclatorFormState extends State<NomenclatorForm> {
 
   String get _type => widget.nomenclator.type;
 
-  Future<void> _save() async {
-    if (!_form.currentState!.validate()) return;
+  Future<bool> _save() async {
+    if (!_form.currentState!.validate()) return false;
     String? t(TextEditingController c) => c.text.trim().isEmpty ? null : c.text.trim();
     final attributes = {
       'name': _name.text.trim(),
@@ -188,20 +188,40 @@ class _NomenclatorFormState extends State<NomenclatorForm> {
       'observation': t(_observation),
       'active': _active,
       if (_type == 'vehicle-types') ...{'seats': int.tryParse(_seats.text) ?? 0, 'standing': int.tryParse(_standing.text) ?? 0},
-      if (_type == 'denial-reasons') 'applicationType': _applicationType,
     };
     final api = context.read<Session>().api;
+    Resource? saved;
     final ok = await runAction(context, () async {
       if (widget.item == null) {
-        await api.post('/$_type', resourceData(_type, attributes: attributes));
+        saved = (await api.post('/$_type', resourceData(_type, attributes: attributes))).resource;
       } else {
-        await api.patch('/$_type/${widget.item!.id}', resourceData(_type, id: widget.item!.id, attributes: attributes));
+        saved = (await api.patch('/$_type/${widget.item!.id}', resourceData(_type, id: widget.item!.id, attributes: attributes))).resource;
       }
-    }, success: widget.nomenclator.done(widget.item == null ? 'cread' : 'actualizad'));
-    if (ok && mounted) {
-      _leaving = true;
-      Navigator.pop(context, true);
+    }, label: '${widget.item == null ? 'Creando' : 'Actualizando'} ${widget.nomenclator.singularCap}');
+    if (!ok || !mounted || saved == null) return false;
+    // El formulario sigue mostrando lo guardado (docs/11 §11.65).
+    _leaving = true;
+    await Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => NomenclatorForm(nomenclator: widget.nomenclator, item: NomenclatorItem.from(saved!))),
+        result: true);
+    return true;
+  }
+
+  /// «Crear [Objeto]»: uno vacío del mismo tipo.
+  Future<void> _createAnother() async {
+    if (_dirty) {
+      switch (await confirmLeave(context)) {
+        case LeaveChoice.cancel:
+          return;
+        case LeaveChoice.save:
+          if (!await _save() || !mounted) return;
+        case LeaveChoice.leave:
+          break;
+      }
     }
+    if (!mounted) return;
+    _leaving = true;
+    await Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => NomenclatorForm(nomenclator: widget.nomenclator)), result: true);
   }
 
   @override
@@ -209,10 +229,14 @@ class _NomenclatorFormState extends State<NomenclatorForm> {
     final total = (int.tryParse(_seats.text) ?? 0) + (int.tryParse(_standing.text) ?? 0);
     return LeaveGuard(
       dirty: () => _dirty,
+      onSave: _save,
       child: AppScaffold(
       title: widget.nomenclator.title,
       tab: MainTab.management,
-      actions: () => [ActionItem(Icons.save_outlined, 'Guardar', _save)],
+      actions: () => [
+        ActionItem(Icons.save_outlined, 'Guardar', _save),
+        ActionItem(nomenclatorIcon(_type), 'Crear ${widget.nomenclator.singularCap}', _createAnother),
+      ],
       body: Form(
         key: _form,
         onChanged: () => setState(() {}),
@@ -245,20 +269,6 @@ class _NomenclatorFormState extends State<NomenclatorForm> {
             ),
             FormText(key: ValueKey(total), label: 'Total', value: '$total', readOnly: true),
           ],
-          if (_type == 'denial-reasons')
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
-              child: DropdownButtonFormField<String?>(
-                initialValue: _applicationType,
-                decoration: const InputDecoration(labelText: 'Tipo de solicitud'),
-                items: const [
-                  DropdownMenuItem(value: null, child: Text('Las dos')),
-                  DropdownMenuItem(value: 'entidad', child: Text('Entidad')),
-                  DropdownMenuItem(value: 'itinerario', child: Text('Itinerario')),
-                ],
-                onChanged: (v) => setState(() => _applicationType = v),
-              ),
-            ),
           ActiveSwitch(value: _active, onChanged: (v) => setState(() => _active = v)),
         ]),
       ),

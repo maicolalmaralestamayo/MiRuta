@@ -49,7 +49,7 @@ class _AppVersionsScreenState extends State<AppVersionsScreen> {
     final list = _view.currentState?.data?.$1 ?? const <AppVersion>[];
     if (!_marks.active) {
       return [
-        ActionItem(Icons.upload, 'Publicar versión', () async {
+        ActionItem(Icons.upload, 'Crear Versión', () async {
           await push(context, const _PublishScreen());
           _view.currentState?.reload();
         }),
@@ -59,7 +59,7 @@ class _AppVersionsScreenState extends State<AppVersionsScreen> {
     return [
       ...markActions(_marks, list.map((v) => v.id)),
       if (marked.length == 1) ActionItem(marked.first.mandatory ? Icons.toggle_off_outlined : Icons.priority_high, marked.first.mandatory ? 'Hacer opcional' : 'Hacer obligatoria', () => _toggleMandatory(marked.first)),
-      ActionItem(Icons.delete_outline, 'Retirar', () async {
+      ActionItem(Icons.delete_outline, 'Eliminar Versión', () async {
         if (!await confirmDelete(context, marked.length == 1 ? 'la versión ${marked.first.versionName}' : '${marked.length} versiones', consequences: 'Se borran sus APK del servidor.')) return;
         if (!mounted) return;
         final api = context.read<Session>().api;
@@ -80,6 +80,7 @@ class _AppVersionsScreenState extends State<AppVersionsScreen> {
       marks: _marks,
       actions: _actions,
       body: DataView<(List<AppVersion>, int)>(
+        what: 'Versiones',
         key: _view,
         load: _load,
         builder: (context, data, reload) {
@@ -188,7 +189,7 @@ class _PublishScreenState extends State<_PublishScreen> {
       child: AppScaffold.list(
       title: 'Publicar versión',
       tab: MainTab.more,
-      actions: () => [if (_progress == null) ActionItem(Icons.upload, 'Publicar', _publish)],
+      actions: () => [if (_progress == null) ActionItem(Icons.upload, 'Crear Versión', _publish)],
       children: [
         const Padding(padding: EdgeInsets.all(16), child: Text('La versión y su código se leen del APK. Suba los dos: 64 y 32 bits.')),
         _apk('apkArm64', 'APK de 64 bits'),
