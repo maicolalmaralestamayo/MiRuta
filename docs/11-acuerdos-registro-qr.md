@@ -1909,6 +1909,9 @@ Lista del usuario (archivo `problemas_miruta4.3.txt`, capturas en `docs/capturas
      vehículo no llevaban hora ni cola y se perdían). El servidor los ordena por hora de captura para fijar la hora
      de cada estado del viaje, del vehículo (paso por paradas) y del trabajador.
 5. Al crear o actualizar una parada, la ubicación también se puede **pegar del portapapeles**.
+   - **Decidido** (16/11/2026): botón **«Pegar ubicación»** junto a «Usar mi ubicación actual»; reconoce
+     «lat, lng», enlaces de Google Maps, OsmAnd y OpenStreetMap y `geo:lat,lng`, y rellena Latitud y Longitud. Si no
+     reconoce una ubicación, avisa «No se reconoce una ubicación en lo copiado».
 6. Botones de los modales siempre **uno debajo del otro**.
 7. Botones Cancelar siempre en **gris**; Eliminar siempre en **rojo**; Confirmar siempre en el **color principal**.
 8. En el modal «Salir sin guardar», añadir el botón **Guardar**.
