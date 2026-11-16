@@ -1,13 +1,13 @@
 # 10. Traspaso de tecnología — MiRuta
 
-> **Versión 4.3.0 (docs/12 §17):** servidor **Laravel 12 con PHP 8.2** (el del hospedaje, 8.2.35) y MariaDB 10.3 o
+> **Versión 4.4.0 (docs/12 §18):** servidor **Laravel 12 con PHP 8.2** (el del hospedaje, 8.2.35) y MariaDB 10.3 o
 > superior. El `.zip` del servidor trae **`vendor/` ya instalado** (sin dependencias de desarrollo y con el autoload
 > optimizado): no hace falta Composer ni SSH en el hospedaje. Todo lo que hay que ejecutar en el servidor (instalar o
 > actualizar la base de datos, tareas, limpiezas) se hace con los endpoints de mantenimiento de la API, desde la app
-> (docs/13 §13.13). La base de datos de la 4.3.0 se instala **desde cero** (*Instalar base de datos*) o, sobre una
-> 4.2.0 (o anterior, desde la 4.0.0) ya instalada, con *Actualizar base de datos*, sin perder datos: la migración
-> `2026_11_16_000001_upgrade_4_3` convierte el estado «Recogido» en «Viajando» (§10.3 ter) y, si viene de una 4.1.0,
-> también se aplica `2026_11_15_000001_upgrade_4_2` (§10.3 bis). No se actualiza sobre una 3.x. En esta versión no se entregan imágenes de Docker ni un SQL inicial:
+> (docs/13 §13.13). La base de datos de la 4.4.0 se instala **desde cero** (*Instalar base de datos*) o, sobre una
+> 4.3.0 (o anterior, desde la 4.0.0) ya instalada, con *Actualizar base de datos*, sin perder datos: la migración
+> `2026_11_16_000002_upgrade_4_4` (§10.3 quater) y, si viene de antes, también las de la 4.3.0 (§10.3 ter) y la
+> 4.2.0 (§10.3 bis). No se actualiza sobre una 3.x. En esta versión no se entregan imágenes de Docker ni un SQL inicial:
 > la base de datos se instala desde la app.
 
 Qué se entrega y cómo poner en marcha MiRuta en cada entorno: el hospedaje, un ordenador con Docker y un
@@ -16,17 +16,17 @@ ordenador sin Docker. Se da por hecho que Docker, Apache o nginx, PHP y MySQL/Ma
 ## 10.1 Qué se entrega
 
 ```
-4.3.0/
-├── miruta-4.3.0-64bits.apk               App para casi todos los teléfonos (Android 7.0 o superior)
-└── miruta-4.3.0-32bits.apk               App para teléfonos antiguos de 32 bits
+4.4.0/
+└── miruta-4.4.0-32bits.apk               App (32 bits, funciona también en los teléfonos de 64 bits; Android 7.0 o superior)
 hosting/
 ├── miruta-servidor-<versión>.zip         Servidor para el hospedaje o para un ordenador sin Docker (instalación nueva)
-└── miruta-actualizacion-4.3.0.zip        Actualización de un servidor ya instalado (conserva su configuracion.php)
+└── miruta-actualizacion-4.4.0.zip        Actualización de un servidor ya instalado (conserva su configuracion.php)
 ```
 
-En la 4.3.0 se entrega solo la **actualización** (el hospedaje ya tiene la 4.2.0). Para una instalación nueva se
-genera `miruta-servidor-4.3.0.zip` con `tools/release/build-hosting-package.sh 4.3.0` (o se instala la
-`miruta-servidor-4.2.0.zip` y se le aplica la actualización 4.3.0).
+Desde la 4.3.0 se entrega **solo la APK de 32 bits** (docs/11 §11.64) y la **actualización** del servidor (el
+hospedaje ya tiene la 4.3.0). Para una instalación nueva se genera `miruta-servidor-4.4.0.zip` con
+`tools/release/build-hosting-package.sh 4.4.0`. La de 64 bits se compila, si hace falta, con `app/build_release.sh`
+(sin `SOLO_32=1`).
 
 Contenido de `miruta-servidor-<versión>.zip`:
 
@@ -51,8 +51,7 @@ Sin la clave de firma ninguna versión nueva de la app se instalará encima de e
 
 ## 10.2 La app
 
-1. Copie al teléfono **`miruta-4.3.0-64bits.apk`**. Use la de 32 bits solo si el teléfono no admite la de 64.
-   Ábrala y permita «instalar apps desconocidas».
+1. Copie al teléfono **`miruta-4.4.0-32bits.apk`**. Ábrala y permita «instalar apps desconocidas».
 2. La app trae puesta la dirección del hospedaje: `http://www.twintechnology.cu/miruta`. Para usar otro
    servidor, en la pantalla de inicio de sesión pulse el **botón del servidor**, elija el protocolo y escriba la
    dirección:
@@ -74,14 +73,42 @@ Sin la clave de firma ninguna versión nueva de la app se instalará encima de e
 - Como Administrador: *Más → Mantenimiento del servidor*.
 - Sin sesión: botón del servidor → *Mantenimiento del servidor* → clave de mantenimiento.
 
-**Símbolos.** La app va ofuscada. Si un usuario envía el texto de un error de la versión 4.3.0, se traduce a nombres
-legibles con Flutter y los símbolos que deja la compilación en `app/build/symbols/4.3.0+13/` (guárdelos si los
+**Símbolos.** La app va ofuscada. Si un usuario envía el texto de un error de la versión 4.4.0, se traduce a nombres
+legibles con Flutter y los símbolos que deja la compilación en `app/build/symbols/4.4.0+14/` (guárdelos si los
 necesita; no se entregan aparte):
 
 ```bash
-flutter symbolize -i error.txt -d 4.3.0+13/app.android-arm64.symbols   # app de 64 bits
-flutter symbolize -i error.txt -d 4.3.0+13/app.android-arm.symbols     # app de 32 bits
+flutter symbolize -i error.txt -d 4.4.0+14/app.android-arm.symbols     # app de 32 bits
 ```
+
+## 10.3 quater Actualizar el hospedaje de la 4.3.0 a la 4.4.0
+
+El hospedaje ya tiene la 4.3.0 con datos. **Antes de nada, exporte la base de datos** en SQL con el gestor del
+hospedaje (por si hubiera que volver atrás).
+
+1. **Subir la actualización.** Use `miruta-actualizacion-4.4.0.zip` (no lleva `configuracion.php`) igual que en el
+   paso 1 de §10.3 bis: los 2 archivos de su `subida-rapida/` a `/htdocs/miruta/` y
+   `http://www.twintechnology.cu/miruta/desempaquetar.php?clave=CLAVE` con la clave de mantenimiento que ya tenía.
+2. **Actualizar la base de datos.** *Más → Mantenimiento del servidor →* **Actualizar base de datos**. Aplica la
+   migración `2026_11_16_000002_upgrade_4_4` (compatible con MariaDB 10.3), sin perder datos:
+   - los estados «Botado» y «Dormido» guardados pasan a «No recogido» y «Retrasado»;
+   - los ajustes «Frecuencia ventana» y «Frecuencia fuera ventana» pasan a «Frecuencia corta» y «Frecuencia larga»
+     con el valor que tuvieran;
+   - se crean los motivos de rechazo separados de **Entidad** y de **itinerario** con las listas acordadas; los
+     motivos que ya había y no están en ellas se copian a las dos; las solicitudes ya rechazadas conservan su motivo;
+   - «un viaje por itinerario, sentido y fecha» deja de ser un índice único (ya no cuenta los cancelados);
+   - se crean el **registro de cambios** (`change_log`) y los pasos por parada de cada sensor (`trip_stop_votes`).
+   Los tipos de vehículo que ya había **no se borran** (solo una instalación nueva crea «Ómnibus Yutong» y «Carro
+   Dongfeng»). *Estado del servidor* debe mostrar la versión 4.4.0 y ninguna migración pendiente. Si la tarea diaria
+   no se ejecuta (sin `TASKS_ON_REQUESTS` ni cron), *Ejecutar tareas* poda también el registro de cambios.
+3. **Revisar los ajustes** (*Más → Ajustes de la app*): Ventana viaje → Frecuencia corta (`10seg`) y Frecuencia larga
+   (`15min`); Sincronización → Conservación cambios (`1mes`). Y en *Nomencladores*, los motivos de rechazo de Entidad y
+   de itinerario.
+4. **Actualizar las apps.** Suba la APK de 32 bits de la 4.4.0 en *Más → Actualizaciones de la app* (puede marcarla
+   Obligatoria) o instálela a mano encima de la 4.3.0. Mientras haya teléfonos con la 4.3.0, el servidor les acepta
+   «Botado» y «Dormido», se los devuelve con esos nombres y les sigue enviando las huellas `meta.versions`; sus
+   Administradores solo pueden consultar los motivos de rechazo (para cambiarlos hace falta la 4.4.0). Al entrar con la
+   4.4.0, la app descarga en segundo plano todo lo que la persona puede ver.
 
 ## 10.3 ter Actualizar el hospedaje de la 4.2.0 a la 4.3.0
 

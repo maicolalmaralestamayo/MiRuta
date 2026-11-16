@@ -295,93 +295,94 @@ Atributos: `direction` (`ida`, `regreso`), `date`, `departureTime` (`HH:MM`), `d
 `planificado → cancelado` (solo el Administrador o el Jefe que lo planificó), `en_ejecucion → terminado`. Otro:
 `409 TRIP_TRANSITION_INVALID`.
 
-**Pasajeros esperados:** los activos del itinerario con parada y sin ausencia ese día. Los niños cuentan como
+**Pasajeros esperados:** los activos del itinerario sin ausencia ese día (la parada habitual es opcional desde la
+4.4.0; los de cada parada son los que la tienen como habitual). Los niños cuentan como
 pasajeros pero no ocupan plaza (`inVehicle.children` aparte).
 
 ## 13.8 Tiempo real
 
-Todo lo calcula el **teléfono**; envía al servidor **solo los cambios**, con acuse, y reintenta hasta recibirlo.
+Todo lo calcula el **teléfono**; envía al servidor **solo los cambios**, cada uno con su **hora de captura**, en cola
+si no hay conexión, con acuse, y reintenta hasta recibirlo (docs/11 §11.65). **No se envían coordenadas.**
 
 ### Informe del teléfono: `POST trips/{id}/reports`
 
+Formato **4.4.0** (`events`, en el orden en que se capturaron; el servidor los aplica ordenados por `capturedAt`):
+
 ```json
-{"data": {"type": "trip-reports", "attributes": {
-  "workerState": "viajando", "childIds": ["12"], "reportedAt": "2026-11-09T07:02:10-05:00",
-  "vehicleState": "en_movimiento", "nextStopIndex": 2, "atStop": false}}}
+{"data": {"type": "trip-reports", "attributes": {"gps": true, "events": [
+  {"kind": "worker", "state": "en_parada", "stopId": 7, "capturedAt": "2026-11-16T10:40:05-05:00"},
+  {"kind": "worker", "state": "viajando", "stopId": 7, "childIds": [12], "capturedAt": "2026-11-16T10:41:15-05:00"},
+  {"kind": "vehicle", "vehicleState": "en_movimiento", "nextStopIndex": 2, "atStop": false, "capturedAt": "2026-11-16T10:41:25-05:00"}
+]}}}
 ```
 
-| Atributo | Cuándo | Notas |
+| Evento | Campos | Notas |
 |---|---|---|
-| `workerState` | Cambia el estado del trabajador | Ver tablas de abajo |
-| `stopId` | Con `dejado` | Parada del recorrido donde se bajó (si no es la suya) |
-| `childIds` / `childrenCount` | Al subir | Hijos que suben con él (con derecho y activos); o solo cuántos |
-| `vehicleState`, `nextStopIndex`, `atStop` | Si es **sensor** (Viajando, en la ida y en el regreso) | Estado del vehículo, posición en el recorrido de la próxima parada (0 = salida) y si está detenido en su radio |
-| `gps` | Cada envío (4.2.0) | `true` si el teléfono tenía posición del GPS; con `false` deja de contar como sensor («Sin GPS») |
-| `reportedAt` | Siempre | Hora del teléfono. Un informe más viejo que el último aplicado se ignora (con acuse) |
+| `worker` | `state`, `stopId`, `childIds` / `childrenCount`, `capturedAt` | Cambio de estado del trabajador con la **parada detectada** por cercanía (en Dejado, donde se bajó) |
+| `vehicle` | `vehicleState`, `nextStopIndex`, `atStop`, `capturedAt` | Observación del sensor (Viajando): detenido o en movimiento, próxima parada (posición en el recorrido, 0 = salida) y si está detenido en su radio. El teléfono la pone en cola solo cuando cambia |
 
-**Una sola petición en la ventana de viaje** (docs/11 §11.62): con `?cursor=N` la respuesta lleva además en
-`meta.sync` `{data, meta}` exactamente lo de `GET sync?cursor=N` (§13.10). Así el teléfono envía sus cambios y recibe
-las novedades cada «Frecuencia ventana» (Z) con una sola conexión.
+`gps` (cada envío, 4.2.0): `true` si el teléfono tenía posición del GPS; con `false` deja de contar como sensor.
+
+Formato **4.3.0** (se sigue aceptando, un solo cambio): `workerState`, `stopId`, `childIds`, `childrenCount`,
+`vehicleState`, `nextStopIndex`, `atStop`, `reportedAt` (hora de captura) y `gps`.
+
+**Una sola petición en la ventana de viaje** (docs/11 §11.62): con `?cursor=N` (y `&changes=M`) la respuesta lleva
+además en `meta.sync` `{data, meta}` exactamente lo de `GET sync` (§13.10). Así el teléfono envía sus cambios y recibe
+las novedades cada «Frecuencia corta» con una sola conexión.
 
 Respuesta `200`: la línea del recorrido (`trip-lives`, abajo) con `meta`:
-`{"ack": true, "applied": true|false, "reason": null|"INFORME_ANTERIOR"|"ESTADO_FINAL"|"TRANSICION_NO_PERMITIDA"|"VIAJE_CERRADO", "sensor": true|false}`.
-Con `ack` la app no reenvía ese cambio. Un estado que no corresponde al sentido: `422 WORKER_STATE_INVALID`.
+`{"ack": true, "accepted": 3, "applied": true|false, "reason": null|"INFORME_ANTERIOR"|"ESTADO_FINAL"|"TRANSICION_NO_PERMITIDA"|"VIAJE_CERRADO", "sensor": true|false}`
+(`applied` y `reason`, del último cambio del trabajador). Con `ack` la app quita de la cola lo enviado. Un estado
+desconocido: `422 WORKER_STATE_INVALID`; una parada de otro itinerario: `422 STOP_NOT_IN_ITINERARY`.
 
 Cada informe (aunque no traiga cambios) cuenta como «el teléfono envió algo»: un **sensor** deja de contar si no envía
-nada en 3 × «Frecuencia cálculo» (30 s). Durante el viaje la app envía cada «Frecuencia cálculo» en esta misma petición.
+nada en 3 × «Frecuencia corta» (30 s).
 
-**Estados del trabajador** (docs/11 §11.43):
+**Estados del trabajador** (docs/11 §11.65), **iguales en la ida y en el regreso**; se sube y se baja en **cualquier
+parada** del itinerario, detectada por cercanía:
 
-| Ida | Significa |
+| Estado | Significa |
 |---|---|
-| `de_camino` | De camino a la primera parada |
-| `en_parada` | En la primera parada (todos suben ahí) |
-| `viajando` | En el vehículo (sensor). Semidefinitivo: solo pasa a `dejado` |
-| `dejado` | Se bajó (definitivo) |
-| `botado` | Estaba en la primera parada antes de que saliera el vehículo y no está Viajando (4.2.0) |
-| `dormido` | Llegó a la primera parada después de que saliera el vehículo (4.2.0) |
-| `no_voy` | No va a viajar |
+| `de_camino` | Se mueve hacia una parada: la más cercana de las que el vehículo aún no ha pasado |
+| `en_parada` | Dentro del radio de una parada que el vehículo aún no ha pasado |
+| `viajando` | Se aleja de su parada a velocidad de vehículo: va en él (sensor). Solo pasa a `dejado` |
+| `dejado` | Se separa del vehículo (final); queda Dejado en la parada más cercana |
+| `no_recogido` | Estaba En la parada, el vehículo pasó por ella y no subió (final; antes `botado`) |
+| `retrasado` | Estaba De camino y el vehículo pasó por su parada antes de que llegara (final; antes `dormido`) |
+| `no_voy` | No va a viajar (final) |
 
-| Regreso | Significa |
-|---|---|
-| `de_camino` | De camino a su parada |
-| `en_parada` | En su parada |
-| `viajando` | En el vehículo (sensor, definitivo). Hasta la 4.2.0 se llamaba `recogido` |
-| `botado` | Había llegado a En la parada antes de que pasara el vehículo y, cuando ya pasó, no está Viajando |
-| `dormido` | Llega a En la parada después de que pasara el vehículo |
-| `no_voy` | No va a viajar |
-
-Regla simplificada de Dormido y Botado (docs/11 §11.61; sustituye a los «Cálculos consecutivos» para Botado): la
-calcula el teléfono respecto a la primera parada (ida) o a la suya (regreso). Después pasan a `no_voy` si se alejan o el
-teléfono deja de calcular tras «Espera final». Un `botado` que el teléfono detecta luego saliendo en el vehículo pasa a
-`viajando`.
-
-**Viajando unificado** (4.3.0, docs/11 §11.63): `recogido` desaparece; el regreso usa `viajando` como la ida. Un
-teléfono con la 4.2.0 que envíe `recogido` se acepta (se guarda como `viajando`) y, si su cabecera `X-App-Version` es
-menor que 13, en el regreso se le devuelve `recogido` en `myState.state` y en `trips/{id}/passengers` para que siga
-siendo sensor.
+**Teléfonos viejos:** `recogido` (4.2.0), `botado` y `dormido` (4.3.0) se aceptan y se guardan como `viajando`,
+`no_recogido` y `retrasado`. A las apps con `X-App-Version` menor que 14 se les devuelven `botado` y `dormido` (en
+`myState.state`, `counts`, `trips/{id}/passengers`, `meta.myState` de los viajes y `myTrips`), y a las menores que 13
+`recogido` en el regreso.
 
 ### Reglas del servidor
 
+- **Orden por hora de captura:** el estado del trabajador y su `stateAt` son los del cambio capturado; un cambio más
+  viejo que el último aplicado se ignora (con acuse). Los finales no cambian, salvo lo que puso el servidor
+  (`setByServer`) y un `no_recogido` que el teléfono corrige a `viajando`.
 - **Mayoría de sensores** (docs/11 §11.43): con `n` sensores activos, un valor se acepta si lo indican al menos
-  «Mínimo confirmaciones» (3) cuando `n ≥ 3`, o la mayoría si hay menos; siempre más de la mitad. Se aplica al estado
-  del vehículo, a `atStop` y al avance de la próxima parada (la más lejana confirmada; las saltadas quedan pasadas a esa hora).
-- **Planificado → En ejecución** (además de a mano): ida, al menos «Mínimo confirmaciones» trabajadores `viajando`;
-  regreso, al menos ese número `viajando` desde la última parada (si se esperan menos, todos los esperados). Al empezar,
-  la parada de salida queda pasada y `nextStopIndex = 1`.
+  «Mínimo confirmaciones» (3) cuando `n ≥ 3`, o la mayoría si hay menos; siempre más de la mitad (con mínimo 1, un
+  solo sensor basta). Se aplica al estado del vehículo, a `atStop` y al avance de la próxima parada. La **hora de
+  paso** por cada parada es la hora de captura del sensor que completó la mayoría (`trip_stop_votes`).
+- **Planificado → En ejecución** (además de a mano): al menos «Mínimo confirmaciones» trabajadores `viajando` en
+  cualquier parada (si se esperan menos, todos los esperados). La salida es la hora del primer `viajando`; la parada
+  de salida queda pasada y `nextStopIndex = 1`.
+- **Teléfonos que no envían:** al pasar el vehículo por una parada, quien estaba `en_parada` en ella sin enviar en los
+  últimos 3 × «Frecuencia corta» queda `no_recogido`, y quien iba `de_camino` a ella, `retrasado` (`setByServer`).
 - **En ejecución → Terminado** (además de a mano): ida, el vehículo **pasó la última parada**
-  (`nextStopIndex` = número de paradas); regreso, **detenido en el radio de la primera parada** (la última del
-  recorrido). `finishReason = llegada`.
+  (`nextStopIndex` = número de paradas); regreso, **detenido en el radio de la última parada del recorrido**.
+  `finishReason = llegada`; quien seguía `viajando` queda `dejado` en la última parada.
 - **Revisión periódica** (tarea `viajes:revisar`, cada minuto, §13.13): un `planificado` se **elimina** pasado «Plazo
   eliminación» (5 h) desde su salida; un `en_ejecucion` **termina** pasada «Duración máxima» (5 h) desde que empezó
-  o pasada «Espera cierre» (2 h) desde el último `dejado` (ida) o `viajando` (regreso) sin llegar a la parada final.
+  o pasada «Espera cierre» (2 h) desde el último `dejado` sin llegar a la parada final.
 - **Sin datos del vehículo** (4.2.0): al empezar el viaje no se supone nada (`vehicle.state = null`) hasta que la
   mayoría de los sensores informe. Un sensor cuyo último envío fue sin GPS no cuenta.
 - **«Pasó por la parada X» a mano** (4.2.0): `POST trips/{id}/stop-passes` con
   `{"data": {"type": "trip-stop-passes", "attributes": {"routeIndex": 2}}}` (Administrador o Jefe del itinerario).
   Cuenta igual que la confirmación de los sensores: hora de paso (también de las anteriores no pasadas), avance de la
-  próxima parada y, en los teléfonos, Dormido / Botado. En un viaje Planificado lo pone En ejecución; la parada final lo
-  termina (`finishReason = llegada`). Responde `201` con la línea del recorrido. Errores: `409 TRIP_CLOSED`,
+  próxima parada y No recogido / Retrasado. En un viaje Planificado lo pone En ejecución; la parada final lo termina
+  (`finishReason = llegada`). Responde `201` con la línea del recorrido. Errores: `409 TRIP_CLOSED`,
   `422 STOP_INDEX_INVALID`.
 - **Vehículo detenido** fuera de una parada: sin causa hasta que la indiquen el Administrador o el Jefe
   (`PATCH trips/{id}` con `relationships.detentionCause`); al volver a moverse se borra la causa.
@@ -391,25 +392,27 @@ siendo sensor.
 ```json
 {"data": {"type": "trip-lives", "id": "15", "attributes": {
   "direction": "regreso", "status": "en_ejecucion", "departsAt": "…",
-  "itineraryName": "XX Aniversario", "vehicleTypeName": "Microbús",
+  "itineraryName": "XX Aniversario", "vehicleTypeName": "Carro Dongfeng",
   "vehicle": {"state": "detenido", "since": "…", "atStop": true, "nextStopIndex": 1, "nextStopId": "7",
               "longDetention": false, "detentionCause": null},
   "sensors": 3,
-  "inVehicle": {"workers": 12, "children": 2, "total": 14, "capacity": 60, "seats": 40},
+  "inVehicle": {"workers": 12, "children": 2, "total": 14, "capacity": 41, "seats": 32},
   "expectedPassengers": 38, "notGoing": 1,
   "stops": [{"index": 0, "stopId": "9", "landmark": "Parqueo del trabajo", "street": "…", "passed": true,
-             "passedAt": "…", "expected": 5, "counts": {"botado": 1}, "mine": false}, …],
-  "myState": {"state": "en_parada", "stateAt": "…", "stopId": "7", "childrenCount": 0, "sensor": false},
-  "serverTime": "…"}}}
+             "passedAt": "…", "expected": 5, "counts": {"no_recogido": 1, "dejado": 2}, "mine": false}, …],
+  "myState": {"state": "dejado", "stateAt": "…", "stopId": "7", "stopName": "Coppelia", "childrenCount": 0,
+              "sensor": false, "setByServer": false},
+  "myStopId": "9", "travels": true, "canManage": false, "serverTime": "…"}}}
 ```
 
 - `stops` va en el **orden del recorrido** (ida: 1.ª → última; regreso: última → 1.ª). Cada parada lleva además
-  (4.2.0) `latitude`, `longitude` (el teléfono calcula con ellas en segundo plano) y `passedManually`.
-- `myStopId` (4.2.0): la parada de quien consulta si viaja en él (`null` para el Administrador o un Jefe que no viaja:
-  ellos ven la línea sin activar la ubicación); `canManage`: puede marcar el paso o cambiar el estado.
-- `counts`: cantidades por estado en cada parada (la app no muestra los ceros). En la ida, `de_camino`, `en_parada`, `botado`
-  y `dormido` se cuentan en la primera parada («N esperando en [primera parada]»); `dejado`, en la parada donde se bajó. En el
-  regreso, `de_camino`, `en_parada`, `botado` y `dormido` en la parada de cada uno.
+  (4.2.0) `latitude`, `longitude` (el teléfono calcula con ellas) y `passedManually`.
+- `counts` (4.4.0): cuántos hay en cada estado `de_camino`, `en_parada`, `retrasado`, `no_recogido` y `dejado` en la
+  **parada detectada** de cada uno, en la ida y en el regreso (la app no muestra los ceros). `expected`: los que la
+  tienen como **parada habitual**.
+- `myState.stopId` / `stopName`: la parada detectada de su estado (en `dejado`, donde se le dejó).
+- `myStopId`: su **parada habitual** (opcional); `travels`: viaja en este itinerario (le obliga la ubicación);
+  `canManage`: puede marcar el paso o cambiar el estado.
 - Los `viajando` van en `inVehicle`. `sensors` se muestra destacado.
 - `itineraryName` y `vehicleTypeName` (4.3.0): para la notificación del vehículo que compone el teléfono.
 
@@ -433,10 +436,12 @@ siendo sensor.
 
 ## 13.10 Sincronización y notificaciones del teléfono
 
-No hay servicio de envío (sin Firebase): la app consulta **`GET sync?cursor=N`** y muestra como notificaciones locales
-lo que llega. Frecuencias (ajustes, docs/11 §11.62): **fuera de la ventana de viaje**, solo recibe cada «Frecuencia
-fuera ventana» (F, mínimo 15 min); **dentro**, envía y recibe cada «Frecuencia ventana» (Z) en una sola petición,
-`POST trips/{id}/reports?cursor=N` (§13.8); «Frecuencia chat» con la conversación abierta; y el botón Actualizar.
+No hay servicio de envío (sin Firebase): la app consulta **`GET sync?cursor=N&changes=M`** y muestra como
+notificaciones locales lo que llega. Frecuencias (ajustes, docs/11 §11.65): con la app **abierta** (a la vista o en
+recientes), cada «Frecuencia corta» (10 s), esté o no en la ventana de un viaje; con la app **cerrada**, dentro de la
+ventana de viaje envía y recibe cada «Frecuencia corta» en una sola petición, `POST trips/{id}/reports?cursor=N`
+(§13.8), y fuera de ella solo recibe cada «Frecuencia larga» (mínimo 15 min); «Frecuencia chat» con la conversación
+abierta; y el botón Actualizar.
 
 ```json
 {"data": [{"type": "notifications", "id": "131", "attributes": {"kind": "viaje_creado", "title": "Viaje planificado",
@@ -448,7 +453,7 @@ fuera ventana» (F, mínimo 15 min); **dentro**, envía y recibe cada «Frecuenc
    "latestAppVersion": {"id": "4", "versionCode": 42, "versionName": "4.2.0", "updateAvailable": true, "mandatory": false},
    "nextTrip": {"id": "15", "direction": "ida", "status": "planificado", "departsAt": "…", "today": true, "itineraryId": "3"},
    "myTrips": [{"id": "15", "itineraryId": "3", "itineraryName": "XX Aniversario", "direction": "ida", "status": "planificado",
-                "departsAt": "…", "statusChangedAt": "…", "myStopId": "7", "myState": null, "myStateAt": null}],
+                "departsAt": "…", "statusChangedAt": "…", "myStopId": "7", "travels": true, "myState": null, "myStateAt": null}],
    "finishedTrips": ["12"],
    "pendingApplications": {"entity": 1, "itinerary": 2, "accessRecovery": 0},
    "versions": {"entities": "3f2a9c1b0d4e", "itineraries": "…", "stops": "…", "workers": "…", "applications": "…",
@@ -467,8 +472,22 @@ fuera ventana» (F, mínimo 15 min); **dentro**, envía y recibe cada «Frecuenc
 - `myTrips` (4.2.0): los viajes en que viaja (pasajero esperado o ya informó su estado), de ayer a 7 días, y los
   cerrados en el último día: con ellos el teléfono calcula su **ventana de viaje** (desde X antes de la salida hasta Y
   después de que el viaje termine para él) y programa la alarma que la abre.
-- `versions` (4.2.0): huella de cada grupo de datos (cantidad y última modificación). Si cambia, la app vuelve a pedir
-  esos datos con `If-None-Match` (§13.1): solo viaja lo que cambió.
+- `versions` (4.2.0; solo la usan las apps 4.2.0 y 4.3.0): huella de cada grupo de datos (cantidad y última
+  modificación). Si cambia, la app vuelve a pedir esos datos con `If-None-Match` (§13.1).
+- `changes` (4.4.0, con `?changes=M`; vacío la primera vez): el **registro de cambios** desde el cursor `M`
+  (docs/11 §11.65):
+  ```json
+  "changes": {"cursor": "981", "full": false, "more": false,
+    "data": [{"type": "stops", "id": "7", "attributes": {"landmark": "Coppelia", …}, "meta": {…}}],
+    "deleted": {"itineraries": ["4"], "itinerary-stops": ["12", "13"]},
+    "changed": ["trips"]}
+  ```
+  `data`: los registros cambiados que la persona ve, como en `GET tipo/id`; `deleted`: los borrados o que ya no ve;
+  `changed`: tipos con altas que ve (la app vuelve a pedir sus listas, por detrás). `full: true` (sin cursor, o más
+  viejo que lo que conserva el registro, «Conservación cambios», 1 mes): volver a descargarlo todo. Con
+  `more: true`, pedir otra vez con el cursor nuevo. Se registran tabla, registro, operación (create, update, delete)
+  y fecha y hora de cada cambio, también los hechos en masa y los borrados en cascada, y los «padres» cuyos datos
+  calculados cambian.
 - `settingsVersion`: si cambia, recargar `GET settings`.
 - `finishedTrips` (4.3.0): viajes que ve y que terminaron en los últimos dos días: la app quita sus notificaciones del
   viaje y del vehículo.
@@ -530,8 +549,8 @@ Unidades: tiempos `seg min hor dia sem mes ano` (mes = 30 días, año = 365), co
 |---|---|---|---|
 | `anticipacion_viaje` | Ventana viaje | Inicio ventana (X) | `10min` |
 | `fin_ventana` | Ventana viaje | Fin ventana (Y) | `5min` |
-| `frecuencia_calculo` | Ventana viaje | Frecuencia ventana (Z) | `10seg` |
-| `frecuencia_reposo` | Ventana viaje | Frecuencia fuera ventana (F, mínimo `15min`) | `15min` |
+| `frecuencia_corta` | Ventana viaje | Frecuencia corta (app abierta, o cerrada en la ventana de un viaje; 4.4.0, antes `frecuencia_calculo`) | `10seg` |
+| `frecuencia_larga` | Ventana viaje | Frecuencia larga (app cerrada fuera de la ventana; mínimo `15min`; 4.4.0, antes `frecuencia_reposo`) | `15min` |
 | `radio_parada` | Generales | Radio parada | `100m` |
 | `minimo_confirmaciones` | Generales | Mínimo confirmaciones | `3` |
 | `velocidad_humana` | Estado trabajador | Velocidad humana | `10km/hor` |
@@ -544,6 +563,7 @@ Unidades: tiempos `seg min hor dia sem mes ano` (mes = 30 días, año = 365), co
 | `espera_cierre` | Estado viaje | Espera cierre | `2hor` |
 | `detencion_larga` | Notificaciones | Detención larga | `5min` |
 | `frecuencia_chat` | Sincronización | Frecuencia chat | `5seg` |
+| `conservacion_cambios` | Sincronización | Conservación cambios (registro de cambios; 4.4.0) | `1mes` |
 | `longitud_contrasena` | Contraseñas | Longitud contraseña | `8` |
 | `tipos_caracteres` | Contraseñas | Tipos caracteres | `3` |
 | `caducidad_contrasena` | Contraseñas | Caducidad contraseña | `1ano` |
@@ -661,3 +681,27 @@ Con la sesión del Administrador o con `X-Maintenance-Key`:
   `pendingApplications`; la línea del recorrido trae `itineraryName` y `vehicleTypeName`.
 - Base de datos: instalación desde cero, o «Actualizar base de datos» sobre una 4.2.0 (la migración
   `2026_11_16_000001_upgrade_4_3` convierte los `recogido` guardados en `viajando` y quita el valor del ENUM).
+
+## 13.18 Qué cambió en la 4.4.0 (docs/11 §11.65)
+
+- **Estados del trabajador** iguales en la ida y en el regreso, en **cualquier parada** (detectada por cercanía):
+  `no_recogido` y `retrasado` sustituyen a `botado` y `dormido` (se aceptan de las apps 4.3.0 y a ellas se les
+  devuelven así, `X-App-Version` < 14); `viajando` ya no es final en el regreso; finales `dejado`, `no_recogido`,
+  `retrasado` y `no_voy`. `counts` de la línea por **parada detectada**; `myState` con `stopName` y `setByServer`;
+  `travels`; `myStopId` es la **parada habitual** (opcional: sin ella también se ven los viajes y se viaja).
+- **Informes con hora de captura:** `POST trips/{id}/reports` con `events` (en cola, ordenados por `capturedAt`);
+  `meta.accepted`. Hora de paso por parada según las horas de captura de los sensores; el servidor pone `no_recogido`
+  / `retrasado` a quien no envía cuando pasa el vehículo; al llegar, quien seguía `viajando` queda `dejado`.
+- **Registro de cambios:** `GET sync?changes=N` (también en `POST trips/{id}/reports?cursor=N&changes=M`) →
+  `meta.changes`. Ajuste `conservacion_cambios` y tarea diaria `cambios:podar`. `meta.versions` se mantiene para las
+  apps 4.3.0.
+- **Motivos de rechazo separados:** `entity-denial-reasons` e `itinerary-denial-reasons`; la relación
+  `denialReason` de `applications` es de uno u otro tipo según la solicitud. `denial-reasons` solo consulta (4.3.0).
+- **Viajes:** «un viaje por itinerario, sentido y fecha» ya no cuenta los cancelados (`409 TRIP_EXISTS` solo con
+  uno planificado, en ejecución o terminado).
+- **Ajustes:** `frecuencia_corta` y `frecuencia_larga` sustituyen a `frecuencia_calculo` y `frecuencia_reposo`
+  (la actualización copia sus valores).
+- **Instalación:** tipos de vehículo «Ómnibus Yutong» (45 sentados, 15 de pie) y «Carro Dongfeng» (32, 9).
+- Base de datos: instalación desde cero, o «Actualizar base de datos» sobre una 4.3.0 (migración
+  `2026_11_16_000002_upgrade_4_4`, compatible con MariaDB 10.3).
+

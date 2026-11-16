@@ -1143,6 +1143,12 @@ class _WorkerFormState extends _FormState<WorkerForm> {
   bool get canDelete => _admin && !_p.isAdmin;
 
   @override
+  bool get canCreate => _admin;
+
+  @override
+  Widget emptyForm() => const RegisterWorkerForm();
+
+  @override
   List<Object?> snapshot() => [_first.text, _middle.text, _firstSurname.text, _secondSurname.text, _card.text, _username.text, active];
 
   @override

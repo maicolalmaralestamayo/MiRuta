@@ -1877,7 +1877,7 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
 - En las próximas actualizaciones se entrega **solo la APK de 32 bits** (armeabi-v7a), además del zip de
   actualización del servidor (y el completo solo cuando se pida).
 
-## 11.65 Problemas y cambios tras probar la 4.3.0 (16/11/2026, pendiente de definir e implementar)
+## 11.65 Problemas y cambios tras probar la 4.3.0 (16/11/2026; implementado en la 4.4.0)
 
 Lista del usuario (archivo `problemas_miruta4.3.txt`, capturas en `docs/capturas/4.3/`):
 
@@ -2017,3 +2017,58 @@ Lista del usuario (archivo `problemas_miruta4.3.txt`, capturas en `docs/capturas
 
 **Regla general** (16/11/2026): **no se cambia ningún icono** que la app ya tiene (barra de navegación, menús,
 tarjetas, icono de la app); los iconos de las imágenes de muestra son solo ilustrativos.
+
+**Decisiones de la implementación (4.4.0)** (16/11/2026):
+
+- **Causas de lo visto en la prueba de la 4.3.0** (capturas `docs/capturas/4.3/`):
+  - *Contador de ~15 min dentro de la ventana y «Mi estado» que no cambiaba:* con la app abierta, la siguiente consulta
+    se programaba con F si el teléfono **creía** estar fuera de la ventana, y solo sabía de la ventana por la lista de
+    viajes guardada en la **última** consulta. Si el viaje se planificó (o se abrió su ventana) después, la app seguía
+    15 min sin consultar ni arrancar el servicio de ubicación, que es el único que calcula el estado: «En la parada»
+    (declarado a mano) no pasaba nunca a Dormido/Botado. Ahora la app abierta (o en recientes) consulta **siempre**
+    con la Frecuencia corta, y abrir la línea del recorrido de un viaje propio lo mete al momento en la ventana.
+  - *0 sensores con «Mínimo confirmaciones» = 1:* nadie llegaba a Viajando: el cálculo no corría (punto anterior) y,
+    en la ida, Viajando solo se alcanzaba desde la **primera** parada; quien subía en otra nunca era sensor. Ahora se
+    sube en cualquier parada (detectada por cercanía) y el servidor cuenta el único sensor.
+  - Además, si el teléfono de quien esperaba (o iba de camino) **no envía** cuando el vehículo pasa por su parada, el
+    servidor lo pone No recogido o Retrasado (`set_by_server`); su teléfono, al volver a enviar, manda sobre eso.
+- **Estados:** valores `no_recogido` y `retrasado` en la base de datos (la actualización convierte `botado` y
+  `dormido`). A los teléfonos con la 4.3.0 (versionCode < 14) se les devuelven `botado` y `dormido` y se les aceptan;
+  Viajando ya no es final en el regreso (pasa a Dejado). Al terminar el viaje por llegada, quien seguía Viajando
+  queda Dejado en la última parada. «No voy» calculado solo es definitivo (se aleja de todas las paradas más allá de
+  la Distancia abandono); alejarse un poco ya no lo marca.
+- **Dejado:** «Cálculos consecutivos» a velocidad humana en el radio de una parada, o mientras los **demás** sensores
+  dicen que el vehículo sigue en movimiento (así no se deja a nadie por una detención larga del vehículo en el
+  trayecto). Un No recogido que se aleja a velocidad de vehículo antes de la Espera final pasa a Viajando.
+- **Hora de captura:** `POST trips/{id}/reports` admite `events` (cambios del trabajador con su parada detectada y
+  observaciones del vehículo), cada uno con `capturedAt`; se guardan en cola sin conexión (las observaciones del
+  vehículo solo cuando cambian) y el servidor las aplica en ese orden. La salida del viaje es la hora del primer
+  Viajando y la hora de paso por cada parada es la del sensor que completó la mayoría (tabla `trip_stop_votes`).
+- **Parada habitual:** se usa la parada que ya tenía cada trabajador en su itinerario (opcional). Sin ella también
+  viaja (ve los viajes, tiene ventana de viaje y cuenta como esperado); «Esperados» de cada parada = los que la
+  tienen como habitual.
+- **Frecuencias:** ajustes `frecuencia_corta` y `frecuencia_larga` (antes `frecuencia_calculo` y
+  `frecuencia_reposo`, con su valor guardado). En recientes la app sigue consultando con la corta mientras Android la
+  mantenga viva; cerrada, la tarea en segundo plano (larga) o el servicio de la ventana (corta).
+- **Registro de cambios:** tabla `change_log`; se registra con el constructor de consultas de los modelos (también los
+  cambios en masa y lo que la base de datos borra en cascada) y los «padres» cuyos datos calculados cambian (p. ej.
+  una parada añadida cambia su itinerario). `GET sync?changes=N` devuelve los registros cambiados que la persona ve
+  (como en `GET tipo/id`), los ids borrados o que ya no ve, y los tipos con altas (la app vuelve a pedir esas
+  listas por detrás). Con `full` (sin cursor o más viejo que lo conservado) la app vuelve a descargarlo todo. Ajuste
+  «Conservación cambios» (`1mes`), tarea diaria `cambios:podar`. Las apps 4.3.0 siguen usando `meta.versions`.
+- **Motivos de rechazo:** tablas `entity_denial_reasons` e `itinerary_denial_reasons` (y sus nomencladores en la app);
+  `denial-reasons` queda solo para consultar desde la 4.3.0 (con `filter[applicationType]`), y al rechazar con él
+  se busca el id en la tabla del tipo de la solicitud. La tabla vieja se conserva sin usarse.
+- **Un viaje por itinerario, sentido y fecha:** el índice único pasa a ser normal (MariaDB 10.3 no tiene índices
+  parciales) y lo comprueba la API sin contar los cancelados.
+- **Modales y spinners:** el spinner de las operaciones tapa solo la zona de trabajo de la pantalla (barra superior y
+  de navegación visibles); atrás = Cancelar. Su texto sale del nombre CRUD de la acción («Crear Parada» → «Creando
+  Parada»; «Actualizar Viaje: Cancelar» → «Actualizando Viaje»). En las pantallas sin barra (inicio de sesión) va en
+  un diálogo con el mismo formato.
+- **Relaciones pendientes:** se muestran en la sección «Pendiente de guardar» del formulario (con Deshacer) hasta
+  Guardar; Aprobar o Rechazar una solicitud y crear otro objeto (parada nueva, trabajador nuevo, ausencia) siguen
+  siendo inmediatos porque son otros objetos. Registrar en una Entidad (o crear una parada en un itinerario) que aún
+  no se guardó pide guardarla primero.
+- **Horas de 12 h** en la app (viajes, línea, pasos); las notificaciones conservan el formato aceptado en §11.63.
+- **«Crear Viaje»:** si se crean la ida y el regreso, el formulario sigue con el viaje de ida.
+

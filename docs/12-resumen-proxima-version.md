@@ -2,7 +2,7 @@
 
 Resumen **consolidado** de lo acordado en `docs/11-acuerdos-registro-qr.md` §11.19–§11.52, con la **última decisión**
 de cada tema (lo sustituido no aparece). **Servidor implementado** (Laravel 12; API en `docs/13-api-proxima-version.md`);
-**app implementada** (versión 4.3.0, `docs/05-app.md`).
+**app implementada** (versión 4.4.0, `docs/05-app.md`).
 
 ## 1. Plataforma
 
@@ -39,7 +39,7 @@ de cada tema (lo sustituido no aparece). **Servidor implementado** (Laravel 12; 
 - **Formularios** sin datos de otras tablas; el campo **Activado** es un interruptor del formulario.
 - Lo **desactivado** se ve atenuado solo para Administrador y Jefe.
 - **Botones** siempre con ícono y texto corto (acción y, si hace falta, objeto).
-- **Fechas** «sáb. dd-mm-aa»; **horas** de 24 h.
+- **Fechas** «sáb. dd-mm-aa»; **horas** de 12 h con a. m. / p. m. (4.4.0).
 - Secciones **plegables** con su cantidad, que **recuerdan** si estaban plegadas; **paginadas de 5 en 5** (salvo las
   paradas de un itinerario elegido).
 
@@ -83,21 +83,22 @@ de cada tema (lo sustituido no aparece). **Servidor implementado** (Laravel 12; 
 
 ## 9. Tiempo real (línea del recorrido, sin mapa)
 
-- **Estados del trabajador**, calculados **en el teléfono** (envía solo cambios, con acuse y reintento):
-  - Ida: De camino a la parada ⇄ En la parada → **Viajando** → **Dejado** (fin); o **No voy a viajar**.
-  - Regreso: De camino a la parada ⇄ En la parada → **Viajando** (fin); **Botado**, **Dormido**; o **No voy a viajar**.
-  - Viajando y Recogido son **un solo estado, Viajando**, en la ida y en el regreso (4.3.0).
+- **Estados del trabajador**, calculados **en el teléfono** (envía solo cambios con su hora de captura, en cola sin
+  conexión, con acuse y reintento), **iguales en la ida y en el regreso** (4.4.0): **De camino** ⇄ **En la parada** →
+  **Viajando** → **Dejado**; **No recogido** (estaba en la parada y el vehículo pasó sin recogerle), **Retrasado**
+  (el vehículo pasó por su parada antes de que llegara) o **No voy**. Se sube y se baja en **cualquier parada**,
+  detectada por cercanía; la parada asignada es la **parada habitual** (opcional, solo para planificar).
   - Reglas: radio de parada, tolerancia del GPS, velocidad humana, 6 cálculos seguidos para Dejado, distancia de
-    abandono, salida o paso del vehículo.
+    abandono, paso del vehículo por la parada.
 - **Sensores:** los teléfonos Viajando calculan si el vehículo está **Detenido** o **En movimiento** y su
   **próxima parada**; el servidor decide por **mayoría** (mínimo 3). Detenido en una parada = **Dejando / Recogiendo**;
   en el trayecto, sin causa hasta que la indiquen.
-- **Estado del viaje:** a mano (Administrador o Jefe), o automático (3 trabajadores Viajando, en el regreso desde la última
-  parada; llegada a la parada final; 2 h tras el último Dejado o Viajando del regreso; 5 h de duración máxima; eliminación a las
-  5 h si nunca salió).
+- **Estado del viaje:** a mano (Administrador o Jefe), o automático (3 trabajadores Viajando en cualquier parada;
+  llegada a la parada final; 2 h tras el último Dejado; 5 h de duración máxima; eliminación a las 5 h si nunca salió).
 - **Lo calcula el servidor:** personas en el vehículo y por parada, hora de paso por cada parada, cantidad de sensores.
-- **Línea:** siempre en el mismo sitio, orden de paradas según ida o regreso, cantidades (sin ceros), tarjeta de
-  «N esperando en [primera parada]», Viajando, sensores destacados, «Mi estado». **Sin horas estimadas.**
+- **Línea:** siempre en el mismo sitio, orden de paradas según ida o regreso, en cada parada cuántos hay De camino, En
+  la parada, Retrasados, No recogidos y Dejados (sin ceros), tarjetas de sensores y «Mi estado» (con su parada) del
+  mismo tamaño. **Sin horas estimadas.**
 - **Ubicación obligatoria** para ver el viaje en curso; los avisos de activar el GPS y de quitarlo van en «Mi estado».
 
 ## 10. Notificaciones (del teléfono, sin pantalla de avisos; 4.3.0)
@@ -133,10 +134,10 @@ Siempre en la cortina (con la app abierta o cerrada), cada una actualizada en su
 - Estado trabajador: Velocidad humana `10km/hor`, Tolerancia GPS `20m`, Distancia abandono `1km`, Frecuencia cálculo
   `10seg`, Cálculos consecutivos `6`, Espera final `10min`.
 - Estado viaje: Plazo eliminación `5hor`, Duración máxima `5hor`, Espera cierre `2hor`.
-- Ventana viaje (4.2.0): Inicio ventana (X) `10min`, Fin ventana (Y) `5min`, Frecuencia ventana (Z) `10seg`,
-  Frecuencia fuera ventana (F) `15min` (mínimo `15min`). Sustituyen a Anticipación viaje, Frecuencia cálculo,
-  Frecuencia reposo y Frecuencia día viaje.
-- Sincronización: Frecuencia chat `5seg`.
+- Ventana viaje: Inicio ventana (X) `10min`, Fin ventana (Y) `5min`, **Frecuencia corta** `10seg` (app abierta, o
+  cerrada dentro de la ventana) y **Frecuencia larga** `15min` (mínimo; app cerrada fuera de la ventana) (4.4.0,
+  sustituyen a Frecuencia ventana y Frecuencia fuera ventana).
+- Sincronización: Frecuencia chat `5seg`, Conservación cambios `1mes` (registro de cambios, 4.4.0).
 - Notificaciones: Detención larga `5min`.
 - Más los de contraseñas, acceso, «Olvidé algo», conversaciones y archivos.
 
@@ -202,3 +203,37 @@ ajustes por Entidad / itinerario / parada / usuario.
   destacada en naranja, siempre en la cortina; sin aviso dentro de la app.
 - **Servidor:** migración de actualización 4.2.0 → 4.3.0 con «Actualizar base de datos» (convierte los «recogido»);
   acepta «recogido» de los teléfonos con la 4.2.0.
+
+## 18. Versión 4.4.0 (16/11/2026, docs/11 §11.65)
+
+- **Frecuencias:** solo dos, **Frecuencia corta** (10 s) con la app abierta o en recientes y, cerrada, dentro de la
+  ventana de un viaje; **Frecuencia larga** (15 min, mínimo) solo cerrada y fuera de la ventana. Corrige el contador de
+  ~15 min dentro de la ventana.
+- **Estados del trabajador**, iguales en la ida y en el regreso: **De camino, En la parada, Viajando, Dejado, No
+  recogido** (antes Botado), **Retrasado** (antes Dormido) y **No voy**; finales Dejado, No recogido, Retrasado y No
+  voy. Se sube y se baja en **cualquier parada**, detectada por cercanía; la parada asignada pasa a ser la **parada
+  habitual** (opcional, solo para planificar).
+- **Hora de captura:** todo lo que calcula el teléfono (estado del trabajador y observaciones del vehículo) va con su
+  hora y en cola si no hay conexión; el servidor fija con ellas la salida y el paso por cada parada. Si un teléfono no
+  envía, el servidor pone No recogido / Retrasado al pasar el vehículo.
+- **Ver recorrido:** mismo diseño de la línea, sin la tarjeta de ocupación; tarjetas de Sensores y Mi estado del mismo
+  tamaño; Mi estado con su parada (salvo Viajando; en Dejado, donde se le dejó); cada parada con cuántos hay De
+  camino, En la parada, Retrasados, No recogidos y Dejados (sin ceros).
+- **Registro de cambios:** el servidor anota cada alta, cambio y baja; la app descarga todo tras el inicio de sesión y
+  en cada consulta aplica solo lo que cambió, sin avisar; las pantallas abren con lo guardado (spinner solo si no hay
+  nada). Poda a 1 mes (ajuste «Conservación cambios»).
+- **Interfaz:** modales con los botones a todo el ancho, uno debajo del otro (acción arriba, Cancelar gris abajo;
+  Eliminar rojo; Confirmar en el color principal); «Salir sin guardar» con **Guardar**; spinners «Consultando /
+  Creando / Actualizando / Eliminando [Objeto]» sobre fondo blanco con el círculo naranja y «✕ Cancelar», con las barras
+  visibles; sin cintas tras las acciones; menús con nombres CRUD («Crear Viaje», «Actualizar Viaje: Cancelar»…);
+  «Crear [Objeto]» en cada formulario, que tras guardar sigue mostrando lo guardado; relaciones **pendientes hasta
+  Guardar**; ningún icono cambiado.
+- **Crear Viaje:** Ida y Regreso con su interruptor, Fecha, Hora (12 h, en un diálogo) y Tipo de vehículo; por
+  omisión, ida hoy 05:00 p. m. y regreso mañana 06:00 a. m. Un viaje cancelado o eliminado ya no impide crear otro.
+- **Paradas:** botón **Pegar ubicación** («lat, lng», Google Maps, OsmAnd, OpenStreetMap, `geo:`).
+- **Inicio:** «Ocultar / Mostrar solicitudes aprobadas» (ocultas por omisión; se recuerda).
+- **Nomencladores:** motivos de rechazo separados para solicitudes de **Entidad** y de **itinerario**; la instalación
+  crea los tipos de vehículo **Ómnibus Yutong** (45 + 15) y **Carro Dongfeng** (32 + 9).
+- **Servidor:** migración de actualización 4.3.0 → 4.4.0 con «Actualizar base de datos» (docs/10 §10.3 quater); las
+  apps 4.3.0 siguen funcionando.
+
