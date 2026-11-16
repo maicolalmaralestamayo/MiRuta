@@ -1976,6 +1976,9 @@ Lista del usuario (archivo `problemas_miruta4.3.txt`, capturas en `docs/capturas
 
 **Inicio**
 22. Opción «Ocultar solicitudes aprobadas».
+    - **Decidido** (16/11/2026): en la sección Solicitudes de Inicio, una opción cuyo texto alterna entre
+      «**Ocultar solicitudes aprobadas**» y «**Mostrar solicitudes aprobadas**» según el estado; por defecto ocultas;
+      el teléfono recuerda la elección. Pendientes y rechazadas siempre se ven.
 
 **Regla general** (16/11/2026): **no se cambia ningún icono** que la app ya tiene (barra de navegación, menús,
 tarjetas, icono de la app); los iconos de las imágenes de muestra son solo ilustrativos.
