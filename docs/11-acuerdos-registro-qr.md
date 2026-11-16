@@ -1982,6 +1982,9 @@ Lista del usuario (archivo `problemas_miruta4.3.txt`, capturas en `docs/capturas
         bajarse en **cualquiera**. La app **detecta la parada por cercanía** a las paradas del itinerario, tanto para
         Acercándose y En la parada (la parada a la que se acerca / en la que espera) como para Dejado (la parada
         donde se baja).
+      - **Parada asignada → «parada habitual»** (16/11/2026, decidido): la parada que hoy tiene cada trabajador en su
+        itinerario se mantiene, **opcional**, renombrada «**Parada habitual**», solo para planificar (cuántos esperan
+        normalmente en cada parada, listas de Gestión). Los estados del viaje usan la **parada detectada**.
 18. Revisar a fondo sensores, estados (trabajador, viaje, vehículo) y la pantalla «Ver recorrido».
 19. Revisar a fondo las notificaciones: cuándo se activan y los tiempos de consulta.
 
