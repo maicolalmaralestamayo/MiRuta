@@ -1884,6 +1884,10 @@ Lista del usuario (archivo `problemas_miruta4.3.txt`, capturas en `docs/capturas
 **Para toda la app**
 1. Con la app abierta (en primer plano o en recientes) también consulta al servidor con una frecuencia propia, por
    defecto 10 s, configurable. Cerrada o quitada de recientes, pasa a F fuera de la ventana o Z dentro.
+   - **Decidido** (16/11/2026): la app tiene **solo 2 frecuencias**: una **corta** (por defecto 10 s), que se usa
+     dentro de la ventana de un viaje **y** siempre que la app esté abierta (primer plano o recientes); y una
+     **larga** (por defecto y mínimo 15 min), para el resto (app cerrada y fuera de la ventana). No hay una
+     frecuencia aparte para «app abierta».
 2. Motivos de rechazo **separados** para solicitudes de Entidad y de itinerario (tablas distintas). Seeders:
    - Entidad: «Usted no pertenece a nuestra entidad», «No se pudo verificar su identidad», «Otro motivo de rechazo».
    - Itinerario: «Usted no pertenece a este itinerario», «No se pudo verificar su identidad», «Usted no pertenece a
