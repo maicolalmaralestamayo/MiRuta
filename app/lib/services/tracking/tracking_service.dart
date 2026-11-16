@@ -20,7 +20,7 @@ import 'worker_tracker.dart';
 /// §11.41, §11.43 y §11.62): desde X («Inicio ventana») antes de la salida
 /// hasta Y («Fin ventana») después de que el viaje termine para el trabajador.
 /// Lo arranca la app o, con la app cerrada, la alarma exacta. Cada Z
-/// («Frecuencia ventana») toma la posición, calcula el estado del trabajador
+/// («Frecuencia corta») toma la posición, calcula el estado del trabajador
 /// (y del vehículo si es sensor) y hace UNA sola petición,
 /// `POST trips/{id}/reports?cursor=N`, que envía los cambios pendientes (con
 /// acuse y reintento) y recibe la línea del recorrido y las novedades de
@@ -109,7 +109,7 @@ class TrackingService {
       await stop();
     }
     await FlutterForegroundTask.removeData(key: _key);
-    init(settings.windowEvery);
+    init(settings.shortEvery);
     await FlutterForegroundTask.startService(
       serviceTypes: [ForegroundServiceTypes.location],
       notificationTitle: 'Mi estado',
@@ -209,14 +209,15 @@ class TrackingHandler extends TaskHandler {
         'tracker': null,
         'queue': <Map<String, dynamic>>[],
         'childIds': const <String>[],
-        'trip': {'status': slot.trip.status, 'passed': false, 'next': 0},
+        'trip': {'status': slot.trip.status, 'passed': <int>[], 'next': 0},
         'sensors': 0,
       };
     } else if (slot != null) {
       data['end'] = slot.end.toIso8601String();
     }
     final tripId = '${data['tripId']}';
-    final queue = [for (final q in (data['queue'] as List? ?? const [])) Map<String, dynamic>.from(q as Map)];
+    // Cola de cambios con su hora de captura (docs/11 §11.65); los de la 4.3.0 se convierten.
+    final queue = [for (final q in (data['queue'] as List? ?? const [])) _event(Map<String, dynamic>.from(q as Map))];
     final tripInfo = Map<String, dynamic>.from(data['trip'] as Map? ?? const {});
     final ended = data['endedAt'] == null ? null : DateTime.tryParse('${data['endedAt']}');
 
@@ -227,11 +228,10 @@ class TrackingHandler extends TaskHandler {
       return;
     }
 
-    var tracker = data['tracker'] == null ? null : WorkerTracker.fromJson(Map<String, dynamic>.from(data['tracker'] as Map));
-    if (tracker == null && ended == null) {
-      tracker = await _bootstrap(api, tripId, settings);
-      if (tracker != null && tracker.myIndex < tracker.route.length) data['myStop'] ??= tracker.route[tracker.myIndex].name;
-    }
+    var tracker = data['tracker'] == null || (data['tracker'] as Map)['version'] != 44
+        ? null
+        : WorkerTracker.fromJson(Map<String, dynamic>.from(data['tracker'] as Map));
+    if (tracker == null && ended == null) tracker = await _bootstrap(api, tripId, settings);
 
     // GPS encendido y permiso «todo el tiempo» (para «Mi estado»).
     final gpsOn = await _safe(Geolocator.isLocationServiceEnabled, true);
@@ -247,54 +247,54 @@ class TrackingHandler extends TaskHandler {
           locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, timeLimit: Duration(seconds: 20)),
         );
         gps = true;
-        step = tracker.step(
-          GeoPoint(position.latitude, position.longitude),
-          now,
-          TripInfo(status: '${tripInfo['status']}', vehiclePassedMyStop: tripInfo['passed'] == true, nextStopIndex: (tripInfo['next'] as num?)?.toInt() ?? 0),
-        );
+        step = tracker.step(GeoPoint(position.latitude, position.longitude), now, tripInfoFrom(tripInfo));
       } catch (_) {
         // Sin señal del GPS (o sin permiso) en este cálculo: se envía lo pendiente.
         gps = false;
       }
     }
 
-    if (step?.newState != null) {
-      final state = step!.newState!;
-      final childIds = List<String>.from(data['childIds'] as List? ?? const []);
-      queue.add({
-        'workerState': state,
-        if (step.stopId != null) 'stopId': int.tryParse(step.stopId!),
-        if ((state == 'viajando' || state == 'en_parada') && childIds.isNotEmpty) 'childIds': [for (final id in childIds) int.tryParse(id) ?? 0],
-        'reportedAt': now.toIso8601String(),
-      });
+    final childIds = List<String>.from(data['childIds'] as List? ?? const []);
+    if (step?.newState != null) queue.add(workerEvent(step!.newState!, step.stopId, now, childIds: childIds));
+    // Observación del sensor sobre el vehículo, con su hora: en cola si cambió.
+    if (step != null && step.isSensor) {
+      final observation = vehicleEvent(step, now);
+      final last = data['lastVehicle'] is Map ? Map<String, dynamic>.from(data['lastVehicle'] as Map) : null;
+      if (last == null || !sameObservation(last, observation)) queue.add(observation);
+      data['lastVehicle'] = observation;
     }
 
-    // Una sola petición: el primer cambio pendiente, el sensor y, de paso, las novedades.
-    final pending = queue.isEmpty ? null : queue.first;
-    final attributes = <String, dynamic>{
-      ...?pending,
-      'reportedAt': pending?['reportedAt'] ?? now.toIso8601String(),
-      'gps': ?gps,
-      if (step != null && step.isSensor) ...{'vehicleState': step.vehicleState, 'nextStopIndex': step.nextStopIndex, 'atStop': step.atStop},
-    };
+    // Una sola petición: toda la cola (con la observación actual) y, de paso, las novedades.
+    final fromQueue = queue.length < 100 ? queue.length : 100;
+    final sending = [...queue.take(fromQueue)];
+    final current = data['lastVehicle'] is Map && tracker?.isSensor == true ? Map<String, dynamic>.from(data['lastVehicle'] as Map) : null;
+    if (current != null && !sending.any((e) => e['kind'] == 'vehicle' && e['capturedAt'] == current['capturedAt'])) {
+      sending.add({...current, 'capturedAt': now.toIso8601String()});
+    }
+    final attributes = <String, dynamic>{'events': sending, 'gps': ?gps, 'reportedAt': now.toIso8601String()};
     final cursor = await SyncService.cursor();
+    final changes = await SyncService.changesCursor();
     try {
-      final document = await api.post('/trips/$tripId/reports${cursor == null ? '' : '?cursor=$cursor'}', resourceData('trip-reports', attributes: attributes));
-      if (pending != null) queue.removeAt(0);
+      final document = await api.post('/trips/$tripId/reports?${cursor == null ? '' : 'cursor=$cursor&'}changes=$changes', resourceData('trip-reports', attributes: attributes));
+      queue.removeRange(0, fromQueue);
       final live = TripLive.from(document.resource);
       tripInfo['status'] = live.status;
-      // Ida: la referencia es la primera parada (salió el vehículo); regreso: la suya.
-      final reference = live.outbound ? live.stops.firstOrNull : live.myStop;
-      tripInfo['passed'] = reference != null && reference.passed;
+      tripInfo['passed'] = [for (final s in live.stops) if (s.passed) s.index];
       tripInfo['next'] = live.nextStopIndex;
+      tripInfo['vehicle'] = live.vehicleState;
+      tripInfo['sensors'] = live.sensors;
       data['sensors'] = live.sensors;
-      data['myStop'] = live.myStop?.landmark ?? data['myStop'];
       if (live.itineraryName != null) data['itinerary'] = live.itineraryName;
       data['outbound'] = live.outbound;
       await _vehicle(data, live, tracker);
-      // Lo declarado a mano desde la app (o por otra vía) manda sobre el cálculo.
-      if (tracker != null && queue.isEmpty && live.myState != null && live.myState != tracker.state && live.myState != 'de_camino') {
-        tracker.declare(live.myState!);
+      // Lo declarado a mano desde la app manda sobre el cálculo; lo que puso el
+      // servidor porque el teléfono no enviaba, no: se le reenvía lo calculado.
+      if (tracker != null && queue.isEmpty && live.myState != null && live.myState != tracker.state) {
+        if (live.mySetByServer && tracker.state != null && !tracker.finished) {
+          queue.add(workerEvent(tracker.state!, tracker.stopId, now, childIds: childIds));
+        } else if (!live.mySetByServer || tracker.state == null) {
+          tracker.declare(live.myState!, stopId: live.myStopId, at: live.myStateAt);
+        }
       }
       final sync = document.meta['sync'];
       if (sync is Map) {
@@ -302,10 +302,11 @@ class TrackingHandler extends TaskHandler {
         final syncMeta = Map<String, dynamic>.from(sync['meta'] as Map? ?? const {});
         // Las notificaciones salen en la cortina (docs/11 §11.63); la app abierta recarga lo que cambió.
         final result = await SyncService.apply(api, notifications, syncMeta);
-        FlutterForegroundTask.sendDataToMain({'changed': result.changed.toList()});
+        FlutterForegroundTask.sendDataToMain({'changed': result.changed.toList(), 'cache': result.cacheChanged});
       }
     } on ApiException catch (error) {
-      if (!error.isNetwork && pending != null && (error.statusCode == 422 || error.statusCode == 403 || error.statusCode == 404)) queue.removeAt(0);
+      // Un cambio que el servidor no acepta (422) no se reintenta.
+      if (!error.isNetwork && error.statusCode == 422 && queue.isNotEmpty) queue.removeAt(0);
       if (error.statusCode == 404 || error.statusCode == 403) {
         await TripWindow.markDone(tripId, now.subtract(settings.windowAfter));
         await Notifications.tripFinished(tripId);
@@ -313,10 +314,10 @@ class TrackingHandler extends TaskHandler {
         return;
       }
     } catch (_) {
-      // Se reintenta en la siguiente vuelta.
+      // Se reintenta en la siguiente vuelta (la cola se guarda).
     }
 
-    // El viaje terminó para él: estado definitivo o fin del viaje. Sigue Y más.
+    // El viaje terminó para él: estado final o fin del viaje. Sigue Y más.
     final status = '${tripInfo['status']}';
     var endedAt = ended;
     if (endedAt == null && queue.isEmpty && ((tracker?.finished ?? false) || status == 'terminado' || status == 'cancelado')) {
@@ -327,19 +328,20 @@ class TrackingHandler extends TaskHandler {
     if (status == 'terminado') await Notifications.tripFinished(tripId);
 
     data['tracker'] = tracker?.toJson();
-    data['queue'] = queue.length > 50 ? queue.sublist(queue.length - 50) : queue;
+    // Sin conexión la cola crece: se guardan los cambios del trabajador y las últimas observaciones.
+    data['queue'] = trimQueue(queue);
     data['trip'] = tripInfo;
     data['lastAt'] = now.toIso8601String();
-    FlutterForegroundTask.sendDataToMain({'nextAt': now.add(settings.windowEvery).toIso8601String()});
+    FlutterForegroundTask.sendDataToMain({'nextAt': now.add(settings.shortEvery).toIso8601String()});
 
-    // «Mi estado» (docs/11 §11.63): sin GPS o sin «todo el tiempo», solo el aviso.
+    // «Mi estado» (docs/11 §11.63 y §11.65): la parada detectada (en Viajando, ninguna).
     final state = tracker?.state;
     final content = myStateNotice(
       stateName: WorkerState.notice(state),
       state: state,
       itineraryName: data['itinerary']?.toString(),
       outbound: data['outbound'] != false,
-      myStop: data['myStop']?.toString(),
+      myStop: tracker?.stopName,
       gpsOn: gpsOn,
       alwaysPermission: permission == LocationPermission.always,
       ended: endedAt != null,
@@ -347,6 +349,18 @@ class TrackingHandler extends TaskHandler {
     data['tap'] = !gpsOn ? 'gps' : (permission != LocationPermission.always ? 'permiso' : 'trip:$tripId');
     await FlutterForegroundTask.saveData(key: TrackingService._key, value: jsonEncode(data));
     FlutterForegroundTask.updateService(notificationTitle: content.title, notificationText: content.text);
+  }
+
+  /// Un cambio guardado en la cola; los de la 4.3.0 (workerState…) pasan al formato nuevo.
+  static Map<String, dynamic> _event(Map<String, dynamic> q) {
+    if (q.containsKey('kind')) return q;
+    return {
+      'kind': 'worker',
+      'state': WorkerTracker.normalize('${q['workerState']}'),
+      'stopId': ?q['stopId'],
+      'childIds': ?q['childIds'],
+      'capturedAt': q['reportedAt'] ?? DateTime.now().toIso8601String(),
+    };
   }
 
   static Future<T> _safe<T>(Future<T> Function() f, T fallback) async {
@@ -390,8 +404,8 @@ class TrackingHandler extends TaskHandler {
     await Notifications.showVehicle(tripId, content);
   }
 
-  /// Primer cálculo: el recorrido (con las coordenadas de las paradas) y su
-  /// parada salen de la línea del recorrido.
+  /// Primer cálculo: el recorrido con las coordenadas de las paradas (la
+  /// parada se detecta por cercanía; docs/11 §11.65).
   Future<WorkerTracker?> _bootstrap(ApiClient api, String tripId, AppSettings settings) async {
     try {
       final live = TripLive.from((await api.get('/trips/$tripId/live')).resource);
@@ -400,19 +414,8 @@ class TrackingHandler extends TaskHandler {
           if (s.latitude != null && s.longitude != null) RouteStop(s.stopId, s.landmark, GeoPoint(s.latitude!, s.longitude!)),
       ];
       if (route.length < 2) return null;
-      final mine = live.viewerStopId ?? live.myStopId;
-      var myIndex = route.indexWhere((s) => s.id == mine);
-      if (myIndex < 0) myIndex = live.outbound ? route.length - 1 : 0;
-      final config = TrackerConfig(
-        stopRadius: settings.distance('radio_parada'),
-        gpsTolerance: settings.distance('tolerancia_gps'),
-        humanSpeed: settings.speed('velocidad_humana'),
-        abandonDistance: settings.distance('distancia_abandono'),
-        consecutive: settings.integer('calculos_consecutivos'),
-        finalWait: settings.duration('espera_final'),
-      );
-      final tracker = WorkerTracker(outbound: live.outbound, route: route, myIndex: myIndex, config: config);
-      if (live.myState != null) tracker.declare(live.myState!);
+      final tracker = WorkerTracker(outbound: live.outbound, route: route, config: trackerConfig(settings));
+      if (live.myState != null) tracker.declare(live.myState!, stopId: live.myStopId, at: live.myStateAt);
       return tracker;
     } catch (_) {
       return null;
@@ -428,4 +431,56 @@ class TrackingHandler extends TaskHandler {
 
   @override
   Future<void> onDestroy(DateTime timestamp, bool isTimeout) async {}
+}
+
+/// Ajustes del cálculo del estado del trabajador.
+TrackerConfig trackerConfig(AppSettings settings) => TrackerConfig(
+      stopRadius: settings.distance('radio_parada'),
+      gpsTolerance: settings.distance('tolerancia_gps'),
+      humanSpeed: settings.speed('velocidad_humana'),
+      abandonDistance: settings.distance('distancia_abandono'),
+      consecutive: settings.integer('calculos_consecutivos'),
+      finalWait: settings.duration('espera_final'),
+    );
+
+/// Lo que se sabe del viaje (guardado entre vueltas) para el cálculo.
+TripInfo tripInfoFrom(Map<String, dynamic> info) => TripInfo(
+      status: '${info['status'] ?? 'planificado'}',
+      passed: {for (final i in (info['passed'] is List ? info['passed'] as List : const [])) (i as num).toInt()},
+      nextStopIndex: (info['next'] as num?)?.toInt() ?? 0,
+      vehicleState: info['vehicle']?.toString(),
+      sensors: (info['sensors'] as num?)?.toInt() ?? 0,
+    );
+
+/// Cambio de estado del trabajador con su parada detectada y la hora de captura.
+Map<String, dynamic> workerEvent(String state, String? stopId, DateTime at, {List<String> childIds = const []}) => {
+      'kind': 'worker',
+      'state': state,
+      'stopId': ?(stopId == null ? null : int.tryParse(stopId)),
+      if ((state == 'viajando' || state == 'en_parada') && childIds.isNotEmpty) 'childIds': [for (final id in childIds) int.tryParse(id) ?? 0],
+      'capturedAt': at.toIso8601String(),
+    };
+
+/// Observación del sensor sobre el vehículo, con la hora de captura.
+Map<String, dynamic> vehicleEvent(TrackerStep step, DateTime at) => {
+      'kind': 'vehicle',
+      'vehicleState': step.vehicleState,
+      'nextStopIndex': step.nextStopIndex,
+      'atStop': step.atStop ?? false,
+      'capturedAt': at.toIso8601String(),
+    };
+
+bool sameObservation(Map<String, dynamic> a, Map<String, dynamic> b) =>
+    a['vehicleState'] == b['vehicleState'] && a['nextStopIndex'] == b['nextStopIndex'] && a['atStop'] == b['atStop'];
+
+/// Cola sin conexión: todos los cambios del trabajador y, como mucho, las 200
+/// últimas observaciones del vehículo (cada una solo cuando cambió).
+List<Map<String, dynamic>> trimQueue(List<Map<String, dynamic>> queue, {int maxVehicle = 200}) {
+  final vehicles = queue.where((e) => e['kind'] == 'vehicle').length;
+  if (vehicles <= maxVehicle) return queue;
+  var drop = vehicles - maxVehicle;
+  return [
+    for (final e in queue)
+      if (e['kind'] != 'vehicle' || drop-- <= 0) e,
+  ];
 }

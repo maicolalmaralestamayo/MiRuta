@@ -7,6 +7,7 @@ import '../core/storage.dart';
 import 'app_settings.dart';
 import 'app_updates.dart';
 import 'notifications.dart';
+import 'prefetch.dart';
 import 'qr/qr_queue.dart';
 import 'tracking/trip_window.dart';
 
@@ -45,7 +46,11 @@ class SyncResult {
   final NextTrip? nextTrip;
   final bool settingsChanged;
 
-  const SyncResult({this.changed = const {}, this.counters = const {}, this.nextTrip, this.settingsChanged = false});
+  /// El registro de cambios cambió lo guardado en el teléfono (las pantallas
+  /// abiertas vuelven a leerlo, sin spinner; docs/11 §11.65).
+  final bool cacheChanged;
+
+  const SyncResult({this.changed = const {}, this.counters = const {}, this.nextTrip, this.settingsChanged = false, this.cacheChanged = false});
 }
 
 /// Sincronización con `GET sync?cursor=N` (docs/13 §13.10): notificaciones
@@ -57,6 +62,9 @@ class SyncService {
   static const _countersKey = 'user.sync.counters';
   static const _nextTripKey = 'user.sync.next_trip';
   static const _frequencyKey = 'user.sync.frequency';
+
+  /// Cursor del registro de cambios (docs/11 §11.65); sin él, descargarlo todo.
+  static const _changesKey = 'user.sync.changes';
   static const meKey = 'user.me';
   static const task = 'miruta-sync';
 
@@ -74,19 +82,52 @@ class SyncService {
     var cursor = await Storage.getString(_cursorKey);
     final notifications = <Resource>[];
     Map<String, dynamic> meta = const {};
+    var cacheChanged = false;
     for (var round = 0; round < 10; round++) {
-      final document = await api.get('/sync', query: {'cursor': ?cursor});
+      final document = await api.get('/sync', query: {'cursor': ?cursor, 'changes': await changesCursor()});
       if (cursor != null) notifications.addAll(document.resources);
       meta = document.meta;
       cursor = meta['cursor']?.toString() ?? cursor;
-      if (meta['more'] != true) break;
+      final more = meta['more'] == true || (meta['changes'] is Map && (meta['changes'] as Map)['more'] == true);
+      // Las vueltas intermedias solo aplican el registro de cambios.
+      if (more) cacheChanged = await applyChanges(api, meta['changes']) || cacheChanged;
+      if (!more) break;
     }
-    return apply(api, notifications, meta, notify: notify, foreground: foreground);
+    final result = await apply(api, notifications, meta, notify: notify, foreground: foreground);
+    return cacheChanged && !result.cacheChanged
+        ? SyncResult(changed: result.changed, counters: result.counters, nextTrip: result.nextTrip, settingsChanged: result.settingsChanged, cacheChanged: true)
+        : result;
   }
 
   /// Cursor que se envía en la siguiente consulta (también dentro de la
   /// ventana de viaje, en POST trips/{id}/reports?cursor=N).
   static Future<String?> cursor() => Storage.getString(_cursorKey);
+
+  /// Cursor del registro de cambios ('' = empezar: descargarlo todo).
+  static Future<String> changesCursor() async => await Storage.getString(_changesKey) ?? '';
+
+  /// Aplica meta.changes (docs/11 §11.65): lo cambiado en lo guardado; con
+  /// full, vuelve a descargarlo todo por detrás. Devuelve true si cambió algo.
+  static Future<bool> applyChanges(ApiClient api, Object? raw) async {
+    if (raw is! Map) return false;
+    final changes = Map<String, dynamic>.from(raw);
+    final next = changes['cursor']?.toString();
+    var changed = false;
+    if (changes['full'] == true) {
+      // Más viejo que lo que conserva el servidor (o la primera vez): todo de nuevo.
+      await LocalCache.markStale([await for (final (key, _) in LocalCache.entries()) key]);
+      if (next != null) await Storage.setString(_changesKey, next);
+      await Prefetch.run(api);
+      await LocalCache.feedApplied();
+      return true;
+    }
+    changed = await LocalCache.applyChanges(CacheChanges.fromJson(changes));
+    if (next != null) await Storage.setString(_changesKey, next);
+    // Las listas de tipos con altas, por detrás.
+    final stale = await LocalCache.staleKeys();
+    if (stale.isNotEmpty) changed = await Prefetch.refreshStale(api, stale) || changed;
+    return changed;
+  }
 
   /// Aplica lo recibido (de GET sync o del meta.sync de un informe del
   /// viaje): notificaciones, contadores, versión de la app, ajustes, viajes
@@ -102,6 +143,8 @@ class SyncService {
       }
     }
     changed.addAll([for (final c in (meta['changed'] as List? ?? const [])) '$c']);
+    // Registro de cambios (4.4.0): lo guardado se pone al día sin avisar.
+    final cacheChanged = await applyChanges(api, meta['changes']);
     if (meta['cursor'] != null) await Storage.setString(_cursorKey, meta['cursor'].toString());
 
     final counters = <String, int>{
@@ -140,8 +183,8 @@ class SyncService {
       } catch (_) {}
     }
 
-    // Huellas de los datos (docs/11 §11.62, caché local): lo que cambió se vuelve a pedir.
-    changed.addAll(await LocalCache.compareVersions(meta['versions']));
+    // Huellas de la 4.3.0: solo con un servidor viejo (sin registro de cambios).
+    if (meta['changes'] == null) changed.addAll(await LocalCache.compareVersions(meta['versions']));
 
     // Viajes en que viaja: su ventana de viaje.
     if (meta['myTrips'] is List) {
@@ -165,13 +208,14 @@ class SyncService {
 
     await TripWindow.reschedule(settings, foreground: foreground);
     await scheduleBackground(settings);
-    return SyncResult(changed: changed, counters: counters, nextTrip: next, settingsChanged: settingsChanged);
+    return SyncResult(changed: changed, counters: counters, nextTrip: next, settingsChanged: settingsChanged, cacheChanged: cacheChanged);
   }
 
-  /// Fuera de la ventana de viaje, solo recibe cada F (docs/11 §11.62): la
-  /// tarea en segundo plano (Android no permite menos de 15 minutos), sin GPS.
+  /// Con la app cerrada y fuera de la ventana de viaje, solo recibe cada
+  /// «Frecuencia larga» (docs/11 §11.65): la tarea en segundo plano (Android
+  /// no permite menos de 15 minutos), sin GPS.
   static Future<void> scheduleBackground(AppSettings settings) async {
-    final minutes = settings.outsideEvery.inMinutes;
+    final minutes = settings.longEvery.inMinutes;
     if (await Storage.getString(_frequencyKey) == '$minutes') return;
     try {
       await Workmanager().registerPeriodicTask(

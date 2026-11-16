@@ -1,7 +1,7 @@
 import 'package:intl/intl.dart';
 
-/// Formatos de fechas y horas de toda la app (docs/11 §11.33): fechas
-/// «sáb. 07-11-26» y horas de 24 h «17:30».
+/// Formatos de fechas y horas de toda la app (docs/11 §11.33 y §11.65):
+/// fechas «sáb. 07-11-26» y horas de 12 h «05:30 p. m.».
 String formatDate(DateTime? date) {
   if (date == null) return '';
   final local = date.toLocal();
@@ -14,7 +14,25 @@ String weekday(DateTime date) {
   return names[date.weekday - 1];
 }
 
-String formatTime(DateTime? date) => date == null ? '' : DateFormat('HH:mm').format(date.toLocal());
+String formatTime(DateTime? date) {
+  if (date == null) return '';
+  final local = date.toLocal();
+  return time12(local.hour, local.minute);
+}
+
+/// «05:00 p. m.», «12:30 a. m.» (docs/11 §11.65: horas de 12 h con a. m. / p. m.).
+String time12(int hour, int minute) {
+  final h = hour % 12 == 0 ? 12 : hour % 12;
+  return '${h.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')} ${hour < 12 ? 'a. m.' : 'p. m.'}';
+}
+
+/// «17:30» (como lo guarda el servidor) → «05:30 p. m.»; si no se entiende, tal cual.
+String hhmm12(String hhmm) {
+  final parts = hhmm.split(':');
+  final h = parts.isNotEmpty ? int.tryParse(parts[0]) : null;
+  final m = parts.length > 1 ? int.tryParse(parts[1]) : null;
+  return h == null || m == null ? hhmm : time12(h, m);
+}
 
 String formatDateTime(DateTime? date) => date == null ? '' : '${formatDate(date)} ${formatTime(date)}';
 

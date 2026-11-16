@@ -62,7 +62,8 @@ void main() {
     expect(me.placementIn('5')!.stopLandmark, 'Banco');
     expect(me.placementIn('3')!.stopId, isNull);
     expect(me.seesTrips, isTrue);
-    expect(me.toJson()['travelItineraryIds'], ['1', '5']);
+    // Parada habitual opcional (4.4.0): viaja en todos sus itinerarios.
+    expect(me.toJson()['travelItineraryIds'], ['1', '3', '5']);
   });
 
   test('sin Entidad no ve viajes', () {
@@ -95,7 +96,8 @@ void main() {
     expect(live.outbound, isFalse);
     expect(live.sensors, 3);
     expect(live.inVehicleWorkers + live.inVehicleChildren, 14);
-    expect(live.stops.first.counts, {'botado': 1});
+    // «botado» de un servidor 4.3.0 se lee como No recogido.
+    expect(live.stops.first.counts, {'no_recogido': 1});
     expect(live.myStop!.landmark, 'Coppelia');
     expect(WorkerState.name(live.myState), 'En la parada');
   });

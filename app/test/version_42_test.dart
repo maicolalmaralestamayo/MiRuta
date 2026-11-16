@@ -16,7 +16,7 @@ void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
   group('Ventana de viaje', () {
-    const settings = AppSettings({'anticipacion_viaje': '10min', 'fin_ventana': '5min', 'frecuencia_calculo': '10seg', 'frecuencia_reposo': '15min'});
+    const settings = AppSettings({'anticipacion_viaje': '10min', 'fin_ventana': '5min', 'frecuencia_corta': '10seg', 'frecuencia_larga': '15min'});
     final departs = DateTime(2026, 11, 16, 7, 0);
     WindowTrip trip({String status = 'planificado', DateTime? changed, String? state, DateTime? stateAt, String? stop = '7'}) => WindowTrip(
         id: '15', itineraryName: 'XX Aniversario', departsAt: departs, status: status, statusChangedAt: changed, myStopId: stop, myState: state, myStateAt: stateAt);
@@ -38,14 +38,14 @@ void main() {
       expect(done.single.end, DateTime(2026, 11, 16, 7, 35));
     });
 
-    test('sin parada no hay ventana (no viaja)', () {
-      expect(TripWindow.slots([trip(stop: null)], const {}, settings, DateTime(2026, 11, 16, 6, 55)), isEmpty);
+    test('sin parada habitual también hay ventana (4.4.0: la parada se detecta)', () {
+      expect(TripWindow.slots([trip(stop: null)], const {}, settings, DateTime(2026, 11, 16, 6, 55)), hasLength(1));
     });
 
     test('Z y F con sus mínimos', () {
-      expect(settings.windowEvery, const Duration(seconds: 10));
-      expect(const AppSettings({'frecuencia_calculo': '1seg'}).windowEvery, const Duration(seconds: 5));
-      expect(const AppSettings({'frecuencia_reposo': '5min'}).outsideEvery, const Duration(minutes: 15));
+      expect(settings.shortEvery, const Duration(seconds: 10));
+      expect(const AppSettings({'frecuencia_corta': '1seg'}).shortEvery, const Duration(seconds: 5));
+      expect(const AppSettings({'frecuencia_larga': '5min'}).longEvery, const Duration(minutes: 15));
       expect(const AppSettings({}).windowAfter, const Duration(minutes: 5));
     });
   });

@@ -51,7 +51,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final value = _controllers[s.key]!.text.trim();
       if (value == s.value) continue;
       // F no admite menos de 15 min (docs/11 §11.62): Android no repite antes las tareas en segundo plano.
-      if (s.key == 'frecuencia_reposo' && value.isNotEmpty && (parseDuration(value) ?? Duration.zero) < const Duration(minutes: 15)) {
+      if (s.key == 'frecuencia_larga' && value.isNotEmpty && (parseDuration(value) ?? Duration.zero) < const Duration(minutes: 15)) {
         _errors[s.key] = 'Mínimo 15min (límite de Android)';
         continue;
       }

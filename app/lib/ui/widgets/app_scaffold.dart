@@ -7,6 +7,7 @@ import '../../services/session.dart';
 import '../../services/tracking/trip_window.dart';
 import '../navigation.dart';
 import 'actions.dart';
+import 'busy.dart';
 import 'common.dart';
 import 'connection_dot.dart';
 import 'marks.dart';
@@ -91,6 +92,18 @@ class AppScaffold extends StatefulWidget {
 class _AppScaffoldState extends State<AppScaffold> {
   final _registry = RefreshRegistry();
 
+  @override
+  void initState() {
+    super.initState();
+    BusyOverlay.hosts++;
+  }
+
+  @override
+  void dispose() {
+    BusyOverlay.hosts--;
+    super.dispose();
+  }
+
   String get title => widget.title;
   String? get subtitle => widget.subtitle;
   Widget get body => widget.body;
@@ -142,7 +155,24 @@ class _AppScaffoldState extends State<AppScaffold> {
     Widget scaffold = Scaffold(
       backgroundColor: background,
       appBar: _appBar(context, ready),
-      body: RefreshScope(registry: _registry, child: content),
+      // El spinner de las operaciones tapa solo la zona de trabajo (docs/11 §11.65):
+      // siguen visibles la barra superior y la de navegación. Atrás = Cancelar.
+      body: RefreshScope(
+        registry: _registry,
+        child: ValueListenableBuilder<BusyRequest?>(
+          valueListenable: BusyOverlay.current,
+          builder: (context, busy, child) => busy == null
+              ? child!
+              : PopScope(
+                  canPop: false,
+                  onPopInvokedWithResult: (didPop, _) {
+                    if (!didPop) busy.onCancel();
+                  },
+                  child: Stack(children: [child!, Positioned.fill(child: BusyPanel(text: busy.text, onCancel: busy.onCancel))]),
+                ),
+          child: content,
+        ),
+      ),
       bottomNavigationBar: ready ? MainNavigationBar(selected: tab) : null,
     );
     final m = marks;

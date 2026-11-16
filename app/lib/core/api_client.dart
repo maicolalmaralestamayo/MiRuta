@@ -167,11 +167,14 @@ class ApiClient {
     if (trace != null && trace.cacheOnly) {
       if (entry == null) throw const CacheMiss();
       trace.used(entry.savedAt);
+      // Lo que no cubre el registro de cambios (o una lista con altas) se vuelve a preguntar.
+      if (LocalCache.typeOf(key) == null || await LocalCache.isStale(key)) trace.stale = true;
       return JsonApiDocument.fromJson(entry.body);
     }
     try {
       final response = await _send(() => _dio.get(path,
           queryParameters: query, options: Options(headers: {if (entry?.etag != null) 'If-None-Match': entry!.etag})));
+      unawaited(LocalCache.markFresh(key));
       if (response.statusCode == 304 && entry != null) {
         unawaited(LocalCache.write(key, entry.body, entry.etag));
         trace?.used(DateTime.now());

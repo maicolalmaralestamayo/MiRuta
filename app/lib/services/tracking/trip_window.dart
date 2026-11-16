@@ -23,6 +23,9 @@ class WindowTrip {
   final String? myState;
   final DateTime? myStateAt;
 
+  /// Viaja en él aunque no tenga parada habitual.
+  final bool travels;
+
   const WindowTrip({
     required this.id,
     this.itineraryId = '',
@@ -34,6 +37,7 @@ class WindowTrip {
     this.myStopId,
     this.myState,
     this.myStateAt,
+    this.travels = true,
   });
 
   static DateTime? _date(Object? v) => v == null ? null : DateTime.tryParse('$v')?.toLocal();
@@ -49,6 +53,7 @@ class WindowTrip {
         myStopId: j['myStopId']?.toString(),
         myState: j['myState']?.toString(),
         myStateAt: _date(j['myStateAt']),
+        travels: j['travels'] != false,
       );
 
   Map<String, dynamic> toJson() => {
@@ -62,6 +67,7 @@ class WindowTrip {
         'myStopId': myStopId,
         'myState': myState,
         'myStateAt': myStateAt?.toIso8601String(),
+        'travels': travels,
       };
 
   bool get outbound => direction == 'ida';
@@ -87,9 +93,9 @@ class WindowSlot {
 }
 
 /// Planificación de la ventana de viaje: dentro, el servicio de ubicación en
-/// primer plano envía y recibe cada Z (arrancado por una alarma exacta X antes
+/// primer plano envía y recibe cada «Frecuencia corta» (arrancado por una alarma exacta X antes
 /// de la salida, aunque la app esté cerrada); fuera, solo la tarea en segundo
-/// plano cada F, sin GPS.
+/// plano cada «Frecuencia larga», sin GPS (con la app abierta, cada «Frecuencia corta»).
 class TripWindow {
   static const _tripsKey = 'user.window.trips';
   static const _doneKey = 'user.window.done';
@@ -98,6 +104,16 @@ class TripWindow {
   static final nextContact = ValueNotifier<DateTime?>(null);
 
   static Future<void> save(List<Map<String, dynamic>> trips) => Storage.setString(_tripsKey, jsonEncode(trips));
+
+  /// Añade (o pone al día) un viaje en que viaja, sin esperar a la próxima
+  /// consulta (docs/11 §11.65): al abrir su línea del recorrido. En la 4.3.0
+  /// la ventana dependía solo de la lista guardada en la última consulta y,
+  /// si el viaje se planificó después, no se abría: ni contador corto ni
+  /// cálculo de su estado.
+  static Future<void> remember(WindowTrip trip) async {
+    final list = [for (final t in await trips()) if (t.id != trip.id) t.toJson(), trip.toJson()];
+    await save(list);
+  }
 
   static Future<List<WindowTrip>> trips() async {
     final raw = await Storage.getString(_tripsKey);
@@ -130,14 +146,16 @@ class TripWindow {
   static List<WindowSlot> slots(List<WindowTrip> trips, Map<String, DateTime> done, AppSettings settings, DateTime now) {
     final result = <WindowSlot>[];
     for (final trip in trips) {
-      if (trip.myStopId == null) continue;
+      // Parada habitual opcional (docs/11 §11.65): viaja en todos los viajes de sus itinerarios.
+      if (trip.myStopId == null && !trip.travels) continue;
       final start = trip.departsAt.subtract(settings.windowBefore);
       final cap = trip.departsAt.add(settings.duration('duracion_maxima') + const Duration(hours: 1));
       DateTime? ended;
       DateTime? earliest(DateTime? a, DateTime? b) => a == null ? b : (b == null || a.isBefore(b) ? a : b);
       if (trip.closed) ended = trip.statusChangedAt ?? trip.departsAt;
       ended = earliest(ended, done[trip.id]);
-      if (trip.myState == 'dejado') ended = earliest(ended, trip.myStateAt ?? now);
+      // Estado final (Dejado, No recogido, Retrasado o No voy): termina Y después.
+      if (const {'dejado', 'no_recogido', 'retrasado', 'no_voy', 'botado', 'dormido'}.contains(trip.myState)) ended = earliest(ended, trip.myStateAt ?? now);
       var end = ended == null ? cap : ended.add(settings.windowAfter);
       if (end.isAfter(cap)) end = cap;
       if (end.isAfter(now) && end.isAfter(start)) result.add(WindowSlot(trip, start, end));
@@ -184,12 +202,12 @@ class TripWindow {
         if (foreground) {
           await TrackingService.startWindow(active, settings);
         } else {
-          await MirutaAlarm.schedule(now.add(const Duration(seconds: 3)), TrackingService.alarmPayload(active.trip.title, settings.windowEvery));
+          await MirutaAlarm.schedule(now.add(const Duration(seconds: 3)), TrackingService.alarmPayload(active.trip.title, settings.shortEvery));
           return;
         }
       }
       if (upcoming != null) {
-        await MirutaAlarm.schedule(upcoming.start, TrackingService.alarmPayload(upcoming.trip.title, settings.windowEvery));
+        await MirutaAlarm.schedule(upcoming.start, TrackingService.alarmPayload(upcoming.trip.title, settings.shortEvery));
       } else {
         await MirutaAlarm.cancel();
       }

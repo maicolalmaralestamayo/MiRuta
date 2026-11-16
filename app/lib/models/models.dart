@@ -298,8 +298,8 @@ class Me {
 
   bool get hasStop => placements.any((p) => p.stopId != null);
 
-  /// Puede ver viajes: algún itinerario con parada (el Jefe aunque no tenga parada; el Administrador, todos).
-  bool get seesTrips => isAdmin || chiefItineraryId != null || placements.any((p) => p.stopId != null);
+  /// Puede ver viajes: algún itinerario (la parada habitual es opcional desde la 4.4.0; el Administrador, todos).
+  bool get seesTrips => isAdmin || chiefItineraryId != null || placements.isNotEmpty;
 
   bool isChiefOf(String? itineraryId) => itineraryId != null && chiefItineraryId == itineraryId;
 
@@ -309,8 +309,8 @@ class Me {
         'role': role.name,
         'chiefItineraryId': chiefItineraryId,
         'itineraryIds': [for (final p in placements) p.itineraryId],
-        // Donde viaja (con parada): recordatorios y cálculo de su estado.
-        'travelItineraryIds': [for (final p in placements) if (p.stopId != null) p.itineraryId],
+        // Donde viaja (parada habitual opcional): recordatorios y cálculo de su estado.
+        'travelItineraryIds': [for (final p in placements) p.itineraryId],
       };
 }
 
@@ -811,58 +811,65 @@ abstract final class WorkerState {
   static const atStop = 'en_parada';
   static const travelling = 'viajando';
   static const dropped = 'dejado';
-  static const leftBehind = 'botado';
-  static const late = 'dormido';
+
+  /// Estaba En la parada y el vehículo pasó sin recogerle (antes «Botado»; docs/11 §11.65).
+  static const leftBehind = 'no_recogido';
+
+  /// Estaba De camino y el vehículo pasó por su parada antes de que llegara (antes «Dormido»).
+  static const late = 'retrasado';
   static const notGoing = 'no_voy';
 
-  /// Nombre de la 4.2.0 de Viajando en el regreso (solo para leer datos viejos).
+  /// Nombres viejos (4.2.0 y 4.3.0), solo para leer datos guardados o de un servidor viejo.
   static const legacyPickedUp = 'recogido';
 
-  /// «recogido» (4.2.0) es Viajando.
-  static String? normalize(String? state) => state == legacyPickedUp ? travelling : state;
+  static String? normalize(String? state) => switch (state) {
+        'recogido' => travelling,
+        'botado' => leftBehind,
+        'dormido' => late,
+        _ => state,
+      };
 
+  /// Nombre del estado, igual en toda la app y en las notificaciones (docs/11 §11.65).
   static String name(String? state) => const {
-        onTheWay: 'De camino a la parada',
+        onTheWay: 'De camino',
         atStop: 'En la parada',
         travelling: 'Viajando',
         dropped: 'Dejado',
-        leftBehind: 'Botado',
-        late: 'Dormido',
-        notGoing: 'No voy a viajar',
-      }[normalize(state)] ??
-      'Sin estado';
-
-  /// Nombre en la notificación «Mi estado» (docs/11 §11.63).
-  static String notice(String? state) => const {
-        onTheWay: 'De camino',
-        atStop: 'En parada',
-        travelling: 'Viajando',
-        dropped: 'Dejado',
-        leftBehind: 'Botado',
-        late: 'Dormido',
+        leftBehind: 'No recogido',
+        late: 'Retrasado',
         notGoing: 'No voy',
       }[normalize(state)] ??
       'Sin estado';
 
-  /// Estado definitivo para la notificación del vehículo (docs/11 §11.63):
-  /// Dejado, Botado, Dormido, No voy y, en el regreso, Viajando (bajan todos
-  /// en la parada final).
-  static bool isFinalFor(String? state, {required bool outbound}) {
+  /// Nombre en la notificación «Mi estado» (el mismo).
+  static String notice(String? state) => name(state);
+
+  /// Estados finales (docs/11 §11.65): Dejado, No recogido, Retrasado y No voy.
+  static bool isFinal(String? state) {
     final s = normalize(state);
-    return s == dropped || s == leftBehind || s == late || s == notGoing || (!outbound && s == travelling);
+    return s == dropped || s == leftBehind || s == late || s == notGoing;
   }
 
-  /// Nombre corto para las cantidades de la línea.
-  static String short(String state) => const {
-        onTheWay: 'De camino',
-        atStop: 'En la parada',
-        travelling: 'Viajando',
-        dropped: 'Dejados',
-        leftBehind: 'Botados',
-        late: 'Dormidos',
-        notGoing: 'No van',
-      }[normalize(state)] ??
-      state;
+  /// Estado definitivo para la notificación del vehículo (se quita al llegar a uno).
+  static bool isFinalFor(String? state, {required bool outbound}) => isFinal(state);
+
+  /// Nombre para las cantidades de cada parada de la línea, con plural.
+  static String count(String state, int n) {
+    final one = n == 1;
+    return switch (normalize(state)) {
+      onTheWay => 'De camino',
+      atStop => 'En la parada',
+      travelling => 'Viajando',
+      dropped => one ? 'Dejado' : 'Dejados',
+      leftBehind => one ? 'No recogido' : 'No recogidos',
+      late => one ? 'Retrasado' : 'Retrasados',
+      notGoing => 'No van',
+      _ => state,
+    };
+  }
+
+  /// Nombre corto (plural) para las cantidades.
+  static String short(String state) => count(state, 2);
 }
 
 /// Una parada en la línea del recorrido.
@@ -904,7 +911,7 @@ class LiveStop {
         passed: j['passed'] == true,
         passedAt: j['passedAt'] == null ? null : DateTime.tryParse('${j['passedAt']}')?.toLocal(),
         expected: _int(j['expected']),
-        counts: j['counts'] is Map ? {for (final e in (j['counts'] as Map).entries) '${e.key}': _int(e.value)} : const {},
+        counts: j['counts'] is Map ? {for (final e in (j['counts'] as Map).entries) WorkerState.normalize('${e.key}')!: _int(e.value)} : const {},
         mine: j['mine'] == true,
         latitude: (j['latitude'] as num?)?.toDouble(),
         longitude: (j['longitude'] as num?)?.toDouble(),
@@ -932,11 +939,21 @@ class TripLive {
   final int notGoing;
   final List<LiveStop> stops;
   final String? myState;
+
+  /// Parada detectada de su estado (en Dejado, donde se le dejó; docs/11 §11.65).
   final String? myStopId;
+  final String? myStopName;
+  final DateTime? myStateAt;
   final bool mySensor;
 
-  /// Parada de quien consulta en ese itinerario (si viaja en él).
+  /// Su estado lo puso el servidor (su teléfono no enviaba).
+  final bool mySetByServer;
+
+  /// Parada habitual de quien consulta en ese itinerario (opcional).
   final String? viewerStopId;
+
+  /// Quien consulta viaja en este itinerario (aunque no tenga parada habitual).
+  final bool travels;
 
   /// Quien consulta puede gestionar el viaje (Administrador o Jefe del itinerario).
   final bool canManage;
@@ -965,8 +982,12 @@ class TripLive {
     this.stops = const [],
     this.myState,
     this.myStopId,
+    this.myStopName,
+    this.myStateAt,
     this.mySensor = false,
+    this.mySetByServer = false,
     this.viewerStopId,
+    this.travels = false,
     this.canManage = false,
     this.itineraryName,
     this.vehicleTypeName,
@@ -996,8 +1017,12 @@ class TripLive {
       stops: [for (final s in (r.attributes['stops'] as List? ?? const [])) LiveStop.fromJson(Map<String, dynamic>.from(s as Map))],
       myState: WorkerState.normalize(_str(mine?['state'])),
       myStopId: _str(mine?['stopId']),
+      myStopName: _str(mine?['stopName']),
+      myStateAt: mine?['stateAt'] == null ? null : DateTime.tryParse('${mine!['stateAt']}')?.toLocal(),
       mySensor: mine?['sensor'] == true,
+      mySetByServer: mine?['setByServer'] == true,
       viewerStopId: r.string('myStopId'),
+      travels: r.boolean('travels') || r.string('myStopId') != null,
       canManage: r.boolean('canManage'),
       itineraryName: r.string('itineraryName'),
       vehicleTypeName: r.string('vehicleTypeName'),

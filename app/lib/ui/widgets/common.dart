@@ -35,22 +35,17 @@ extension SessionContext on BuildContext {
 Future<bool> showMissingServer(BuildContext context) async {
   final result = await showDialog<bool>(
     context: context,
-    builder: (context) => AlertDialog(
+    builder: (context) => AppDialog(
       icon: const Icon(Icons.dns_outlined, size: 32, color: red),
-      title: const Text('Falta el servidor'),
+      title: 'Falta el servidor',
       content: const Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('Para usar la app indique primero la dirección del servidor.'),
         SizedBox(height: 8),
         Text('Pulse el botón rojo «Servidor», arriba.'),
       ]),
-      actions: [
-        TextButton.icon(onPressed: () => Navigator.pop(context, false), icon: const Icon(Icons.close), label: const Text('Cancelar')),
-        FilledButton.icon(
-          onPressed: () => Navigator.pop(context, true),
-          style: FilledButton.styleFrom(backgroundColor: red),
-          icon: const Icon(Icons.dns_outlined),
-          label: const Text('Indicar servidor'),
-        ),
+      buttons: [
+        primaryButton(context, 'Indicar servidor', Icons.dns_outlined, () => Navigator.pop(context, true)),
+        cancelButton(context),
       ],
     ),
   );
@@ -84,37 +79,95 @@ void showMessage(BuildContext context, String message) {
     ..showSnackBar(SnackBar(content: Text(message)));
 }
 
-/// Ejecuta una operación del usuario con el spinner que bloquea la app y
-/// «Cancelar» (docs/11 §11.56); al final, el mensaje escueto [success] o el
-/// error. Devuelve true si salió bien.
-Future<bool> runAction(BuildContext context, FutureOr<void> Function() action, {String? success}) =>
-    runBusy(context, action, done: success, onError: showError);
+/// Ejecuta una operación del usuario con el spinner «[Acción] [Objeto]»
+/// ([label], p. ej. «Creando Parada») y «✕ Cancelar» (docs/11 §11.65); al
+/// final, nada (sin cintas) o el error. Devuelve true si salió bien.
+Future<bool> runAction(BuildContext context, FutureOr<void> Function() action, {String? success, String? label}) =>
+    runBusy(context, action, done: success, label: label, onError: showError);
 
-/// Botón para cerrar un diálogo sin hacer nada (con ícono; docs/11 §11.52).
-Widget cancelButton(BuildContext context, {String label = 'Cancelar', IconData icon = Icons.close}) =>
-    TextButton.icon(onPressed: () => Navigator.pop(context), icon: Icon(icon), label: Text(label));
+/// Modal de la app (docs/11 §11.65, puntos 6 a 8): ícono, título, contenido y
+/// los botones a todo el ancho, uno debajo del otro, la acción arriba y
+/// Cancelar abajo.
+class AppDialog extends StatelessWidget {
+  final Widget? icon;
+  final String? title;
+  final Widget? content;
+  final List<Widget> buttons;
 
-/// Modal simple (docs/11 §11.56, maqueta G19 n.º 9 y 10): ícono, título,
-/// pregunta de confirmación y botones. [cancel] es el texto del botón que
+  /// Contenido sin márgenes laterales (listas).
+  final bool flush;
+
+  const AppDialog({super.key, this.icon, this.title, this.content, this.buttons = const [], this.flush = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = Theme.of(context);
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(0, 20, 0, 16),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            if (icon != null) Center(child: Padding(padding: const EdgeInsets.only(bottom: 12), child: icon!)),
+            if (title != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Text(title!, textAlign: TextAlign.center, style: t.textTheme.headlineSmall),
+              ),
+            if (content != null)
+              Flexible(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(flush ? 0 : 24, 12, flush ? 0 : 24, 4),
+                  child: flush ? content! : SingleChildScrollView(child: content!),
+                ),
+              ),
+            if (buttons.isNotEmpty) const SizedBox(height: 12),
+            for (final b in buttons) Padding(padding: const EdgeInsets.fromLTRB(24, 4, 24, 4), child: SizedBox(width: double.infinity, height: 48, child: b)),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+/// Botón de la acción de un modal, en el color principal (Confirmar, Guardar…).
+Widget primaryButton(BuildContext context, String label, IconData icon, VoidCallback? onPressed) =>
+    FilledButton.icon(onPressed: onPressed, icon: Icon(icon), label: Text(label));
+
+/// Botón Eliminar (o de una acción destructiva) de un modal: siempre en rojo.
+Widget dangerButton(BuildContext context, String label, IconData icon, VoidCallback? onPressed) => FilledButton.icon(
+    style: FilledButton.styleFrom(backgroundColor: red, foregroundColor: Colors.white), onPressed: onPressed, icon: Icon(icon), label: Text(label));
+
+/// Otra opción de un modal (ni la principal ni Cancelar).
+Widget otherButton(BuildContext context, String label, IconData icon, VoidCallback? onPressed) =>
+    OutlinedButton.icon(onPressed: onPressed, icon: Icon(icon), label: Text(label));
+
+/// Botón Cancelar de un modal: siempre en gris y abajo (docs/11 §11.65).
+Widget cancelButton(BuildContext context, {String label = 'Cancelar', IconData icon = Icons.close}) => FilledButton.icon(
+    style: FilledButton.styleFrom(backgroundColor: const Color(0xFFE0E0E0), foregroundColor: const Color(0xFF424242)),
+    onPressed: () => Navigator.pop(context),
+    icon: Icon(icon),
+    label: Text(label));
+
+/// Modal simple (docs/11 §11.56 y §11.65): ícono, título, pregunta y los
+/// botones uno debajo del otro: la acción (color principal, o rojo si
+/// [destructive]) y Cancelar (gris). [cancel] es el texto del botón que
 /// vuelve sin hacer nada (p. ej. «Volver» cuando la acción es «Cancelar solicitud»).
 Future<bool> confirm(BuildContext context, String title, String message,
-    {String accept = 'Aceptar', IconData icon = Icons.check, bool destructive = false, IconData? headerIcon, String cancel = 'Cancelar', IconData cancelIcon = Icons.close}) async {
+    {String accept = 'Confirmar', IconData icon = Icons.check, bool destructive = false, IconData? headerIcon, String cancel = 'Cancelar', IconData cancelIcon = Icons.close}) async {
   final color = destructive ? red : Theme.of(context).colorScheme.primary;
   final result = await showDialog<bool>(
     context: context,
-    builder: (context) => AlertDialog(
+    builder: (context) => AppDialog(
       icon: Icon(headerIcon ?? (destructive ? Icons.warning_amber_rounded : Icons.help_outline), color: color, size: 32),
-      title: Text(title, textAlign: TextAlign.center),
+      title: title,
       content: Text(message, textAlign: TextAlign.center),
-      actionsAlignment: MainAxisAlignment.center,
-      actions: [
+      buttons: [
+        destructive
+            ? dangerButton(context, accept, icon, () => Navigator.pop(context, true))
+            : primaryButton(context, accept, icon, () => Navigator.pop(context, true)),
         cancelButton(context, label: cancel, icon: cancelIcon),
-        FilledButton.icon(
-          style: destructive ? FilledButton.styleFrom(backgroundColor: red, foregroundColor: Colors.white) : null,
-          onPressed: () => Navigator.pop(context, true),
-          icon: Icon(icon),
-          label: Text(accept),
-        ),
       ],
     ),
   );
@@ -126,17 +179,37 @@ Future<bool> confirmDelete(BuildContext context, String what, {String? consequen
     confirm(context, 'Eliminar', '¿Eliminar $what?${consequences == null ? '' : '\n\n$consequences'}',
         accept: 'Eliminar', icon: Icons.delete_outline, destructive: true, headerIcon: Icons.delete_outline);
 
-/// «Salir sin guardar» (docs/11 §11.56, maqueta G19 n.º 9): el mismo en todos los formularios.
-Future<bool> confirmLeave(BuildContext context) => confirm(context, 'Salir sin guardar', '¿Salir? Los cambios no se guardarán.',
-    accept: 'Salir', icon: Icons.logout, destructive: true, headerIcon: Icons.warning_amber_rounded);
+enum LeaveChoice { save, leave, cancel }
+
+/// «Salir sin guardar» (docs/11 §11.65, punto 8): el mismo en todos los
+/// formularios. Botones: Guardar (color principal, si se puede guardar),
+/// Salir sin guardar (rojo) y Cancelar (gris).
+Future<LeaveChoice> confirmLeave(BuildContext context, {bool canSave = true}) async {
+  final result = await showDialog<LeaveChoice>(
+    context: context,
+    builder: (context) => AppDialog(
+      icon: const Icon(Icons.warning_amber_rounded, color: red, size: 32),
+      title: 'Salir sin guardar',
+      content: const Text('Hay cambios sin guardar. ¿Qué desea hacer?', textAlign: TextAlign.center),
+      buttons: [
+        if (canSave) primaryButton(context, 'Guardar', Icons.save_outlined, () => Navigator.pop(context, LeaveChoice.save)),
+        dangerButton(context, 'Salir sin guardar', Icons.logout, () => Navigator.pop(context, LeaveChoice.leave)),
+        cancelButton(context),
+      ],
+    ),
+  );
+  return result ?? LeaveChoice.cancel;
+}
 
 /// Protege un formulario: si hay cambios sin guardar ([dirty]), al salir
-/// pregunta «Salir sin guardar» (Cancelar / Salir).
+/// pregunta «Salir sin guardar» (Guardar / Salir sin guardar / Cancelar).
+/// [onSave] guarda (con su spinner) y devuelve true si salió bien.
 class LeaveGuard extends StatelessWidget {
   final bool Function() dirty;
+  final Future<bool> Function()? onSave;
   final Widget child;
 
-  const LeaveGuard({super.key, required this.dirty, required this.child});
+  const LeaveGuard({super.key, required this.dirty, this.onSave, required this.child});
 
   @override
   Widget build(BuildContext context) {
@@ -145,8 +218,18 @@ class LeaveGuard extends StatelessWidget {
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
         final navigator = Navigator.of(context);
-        if (!dirty() || await confirmLeave(context)) {
+        if (!dirty()) {
           if (navigator.mounted) navigator.pop(result);
+          return;
+        }
+        final choice = await confirmLeave(navigator.context, canSave: onSave != null);
+        switch (choice) {
+          case LeaveChoice.leave:
+            if (navigator.mounted) navigator.pop(result);
+          case LeaveChoice.save:
+            if (await onSave!() && navigator.mounted && navigator.canPop()) navigator.pop(true);
+          case LeaveChoice.cancel:
+            break;
         }
       },
       child: child,
@@ -160,9 +243,9 @@ Future<String?> promptText(BuildContext context, String title,
   final controller = TextEditingController(text: initial);
   return showDialog<String>(
     context: context,
-    builder: (context) => AlertDialog(
+    builder: (context) => AppDialog(
       icon: Icon(headerIcon, size: 32),
-      title: Text(title, textAlign: TextAlign.center),
+      title: title,
       content: TextField(
         controller: controller,
         decoration: InputDecoration(labelText: label),
@@ -175,16 +258,12 @@ Future<String?> promptText(BuildContext context, String title,
           Navigator.pop(context, controller.text.trim());
         },
       ),
-      actions: [
+      buttons: [
+        primaryButton(context, accept, icon, () {
+          if (required && controller.text.trim().isEmpty) return;
+          Navigator.pop(context, controller.text.trim());
+        }),
         cancelButton(context),
-        FilledButton.icon(
-          onPressed: () {
-            if (required && controller.text.trim().isEmpty) return;
-            Navigator.pop(context, controller.text.trim());
-          },
-          icon: Icon(icon),
-          label: Text(accept),
-        ),
       ],
     ),
   );
@@ -199,9 +278,9 @@ Future<T?> pickOne<T>(BuildContext context, String title, List<T> items, String 
       var filter = '';
       return StatefulBuilder(builder: (context, setState) {
         final visible = items.where((i) => filter.isEmpty || '${label(i)} ${subtitle?.call(i) ?? ''}'.toLowerCase().contains(filter.toLowerCase())).toList();
-        return AlertDialog(
-          title: Text(title),
-          contentPadding: const EdgeInsets.fromLTRB(0, 12, 0, 0),
+        return AppDialog(
+          title: title,
+          flush: true,
           content: SizedBox(
             width: double.maxFinite,
             child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -225,7 +304,7 @@ Future<T?> pickOne<T>(BuildContext context, String title, List<T> items, String 
               ),
             ]),
           ),
-          actions: [cancelButton(context)],
+          buttons: [cancelButton(context)],
         );
       });
     },

@@ -146,14 +146,14 @@ class Session extends ChangeNotifier {
   Future<void> sync({bool all = false, bool now = false}) async {
     if (state != SessionState.ready) return;
     try {
-      await Storage.setForeground(_foreground);
+      await Storage.setForeground(true);
       if (await TrackingService.isRunning) {
         if (now) TrackingService.syncNow();
         _schedule();
         return;
       }
       final result = await SyncService.run(api, foreground: _foreground);
-      _apply(result.changed, all: all);
+      _apply({...result.changed, if (result.cacheChanged) 'cache'}, all: all);
       counters = result.counters;
       nextTrip = result.nextTrip;
       if (result.settingsChanged) settings = await AppSettings.cached();
@@ -185,6 +185,7 @@ class Session extends ChangeNotifier {
       Notifications.tapped.value = tap;
     }
     final changed = (data['changed'] as List?)?.map((e) => '$e').toSet();
+    if (changed != null && data['cache'] == true) changed.add('cache');
     if (changed != null) {
       SyncService.cachedCounters().then((c) {
         counters = c;
@@ -199,14 +200,17 @@ class Session extends ChangeNotifier {
   /// Conecta ya y reinicia el contador.
   Future<void> refresh() => sync(now: true);
 
-  /// Próxima consulta con la app abierta (docs/11 §11.62): dentro de la
-  /// ventana de viaje cada Z; fuera, cada F. El contador de la barra la muestra.
+  /// Próxima consulta con la app abierta (docs/11 §11.65): a la vista o en
+  /// recientes, siempre cada «Frecuencia corta», esté o no en la ventana de
+  /// un viaje (en la 4.3.0 usaba la larga si no sabía de la ventana: el
+  /// contador marcaba ~15 min dentro de ella). La larga es solo para la app
+  /// cerrada fuera de la ventana (tarea en segundo plano). El contador de la
+  /// barra la muestra.
   Future<void> _schedule() async {
     _timer?.cancel();
     _timer = null;
-    if (state != SessionState.ready || !_foreground) return;
-    final open = await TripWindow.open(settings: settings);
-    final interval = open != null ? settings.windowEvery : settings.outsideEvery;
+    if (state != SessionState.ready) return;
+    final interval = settings.every(appOpen: true, inWindow: false);
     if (await TrackingService.isRunning) {
       // La conexión la hace el servicio: el contador sigue su ritmo.
       await Storage.setForeground(true);
@@ -220,11 +224,11 @@ class Session extends ChangeNotifier {
     _timer = Zone.root.run(() => Timer(interval, () => sync()));
   }
 
+  /// La app pasa a recientes: sigue consultando cada «Frecuencia corta»
+  /// mientras Android la mantenga viva (docs/11 §11.65); cerrada, la tarea en
+  /// segundo plano (Frecuencia larga) o el servicio de la ventana de viaje.
   void pause() {
     _foreground = false;
-    Storage.setForeground(false);
-    _timer?.cancel();
-    _timer = null;
     connection.stop();
   }
 

@@ -161,7 +161,8 @@ NoticeContent vehicleNotice(VehicleView v, {List<String> lastLines = const []}) 
 
 /// «Mi estado» (la notificación fija del servicio de ubicación). Sin GPS solo
 /// «Active la ubicación (GPS)»; sin «Permitir todo el tiempo», solo «Permita
-/// la ubicación todo el tiempo» (primero el GPS).
+/// la ubicación todo el tiempo» (primero el GPS). [myStop] es la parada
+/// detectada (docs/11 §11.65): en Viajando no se pasa.
 NoticeContent myStateNotice({
   required String stateName,
   String? state,
@@ -177,8 +178,8 @@ NoticeContent myStateNotice({
   final highlight = ended
       ? 'Ya puede quitar la ubicación'
       : switch (state) {
-          'dormido' => 'Llegó tarde a la parada',
-          'botado' => 'El vehículo pasó sin recogerle',
+          'retrasado' || 'dormido' => 'Llegó tarde a la parada',
+          'no_recogido' || 'botado' => 'El vehículo pasó sin recogerle',
           _ => null,
         };
   return NoticeContent(stateName, [

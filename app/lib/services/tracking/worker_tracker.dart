@@ -1,30 +1,32 @@
 /// Estado del trabajador y del vehículo calculados EN EL TELÉFONO (docs/11
-/// §11.43 y §11.44). Código puro, sin plugins: se prueba en test/.
+/// §11.43, §11.44 y §11.65). Código puro, sin plugins: se prueba en test/.
 ///
-/// En cada cálculo («Frecuencia cálculo») llega la posición del teléfono. Con
-/// la distancia a la parada de referencia en el cálculo anterior (d1) y en el
-/// actual (d2):
+/// Desde la 4.4.0 el trabajador sube y baja en **cualquier parada**, en la ida
+/// y en el regreso, y la app **detecta la parada por cercanía** a las paradas
+/// del recorrido. Reglas (iguales en los dos sentidos):
 ///
-/// 1. d2 ≤ Radio parada → En la parada.
-/// 2. |d1 − d2| ≤ Tolerancia GPS → conserva el estado.
-/// 3. Se acerca (d2 < d1) → De camino a la parada.
-/// 4. Se aleja: si antes estuvo En la parada y la velocidad supera la
-///    Velocidad humana → Viajando; si no → No voy a
-///    viajar (definitivo a más de Distancia abandono).
+/// - **De camino**: se mueve hacia una parada; «su parada» se recalcula en cada
+///   cálculo como la más cercana a él de las que el vehículo aún no ha pasado.
+/// - **En la parada**: dentro del radio de una parada que el vehículo aún no
+///   ha pasado.
+/// - **Viajando**: estaba En la parada y se aleja de ella a velocidad de
+///   vehículo (más que la Velocidad humana): el vehículo llegó y subió.
+/// - **No recogido**: estaba En la parada, el vehículo pasó por ella y él no
+///   pasó a Viajando.
+/// - **Retrasado**: estaba De camino y el vehículo pasó por su parada antes de
+///   que llegara.
+/// - **Dejado**: estaba Viajando y se separa del vehículo: «Cálculos
+///   consecutivos» a velocidad humana en el radio de una parada, o mientras
+///   los demás sensores dicen que el vehículo sigue; queda Dejado en la parada
+///   más cercana.
+/// - **No voy**: lo declara él, o se aleja de todas las paradas más allá de la
+///   Distancia abandono.
+/// - Finales: Dejado, No recogido, Retrasado y No voy (un No recogido que se
+///   aleja a velocidad de vehículo antes de la Espera final sí subió: Viajando).
 ///
-/// Ida: la parada de referencia es la primera. Viajando es semidefinitivo:
-/// solo pasa a Dejado tras «Cálculos consecutivos» a velocidad humana dentro
-/// del radio de alguna parada del recorrido.
-///
-/// Regreso: la referencia es su parada. Ida y regreso (docs/11 §11.61): cuando
-/// el vehículo pasó por la parada de referencia, si estaba En la parada y no
-/// está Viajando → Botado; si llega después → Dormido. Tras
-/// «Espera final» deja de calcular; si se aleja, No voy a viajar.
-///
-/// Viajando (ida y regreso; docs/11 §11.63: Viajando y Recogido unificados)
-/// convierte el teléfono en sensor del
-/// vehículo: Detenido / En movimiento (umbral: Tolerancia GPS), próxima parada
-/// y si está detenido en su radio.
+/// Viajando convierte el teléfono en sensor del vehículo: Detenido / En
+/// movimiento (umbral: Tolerancia GPS), próxima parada y si está detenido en
+/// su radio.
 library;
 
 import 'dart:math';
@@ -103,34 +105,41 @@ class RouteStop {
   factory RouteStop.fromJson(Map<String, dynamic> j) => RouteStop('${j['id']}', '${j['name'] ?? ''}', GeoPoint.fromJson(j));
 }
 
-/// Lo que se sabe del viaje por el servidor (respuesta del último informe).
+/// Lo que se sabe del viaje por el servidor (respuesta del último envío).
 class TripInfo {
   final String status;
 
-  /// El vehículo ya pasó por la parada de referencia del trabajador (ida: la
-  /// primera, es decir, el viaje salió; regreso: la suya).
-  final bool vehiclePassedMyStop;
+  /// Posiciones del recorrido por las que ya pasó el vehículo.
+  final Set<int> passed;
 
   /// Próxima parada según el servidor (0 = salida).
   final int nextStopIndex;
 
-  const TripInfo({required this.status, this.vehiclePassedMyStop = false, this.nextStopIndex = 0});
+  /// Estado del vehículo por mayoría de los sensores (null = sin datos).
+  final String? vehicleState;
+
+  /// Sensores activos.
+  final int sensors;
+
+  const TripInfo({required this.status, this.passed = const {}, this.nextStopIndex = 0, this.vehicleState, this.sensors = 0});
+
+  bool get closed => status == 'terminado' || status == 'cancelado';
 }
 
 /// Resultado de un cálculo.
 class TrackerStep {
-  /// Estado nuevo del trabajador (null si no cambió).
+  /// Estado nuevo del trabajador (null si no cambió ni cambió su parada).
   final String? newState;
 
-  /// Con Dejado: la parada donde se bajó.
+  /// La parada detectada del estado (en Dejado, donde se bajó; null en No voy).
   final String? stopId;
 
-  /// Datos del sensor (solo si es sensor).
+  /// Observación del sensor (solo si es sensor).
   final String? vehicleState;
   final int? nextStopIndex;
   final bool? atStop;
 
-  /// Deja de calcular (estado definitivo, espera final o viaje cerrado).
+  /// Deja de calcular (estado final, espera final o viaje cerrado).
   final bool finished;
 
   const TrackerStep({this.newState, this.stopId, this.vehicleState, this.nextStopIndex, this.atStop, this.finished = false});
@@ -138,26 +147,25 @@ class TrackerStep {
   bool get isSensor => vehicleState != null;
 }
 
-/// Máquina de estados del trabajador en un viaje.
+/// Máquina de estados del trabajador en un viaje (ida o regreso).
 class WorkerTracker {
   final bool outbound;
   final List<RouteStop> route;
-
-  /// Índice de su parada en [route] (el regreso va de la última a la primera).
-  final int myIndex;
   final TrackerConfig config;
 
   // Estado (se guarda entre cálculos con toJson/fromJson).
   String? state;
-  bool definitive = false;
+
+  /// Posición en [route] de la parada del estado (detectada por cercanía).
+  int? stopIndex;
   bool finished = false;
-  bool reachedStop = false;
-  double? lastDistance;
   GeoPoint? lastPoint;
   DateTime? lastTime;
   int slowCount = 0;
   DateTime? waitingSince;
-  DateTime? passedAt;
+
+  /// Parada donde subió (Viajando).
+  int? boardIndex;
 
   // Sensor
   int sensorNext = 1;
@@ -165,49 +173,84 @@ class WorkerTracker {
   double? prevNextDistance;
   double? prevAfterNextDistance;
 
-  WorkerTracker({required this.outbound, required this.route, required this.myIndex, this.config = const TrackerConfig()});
+  WorkerTracker({required this.outbound, required this.route, this.config = const TrackerConfig()});
 
-  static const finalStates = {'dejado'};
+  static const states = ['de_camino', 'en_parada', 'viajando', 'dejado', 'no_recogido', 'retrasado', 'no_voy'];
 
-  GeoPoint get reference => outbound ? route.first.point : route[myIndex].point;
+  /// Estados finales (docs/11 §11.65).
+  static const finalStates = {'dejado', 'no_recogido', 'retrasado', 'no_voy'};
+
+  /// Nombres de versiones anteriores (servidor viejo o datos guardados).
+  static String? normalize(String? s) => switch (s) { 'recogido' => 'viajando', 'botado' => 'no_recogido', 'dormido' => 'retrasado', _ => s };
 
   bool get isSensor => state == 'viajando';
 
-  /// Estado declarado a mano por el trabajador (o recibido del servidor).
-  void declare(String newState) {
-    // «recogido» (servidor o datos de la 4.2.0) es Viajando.
-    if (newState == 'recogido') newState = 'viajando';
+  String? get stopId => stopIndex == null || stopIndex! < 0 || stopIndex! >= route.length ? null : route[stopIndex!].id;
+
+  /// Nombre de la parada del estado (para «Mi estado»); en Viajando, ninguna.
+  String? get stopName => state == 'viajando' || stopId == null ? null : route[stopIndex!].name;
+
+  int? _indexOf(String? id) {
+    if (id == null) return null;
+    final i = route.indexWhere((s) => s.id == id);
+    return i < 0 ? null : i;
+  }
+
+  /// Estado declarado a mano por el trabajador o recibido del servidor (con
+  /// su parada, si la hay).
+  void declare(String newState, {String? stopId, DateTime? at}) {
+    newState = normalize(newState)!;
     state = newState;
-    if (newState == 'en_parada') reachedStop = true;
+    stopIndex = _indexOf(stopId) ?? (newState == 'no_voy' ? null : stopIndex);
     slowCount = 0;
-    if (newState == 'no_voy' || newState == 'dejado') {
-      definitive = true;
-      finished = true;
+    if (newState == 'viajando') boardIndex ??= stopIndex;
+    if (newState == 'no_voy' || newState == 'dejado') finished = true;
+    if (newState == 'no_recogido' || newState == 'retrasado') waitingSince = at ?? lastTime ?? DateTime.now();
+  }
+
+  /// La parada más cercana a [p] entre las que el vehículo no ha pasado.
+  int? _nearestPending(GeoPoint p, Set<int> passed) {
+    int? best;
+    var bestDistance = double.infinity;
+    for (var i = 0; i < route.length; i++) {
+      if (passed.contains(i)) continue;
+      final d = distanceMeters(p, route[i].point);
+      if (d < bestDistance) {
+        bestDistance = d;
+        best = i;
+      }
     }
-    if (newState == 'botado' || newState == 'dormido') waitingSince = lastTime ?? DateTime.now();
+    return best;
+  }
+
+  int _nearest(GeoPoint p) {
+    var best = 0;
+    for (var i = 1; i < route.length; i++) {
+      if (distanceMeters(p, route[i].point) < distanceMeters(p, route[best].point)) best = i;
+    }
+    return best;
   }
 
   TrackerStep step(GeoPoint point, DateTime now, TripInfo trip) {
     if (finished) return const TrackerStep(finished: true);
-    if (trip.status == 'terminado' || trip.status == 'cancelado') {
+    if (trip.closed) {
       finished = true;
       return const TrackerStep(finished: true);
     }
 
-    final d2 = distanceMeters(point, reference);
     final previousPoint = lastPoint;
     final previousTime = lastTime;
-    final d1 = lastDistance;
     lastPoint = point;
     lastTime = now;
-    lastDistance = d2;
+    final passed = trip.passed;
 
-    // Primer cálculo: solo la distancia.
-    if (previousPoint == null || previousTime == null || d1 == null) {
-      final initial = d2 <= config.stopRadius ? 'en_parada' : 'de_camino';
-      if (initial == 'en_parada') reachedStop = true;
-      if (state == null || (state == 'de_camino' && initial == 'en_parada')) return _change(initial);
-      return const TrackerStep();
+    // Primer cálculo: solo la posición.
+    if (previousPoint == null || previousTime == null) {
+      if (state != null && state != 'de_camino') return const TrackerStep();
+      final target = _nearestPending(point, passed);
+      if (target == null) return const TrackerStep();
+      final inside = distanceMeters(point, route[target].point) <= config.stopRadius;
+      return _change(inside ? 'en_parada' : 'de_camino', target);
     }
 
     final seconds = max(1, now.difference(previousTime).inMilliseconds / 1000);
@@ -216,20 +259,16 @@ class WorkerTracker {
 
     if (isSensor) return _sensorStep(point, speed, moved, trip);
 
-    final passed = trip.vehiclePassedMyStop || (outbound && trip.status == 'en_ejecucion');
-    final away = d2 > config.stopRadius && d2 - d1 > config.gpsTolerance;
-    final fast = (d2 - d1) / seconds > config.humanSpeed;
+    // Alejándose a velocidad de vehículo de la parada [i]: subió.
+    bool leavesFast(int i) {
+      final d1 = distanceMeters(previousPoint, route[i].point);
+      final d2 = distanceMeters(point, route[i].point);
+      return d2 > config.stopRadius && d2 - d1 > config.gpsTolerance && (d2 - d1) / seconds > config.humanSpeed;
+    }
 
-    // Botado / Dormido (docs/11 §11.61): si se aleja, No voy (o, si un Botado
-    // sale a velocidad de vehículo, sí subió: Viajando); pasada la
-    // espera final, deja de calcular.
-    if (state == 'botado' || state == 'dormido') {
-      if (away) {
-        if (state == 'botado' && fast) return _change('viajando');
-        definitive = true;
-        finished = true;
-        return _change('no_voy', finished: true);
-      }
+    // No recogido o Retrasado (finales): solo un No recogido que sí subió pasa a Viajando.
+    if (state == 'no_recogido' || state == 'retrasado') {
+      if (state == 'no_recogido' && stopIndex != null && leavesFast(stopIndex!)) return _board(stopIndex!);
       if (waitingSince != null && now.difference(waitingSince!) >= config.finalWait) {
         finished = true;
         return const TrackerStep(finished: true);
@@ -237,66 +276,63 @@ class WorkerTracker {
       return const TrackerStep();
     }
 
-    // El vehículo ya pasó por la parada de referencia (ida: salió de la
-    // primera; regreso: pasó por la suya). Regla simplificada (docs/11 §11.61):
-    // Botado = estaba En la parada antes y no está Viajando;
-    // Dormido = llega a En la parada después.
-    if (passed) {
-      passedAt ??= now;
-      if (state == 'en_parada') {
-        if (away && fast) return _change('viajando');
+    // En la parada: sube (Viajando) o el vehículo pasó sin recogerle (No recogido).
+    if (state == 'en_parada' && stopIndex != null) {
+      final s = stopIndex!;
+      if (leavesFast(s)) return _board(s);
+      if (passed.contains(s)) {
         waitingSince = now;
-        return _change('botado');
+        return _change('no_recogido', s);
       }
-      if (d2 <= config.stopRadius) {
-        reachedStop = true;
-        waitingSince = now;
-        return _change('dormido');
-      }
-      if (now.difference(passedAt!) >= config.finalWait || (d2 > config.abandonDistance && d2 - d1 > config.gpsTolerance)) {
-        definitive = true;
-        finished = true;
-        return _change('no_voy', finished: true);
-      }
-      if ((d1 - d2).abs() <= config.gpsTolerance) return const TrackerStep();
-      return _change(d2 < d1 ? 'de_camino' : 'no_voy');
+      if (distanceMeters(point, route[s].point) <= config.stopRadius) return const TrackerStep();
     }
 
-    String next;
-    if (d2 <= config.stopRadius) {
-      next = 'en_parada';
-      reachedStop = true;
-    } else if ((d1 - d2).abs() <= config.gpsTolerance) {
-      next = state ?? 'de_camino';
-    } else if (d2 < d1) {
-      next = 'de_camino';
-    } else if (reachedStop && (d2 - d1) / seconds > config.humanSpeed) {
-      next = 'viajando';
-    } else {
-      next = 'no_voy';
-      if (d2 > config.abandonDistance) {
-        definitive = true;
-        finished = true;
-        return _change('no_voy', finished: true);
-      }
+    // De camino: el vehículo pasó por su parada antes de que llegara (Retrasado).
+    if (state == 'de_camino' && stopIndex != null && passed.contains(stopIndex)) {
+      waitingSince = now;
+      return _change('retrasado', stopIndex);
     }
-    return _change(next);
+
+    final target = _nearestPending(point, passed);
+    if (target == null) {
+      // El vehículo ya pasó por todas: no hay a dónde ir.
+      finished = true;
+      return const TrackerStep(finished: true);
+    }
+    final d2 = distanceMeters(point, route[target].point);
+    if (d2 <= config.stopRadius) return _change('en_parada', target);
+
+    final d1 = distanceMeters(previousPoint, route[target].point);
+    if (d2 < d1 - config.gpsTolerance || state == null) return _change('de_camino', target);
+    if (d2 > d1 + config.gpsTolerance && d2 > config.abandonDistance) {
+      // Se aleja de todas las paradas más allá de la Distancia abandono: No voy (final).
+      finished = true;
+      return _change('no_voy', null, finished: true);
+    }
+    // Quieto (o alejándose todavía cerca): conserva el estado; De camino sigue hacia la más cercana.
+    if (state == 'de_camino' && target != stopIndex) return _change('de_camino', target);
+    if (state == 'en_parada') return _change('de_camino', target);
+    return const TrackerStep();
   }
 
-  TrackerStep _change(String next, {bool finished = false}) {
-    if (next == state) return TrackerStep(finished: finished);
+  TrackerStep _board(int index) {
+    boardIndex = index;
+    sensorNext = max(sensorNext, index + 1);
+    enteredNext = false;
+    prevNextDistance = null;
+    prevAfterNextDistance = null;
+    return _change('viajando', index);
+  }
+
+  TrackerStep _change(String next, int? index, {bool finished = false}) {
+    if (next == state && index == stopIndex) return TrackerStep(finished: finished);
     state = next;
+    stopIndex = index;
     slowCount = 0;
-    if (isSensor) {
-      sensorNext = max(sensorNext, 1);
-      enteredNext = false;
-      prevNextDistance = null;
-      prevAfterNextDistance = null;
-    }
-    return TrackerStep(newState: next, finished: finished);
+    return TrackerStep(newState: next, stopId: stopId, finished: finished);
   }
 
-  /// Sensor del vehículo y, en la ida, Dejado.
+  /// Sensor del vehículo y Dejado.
   TrackerStep _sensorStep(GeoPoint point, double speed, double moved, TripInfo trip) {
     final vehicleState = moved > config.gpsTolerance ? 'en_movimiento' : 'detenido';
     sensorNext = max(sensorNext, trip.nextStopIndex);
@@ -323,24 +359,21 @@ class WorkerTracker {
     }
     final atStop = vehicleState == 'detenido' && sensorNext < route.length && distanceMeters(point, route[sensorNext].point) <= config.stopRadius;
 
+    // Dejado: a velocidad humana «Cálculos consecutivos» veces, en el radio de
+    // una parada o mientras los demás sensores dicen que el vehículo sigue.
+    slowCount = speed <= config.humanSpeed ? slowCount + 1 : 0;
     String? newState;
     String? droppedAt;
     var done = false;
-    if (outbound) {
-      // Dejado: velocidad humana en N cálculos seguidos dentro del radio de alguna parada.
-      RouteStop? near;
-      for (final stop in route) {
-        if (distanceMeters(point, stop.point) <= config.stopRadius) {
-          near = stop;
-          break;
-        }
-      }
-      slowCount = speed <= config.humanSpeed && near != null ? slowCount + 1 : 0;
-      if (slowCount >= config.consecutive && near != null) {
+    if (slowCount >= config.consecutive) {
+      final nearest = _nearest(point);
+      final inStop = distanceMeters(point, route[nearest].point) <= config.stopRadius;
+      final vehicleGoesOn = trip.vehicleState == 'en_movimiento' && trip.sensors > 1;
+      if (inStop || vehicleGoesOn) {
         state = 'dejado';
+        stopIndex = nearest;
         newState = 'dejado';
-        droppedAt = near.id;
-        definitive = true;
+        droppedAt = route[nearest].id;
         finished = true;
         done = true;
       }
@@ -349,20 +382,18 @@ class WorkerTracker {
   }
 
   Map<String, dynamic> toJson() => {
+        'version': 44,
         'outbound': outbound,
         'route': [for (final s in route) s.toJson()],
-        'myIndex': myIndex,
         'config': config.toJson(),
         'state': state,
-        'definitive': definitive,
+        'stopIndex': stopIndex,
         'finished': finished,
-        'reachedStop': reachedStop,
-        'lastDistance': lastDistance,
         'lastPoint': lastPoint?.toJson(),
         'lastTime': lastTime?.toIso8601String(),
         'slowCount': slowCount,
         'waitingSince': waitingSince?.toIso8601String(),
-        'passedAt': passedAt?.toIso8601String(),
+        'boardIndex': boardIndex,
         'sensorNext': sensorNext,
         'enteredNext': enteredNext,
         'prevNextDistance': prevNextDistance,
@@ -374,19 +405,16 @@ class WorkerTracker {
     return WorkerTracker(
       outbound: j['outbound'] == true,
       route: [for (final s in j['route'] as List) RouteStop.fromJson(Map<String, dynamic>.from(s as Map))],
-      myIndex: (j['myIndex'] as num).toInt(),
       config: TrackerConfig.fromJson(Map<String, dynamic>.from(j['config'] as Map)),
     )
-      ..state = j['state'] == 'recogido' ? 'viajando' : j['state'] as String?
-      ..definitive = j['definitive'] == true
+      ..state = normalize(j['state'] as String?)
+      ..stopIndex = (j['stopIndex'] as num?)?.toInt()
       ..finished = j['finished'] == true
-      ..reachedStop = j['reachedStop'] == true
-      ..lastDistance = (j['lastDistance'] as num?)?.toDouble()
       ..lastPoint = j['lastPoint'] == null ? null : GeoPoint.fromJson(Map<String, dynamic>.from(j['lastPoint'] as Map))
       ..lastTime = date(j['lastTime'])
       ..slowCount = (j['slowCount'] as num?)?.toInt() ?? 0
       ..waitingSince = date(j['waitingSince'])
-      ..passedAt = date(j['passedAt'])
+      ..boardIndex = (j['boardIndex'] as num?)?.toInt()
       ..sensorNext = (j['sensorNext'] as num?)?.toInt() ?? 1
       ..enteredNext = j['enteredNext'] == true
       ..prevNextDistance = (j['prevNextDistance'] as num?)?.toDouble()

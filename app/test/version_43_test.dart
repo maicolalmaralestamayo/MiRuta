@@ -119,12 +119,13 @@ void main() {
     });
 
     test('se quita al llegar a un estado definitivo', () {
-      for (final s in ['dejado', 'botado', 'dormido', 'no_voy']) {
+      // Desde la 4.4.0 los finales son los mismos en los dos sentidos (docs/11 §11.65).
+      for (final s in ['dejado', 'no_recogido', 'retrasado', 'no_voy', 'botado', 'dormido']) {
         expect(WorkerState.isFinalFor(s, outbound: true), isTrue, reason: s);
+        expect(WorkerState.isFinalFor(s, outbound: false), isTrue, reason: s);
       }
       expect(WorkerState.isFinalFor('viajando', outbound: true), isFalse);
-      expect(WorkerState.isFinalFor('viajando', outbound: false), isTrue);
-      expect(WorkerState.isFinalFor('recogido', outbound: false), isTrue);
+      expect(WorkerState.isFinalFor('viajando', outbound: false), isFalse);
       expect(WorkerState.isFinalFor('en_parada', outbound: false), isFalse);
     });
   });
@@ -132,14 +133,14 @@ void main() {
   group('Mi estado', () {
     test('estado, itinerario y mi parada', () {
       final n = myStateNotice(stateName: WorkerState.notice('en_parada'), state: 'en_parada', itineraryName: 'XX Aniversario', myStop: 'La llama');
-      expect(n.title, 'En parada');
+      expect(n.title, 'En la parada');
       expect(n.lines, ['XX Aniversario • ida', 'Mi parada: La llama']);
       expect(n.highlight, isNull);
     });
 
-    test('destacadas: Dormido, Botado y estado definitivo', () {
-      expect(myStateNotice(stateName: 'Dormido', state: 'dormido').highlight, 'Llegó tarde a la parada');
-      expect(myStateNotice(stateName: 'Botado', state: 'botado', outbound: false).highlight, 'El vehículo pasó sin recogerle');
+    test('destacadas: Retrasado, No recogido y estado definitivo', () {
+      expect(myStateNotice(stateName: 'Retrasado', state: 'retrasado').highlight, 'Llegó tarde a la parada');
+      expect(myStateNotice(stateName: 'No recogido', state: 'no_recogido', outbound: false).highlight, 'El vehículo pasó sin recogerle');
       expect(myStateNotice(stateName: 'Dejado', state: 'dejado', ended: true).highlight, 'Ya puede quitar la ubicación');
     });
 
@@ -216,7 +217,7 @@ void main() {
     ];
 
     test('«recogido» de la 4.2.0 es Viajando y hace de sensor', () {
-      final tracker = WorkerTracker(outbound: false, route: route, myIndex: 1)..declare('recogido');
+      final tracker = WorkerTracker(outbound: false, route: route)..declare('recogido');
       expect(tracker.state, 'viajando');
       expect(tracker.isSensor, isTrue);
       final restored = WorkerTracker.fromJson({...tracker.toJson(), 'state': 'recogido'});

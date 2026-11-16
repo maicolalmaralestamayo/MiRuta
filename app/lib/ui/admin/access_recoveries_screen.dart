@@ -46,17 +46,14 @@ class _AccessRecoveriesScreenState extends State<AccessRecoveriesScreen> {
       final text = 'MiRuta: se aprobó su solicitud. ${lines.join('. ')}. También puede verlo en la app, en «Olvidé usuario/contraseña».';
       await showDialog<void>(
         context: context,
-        builder: (context) => AlertDialog(
+        builder: (context) => AppDialog(
           icon: const Icon(Icons.check_circle_outline, size: 32, color: green),
-          title: const Text('Solicitud aprobada', textAlign: TextAlign.center),
+          title: 'Solicitud aprobada',
           content: SelectableText(lines.isEmpty ? 'La persona lo verá en su teléfono.' : lines.join('\n')),
-          actions: [
-            TextButton.icon(
-              onPressed: () => launchUrl(Uri.parse('https://wa.me/${_phoneDigits(r)}?text=${Uri.encodeComponent(text)}'), mode: LaunchMode.externalApplication),
-              icon: const Icon(Icons.send),
-              label: const Text('Enviar por WhatsApp'),
-            ),
-            FilledButton.icon(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.check), label: const Text('Aceptar')),
+          buttons: [
+            primaryButton(context, 'Enviar por WhatsApp', Icons.send,
+                () => launchUrl(Uri.parse('https://wa.me/${_phoneDigits(r)}?text=${Uri.encodeComponent(text)}'), mode: LaunchMode.externalApplication)),
+            cancelButton(context, label: 'Cerrar'),
           ],
         ),
       );
@@ -69,9 +66,9 @@ class _AccessRecoveriesScreenState extends State<AccessRecoveriesScreen> {
     final pending = r.string('status') == 'pending';
     final action = await showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => AppDialog(
         icon: const Icon(Icons.lock_reset, size: 32),
-        title: Text(user?.string('fullName') ?? 'No coincide con nadie', textAlign: TextAlign.center),
+        title: user?.string('fullName') ?? 'No coincide con nadie',
         content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(_what(r)),
           const SizedBox(height: 6),
@@ -82,18 +79,16 @@ class _AccessRecoveriesScreenState extends State<AccessRecoveriesScreen> {
           const SizedBox(height: 8),
           const Text('Antes de aprobar, confirme los datos llamando o escribiendo a ese teléfono.'),
         ]),
-        actions: [
-          TextButton.icon(onPressed: () => launchUrl(Uri.parse('tel:${_phoneDigits(r)}')), icon: const Icon(Icons.call), label: const Text('Llamar')),
-          TextButton.icon(
-              onPressed: () => launchUrl(Uri.parse('https://wa.me/${_phoneDigits(r)}'), mode: LaunchMode.externalApplication), icon: const Icon(Icons.chat), label: const Text('WhatsApp')),
-          if (pending) TextButton.icon(onPressed: () => Navigator.pop(context, 'rejected'), icon: const Icon(Icons.block, color: red), label: const Text('Rechazar', style: TextStyle(color: red))),
-          if (pending && r.attributes['matched'] != false)
-            FilledButton.icon(onPressed: () => Navigator.pop(context, 'approved'), icon: const Icon(Icons.check), label: const Text('Aprobar')),
-          if (!pending) TextButton.icon(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close), label: const Text('Cerrar')),
+        buttons: [
+          if (pending && r.attributes['matched'] != false) primaryButton(context, 'Actualizar Solicitud: Aprobar', Icons.check, () => Navigator.pop(context, 'approved')),
+          if (pending) dangerButton(context, 'Actualizar Solicitud: Rechazar', Icons.block, () => Navigator.pop(context, 'rejected')),
+          otherButton(context, 'Llamar', Icons.call, () => launchUrl(Uri.parse('tel:${_phoneDigits(r)}'))),
+          otherButton(context, 'WhatsApp', Icons.chat, () => launchUrl(Uri.parse('https://wa.me/${_phoneDigits(r)}'), mode: LaunchMode.externalApplication)),
+          cancelButton(context, label: pending ? 'Cancelar' : 'Cerrar'),
         ],
       ),
     );
-    if (action != null && mounted) await runAction(context, () => _resolve(r, action));
+    if (action != null && mounted) await runAction(context, () => _resolve(r, action), label: 'Actualizando Solicitud');
   }
 
   Widget _card(Resource r) {

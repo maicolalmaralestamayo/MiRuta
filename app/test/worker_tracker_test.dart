@@ -5,175 +5,206 @@ import 'package:mitransporte/services/tracking/worker_tracker.dart';
 const base = GeoPoint(23.0, -82.0);
 GeoPoint north(double meters) => GeoPoint(base.latitude + meters / 111195, base.longitude);
 
-final route = [RouteStop('1', 'Parqueo', north(0)), RouteStop('2', 'Cine', north(1000)), RouteStop('3', 'Coppelia', north(2000))];
+final route = [
+  RouteStop('1', 'Parqueo', north(0)),
+  RouteStop('2', 'Cine', north(1000)),
+  RouteStop('3', 'Coppelia', north(2000)),
+  RouteStop('4', 'Hospital', north(3000)),
+];
 
 class Run {
   final WorkerTracker tracker;
   DateTime now = DateTime(2026, 11, 9, 6, 50);
   final states = <String>[];
+  final stops = <String?>[];
   TrackerStep? last;
 
   Run(this.tracker);
 
-  TrackerStep at(double meters, {int seconds = 10, String status = 'planificado', bool passed = false, int next = 0}) {
+  TrackerStep at(double meters, {int seconds = 10, String status = 'planificado', Set<int> passed = const {}, int next = 0, String? vehicle, int sensors = 1}) {
     now = now.add(Duration(seconds: seconds));
-    final step = tracker.step(north(meters), now, TripInfo(status: status, vehiclePassedMyStop: passed, nextStopIndex: next));
-    if (step.newState != null) states.add(step.newState!);
+    final step = tracker.step(north(meters), now, TripInfo(status: status, passed: passed, nextStopIndex: next, vehicleState: vehicle, sensors: sensors));
+    if (step.newState != null) {
+      states.add(step.newState!);
+      stops.add(step.stopId);
+    }
     return last = step;
   }
 }
+
+WorkerTracker tracker({bool outbound = true, List<RouteStop>? stops}) => WorkerTracker(outbound: outbound, route: stops ?? route);
 
 void main() {
   test('distancia (haversine)', () {
     expect(distanceMeters(north(0), north(1000)), closeTo(1000, 1));
   });
 
-  group('Ida', () {
-    test('De camino → En la parada → Viajando → Dejado en su parada', () {
-      final r = Run(WorkerTracker(outbound: true, route: route, myIndex: 2));
-      r.at(-500);
-      r.at(-300);
-      r.at(-40);
+  group('Parada detectada por cercanía (docs/11 §11.65)', () {
+    test('De camino a la parada más cercana, En la parada, Viajando y Dejado donde se baja', () {
+      final r = Run(tracker());
+      r.at(1400);
+      r.at(1250);
+      r.at(1040);
+      // Su parada es la más cercana (Cine, la 2.ª), no la primera ni una «suya».
       expect(r.states, ['de_camino', 'en_parada']);
-      // El vehículo sale: se aleja de la primera parada a más de 10 km/h.
-      r.at(60);
-      r.at(200, status: 'en_ejecucion');
+      expect(r.stops, ['2', '2']);
+      // El vehículo llega y sale: se aleja de la parada a velocidad de vehículo.
+      r.at(1080, passed: {0}, status: 'en_ejecucion', next: 1);
+      r.at(1300, passed: {0}, status: 'en_ejecucion', next: 1);
       expect(r.states.last, 'viajando');
+      expect(r.stops.last, '2', reason: 'subió en el Cine');
       expect(r.tracker.isSensor, isTrue);
-      // Va en el vehículo: sensor (en movimiento) y avance de la próxima parada.
-      var step = r.at(900, status: 'en_ejecucion', next: 1);
+      expect(r.tracker.stopName, isNull, reason: 'Viajando no muestra parada');
+      // Sensor: la próxima parada empieza después de donde subió.
+      var step = r.at(1600, passed: {0, 1}, status: 'en_ejecucion', next: 2);
       expect(step.vehicleState, 'en_movimiento');
-      r.at(1000, status: 'en_ejecucion', next: 1);
-      step = r.at(1300, status: 'en_ejecucion', next: 1);
-      expect(step.nextStopIndex, 2, reason: 'entró en el radio de la 2.ª parada y salió');
-      // Se baja en su parada: 6 cálculos a velocidad humana dentro del radio.
-      r.at(1985, status: 'en_ejecucion', next: 2);
+      expect(step.nextStopIndex, 2);
+      // Atraviesa Coppelia y sigue: la próxima es el Hospital.
+      r.at(1990, passed: {0, 1}, status: 'en_ejecucion', next: 2);
+      step = r.at(2300, passed: {0, 1}, status: 'en_ejecucion', next: 2);
+      expect(step.nextStopIndex, 3);
+      // Se baja en el Hospital: «Cálculos consecutivos» a velocidad humana en el radio.
+      r.at(2990, passed: {0, 1, 2}, status: 'en_ejecucion', next: 3);
       for (var i = 0; i < 5; i++) {
-        step = r.at(1990 + i.toDouble(), status: 'en_ejecucion', next: 2);
+        step = r.at(2992 + i.toDouble(), passed: {0, 1, 2}, status: 'en_ejecucion', next: 3);
         expect(step.newState, isNull);
       }
-      expect(step.vehicleState, 'detenido');
       expect(step.atStop, isTrue);
-      step = r.at(1996, status: 'en_ejecucion', next: 2);
+      step = r.at(2998, passed: {0, 1, 2}, status: 'en_ejecucion', next: 3);
       expect(step.newState, 'dejado');
-      expect(step.stopId, '3');
+      expect(step.stopId, '4');
       expect(step.finished, isTrue);
+      expect(r.tracker.stopName, 'Hospital', reason: 'Mi estado: la parada donde se le dejó');
     });
 
-    test('Viajando solo pasa a Dejado (semidefinitivo)', () {
-      final r = Run(WorkerTracker(outbound: true, route: route, myIndex: 2));
-      r.at(-10);
-      r.at(200);
-      expect(r.tracker.state, 'viajando');
-      r.at(-10, status: 'en_ejecucion');
-      expect(r.tracker.state, 'viajando');
+    test('Dejado entre paradas cuando los demás sensores dicen que el vehículo sigue', () {
+      final r = Run(tracker())..tracker.declare('viajando', stopId: '1');
+      r.at(400, status: 'en_ejecucion', passed: {0}, next: 1);
+      for (var i = 0; i < 6; i++) {
+        r.at(400 + i.toDouble(), status: 'en_ejecucion', passed: {0}, next: 1, vehicle: 'en_movimiento', sensors: 3);
+      }
+      expect(r.states, ['dejado']);
+      expect(r.stops.last, '1', reason: 'la parada más cercana');
     });
 
-    test('Se aleja a pie: No voy a viajar, definitivo a más de 1 km', () {
-      final r = Run(WorkerTracker(outbound: true, route: route, myIndex: 2));
-      r.at(-300);
-      r.at(-330);
-      expect(r.tracker.state, 'no_voy');
-      expect(r.tracker.finished, isFalse, reason: 'entre 100 m y 1 km aún puede cambiar');
-      r.at(-280);
-      expect(r.tracker.state, 'de_camino');
-      r.at(-600, seconds: 120);
-      r.at(-1100, seconds: 180);
-      expect(r.tracker.state, 'no_voy');
-      expect(r.tracker.finished, isTrue);
+    test('Un vehículo detenido entre paradas no deja a nadie', () {
+      final r = Run(tracker())..tracker.declare('viajando', stopId: '1');
+      for (var i = 0; i < 10; i++) {
+        r.at(500, status: 'en_ejecucion', passed: {0}, next: 1, vehicle: 'detenido', sensors: 2);
+      }
+      expect(r.states, isEmpty);
+      expect(r.last!.vehicleState, 'detenido');
     });
 
-    test('Tolerancia del GPS: sin moverse más de 20 m conserva el estado', () {
-      final r = Run(WorkerTracker(outbound: true, route: route, myIndex: 2));
-      r.at(-500);
-      r.at(-510);
-      r.at(-495);
-      expect(r.states, ['de_camino']);
-    });
-
-    test('Ida: llega a la primera parada después de la salida: Dormido; luego se aleja: No voy', () {
-      final r = Run(WorkerTracker(outbound: true, route: route, myIndex: 2));
-      r.at(-500);
-      r.at(-300, status: 'en_ejecucion');
-      expect(r.tracker.state, 'de_camino');
-      r.at(-50, status: 'en_ejecucion');
-      expect(r.tracker.state, 'dormido');
-      final step = r.at(-200, status: 'en_ejecucion');
-      expect(step.newState, 'no_voy');
-      expect(step.finished, isTrue);
-    });
-
-    test('Ida: estaba en la primera parada al salir el vehículo: Botado (y si luego sale en él, Viajando)', () {
-      final r = Run(WorkerTracker(outbound: true, route: route, myIndex: 2));
-      r.at(-30);
-      expect(r.tracker.state, 'en_parada');
-      r.at(-25, status: 'en_ejecucion');
-      expect(r.tracker.state, 'botado');
-      r.at(200, status: 'en_ejecucion');
-      expect(r.tracker.state, 'viajando');
-      expect(r.tracker.isSensor, isTrue);
-    });
-
-    test('Ida: no llega tras la salida: No voy pasada la espera final', () {
-      final r = Run(WorkerTracker(outbound: true, route: route, myIndex: 2));
-      r.at(-500);
-      r.at(-480, status: 'en_ejecucion');
-      final step = r.at(-470, seconds: 601, status: 'en_ejecucion');
-      expect(step.newState, 'no_voy');
-      expect(step.finished, isTrue);
-    });
-  });
-
-  group('Regreso (de la última a la primera)', () {
-    // En el regreso el recorrido va al revés; su parada es la 2.ª del itinerario.
-    final back = route.reversed.toList();
-
-    test('En la parada y sale a velocidad de vehículo: Viajando (sensor, como en la ida)', () {
-      final r = Run(WorkerTracker(outbound: false, route: back, myIndex: 1));
+    test('Su parada se recalcula: la más cercana de las que el vehículo no ha pasado', () {
+      final r = Run(tracker());
       r.at(1300);
-      r.at(1050);
-      expect(r.states, ['de_camino', 'en_parada']);
-      r.at(850, passed: true, status: 'en_ejecucion');
-      expect(r.tracker.state, 'viajando');
-      expect(r.tracker.isSensor, isTrue);
-    });
-
-    test('Botado: estaba en la parada, pasó el vehículo y no lo recogió', () {
-      final r = Run(WorkerTracker(outbound: false, route: back, myIndex: 1));
-      r.at(1020);
-      r.at(1010, passed: true, status: 'en_ejecucion');
-      expect(r.tracker.state, 'botado');
-      r.at(1010, seconds: 601, passed: true, status: 'en_ejecucion');
-      expect(r.tracker.finished, isTrue, reason: 'pasada la espera final deja de calcular');
-    });
-
-    test('Dormido: llega a la parada después de que pasara el vehículo', () {
-      final r = Run(WorkerTracker(outbound: false, route: back, myIndex: 1));
-      r.at(1400);
-      r.at(1300, passed: true, status: 'en_ejecucion');
-      r.at(1050, passed: true, status: 'en_ejecucion');
-      expect(r.tracker.state, 'dormido');
-    });
-
-    test('Termina el viaje: deja de calcular', () {
-      final r = Run(WorkerTracker(outbound: false, route: back, myIndex: 1));
-      r.at(1400);
-      expect(r.at(1300, status: 'terminado').finished, isTrue);
+      expect(r.stops.last, '2');
+      // El vehículo pasó por el Cine: ahora va hacia Coppelia. Pero estaba De camino al Cine: Retrasado.
+      r.at(1290, passed: {0, 1}, status: 'en_ejecucion', next: 2);
+      expect(r.states.last, 'retrasado');
+      expect(r.stops.last, '2');
     });
   });
 
-  test('se guarda y se recupera entre cálculos', () {
-    final r = Run(WorkerTracker(outbound: true, route: route, myIndex: 2));
-    r.at(-40);
+  group('No recogido y Retrasado (antes Botado y Dormido), en los dos sentidos', () {
+    for (final outbound in [true, false]) {
+      final name = outbound ? 'ida' : 'regreso';
+      final stops = outbound ? route : route.reversed.toList();
+
+      test('$name: En la parada y el vehículo pasa sin recogerle → No recogido', () {
+        final r = Run(tracker(outbound: outbound, stops: stops));
+        r.at(2010);
+        expect(r.states, ['en_parada']);
+        final index = stops.indexWhere((s) => s.id == '3');
+        r.at(2015, status: 'en_ejecucion', passed: {for (var i = 0; i <= index; i++) i}, next: index + 1);
+        expect(r.states.last, 'no_recogido');
+        expect(r.stops.last, '3');
+        // Final: aunque siga ahí o camine, no cambia; tras la Espera final deja de calcular.
+        r.at(2030, status: 'en_ejecucion', passed: {for (var i = 0; i <= index; i++) i});
+        expect(r.states.length, 2);
+        final step = r.at(2030, seconds: 600, status: 'en_ejecucion', passed: {for (var i = 0; i <= index; i++) i});
+        expect(step.finished, isTrue);
+      });
+
+      test('$name: De camino y el vehículo pasa antes de que llegue → Retrasado', () {
+        final r = Run(tracker(outbound: outbound, stops: stops));
+        r.at(2400);
+        r.at(2300);
+        expect(r.states, ['de_camino']);
+        final index = stops.indexWhere((s) => s.id == '3');
+        r.at(2200, status: 'en_ejecucion', passed: {for (var i = 0; i <= index; i++) i});
+        expect(r.states.last, 'retrasado');
+        // Llega luego a la parada: sigue Retrasado (final).
+        r.at(2000, status: 'en_ejecucion', passed: {for (var i = 0; i <= index; i++) i});
+        expect(r.states.last, 'retrasado');
+        expect(r.tracker.stopName, 'Coppelia');
+      });
+
+      test('$name: sube en cualquier parada aunque el vehículo ya haya pasado otras', () {
+        final r = Run(tracker(outbound: outbound, stops: stops));
+        final index = stops.indexWhere((s) => s.id == '2');
+        final before = {for (var i = 0; i < index; i++) i};
+        r.at(1010, status: 'en_ejecucion', passed: before);
+        expect(r.states, ['en_parada']);
+        r.at(1050, status: 'en_ejecucion', passed: before);
+        r.at(outbound ? 1300 : 700, status: 'en_ejecucion', passed: before);
+        expect(r.states.last, 'viajando');
+        expect(r.tracker.sensorNext, index + 1);
+      });
+    }
+
+    test('Un No recogido que se aleja a velocidad de vehículo sí subió: Viajando', () {
+      final r = Run(tracker());
+      r.at(1000);
+      r.at(1010, status: 'en_ejecucion', passed: {0, 1}, next: 2);
+      expect(r.states.last, 'no_recogido');
+      r.at(1300, status: 'en_ejecucion', passed: {0, 1}, next: 2);
+      expect(r.states.last, 'viajando');
+    });
+  });
+
+  test('El de la captura: viaje en ejecución, el vehículo pasó la parada 2 y él seguía En la parada 1', () {
+    // 4.3.0: nunca pasó a Dormido ni Botado. Ahora: No recogido en cuanto se sabe que pasó.
+    final r = Run(tracker())..tracker.declare('en_parada', stopId: '1');
+    r.at(5);
+    r.at(8, status: 'en_ejecucion', passed: {0, 1}, next: 2);
+    expect(r.states, ['no_recogido']);
+    expect(r.stops, ['1']);
+  });
+
+  test('No voy solo al alejarse de todas las paradas más allá de la Distancia abandono', () {
+    final r = Run(tracker());
+    r.at(-300);
+    r.at(-600);
+    expect(r.states, ['de_camino'], reason: 'aún cerca: sigue De camino');
+    r.at(-1200);
+    expect(r.states.last, 'no_voy');
+    expect(r.last!.finished, isTrue);
+    expect(r.stops.last, isNull);
+  });
+
+  test('Viaje cerrado: deja de calcular', () {
+    final r = Run(tracker());
+    r.at(100);
+    expect(r.at(100, status: 'cancelado').finished, isTrue);
+  });
+
+  test('Guarda y recupera su estado (también los nombres viejos)', () {
+    final r = Run(tracker());
+    r.at(1400);
+    r.at(1040);
     final copy = WorkerTracker.fromJson(r.tracker.toJson());
     expect(copy.state, 'en_parada');
-    expect(copy.reachedStop, isTrue);
-    expect(copy.route.length, 3);
-    expect(copy.lastPoint!.latitude, closeTo(r.tracker.lastPoint!.latitude, 1e-9));
+    expect(copy.stopId, '2');
+    expect(copy.lastPoint!.latitude, closeTo(north(1040).latitude, 1e-9));
+    expect(WorkerTracker.fromJson({...r.tracker.toJson(), 'state': 'botado'}).state, 'no_recogido');
+    expect(WorkerTracker.fromJson({...r.tracker.toJson(), 'state': 'dormido'}).state, 'retrasado');
+    expect(WorkerTracker.fromJson({...r.tracker.toJson(), 'state': 'recogido'}).isSensor, isTrue);
   });
 
-  test('declarado a mano', () {
-    final t = WorkerTracker(outbound: true, route: route, myIndex: 2)..declare('no_voy');
-    expect(t.finished, isTrue);
+  test('Declarar No voy o Dejado termina el cálculo', () {
+    final t = tracker()..declare('no_voy');
+    expect(t.step(north(0), DateTime(2026), const TripInfo(status: 'planificado')).finished, isTrue);
   });
 }

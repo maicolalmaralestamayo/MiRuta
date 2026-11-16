@@ -43,13 +43,11 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
     if (!mounted) return;
     await showDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => AppDialog(
         icon: Icon(result['ok'] == true ? Icons.check_circle_outline : Icons.error_outline, color: result['ok'] == true ? green : red),
-        title: Text(title),
-        content: SingleChildScrollView(
-          child: SelectableText((result['output'] as String?)?.isNotEmpty == true ? result['output'] as String : 'Hecho.', style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
-        ),
-        actions: [TextButton.icon(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close), label: const Text('Cerrar'))],
+        title: title,
+        content: SelectableText((result['output'] as String?)?.isNotEmpty == true ? result['output'] as String : 'Hecho.', style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
+        buttons: [cancelButton(context, label: 'Cerrar')],
       ),
     );
     await _view.currentState?.reload();
@@ -62,11 +60,11 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
 
   void _details(String title, List<String> lines) => showDialog<void>(
         context: context,
-        builder: (context) => AlertDialog(
+        builder: (context) => AppDialog(
           icon: const Icon(Icons.info_outline, size: 32),
-          title: Text(title, textAlign: TextAlign.center),
-          content: SingleChildScrollView(child: SelectableText(lines.join('\n'))),
-          actions: [TextButton.icon(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close), label: const Text('Cerrar'))],
+          title: title,
+          content: SelectableText(lines.join('\n')),
+          buttons: [cancelButton(context, label: 'Cerrar')],
         ),
       );
 

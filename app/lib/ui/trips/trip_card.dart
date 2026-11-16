@@ -55,7 +55,7 @@ class TripCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = trip;
     final started = t.isRunning || t.status == TripStatus.finished;
-    final time = started && t.statusChangedAt != null && t.isRunning ? formatTime(t.statusChangedAt) : t.departureTime;
+    final time = started && t.statusChangedAt != null && t.isRunning ? formatTime(t.statusChangedAt) : hhmm12(t.departureTime);
     return InfoCard(
       images: [CardImage(icon: t.outbound ? Icons.east : Icons.west)],
       title: '${t.itineraryName ?? 'Viaje'} • ${t.directionName} • ${formatDate(t.date)}',
