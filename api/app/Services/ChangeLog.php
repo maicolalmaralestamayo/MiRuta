@@ -247,19 +247,25 @@ class ChangeLog
         $rows = $rows->take(self::LIMIT);
         $next = $rows->isEmpty() ? $cursor : (int) $rows->last()->id;
 
-        // El último cambio de cada registro.
+        // El último cambio de cada registro (y si alguno fue un alta).
         $last = [];
+        $createdIds = [];
 
         foreach ($rows as $row) {
             $type = self::TABLES[$row->table_name] ?? null;
 
             if ($type !== null) {
                 $last[$type][(int) $row->record_id] = $row->operation;
+
+                if ($row->operation === self::CREATE) {
+                    $createdIds[$type][(int) $row->record_id] = true;
+                }
             }
         }
 
         $data = [];
         $deleted = [];
+        $listsChanged = [];
 
         foreach ($last as $type => $records) {
             foreach ($records as $id => $operation) {
@@ -267,6 +273,7 @@ class ChangeLog
 
                 if ($resource === false) {
                     // Sin forma de consultarlo uno a uno: la app vuelve a pedir sus listas.
+                    $listsChanged[$type] = true;
                     continue;
                 }
 
@@ -274,6 +281,11 @@ class ChangeLog
                     $deleted[$type][] = (string) $id;
                 } else {
                     $data[] = $resource;
+
+                    // Un alta que ve: sus listas pueden tenerlo (la app las vuelve a pedir).
+                    if (isset($createdIds[$type][$id])) {
+                        $listsChanged[$type] = true;
+                    }
                 }
             }
         }
@@ -284,8 +296,8 @@ class ChangeLog
             'more' => $more,
             'data' => $data,
             'deleted' => (object) $deleted,
-            // Tipos con cambios (para las listas que la app vuelve a pedir).
-            'changed' => array_keys($last),
+            // Tipos con altas que ve (o sin consulta uno a uno): la app vuelve a pedir sus listas.
+            'changed' => array_keys($listsChanged),
         ];
     }
 

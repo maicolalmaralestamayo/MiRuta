@@ -316,7 +316,9 @@ class Version44Test extends TestCase
         $this->assertContains((string) $doomed->id, $changes['deleted']['itineraries']);
         // Las relaciones borradas en cascada también.
         $this->assertNotEmpty($changes['deleted']['itinerary-stops'] ?? []);
-        $this->assertContains('stops', $changes['changed']);
+        // Las listas se vuelven a pedir solo por altas que ve (las paradas del itinerario borrado no las veía).
+        $this->assertNotContains('stops', $changes['changed']);
+        $this->assertContains('itinerary-stops', $changes['changed']);
 
         // Al día: nada nuevo.
         $this->jsonApiAs($worker, 'GET', '/api/v1/sync?changes='.$changes['cursor'])->assertJsonPath('meta.changes.data', [])

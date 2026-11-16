@@ -99,7 +99,7 @@ class TripWorker {
   static Future<List<TripWorker>> load(ApiClient api, String tripId) async =>
       [for (final r in (await api.get('/trips/$tripId/passengers')).resources) TripWorker.from(r)];
 
-  /// «No está Viajando (está Botado)», «Sin enviar desde las 18:41 • ¿app cerrada o sin conexión?», «Sin GPS»…
+  /// «No está Viajando (está No recogido)», «Sin enviar desde las 18:41 • ¿app cerrada o sin conexión?», «Sin GPS»…
   String sensorText(bool outbound) {
     final since = lastSeenAt == null ? '' : ' desde las ${formatTime(lastSeenAt)}';
     switch (sensorReason) {
