@@ -1915,10 +1915,11 @@ Lista del usuario (archivo `problemas_miruta4.3.txt`, capturas en `docs/capturas
 6. Botones de los modales siempre **uno debajo del otro**.
 7. Botones Cancelar siempre en **gris**; Eliminar siempre en **rojo**; Confirmar siempre en el **color principal**.
 8. En el modal «Salir sin guardar», añadir el botón **Guardar**.
-   - **Propuesta mostrada** (16/11/2026, en definición): botones a todo el ancho, uno debajo del otro, la acción
+   - **Aceptado con imagen** (16/11/2026): botones a todo el ancho, uno debajo del otro, la acción
      arriba y Cancelar abajo. «Salir sin guardar»: Guardar (color principal), Salir sin guardar (rojo), Cancelar
      (gris). Spinner: «[Acción] [objeto]» arriba, el círculo girando y «✕ Cancelar» gris debajo, sobre fondo
-     blanco con la barra superior visible.
+     blanco; el círculo en el **color de acento** (naranja); siguen visibles la **barra superior** y la **barra
+     inferior** de navegación.
 9. Spinners de carga: «[Acción] [objeto]» (p. ej. «Consultando Paradas»), spinner sobre fondo blanco (sin ver
    formularios ni interfaces) y botón «× Cancelar» que cancela o vuelve a la pantalla anterior.
 10. Los modales de conexión por una acción se sustituyen también por ese spinner («Creando Parada», «Eliminando
