@@ -1985,6 +1985,9 @@ Lista del usuario (archivo `problemas_miruta4.3.txt`, capturas en `docs/capturas
       - **Parada asignada → «parada habitual»** (16/11/2026, decidido): la parada que hoy tiene cada trabajador en su
         itinerario se mantiene, **opcional**, renombrada «**Parada habitual**», solo para planificar (cuántos esperan
         normalmente en cada parada, listas de Gestión). Los estados del viaje usan la **parada detectada**.
+      - **Nombres de los estados** (16/11/2026, decidido), iguales en toda la app y en las notificaciones: **De camino,
+        En la parada, Viajando, Dejado, Botado, Dormido, No voy** (donde arriba dice «Acercándose» se entiende «De
+        camino»; «En parada» pasa a «En la parada»).
 18. Revisar a fondo sensores, estados (trabajador, viaje, vehículo) y la pantalla «Ver recorrido».
 19. Revisar a fondo las notificaciones: cuándo se activan y los tiempos de consulta.
 
