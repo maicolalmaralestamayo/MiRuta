@@ -266,7 +266,11 @@ class Version44Test extends TestCase
             ['trip_id' => $trip->id, 'user_id' => $worker->user_id, 'stop_id' => $this->stops[1], 'state' => 'no_recogido', 'state_at' => $now, 'reported_at' => $now, 'children_count' => 0, 'created_at' => $now, 'updated_at' => $now],
             ['trip_id' => $trip->id, 'user_id' => $other->user_id, 'stop_id' => $this->stops[2], 'state' => 'retrasado', 'state_at' => $now, 'reported_at' => $now, 'children_count' => 0, 'created_at' => $now, 'updated_at' => $now],
         ]);
-        // Como en una 4.3.0: estados viejos (en SQLite la columna ya es texto), ajustes y motivos.
+        // Como en una 4.3.0: estados viejos, ajustes y motivos.
+        // Con MariaDB la columna ya tiene la lista nueva: se amplía como en la versión vieja.
+        if (DB::getDriverName() !== 'sqlite') {
+            DB::statement("ALTER TABLE trip_passengers MODIFY state ENUM('de_camino','en_parada','viajando','dejado','recogido','botado','dormido','no_recogido','retrasado','no_voy') NOT NULL");
+        }
         DB::table('trip_passengers')->where('user_id', $worker->user_id)->update(['state' => 'botado']);
         DB::table('trip_passengers')->where('user_id', $other->user_id)->update(['state' => 'dormido']);
         DB::table('settings')->insert([
