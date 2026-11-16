@@ -127,9 +127,9 @@ class _PasswordDialogState extends State<_PasswordDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
+    return AppDialog(
       icon: const Icon(Icons.password, size: 32),
-      title: const Text('Cambiar contraseña', textAlign: TextAlign.center),
+      title: 'Actualizar Contraseña',
       content: Form(
         key: _form,
         child: SingleChildScrollView(
@@ -150,8 +150,7 @@ class _PasswordDialogState extends State<_PasswordDialog> {
           ]),
         ),
       ),
-      actions: [
-        cancelButton(context),
+      buttons: [
         FilledButton.icon(
           onPressed: _busy
               ? null
@@ -171,6 +170,7 @@ class _PasswordDialogState extends State<_PasswordDialog> {
           icon: const Icon(Icons.save_outlined),
           label: const Text('Guardar'),
         ),
+        cancelButton(context),
       ],
     );
   }

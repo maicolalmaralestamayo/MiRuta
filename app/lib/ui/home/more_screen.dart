@@ -61,15 +61,14 @@ class _MoreScreenState extends State<MoreScreen> {
   Future<void> _share() async {
     final arm64 = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => AppDialog(
         icon: const Icon(Icons.share_outlined, size: 32),
-        title: const Text('Compartir la app', textAlign: TextAlign.center),
+        title: 'Compartir la app',
         content: const Text('¿Para qué tipo de teléfono? La mayoría de los teléfonos actuales son de 64 bits.', textAlign: TextAlign.center),
-        actionsAlignment: MainAxisAlignment.center,
-        actions: [
+        buttons: [
+          primaryButton(context, '64 bits', Icons.phone_android, () => Navigator.pop(context, true)),
+          otherButton(context, '32 bits', Icons.phone_android, () => Navigator.pop(context, false)),
           cancelButton(context),
-          TextButton.icon(onPressed: () => Navigator.pop(context, false), icon: const Icon(Icons.phone_android), label: const Text('32 bits')),
-          FilledButton.icon(onPressed: () => Navigator.pop(context, true), icon: const Icon(Icons.phone_android), label: const Text('64 bits')),
         ],
       ),
     );
