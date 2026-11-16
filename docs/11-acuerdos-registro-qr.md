@@ -1894,6 +1894,8 @@ Lista del usuario (archivo `problemas_miruta4.3.txt`, capturas en `docs/capturas
    - Entidad: «Usted no pertenece a nuestra entidad», «No se pudo verificar su identidad», «Otro motivo de rechazo».
    - Itinerario: «Usted no pertenece a este itinerario», «No se pudo verificar su identidad», «Usted no pertenece a
      esta entidad», «El itinerario está sobrecargado», «Otro motivo de rechazo».
+   - **Decidido** (16/11/2026): al actualizar se crean las dos tablas con esas listas; los motivos actuales que no
+     estén en ellas se **copian a las dos**; las solicitudes ya rechazadas **conservan su motivo**.
 3. Seeders de tipos de vehículo: «Ómnibus Yutong», «Carro Dongfeng».
 4. Cada ubicación enviada al servidor lleva su **fecha y hora** de captura, para ordenar cronológicamente las
    ubicaciones (trabajador y vehículo) aunque falle la conexión y fijar mejor la hora de cada estado (viaje,
