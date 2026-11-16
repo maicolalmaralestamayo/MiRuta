@@ -1876,3 +1876,56 @@ entera); el diálogo de cancelar una solicitud tiene título «Cancelar» y dos 
 
 - En las próximas actualizaciones se entrega **solo la APK de 32 bits** (armeabi-v7a), además del zip de
   actualización del servidor (y el completo solo cuando se pida).
+
+## 11.65 Problemas y cambios tras probar la 4.3.0 (16/11/2026, pendiente de definir e implementar)
+
+Lista del usuario (archivo `problemas_miruta4.3.txt`, capturas en `docs/capturas/4.3/`):
+
+**Para toda la app**
+1. Con la app abierta (en primer plano o en recientes) también consulta al servidor con una frecuencia propia, por
+   defecto 10 s, configurable. Cerrada o quitada de recientes, pasa a F fuera de la ventana o Z dentro.
+2. Motivos de rechazo **separados** para solicitudes de Entidad y de itinerario (tablas distintas). Seeders:
+   - Entidad: «Usted no pertenece a nuestra entidad», «No se pudo verificar su identidad», «Otro motivo de rechazo».
+   - Itinerario: «Usted no pertenece a este itinerario», «No se pudo verificar su identidad», «Usted no pertenece a
+     esta entidad», «El itinerario está sobrecargado», «Otro motivo de rechazo».
+3. Seeders de tipos de vehículo: «Ómnibus Yutong», «Carro Dongfeng».
+4. Cada ubicación enviada al servidor lleva su **fecha y hora** de captura, para ordenar cronológicamente las
+   ubicaciones (trabajador y vehículo) aunque falle la conexión y fijar mejor la hora de cada estado (viaje,
+   vehículo, trabajador).
+5. Al crear o actualizar una parada, la ubicación también se puede **pegar del portapapeles**.
+6. Botones de los modales siempre **uno debajo del otro**.
+7. Botones Cancelar siempre en **gris**; Eliminar siempre en **rojo**; Confirmar siempre en el **color principal**.
+8. En el modal «Salir sin guardar», añadir el botón **Guardar**.
+9. Spinners de carga: «[Acción] [objeto]» (p. ej. «Consultando Paradas»), spinner sobre fondo blanco (sin ver
+   formularios ni interfaces) y botón «× Cancelar» que cancela o vuelve a la pantalla anterior.
+10. Los modales de conexión por una acción se sustituyen también por ese spinner («Creando Parada», «Eliminando
+    Parada»…); se eliminan las cintas (SnackBar) que salían abajo tras una acción.
+11. **Registro de cambios en tablas** para que la app mantenga los datos locales al día en segundo plano: el servidor
+    registra qué tabla cambió y cuándo; tras el login la app carga en segundo plano todo lo que necesita y, con la
+    consulta frecuente, detecta cambios y actualiza lo local sin avisar ni mostrar spinner. Poda del registro: 1 mes
+    (configurable). El usuario pide repensar el proceso.
+12. En la pantalla de consulta/edición de cada tabla, opción **Crear** (para crear varios seguidos sin volver atrás).
+13. En los formularios, las **relaciones se eligen al llenar los campos** y se guarda una sola vez (p. ej. al crear
+    una parada se elige ya su itinerario).
+14. Textos de acciones siempre **CRUD**: menús con Consultar, Crear, Actualizar, Eliminar; spinners de carga con
+    «Consultando …»; spinners de acciones con «Creando / Actualizando / Eliminando …» (no «Asociando parada»,
+    «Planificar viaje»: «Actualizando Parada», «Crear Viaje»).
+15. La ida y el regreso deben tener fechas y horarios distintos.
+16. Al planificar, si el viaje existente está cancelado o eliminado, sí se puede crear otro.
+17. Sensores y «Ver recorrido» (capturas):
+    - con «mínimo de confirmaciones» = 1 y un trabajador esperando, no aparecen sensores;
+    - «Esperando en La llama» con «1 trabajador esperado» es redundante;
+    - «Mi estado» no se actualiza;
+    - las tarjetas de sensores y de Mi estado tienen distinto tamaño;
+    - el contador mostraba ~15 min (F) estando el viaje dentro de la ventana (debía ser Z = 10 s);
+    - la tarjeta Mi estado debe mostrar siempre la parada en todos los estados;
+    - con el viaje en ejecución y el vehículo ya pasado, seguía «En la parada» y no pasó a Dormido ni Botado.
+18. Revisar a fondo sensores, estados (trabajador, viaje, vehículo) y la pantalla «Ver recorrido».
+19. Revisar a fondo las notificaciones: cuándo se activan y los tiempos de consulta.
+
+**Planificación de viajes**
+20. Ida por defecto: hoy a las 17:00. Regreso por defecto: mañana a las 06:00.
+21. Selector de hora de 12 horas con a. m. / p. m.
+
+**Inicio**
+22. Opción «Ocultar solicitudes aprobadas».
