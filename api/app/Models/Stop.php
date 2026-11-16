@@ -9,6 +9,8 @@ use Illuminate\Database\Eloquent\Model;
  */
 class Stop extends Model
 {
+    use \App\Models\Concerns\LogsChanges;
+
     protected $fillable = ['landmark', 'street', 'cross_street_1', 'cross_street_2', 'latitude', 'longitude', 'image_path', 'active'];
 
     protected $casts = ['active' => 'boolean', 'latitude' => 'float', 'longitude' => 'float'];

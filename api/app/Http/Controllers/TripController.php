@@ -156,23 +156,55 @@ class TripController extends Controller
     /** versionCode de la 4.3.0: las apps anteriores conocen «recogido» en el regreso. */
     public const VERSION_CODE_4_3 = 13;
 
+    /** versionCode de la 4.4.0: las apps anteriores conocen «botado» y «dormido». */
+    public const VERSION_CODE_4_4 = 14;
+
     /**
-     * Las apps 4.2.0 (versionCode < 13) llaman «recogido» a Viajando en el
-     * regreso (docs/11 §11.63): se les devuelve así para que su teléfono siga
-     * siendo sensor.
+     * Estado para la app que consulta: las 4.2.0 (versionCode < 13) llaman
+     * «recogido» a Viajando en el regreso (docs/11 §11.63) y las 4.3.0
+     * (versionCode < 14) «botado» y «dormido» a No recogido y Retrasado
+     * (docs/11 §11.65): se les devuelve así para que sigan funcionando.
      */
     public static function legacyState(Request $request, Trip $trip, ?string $state): ?string
     {
         $code = \App\Http\Middleware\RequireCurrentAppVersion::versionCode($request);
 
-        return $state === TripPassenger::TRAVELLING && ! $trip->isOutbound() && $code !== null && $code < self::VERSION_CODE_4_3
-            ? TripPassenger::LEGACY_PICKED_UP : $state;
+        if ($code === null || $code >= self::VERSION_CODE_4_4) {
+            return $state;
+        }
+
+        if ($state === TripPassenger::TRAVELLING && ! $trip->isOutbound() && $code < self::VERSION_CODE_4_3) {
+            return TripPassenger::LEGACY_PICKED_UP;
+        }
+
+        return match ($state) {
+            TripPassenger::LEFT_BEHIND => TripPassenger::LEGACY_LEFT_BEHIND,
+            TripPassenger::LATE => TripPassenger::LEGACY_LATE,
+            default => $state,
+        };
+    }
+
+    /** Las cantidades de cada parada con los nombres de la app que consulta. */
+    private static function legacyCounts(Request $request, Trip $trip, $counts)
+    {
+        $result = [];
+
+        foreach ((array) $counts as $state => $count) {
+            $name = self::legacyState($request, $trip, $state);
+            $result[$name] = ($result[$name] ?? 0) + $count;
+        }
+
+        return (object) $result;
     }
 
     private static function forClient(Request $request, Trip $trip, array $live): array
     {
         if (isset($live['attributes']['myState']['state'])) {
             $live['attributes']['myState']['state'] = self::legacyState($request, $trip, $live['attributes']['myState']['state']);
+        }
+
+        foreach ($live['attributes']['stops'] ?? [] as $i => $stop) {
+            $live['attributes']['stops'][$i]['counts'] = self::legacyCounts($request, $trip, $stop['counts']);
         }
 
         return $live;
@@ -224,9 +256,10 @@ class TripController extends Controller
     }
 
     /**
-     * Informe del teléfono (con acuse). attributes: workerState, stopId (Dejado
-     * en otra parada), childIds o childrenCount, vehicleState (detenido o
-     * en_movimiento), atStop, nextStopIndex y reportedAt (hora del teléfono).
+     * Informe del teléfono (con acuse). 4.4.0: attributes.events (cambios del
+     * trabajador y observaciones del vehículo con su hora de captura, en cola)
+     * y gps. 4.3.0: workerState, stopId, childIds o childrenCount, vehicleState
+     * (detenido o en_movimiento), atStop, nextStopIndex y reportedAt.
      */
     public function report(Request $request, $id)
     {
@@ -243,6 +276,18 @@ class TripController extends Controller
             'attributes.nextStopIndex' => ['sometimes', 'integer', 'min:0'],
             'attributes.reportedAt' => ['sometimes', 'date'],
             'attributes.gps' => ['sometimes', 'nullable', 'boolean'],
+            // 4.4.0: cambios en cola con su hora de captura (docs/11 §11.65).
+            'attributes.events' => ['sometimes', 'array', 'max:500'],
+            'attributes.events.*.kind' => ['required', 'in:worker,vehicle'],
+            'attributes.events.*.capturedAt' => ['required', 'date'],
+            'attributes.events.*.state' => ['required_if:attributes.events.*.kind,worker', 'string'],
+            'attributes.events.*.stopId' => ['sometimes', 'nullable', 'integer'],
+            'attributes.events.*.childIds' => ['sometimes', 'array', 'max:20'],
+            'attributes.events.*.childIds.*' => ['integer'],
+            'attributes.events.*.childrenCount' => ['sometimes', 'integer', 'min:0', 'max:20'],
+            'attributes.events.*.vehicleState' => ['required_if:attributes.events.*.kind,vehicle', 'in:detenido,en_movimiento'],
+            'attributes.events.*.atStop' => ['sometimes', 'boolean'],
+            'attributes.events.*.nextStopIndex' => ['sometimes', 'integer', 'min:0'],
         ]);
         $ack = $this->trips->report($request->user(), $trip, $data['attributes']);
         $live = self::forClient($request, $trip, $this->trips->live($trip->fresh(), $request->user()));

@@ -29,6 +29,12 @@ abstract class Serializer
         return [];
     }
 
+    /** Relaciones a uno de ese modelo (por omisión, las de toOneRelationships()). */
+    public function relationshipsFor(Model $model): array
+    {
+        return $this->toOneRelationships();
+    }
+
     /** Datos calculados que no son atributos. */
     public function meta(Model $model, Request $request): array
     {

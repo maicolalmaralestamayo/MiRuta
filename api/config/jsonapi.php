@@ -37,6 +37,8 @@ return [
         Models\AbsenceType::class => [Serializers\NomenclatorSerializer::class, 'absence-types'],
         Models\ConversationTopic::class => [Serializers\NomenclatorSerializer::class, 'conversation-topics'],
         Models\DenialReason::class => [Serializers\NomenclatorSerializer::class, 'denial-reasons'],
+        Models\EntityDenialReason::class => [Serializers\NomenclatorSerializer::class, 'entity-denial-reasons'],
+        Models\ItineraryDenialReason::class => [Serializers\NomenclatorSerializer::class, 'itinerary-denial-reasons'],
         Models\DetentionCause::class => [Serializers\NomenclatorSerializer::class, 'detention-causes'],
     ],
 

@@ -42,15 +42,15 @@ final class SettingCatalog
      * Mínimo y máximo con el mismo formato que el valor (texto con unidades o entero).
      */
     public const SETTINGS = [
-        // Ventana de viaje (docs/11 §11.62): X, Y, Z y F
+        // Ventana de viaje (docs/11 §11.62) y frecuencias (docs/11 §11.65)
         'anticipacion_viaje' => ['ventana', 'Inicio ventana', self::TYPE_DURATION, '10min', '1min', '3hor',
             'X: la ventana de viaje empieza este tiempo antes de la salida planificada (servicio de ubicación, recordatorio de activar la ubicación e inicio del cálculo del estado del trabajador).'],
         'fin_ventana' => ['ventana', 'Fin ventana', self::TYPE_DURATION, '5min', '0seg', '2hor',
             'Y: la ventana de viaje termina este tiempo después de que el viaje termine para el trabajador (su estado definitivo o el fin del viaje).'],
-        'frecuencia_calculo' => ['ventana', 'Frecuencia ventana', self::TYPE_DURATION, '10seg', '2seg', '5min',
-            'Z: dentro de la ventana, cada cuánto el teléfono calcula su estado (y el del vehículo) y envía y recibe datos del servidor en una sola petición. Un sensor que no envía nada en 3 veces este tiempo deja de contar.'],
-        'frecuencia_reposo' => ['ventana', 'Frecuencia fuera ventana', self::TYPE_DURATION, '15min', '15min', '1dia',
-            'F: fuera de la ventana de viaje, cada cuánto el teléfono solo recibe datos del servidor, sin GPS (mínimo 15 min, límite de Android).'],
+        'frecuencia_corta' => ['ventana', 'Frecuencia corta', self::TYPE_DURATION, '10seg', '2seg', '5min',
+            'Con la app abierta (a la vista o en recientes) y, con la app cerrada, dentro de la ventana de un viaje: cada cuánto el teléfono consulta al servidor (y dentro de la ventana calcula su estado y el del vehículo y los envía en la misma petición). Un sensor que no envía nada en 3 veces este tiempo deja de contar.'],
+        'frecuencia_larga' => ['ventana', 'Frecuencia larga', self::TYPE_DURATION, '15min', '15min', '1dia',
+            'Solo con la app cerrada y fuera de la ventana de un viaje: cada cuánto el teléfono consulta al servidor, sin GPS (mínimo 15 min, límite de Android).'],
 
         // Generales
         'radio_parada' => ['general', 'Radio parada', self::TYPE_DISTANCE, '100m', '10m', '2km',
@@ -66,9 +66,9 @@ final class SettingCatalog
         'distancia_abandono' => ['estado_trabajador', 'Distancia abandono', self::TYPE_DISTANCE, '1km', '100m', '50km',
             'Alejándose a velocidad humana más allá de esta distancia, «No voy a viajar» es definitivo.'],
         'calculos_consecutivos' => ['estado_trabajador', 'Cálculos consecutivos', self::TYPE_INTEGER, 6, 1, 100,
-            'Cálculos seguidos a velocidad humana en el radio de una parada para quedar Dejado (ida).'],
+            'Cálculos seguidos a velocidad humana (separado del vehículo) para quedar Dejado en la parada más cercana.'],
         'espera_final' => ['estado_trabajador', 'Espera final', self::TYPE_DURATION, '10min', '1min', '5hor',
-            'Tras quedar Dormido o Botado sin alejarse, la app deja de calcular y recuerda desactivar el GPS.'],
+            'Tras quedar Retrasado o No recogido sin alejarse, la app deja de calcular y recuerda desactivar el GPS.'],
 
         // Estado del viaje (lo revisa el servidor)
         'plazo_eliminacion' => ['estado_viaje', 'Plazo eliminación', self::TYPE_DURATION, '5hor', '10min', '7dia',
@@ -76,13 +76,15 @@ final class SettingCatalog
         'duracion_maxima' => ['estado_viaje', 'Duración máxima', self::TYPE_DURATION, '5hor', '10min', '2dia',
             'Un viaje En ejecución pasa a Terminado pasado este tiempo desde que empezó.'],
         'espera_cierre' => ['estado_viaje', 'Espera cierre', self::TYPE_DURATION, '2hor', '1min', '1dia',
-            'Termina el viaje si pasa este tiempo desde el último Dejado (ida) o Viajando (regreso) sin llegar a la parada final.'],
+            'Termina el viaje si pasa este tiempo desde el último Dejado sin llegar a la parada final.'],
 
         // Notificaciones
         'detencion_larga' => ['notificaciones', 'Detención larga', self::TYPE_DURATION, '5min', '30seg', '2hor',
             'Se avisa a quienes están En la parada si el vehículo lleva detenido más de este tiempo.'],
 
         // Sincronización
+        'conservacion_cambios' => ['sincronizacion', 'Conservación cambios', self::TYPE_DURATION, '1mes', '1dia', '1ano',
+            'El registro de cambios con que los teléfonos mantienen al día sus datos se borra pasado este tiempo; un teléfono que lleve más sin conectarse vuelve a descargarlo todo.'],
         'frecuencia_chat' => ['sincronizacion', 'Frecuencia chat', self::TYPE_DURATION, '5seg', '2seg', '10min',
             'Consulta de la conversación mientras está abierta.'],
 

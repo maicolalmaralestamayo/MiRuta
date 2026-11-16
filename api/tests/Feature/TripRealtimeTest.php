@@ -66,7 +66,8 @@ class TripRealtimeTest extends TestCase
         foreach ([$a, $b, $c, $d] as $w) {
             $this->report($w, $trip, ['workerState' => 'en_parada'])->assertOk()->assertJsonPath('meta.ack', true)->assertJsonPath('meta.applied', true);
         }
-        $this->jsonApiAs($a, 'GET', "/api/v1/trips/{$trip->id}/live")->assertJsonPath('data.attributes.stops.0.counts.en_parada', 4);
+        $this->jsonApiAs($a, 'GET', "/api/v1/trips/{$trip->id}/live")->assertJsonPath('data.attributes.stops.1.counts.en_parada', 2)
+            ->assertJsonPath('data.attributes.stops.2.counts.en_parada', 2);
 
         $this->report($a, $trip, ['workerState' => 'viajando']);
         $this->report($b, $trip, ['workerState' => 'viajando']);

@@ -4,7 +4,8 @@ namespace Database\Seeders;
 
 use App\Models\AbsenceType;
 use App\Models\ConversationTopic;
-use App\Models\DenialReason;
+use App\Models\EntityDenialReason;
+use App\Models\ItineraryDenialReason;
 use App\Models\DetentionCause;
 use App\Models\VehicleType;
 use Illuminate\Database\Seeder;
@@ -18,7 +19,8 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        foreach ([['Guagua', 40, 20], ['Microbús', 20, 5], ['Carro', 4, 0]] as [$name, $seats, $standing]) {
+        // Desde la 4.4.0 (docs/11 §11.65). En un servidor ya instalado no se borra nada.
+        foreach ([['Ómnibus Yutong', 45, 15], ['Carro Dongfeng', 32, 9]] as [$name, $seats, $standing]) {
             VehicleType::firstOrCreate(['name' => $name], ['seats' => $seats, 'standing' => $standing]);
         }
 
@@ -30,14 +32,14 @@ class DatabaseSeeder extends Seeder
             ConversationTopic::firstOrCreate(['name' => $name]);
         }
 
-        foreach ([
-            ['No trabaja en la Entidad', 'entidad'],
-            ['Su parada no está en este itinerario', 'itinerario'],
-            ['No hay capacidad en el vehículo', 'itinerario'],
-            ['Datos incorrectos', null],
-            ['Otro motivo', null],
-        ] as [$name, $type]) {
-            DenialReason::firstOrCreate(['name' => $name], ['application_type' => $type]);
+        // Motivos de rechazo separados por tipo de solicitud (docs/11 §11.65; también los crea la migración 4.4).
+        foreach (['Usted no pertenece a nuestra entidad', 'No se pudo verificar su identidad', 'Otro motivo de rechazo'] as $name) {
+            EntityDenialReason::firstOrCreate(['name' => $name]);
+        }
+
+        foreach (['Usted no pertenece a este itinerario', 'No se pudo verificar su identidad', 'Usted no pertenece a esta entidad',
+            'El itinerario está sobrecargado', 'Otro motivo de rechazo'] as $name) {
+            ItineraryDenialReason::firstOrCreate(['name' => $name]);
         }
 
         foreach (['Rotura', 'Tráfico', 'Semáforo', 'Combustible', 'Accidente', 'Otra'] as $name) {

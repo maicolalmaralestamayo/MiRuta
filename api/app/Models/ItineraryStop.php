@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class ItineraryStop extends Model
 {
+    use \App\Models\Concerns\LogsChanges;
+
     protected $table = 'itinerary_stop';
 
     protected $fillable = ['itinerary_id', 'stop_id', 'position'];

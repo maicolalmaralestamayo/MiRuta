@@ -10,6 +10,8 @@ use Illuminate\Database\Eloquent\Model;
  */
 class Worker extends Model
 {
+    use \App\Models\Concerns\LogsChanges;
+
     protected $fillable = ['user_id', 'entity_id', 'active'];
 
     protected $casts = [

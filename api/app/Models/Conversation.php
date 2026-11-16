@@ -9,6 +9,8 @@ use Illuminate\Database\Eloquent\Model;
  */
 class Conversation extends Model
 {
+    use \App\Models\Concerns\LogsChanges;
+
     protected $fillable = ['user_id', 'conversation_topic_id', 'last_message_at', 'unread_by_developer', 'unread_by_user'];
 
     protected $casts = [

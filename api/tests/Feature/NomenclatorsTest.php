@@ -25,8 +25,12 @@ class NomenclatorsTest extends TestCase
             $this->jsonApiAs($admin, 'POST', "/api/v1/{$type}", self::resource($type, ['name' => 'Uno', 'description' => 'Algo']))->assertCreated();
         }
 
-        $this->jsonApiAs($admin, 'POST', '/api/v1/denial-reasons', self::resource('denial-reasons', ['name' => 'Sin plaza', 'applicationType' => 'itinerario']))
-            ->assertCreated()->assertJsonPath('data.attributes.applicationType', 'itinerario');
+        // Motivos de rechazo separados (docs/11 §11.65); los de la 4.3.0 solo se consultan.
+        foreach (['entity-denial-reasons', 'itinerary-denial-reasons'] as $type) {
+            $this->jsonApiAs($admin, 'POST', "/api/v1/{$type}", self::resource($type, ['name' => 'Sin plaza']))->assertCreated()->assertJsonPath('data.type', $type);
+        }
+        $this->jsonApiAs($admin, 'POST', '/api/v1/denial-reasons', self::resource('denial-reasons', ['name' => 'Otro']))
+            ->assertStatus(409)->assertJsonPath('errors.0.code', 'APP_UPDATE_NEEDED');
     }
 
     public function test_los_demas_solo_consultan_los_activos(): void

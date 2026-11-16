@@ -15,6 +15,8 @@ use Illuminate\Database\Eloquent\Model;
  */
 class User extends Model
 {
+    use \App\Models\Concerns\LogsChanges;
+
     protected $fillable = [
         'username', 'password', 'password_changed_at', 'must_change_password',
         'first_name', 'middle_name', 'first_surname', 'second_surname',

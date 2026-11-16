@@ -16,7 +16,8 @@ class Nomenclators
         'vehicle-types' => [Models\VehicleType::class, 'tipo de vehículo', [['trips', 'vehicle_type_id']]],
         'absence-types' => [Models\AbsenceType::class, 'tipo de ausencia', [['absences', 'absence_type_id']]],
         'conversation-topics' => [Models\ConversationTopic::class, 'motivo de conversación', [['conversations', 'conversation_topic_id']]],
-        'denial-reasons' => [Models\DenialReason::class, 'motivo de denegación', [['applications', 'denial_reason_id']]],
+        'entity-denial-reasons' => [Models\EntityDenialReason::class, 'motivo de rechazo de Entidad', [['applications', 'entity_denial_reason_id']]],
+        'itinerary-denial-reasons' => [Models\ItineraryDenialReason::class, 'motivo de rechazo de itinerario', [['applications', 'itinerary_denial_reason_id']]],
         'detention-causes' => [Models\DetentionCause::class, 'causa de detención', [['trips', 'detention_cause_id']]],
     ];
 

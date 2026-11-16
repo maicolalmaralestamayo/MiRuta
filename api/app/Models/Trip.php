@@ -9,6 +9,8 @@ use Illuminate\Database\Eloquent\Model;
  */
 class Trip extends Model
 {
+    use \App\Models\Concerns\LogsChanges;
+
     public const OUTBOUND = 'ida';
     public const RETURN = 'regreso';
 

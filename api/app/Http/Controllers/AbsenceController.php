@@ -112,6 +112,8 @@ class AbsenceController extends Controller
 
             if ($itineraryIds !== null) {
                 $absence->itineraries()->sync($itineraryIds);
+                // Los itinerarios de la ausencia no tienen modelo propio (docs/11 §11.65).
+                app(\App\Services\ChangeLog::class)->record('absences', [(int) $absence->id], \App\Services\ChangeLog::UPDATE);
             }
         });
 

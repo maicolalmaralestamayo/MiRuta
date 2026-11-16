@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class ConversationMessage extends Model
 {
+    use \App\Models\Concerns\LogsChanges;
+
     protected $fillable = ['conversation_id', 'user_id', 'from_developer', 'body'];
 
     protected $casts = ['from_developer' => 'boolean', 'conversation_id' => 'integer'];

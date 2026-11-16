@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Http\Controllers\TripController;
 use App\Http\Middleware\RequireCurrentAppVersion;
 use App\JsonApi\JsonApiException;
 use App\Models\AppVersion;
@@ -26,9 +27,11 @@ use Illuminate\Support\Facades\DB;
  *   7 días, y los cerrados en el último día) para su ventana de viaje.
  * - meta.finishedTrips: viajes que terminaron (la app quita sus notificaciones).
  * - meta.pendingApplications: solicitudes pendientes que le toca resolver, por tipo.
- * - meta.versions: huella de cada grupo de datos (Entidades, itinerarios…):
- *   si cambia, la app vuelve a pedir esos datos (solo lo que cambió, con
- *   If-None-Match); si no, usa su caché.
+ * - meta.versions: huella de cada grupo de datos (Entidades, itinerarios…)
+ *   para las apps 4.2.0 y 4.3.0: si cambia, vuelven a pedir esos datos.
+ * - meta.changes (4.4.0, con ?changes=N): registro de cambios desde N
+ *   (App\Services\ChangeLog): los registros cambiados que ve la persona, los
+ *   ids borrados y si debe volver a descargarlo todo (full).
  */
 class SyncFeed
 {
@@ -43,12 +46,12 @@ class SyncFeed
         'applications' => [['applications'], []],
         'children' => [['children', 'child_parents'], []],
         'absences' => [['absences'], ['absence_itinerary']],
-        'nomenclators' => [['vehicle_types', 'absence_types', 'conversation_topics', 'denial_reasons', 'detention_causes'], []],
+        'nomenclators' => [['vehicle_types', 'absence_types', 'conversation_topics', 'entity_denial_reasons', 'itinerary_denial_reasons', 'detention_causes'], []],
         'trips' => [['trips'], []],
         'conversations' => [['conversations', 'conversation_messages'], []],
     ];
 
-    public function __construct(private Applications $applications, private Conversations $conversations, private Settings $settings, private Trips $trips)
+    public function __construct(private Applications $applications, private Conversations $conversations, private Settings $settings, private Trips $trips, private ChangeLog $changeLog)
     {
     }
 
@@ -95,7 +98,7 @@ class SyncFeed
             ->where('date', '>=', Carbon::today()->toDateString())
             ->orderByRaw("case when status = 'en_ejecucion' then 0 else 1 end")->orderBy('departs_at')->first();
 
-        return [$data, [
+        $meta = [
             'cursor' => (string) $next,
             'more' => $more,
             'changed' => array_keys($changed),
@@ -119,23 +122,32 @@ class SyncFeed
                 'today' => $nextTrip->date->isToday(),
                 'itineraryId' => (string) $nextTrip->itinerary_id,
             ] : null,
-            'myTrips' => $this->myTrips($user),
+            'myTrips' => $this->myTrips($user, $request),
             'finishedTrips' => $this->finishedTrips($user),
             // Por tipo, para la notificación «N solicitudes pendientes» (docs/11 §11.63).
             'pendingApplications' => $this->applications->pendingByType($user),
+            // Huellas de la 4.2.0 / 4.3.0 (las apps 4.4.0 usan meta.changes).
             'versions' => $this->versions(),
             'settingsVersion' => $this->settings->version(),
             'serverTime' => Carbon::now()->toIso8601String(),
-        ]];
+        ];
+
+        // Registro de cambios (docs/11 §11.65): con ?changes=N, lo que cambió desde N.
+        if ($request->query->has('changes')) {
+            $meta['changes'] = $this->changeLog->since($request, $request->query('changes'));
+        }
+
+        return [$data, $meta];
     }
 
     /**
      * Viajes en que la persona viaja (pasajero esperado o ya informó su
      * estado): la base de su ventana de viaje (docs/11 §11.62).
      */
-    public function myTrips(User $user): array
+    public function myTrips(User $user, ?Request $request = null): array
     {
-        $itineraryIds = DB::table('worker_itineraries')->where('user_id', $user->id)->whereNotNull('stop_id')->pluck('itinerary_id')->all();
+        // Parada habitual opcional (docs/11 §11.65): cuenta cualquier itinerario suyo.
+        $itineraryIds = DB::table('worker_itineraries')->where('user_id', $user->id)->pluck('itinerary_id')->all();
 
         if (! $itineraryIds) {
             return [];
@@ -169,7 +181,9 @@ class SyncFeed
                 'departsAt' => $trip->departs_at->toIso8601String(),
                 'statusChangedAt' => $trip->status_changed_at?->toIso8601String(),
                 'myStopId' => ($expected?->stop_id ?? $state?->stop_id) ? (string) ($expected?->stop_id ?? $state?->stop_id) : null,
-                'myState' => $state?->state,
+                // Viaja en él (aunque no tenga parada habitual).
+                'travels' => true,
+                'myState' => $request ? TripController::legacyState($request, $trip, $state?->state) : $state?->state,
                 'myStateAt' => $state?->state_at?->toIso8601String(),
             ];
         }

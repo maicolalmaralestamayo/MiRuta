@@ -58,7 +58,7 @@ class TripSerializer extends Serializer
         return [
             'expectedPassengers' => app(Trips::class)->expectedQuery($trip)->count(),
             'capacity' => $type ? $type->capacity() : null,
-            'myState' => $mine,
+            'myState' => \App\Http\Controllers\TripController::legacyState($request, $trip, $mine),
         ];
     }
 }

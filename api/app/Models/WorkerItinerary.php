@@ -11,6 +11,8 @@ use Illuminate\Database\Eloquent\Model;
  */
 class WorkerItinerary extends Model
 {
+    use \App\Models\Concerns\LogsChanges;
+
     protected $fillable = ['worker_id', 'user_id', 'itinerary_id', 'stop_id', 'is_chief'];
 
     protected $casts = [

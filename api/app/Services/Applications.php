@@ -5,7 +5,8 @@ namespace App\Services;
 use App\JsonApi\JsonApiException;
 use App\Models\AccessRecovery;
 use App\Models\Application;
-use App\Models\DenialReason;
+use App\Models\EntityDenialReason;
+use App\Models\ItineraryDenialReason;
 use App\Models\Entity;
 use App\Models\Itinerary;
 use App\Models\Stop;
@@ -128,15 +129,17 @@ class Applications
     public function reject(Application $application, User $actor, int $denialReasonId, ?string $note): Application
     {
         $this->ensureResolvable($application, $actor);
-        $reason = DenialReason::find($denialReasonId);
+        // Motivos separados por tipo de solicitud (docs/11 §11.65).
+        $entity = $application->type === Application::TYPE_ENTITY;
+        $reason = $entity ? EntityDenialReason::find($denialReasonId) : ItineraryDenialReason::find($denialReasonId);
 
-        if (! $reason || ! $reason->active || ($reason->application_type !== null && $reason->application_type !== $application->type)) {
+        if (! $reason || ! $reason->active) {
             throw new JsonApiException(422, 'DENIAL_REASON_INVALID', 'Motivo no válido',
                 'Elija un motivo de denegación activo para este tipo de solicitud.', ['pointer' => '/data/relationships/denialReason']);
         }
 
         $application->forceFill([
-            'status' => Application::REJECTED, 'denial_reason_id' => $reason->id, 'resolution_note' => $note,
+            'status' => Application::REJECTED, $entity ? 'entity_denial_reason_id' : 'itinerary_denial_reason_id' => $reason->id, 'resolution_note' => $note,
             'resolved_by' => $actor->id, 'resolved_at' => Carbon::now(),
         ])->save();
 
@@ -252,7 +255,7 @@ class Applications
             ? 'entrar en '.Entity::find($application->entity_id)?->abbreviation
             : 'entrar en el itinerario '.Itinerary::find($application->itinerary_id)?->name;
         $approved = $application->status === Application::APPROVED;
-        $reason = $approved ? '' : ' Motivo: '.DenialReason::find($application->denial_reason_id)?->name.'.';
+        $reason = $approved ? '' : ' Motivo: '.$application->rejectionReason()?->name.'.';
 
         // Con estos datos la app 4.3.0 compone «Solicitud aprobada / rechazada» (docs/11 §11.63).
         $this->notifier->send([(int) $application->user_id], Notifier::APPLICATION_RESOLVED,
@@ -266,7 +269,7 @@ class Applications
                 'itinerary' => $application->itinerary_id ? Itinerary::find($application->itinerary_id)?->name : null,
                 'stop' => $application->stop_id ? Stop::find($application->stop_id)?->landmark : null,
                 'resolvedAt' => ($application->resolved_at ?? Carbon::now())->toIso8601String(),
-                'reason' => $approved ? null : DenialReason::find($application->denial_reason_id)?->name,
+                'reason' => $approved ? null : $application->rejectionReason()?->name,
                 'note' => $approved ? null : $application->resolution_note,
             ]);
     }

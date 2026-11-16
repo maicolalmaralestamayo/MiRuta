@@ -97,7 +97,12 @@ class ApplicationController extends Controller
         $data = $this->validateResource($request, 'applications', [
             'attributes.status' => ['required', 'in:aprobada,rechazada'],
             'attributes.resolutionNote' => ['sometimes', 'nullable', 'string', 'max:1000'],
-        ] + $this->relationshipRules('denialReason', 'denial-reasons', 'denial_reasons', false));
+            'relationships.denialReason' => ['sometimes', 'array'],
+            'relationships.denialReason.data' => ['sometimes', 'nullable', 'array'],
+            // Los de su tipo; «denial-reasons» lo envía la 4.3.0 (docs/11 §11.65).
+            'relationships.denialReason.data.type' => ['required_with:data.relationships.denialReason.data', 'in:entity-denial-reasons,itinerary-denial-reasons,denial-reasons'],
+            'relationships.denialReason.data.id' => ['required_with:data.relationships.denialReason.data'],
+        ]);
 
         if ($data['attributes']['status'] === Application::APPROVED) {
             $this->applications->approve($application, $request->user());

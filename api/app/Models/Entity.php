@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class Entity extends Model
 {
+    use \App\Models\Concerns\LogsChanges;
+
     protected $fillable = ['abbreviation', 'number', 'name', 'description', 'observation', 'image_path', 'active'];
 
     protected $casts = ['active' => 'boolean'];

@@ -104,7 +104,8 @@ class TripsTest extends TestCase
         $outsider = $this->createWorker($entity);
 
         $this->jsonApiAs($withStop, 'GET', '/api/v1/trips')->assertJsonCount(1, 'data');
-        $this->jsonApiAs($withoutStop, 'GET', '/api/v1/trips')->assertJsonCount(0, 'data');
+        // Desde la 4.4.0 la parada habitual es opcional: también ve los viajes de su itinerario.
+        $this->jsonApiAs($withoutStop, 'GET', '/api/v1/trips')->assertJsonCount(1, 'data');
         $this->jsonApiAs($outsider, 'GET', "/api/v1/trips/{$id}")->assertNotFound();
         $this->jsonApiAs($admin, 'GET', '/api/v1/trips?filter[status]=planificado,en_ejecucion&include=itinerary,vehicleType')
             ->assertJsonCount(1, 'data')->assertJsonCount(2, 'included');

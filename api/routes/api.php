@@ -100,6 +100,9 @@ Route::middleware('auth.token')->group(function () {
     $resource('vehicle-types', N\VehicleTypeController::class);
     $resource('absence-types', N\AbsenceTypeController::class);
     $resource('conversation-topics', N\ConversationTopicController::class);
+    $resource('entity-denial-reasons', N\EntityDenialReasonController::class);
+    $resource('itinerary-denial-reasons', N\ItineraryDenialReasonController::class);
+    // Solo para la 4.3.0 (consulta): los motivos ahora están separados por tipo.
     $resource('denial-reasons', N\DenialReasonController::class);
     $resource('detention-causes', N\DetentionCauseController::class);
 

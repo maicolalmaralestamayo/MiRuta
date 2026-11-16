@@ -9,6 +9,8 @@ use Illuminate\Database\Eloquent\Model;
  */
 abstract class Nomenclator extends Model
 {
+    use \App\Models\Concerns\LogsChanges;
+
     protected $fillable = ['name', 'description', 'observation', 'active'];
 
     protected $casts = ['active' => 'boolean'];

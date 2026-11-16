@@ -11,6 +11,8 @@ use Illuminate\Database\Eloquent\Model;
  */
 class Absence extends Model
 {
+    use \App\Models\Concerns\LogsChanges;
+
     protected $fillable = ['user_id', 'worker_id', 'absence_type_id', 'starts_on', 'ends_on', 'note'];
 
     protected $casts = ['starts_on' => 'date', 'ends_on' => 'date', 'worker_id' => 'integer', 'user_id' => 'integer'];

@@ -31,8 +31,20 @@ class ApplicationSerializer extends Serializer
             'entity' => ['entities', 'entity_id', 'entity'],
             'itinerary' => ['itineraries', 'itinerary_id', 'itinerary'],
             'stop' => ['stops', 'stop_id', 'stop'],
-            'denialReason' => ['denial-reasons', 'denial_reason_id', 'denialReason'],
+            'denialReason' => ['itinerary-denial-reasons', 'itinerary_denial_reason_id', 'itineraryDenialReason'],
             'resolvedBy' => ['users', 'resolved_by', 'resolver'],
         ];
+    }
+
+    /** El motivo de rechazo sale de la tabla del tipo de la solicitud (docs/11 §11.65). */
+    public function relationshipsFor(Model $application): array
+    {
+        $relationships = $this->toOneRelationships();
+
+        if ($application->type === 'entidad') {
+            $relationships['denialReason'] = ['entity-denial-reasons', 'entity_denial_reason_id', 'entityDenialReason'];
+        }
+
+        return $relationships;
     }
 }

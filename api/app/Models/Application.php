@@ -9,6 +9,8 @@ use Illuminate\Database\Eloquent\Model;
  */
 class Application extends Model
 {
+    use \App\Models\Concerns\LogsChanges;
+
     public const TYPE_ENTITY = 'entidad';
     public const TYPE_ITINERARY = 'itinerario';
 
@@ -17,7 +19,7 @@ class Application extends Model
     public const REJECTED = 'rechazada';
 
     protected $fillable = [
-        'user_id', 'type', 'status', 'entity_id', 'itinerary_id', 'stop_id', 'denial_reason_id',
+        'user_id', 'type', 'status', 'entity_id', 'itinerary_id', 'stop_id', 'denial_reason_id', 'entity_denial_reason_id', 'itinerary_denial_reason_id',
         'resolution_note', 'resolved_by', 'resolved_at', 'seen_at',
     ];
 
@@ -50,9 +52,26 @@ class Application extends Model
         return $this->belongsTo(Stop::class);
     }
 
+    /** Motivo de la 4.3.0 (ya no se usa; se conserva el dato). */
     public function denialReason()
     {
         return $this->belongsTo(DenialReason::class);
+    }
+
+    public function entityDenialReason()
+    {
+        return $this->belongsTo(EntityDenialReason::class);
+    }
+
+    public function itineraryDenialReason()
+    {
+        return $this->belongsTo(ItineraryDenialReason::class);
+    }
+
+    /** El motivo del rechazo, de la tabla de su tipo (o null). */
+    public function rejectionReason(): ?Nomenclator
+    {
+        return $this->type === self::TYPE_ENTITY ? $this->entityDenialReason : $this->itineraryDenialReason;
     }
 
     public function resolver()

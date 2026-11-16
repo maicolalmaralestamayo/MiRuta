@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class Itinerary extends Model
 {
+    use \App\Models\Concerns\LogsChanges;
+
     protected $fillable = ['entity_id', 'name', 'description', 'observation', 'image_path', 'active'];
 
     protected $casts = ['active' => 'boolean', 'entity_id' => 'integer'];

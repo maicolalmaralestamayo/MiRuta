@@ -78,9 +78,10 @@ class Version42Test extends TestCase
 
         $this->report($a, $trip, ['workerState' => 'en_parada']);
         $this->report($a, $trip, ['workerState' => 'botado'])->assertJsonPath('meta.applied', true);
+        // Nombres de la 4.3.0: se guardan como No recogido y Retrasado, en su parada.
         $this->report($b, $trip, ['workerState' => 'dormido'])
-            ->assertJsonPath('data.attributes.stops.0.counts.botado', 1)
-            ->assertJsonPath('data.attributes.stops.0.counts.dormido', 1);
+            ->assertJsonPath('data.attributes.stops.1.counts.no_recogido', 1)
+            ->assertJsonPath('data.attributes.stops.2.counts.retrasado', 1);
 
         // Un Botado al que el teléfono detecta luego en el vehículo pasa a Viajando.
         $this->report($a, $trip, ['workerState' => 'viajando'])->assertJsonPath('meta.applied', true);
@@ -146,7 +147,8 @@ class Version42Test extends TestCase
             ->assertJsonPath('meta.myTrips.0.myStopId', (string) $this->stops[1])
             ->assertJsonPath('meta.versions.trips', fn ($v) => is_string($v) && strlen($v) === 12)
             ->json('meta.cursor');
-        $this->jsonApiAs($other, 'GET', '/api/v1/sync')->assertJsonCount(0, 'meta.myTrips');
+        // Sin parada habitual también viaja (docs/11 §11.65).
+        $this->jsonApiAs($other, 'GET', '/api/v1/sync')->assertJsonCount(1, 'meta.myTrips');
 
         $this->report($worker, $trip, ['workerState' => 'en_parada', 'gps' => true], '?cursor='.$cursor)
             ->assertJsonPath('meta.ack', true)->assertJsonPath('meta.sync.meta.cursor', $cursor)
@@ -176,13 +178,14 @@ class Version42Test extends TestCase
         $settings = collect($this->jsonApiAs($admin, 'GET', '/api/v1/settings')->assertOk()->json('data'))->keyBy('id');
 
         $this->assertSame('Ventana viaje', $settings['fin_ventana']['attributes']['groupName']);
-        $this->assertSame('Frecuencia fuera ventana', $settings['frecuencia_reposo']['attributes']['name']);
-        $this->assertSame('15min', $settings['frecuencia_reposo']['attributes']['value']);
+        // Desde la 4.4.0, «Frecuencia larga» (docs/11 §11.65).
+        $this->assertSame('Frecuencia larga', $settings['frecuencia_larga']['attributes']['name']);
+        $this->assertSame('15min', $settings['frecuencia_larga']['attributes']['value']);
         $this->assertFalse($settings->has('frecuencia_dia_viaje'));
 
-        $this->jsonApiAs($admin, 'PATCH', '/api/v1/settings/frecuencia_reposo', self::resource('settings', ['value' => '10min'], [], 'frecuencia_reposo'))
+        $this->jsonApiAs($admin, 'PATCH', '/api/v1/settings/frecuencia_larga', self::resource('settings', ['value' => '10min'], [], 'frecuencia_larga'))
             ->assertStatus(422)->assertJsonPath('errors.0.code', 'SETTING_INVALID');
-        $this->jsonApiAs($admin, 'PATCH', '/api/v1/settings/frecuencia_reposo', self::resource('settings', ['value' => '30min'], [], 'frecuencia_reposo'))->assertOk();
+        $this->jsonApiAs($admin, 'PATCH', '/api/v1/settings/frecuencia_larga', self::resource('settings', ['value' => '30min'], [], 'frecuencia_larga'))->assertOk();
     }
 
     public function test_jefe_declara_ausencia_solo_en_su_itinerario(): void

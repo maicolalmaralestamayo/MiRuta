@@ -10,6 +10,8 @@ use Illuminate\Database\Eloquent\Model;
  */
 class Child extends Model
 {
+    use \App\Models\Concerns\LogsChanges;
+
     protected $fillable = [
         'identity_card_encrypted', 'identity_card_hash', 'first_name', 'middle_name', 'first_surname', 'second_surname',
         'sex', 'birth_date', 'photo_path', 'active',

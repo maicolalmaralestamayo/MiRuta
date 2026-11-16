@@ -122,7 +122,7 @@ class Document
 
         $relationships = [];
 
-        foreach ($serializer->toOneRelationships() as $name => $relationship) {
+        foreach ($serializer->relationshipsFor($model) as $name => $relationship) {
             list($type, $foreignKey) = $relationship;
 
             if ($foreignKey === null) {
@@ -167,7 +167,7 @@ class Document
     private function includePath(Model $model, array $segments): void
     {
         $name = array_shift($segments);
-        $relationships = $this->serializerFor($model)->toOneRelationships();
+        $relationships = $this->serializerFor($model)->relationshipsFor($model);
 
         if (! isset($relationships[$name])) {
             return;

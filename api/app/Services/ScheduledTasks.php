@@ -29,6 +29,7 @@ class ScheduledTasks
         'qr:limpiar' => ['hour', [QrCodes::class, 'purgeExpiredNonces']],
         'conversaciones:limpiar' => ['02:10', [Conversations::class, 'purgeOld']],
         'notificaciones:limpiar' => ['02:20', [Notifier::class, 'purgeOld']],
+        'cambios:podar' => ['02:30', [ChangeLog::class, 'prune']],
     ];
 
     public function statePath(): string

@@ -3,7 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Application;
-use App\Models\DenialReason;
+use App\Models\ItineraryDenialReason;
 use App\Models\Notification;
 use App\Models\Worker;
 use Tests\TestCase;
@@ -64,12 +64,13 @@ class ApplicationsTest extends TestCase
         $this->jsonApiAs($chief, 'PATCH', "/api/v1/applications/{$id}", self::resource('applications', ['status' => 'rechazada']))
             ->assertStatus(422)->assertJsonPath('errors.0.code', 'DENIAL_REASON_REQUIRED');
 
-        $entityReason = DenialReason::create(['name' => 'No trabaja aquí', 'application_type' => 'entidad']);
-        $reason = DenialReason::create(['name' => 'Sin plaza']);
-        $this->jsonApiAs($chief, 'PATCH', "/api/v1/applications/{$id}", self::resource('applications', ['status' => 'rechazada'], ['denialReason' => ['denial-reasons', $entityReason->id]]))
+        // Motivos separados por tipo (docs/11 §11.65): uno inactivo no vale.
+        $inactive = ItineraryDenialReason::create(['name' => 'Viejo', 'active' => false]);
+        $reason = ItineraryDenialReason::create(['name' => 'Sin plaza']);
+        $this->jsonApiAs($chief, 'PATCH', "/api/v1/applications/{$id}", self::resource('applications', ['status' => 'rechazada'], ['denialReason' => ['itinerary-denial-reasons', $inactive->id]]))
             ->assertStatus(422)->assertJsonPath('errors.0.code', 'DENIAL_REASON_INVALID');
         $this->jsonApiAs($chief, 'PATCH', "/api/v1/applications/{$id}?include=denialReason", self::resource('applications',
-            ['status' => 'rechazada', 'resolutionNote' => 'Ya va lleno'], ['denialReason' => ['denial-reasons', $reason->id]]))
+            ['status' => 'rechazada', 'resolutionNote' => 'Ya va lleno'], ['denialReason' => ['itinerary-denial-reasons', $reason->id]]))
             ->assertOk()->assertJsonPath('data.attributes.status', 'rechazada')->assertJsonPath('included.0.attributes.name', 'Sin plaza');
 
         // El trabajador ve la suya resuelta hasta que abre Solicitudes.

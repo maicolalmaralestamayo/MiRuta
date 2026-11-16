@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Models\Application;
-use App\Models\DenialReason;
 use App\Models\ItineraryStop;
 use App\Models\Notification;
 use App\Models\Trip;
@@ -88,9 +87,9 @@ class Version43Test extends TestCase
         $this->jsonApiAs($a, 'GET', "/api/v1/trips/{$trip->id}/live", null, ['X-App-Version' => '13'])
             ->assertJsonPath('data.attributes.myState.state', 'viajando')->assertJsonPath('data.attributes.myState.sensor', true);
 
-        // La 4.3.0 envía viajando; en el regreso es definitivo.
+        // La 4.3.0 envía viajando; desde la 4.4.0 Viajando solo pasa a Dejado (también en el regreso).
         $this->report($b, $trip, ['workerState' => 'viajando'])->assertJsonPath('meta.sensor', true);
-        $this->report($b, $trip, ['workerState' => 'no_voy'])->assertJsonPath('meta.applied', false)->assertJsonPath('meta.reason', 'ESTADO_FINAL');
+        $this->report($b, $trip, ['workerState' => 'no_voy'])->assertJsonPath('meta.applied', false)->assertJsonPath('meta.reason', 'TRANSICION_NO_PERMITIDA');
         $this->jsonApiAs($b, 'GET', "/api/v1/trips/{$trip->id}/live")->assertJsonPath('data.attributes.inVehicle.workers', 2)
             ->assertJsonPath('data.attributes.itineraryName', $this->itinerary->name)
             ->assertJsonPath('data.attributes.vehicleTypeName', $this->vehicleType()->name);
@@ -183,7 +182,7 @@ class Version43Test extends TestCase
         $member = $this->createWorker($this->entity);
         $application = Application::create(['user_id' => $member->user_id, 'type' => Application::TYPE_ITINERARY, 'status' => Application::PENDING,
             'entity_id' => $this->entity->id, 'itinerary_id' => $this->itinerary->id, 'stop_id' => $this->stops[1]]);
-        $reason = DenialReason::create(['name' => 'Sin plaza']);
+        $reason = \App\Models\ItineraryDenialReason::create(['name' => 'Sin plaza']);
 
         app(Applications::class)->reject($application, \App\Models\User::find($chief->user_id), $reason->id, null);
 

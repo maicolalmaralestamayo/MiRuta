@@ -40,10 +40,6 @@ abstract class NomenclatorController extends Controller
             $query->where('name', 'like', '%'.$search.'%');
         }
 
-        if ($this->type === 'denial-reasons' && ($type = $parameters->filter('applicationType'))) {
-            $query->where(fn ($q) => $q->whereNull('application_type')->orWhere('application_type', $type));
-        }
-
         return $this->paginate($request, $query, $parameters, self::SORTABLE);
     }
 
@@ -114,10 +110,6 @@ abstract class NomenclatorController extends Controller
             $rules['attributes.standing'] = ['sometimes', 'integer', 'min:0', 'max:500'];
         }
 
-        if ($this->type === 'denial-reasons') {
-            $rules['attributes.applicationType'] = ['sometimes', 'nullable', 'in:entidad,itinerario'];
-        }
-
         return $rules;
     }
 
@@ -133,7 +125,7 @@ abstract class NomenclatorController extends Controller
             $item->active = (bool) $attributes['active'];
         }
 
-        foreach (['seats' => 'seats', 'standing' => 'standing', 'applicationType' => 'application_type'] as $attribute => $column) {
+        foreach (['seats' => 'seats', 'standing' => 'standing'] as $attribute => $column) {
             if (array_key_exists($attribute, $attributes) && in_array($column, $item->getFillable(), true)) {
                 $item->{$column} = $attributes[$attribute];
             }
