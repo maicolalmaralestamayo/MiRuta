@@ -10,6 +10,7 @@ import '../widgets/app_scaffold.dart';
 import '../widgets/cards.dart';
 import '../widgets/common.dart';
 import '../widgets/data_view.dart';
+import 'simulation_screen.dart';
 
 /// Mantenimiento del servidor (maqueta G18 n.º 21): todo lo que hay que
 /// ejecutar en el servidor se hace con la API (docs/11 §11.55). Con la sesión
@@ -78,6 +79,8 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
       if (installed) ActionItem(Icons.play_arrow, 'Ejecutar tareas', () => _run('run-tasks', 'Tareas pendientes')),
       ActionItem(Icons.cleaning_services_outlined, 'Limpiar caché', () => _run('clear-cache', 'Limpiar caché')),
       ActionItem(Icons.receipt_long_outlined, 'Ver registro de errores', () => _run('log', 'Registro de errores')),
+      // Simulador de trabajadores (docs/11 §11.66): solo con la sesión del Administrador.
+      if (installed && widget.maintenanceKey == null) ActionItem(Icons.science_outlined, 'Consultar Simulación', () => push(context, const SimulationScreen())),
     ];
   }
 
@@ -104,7 +107,7 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
           final tasksOk = list.every((t) => t['ok'] != false);
           Widget state(bool ok, String good) => Chip2(ok ? good : 'Revisar', ok ? green : red);
           return ListView(padding: const EdgeInsets.only(bottom: 96), physics: const AlwaysScrollableScrollPhysics(), children: [
-            FoldSection<int>(storageKey: 'mant.estado', title: 'Estado', items: const [0, 1, 2], paginate: false, builder: (i) {
+            FoldSection<int>(storageKey: 'mant.estado', title: 'Estado', items: [0, 1, 2, if (widget.maintenanceKey == null && database['installed'] == true) 3], paginate: false, builder: (i) {
               switch (i) {
                 case 0:
                   return InfoCard(
@@ -134,6 +137,13 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
                               ? 'Sin instalar: use Acciones → Instalar base de datos'
                               : (pending == 0 ? 'Conectada • al día' : 'Conectada • ${plural(pending, 'cambio pendiente', 'cambios pendientes')}'),
                     ],
+                  );
+                case 3:
+                  return InfoCard(
+                    images: const [CardImage(icon: Icons.science_outlined)],
+                    title: 'Simulación',
+                    lines: const ['Viaje de prueba con trabajadores simulados'],
+                    onTap: () => push(context, const SimulationScreen()),
                   );
                 default:
                   return InfoCard(

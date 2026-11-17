@@ -58,7 +58,8 @@ class TripCard extends StatelessWidget {
     final time = started && t.statusChangedAt != null && t.isRunning ? formatTime(t.statusChangedAt) : hhmm12(t.departureTime);
     return InfoCard(
       images: [CardImage(icon: t.outbound ? Icons.east : Icons.west)],
-      title: '${t.itineraryName ?? 'Viaje'} • ${t.directionName} • ${formatDate(t.date)}',
+      // El viaje de prueba del simulador se ve como «Simulación» (docs/11 §11.66).
+      title: '${t.simulation ? 'Simulación • ' : ''}${t.itineraryName ?? 'Viaje'} • ${t.directionName} • ${formatDate(t.date)}',
       lines: [
         '${started ? 'Salió' : 'Sale'} $time${departure == null ? '' : ' de $departure'}',
         '${t.vehicleTypeName ?? 'Vehículo'} • ${t.occupancy}',

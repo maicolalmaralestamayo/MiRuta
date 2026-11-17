@@ -743,6 +743,9 @@ class Trip {
   final int? capacity;
   final String? myState;
 
+  /// Viaje de prueba del simulador (docs/11 §11.66): se muestra como «Simulación».
+  final bool simulation;
+
   const Trip({
     required this.id,
     required this.direction,
@@ -763,6 +766,7 @@ class Trip {
     this.expectedPassengers = 0,
     this.capacity,
     this.myState,
+    this.simulation = false,
   });
 
   factory Trip.from(Resource r) => Trip(
@@ -785,6 +789,7 @@ class Trip {
         expectedPassengers: _int(r.meta['expectedPassengers']),
         capacity: r.meta['capacity'] == null ? null : _int(r.meta['capacity']),
         myState: r.meta['myState']?.toString(),
+        simulation: r.attributes['simulation'] == true,
       );
 
   bool get outbound => direction == 'ida';
@@ -823,6 +828,9 @@ abstract final class WorkerState {
   /// Estaba De camino y el vehículo pasó por su parada antes de que llegara (antes «Dormido»).
   static const late = 'retrasado';
   static const notGoing = 'no_voy';
+
+  /// Todos, en el orden en que se muestran.
+  static const states = [onTheWay, atStop, travelling, dropped, leftBehind, late, notGoing];
 
   /// Nombres viejos (4.2.0 y 4.3.0), solo para leer datos guardados o de un servidor viejo.
   static const legacyPickedUp = 'recogido';
@@ -1129,4 +1137,141 @@ class Message {
         mine: r.boolean('mine'),
         createdAt: r.date('createdAt') ?? DateTime.now(),
       );
+}
+
+
+/// Simulación de trabajadores (docs/11 §11.66): viaje de prueba con
+/// trabajadores simulados, manejada por el Administrador.
+class WorkerSimulation {
+  final String id;
+  final String? itineraryName;
+  final String direction;
+  final String vehicleMode;
+  final int workers;
+  final int normal;
+  final int late;
+  final int leftBehind;
+  final int notGoing;
+  final int speedFactor;
+  final String status;
+  final DateTime? startedAt;
+  final String? tripId;
+  final String? tripStatus;
+  final String? myState;
+  final Map<String, int> counts;
+  final int notReported;
+  final int sensors;
+  final int elapsedSeconds;
+  final String? vehicleText;
+
+  const WorkerSimulation({
+    required this.id,
+    this.itineraryName,
+    this.direction = 'ida',
+    this.vehicleMode = SimulationInput.simulatedVehicle,
+    this.workers = 0,
+    this.normal = 70,
+    this.late = 10,
+    this.leftBehind = 10,
+    this.notGoing = 10,
+    this.speedFactor = 1,
+    this.status = 'en_curso',
+    this.startedAt,
+    this.tripId,
+    this.tripStatus,
+    this.myState,
+    this.counts = const {},
+    this.notReported = 0,
+    this.sensors = 0,
+    this.elapsedSeconds = 0,
+    this.vehicleText,
+  });
+
+  factory WorkerSimulation.from(Resource r) {
+    final counts = r.attributes['counts'];
+    final vehicle = r.attributes['vehicle'];
+    return WorkerSimulation(
+      id: r.id,
+      itineraryName: r.string('itineraryName'),
+      direction: r.string('direction') ?? 'ida',
+      vehicleMode: r.string('vehicleMode') ?? SimulationInput.simulatedVehicle,
+      workers: _int(r.attributes['workers']),
+      normal: _int(r.attributes['normal']),
+      late: _int(r.attributes['late']),
+      leftBehind: _int(r.attributes['leftBehind']),
+      notGoing: _int(r.attributes['notGoing']),
+      speedFactor: _int(r.attributes['speedFactor']),
+      status: r.string('status') ?? 'en_curso',
+      startedAt: r.date('startedAt'),
+      tripId: r.relId('trip')?.id,
+      tripStatus: r.string('tripStatus'),
+      myState: r.string('myState'),
+      counts: counts is Map ? {for (final e in counts.entries) '${e.key}': _int(e.value)} : const {},
+      notReported: _int(r.attributes['notReported']),
+      sensors: _int(r.attributes['sensors']),
+      elapsedSeconds: _int(r.attributes['elapsedSeconds']),
+      vehicleText: vehicle is Map ? vehicle['text']?.toString() : null,
+    );
+  }
+
+  bool get running => status == 'en_curso';
+
+  bool get simulatedVehicle => vehicleMode == SimulationInput.simulatedVehicle;
+
+  /// «7 Dejados • 1 No recogido • …» en el orden de los estados.
+  String get countsText {
+    final parts = [
+      for (final s in WorkerState.states)
+        if ((counts[s] ?? 0) > 0) '${counts[s]} ${WorkerState.count(s, counts[s]!)}',
+      if (notReported > 0) '$notReported sin informar',
+    ];
+    return parts.isEmpty ? 'Sin informes aún' : parts.join(' • ');
+  }
+
+  /// Tiempo transcurrido «12 min 05 s».
+  String get elapsedText {
+    final m = elapsedSeconds ~/ 60;
+    final s = (elapsedSeconds % 60).toString().padLeft(2, '0');
+    return m > 0 ? '$m min $s s' : '${elapsedSeconds % 60} s';
+  }
+}
+
+/// Lo que se elige en «Crear Simulación» (código puro, con pruebas).
+class SimulationInput {
+  static const simulatedVehicle = 'simulado';
+  static const realVehicle = 'real';
+  static const maxWorkers = 60;
+  static const speedFactors = [1, 2, 5, 10];
+
+  String? itineraryId;
+  String direction = 'ida';
+  int workers = 10;
+  String vehicleMode = simulatedVehicle;
+  int normal = 70;
+  int late = 10;
+  int leftBehind = 10;
+  int notGoing = 10;
+  int speedFactor = 1;
+
+  int get total => normal + late + leftBehind + notGoing;
+
+  /// El primer problema, o null si se puede crear.
+  String? get error {
+    if (itineraryId == null) return 'Elija el itinerario.';
+    if (workers < 1 || workers > maxWorkers) return 'La cantidad de trabajadores va de 1 a $maxWorkers.';
+    if ([normal, late, leftBehind, notGoing].any((p) => p < 0 || p > 100)) return 'Cada porcentaje va de 0 a 100.';
+    if (total != 100) return 'Los porcentajes suman $total %: deben sumar 100 %.';
+    return null;
+  }
+
+  Map<String, dynamic> attributes() => {
+        'direction': direction,
+        'workers': workers,
+        'vehicleMode': vehicleMode,
+        'normal': normal,
+        'late': late,
+        'leftBehind': leftBehind,
+        'notGoing': notGoing,
+        if (vehicleMode == simulatedVehicle) 'speedFactor': speedFactor,
+      };
 }
