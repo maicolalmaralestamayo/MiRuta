@@ -2073,7 +2073,7 @@ tarjetas, icono de la app); los iconos de las imágenes de muestra son solo ilus
 - **«Crear Viaje»:** si se crean la ida y el regreso, el formulario sigue con el viaje de ida.
 
 
-## 11.66 Simulador de trabajadores (16/11/2026, pendiente de implementar en la 4.5.0)
+## 11.66 Simulador de trabajadores (16/11/2026; implementado en la 4.5.0)
 
 El usuario prueba solo; necesita simular varios trabajadores. Decidido:
 
@@ -2089,3 +2089,74 @@ El usuario prueba solo; necesita simular varios trabajadores. Decidido:
   simulados, fuera de Gestión y de las estadísticas; las notificaciones de la simulación solo le llegan al
   Administrador que la inició. «Eliminar simulación» lo borra todo.
 - **Versión**: 4.5.0, después de entregar la 4.4.0.
+
+**Decisiones de la implementación (4.5.0)** (17/11/2026):
+
+- **Datos de la simulación:** tabla `simulations` (una sola a la vez; parámetros, semilla y plan en JSON) y columna
+  `simulation_id` en `users`, `workers`, `worker_itineraries` y `trips`. Los trabajadores simulados son personas
+  («Trabajador Simulado 01»…) con su pertenencia a la Entidad y al itinerario (parada habitual = la parada donde les
+  toca esperar), **sin contraseña utilizable**. El viaje de prueba es del **itinerario real** (mismas paradas) con
+  `simulation_id` y observación «Simulación»; sale 2 min después de crearla (a ×1).
+- **Aislamiento:** un ámbito global (`NotSimulated`) oculta lo simulado en todas las consultas de personas,
+  pertenencias e itinerarios de trabajadores: Gestión, listas, cantidades (`management-summary`), inicio de sesión,
+  roles de Inicio. Solo el código del viaje de prueba lo ve (sus esperados son los simulados y el Administrador). El
+  viaje de prueba solo lo ve el Administrador que lo creó y no cuenta para «un viaje por itinerario, sentido y
+  fecha»; los viajes reales del mismo itinerario no cuentan a los simulados. Las notificaciones nunca se guardan
+  para personas simuladas, y las del viaje de prueba van solo a su Administrador.
+- **El Administrador viaja en él:** si no estaba en el itinerario, se le añade una pertenencia marcada como simulada
+  (sin parada habitual; si no estaba en la Entidad, también la pertenencia a la Entidad). Así su teléfono tiene la
+  ventana de viaje, calcula y envía «Mi estado» y recibe las notificaciones del viaje de prueba. No aparece en Gestión
+  ni en su Inicio.
+- **Mismo camino que los teléfonos:** cada cambio se envía con `Trips::report` (el de `POST trips/{id}/reports`),
+  con su `capturedAt`: se aplican las mismas reglas de estados, sensores, mayoría, pasos por parada, inicio y fin
+  del viaje y notificaciones. Los simulados que no hacen de sensor envían como teléfonos **sin posición del GPS**
+  (`gps: false`), para no contar como sensores mudos que impidan la mayoría. Los teléfonos simulados siguen
+  «encendidos» mientras no estén en un estado final (su `last_seen_at` se renueva en cada avance), así que el
+  servidor no los pone No recogido / Retrasado por no enviar: lo envían ellos.
+- **Reparto:** cantidades por comportamiento con el mayor resto de los porcentajes (siempre al menos uno que viaja
+  normal), barajadas con la semilla; paradas de subida al azar entre la primera y la penúltima, de bajada al azar
+  entre las siguientes. Con vehículo simulado hacen de sensores `min(«Mínimo confirmaciones», los que viajan)`, que
+  suben en la **primera** parada y siguen hasta la última (el vehículo se ve todo el recorrido). Si el viaje no sale
+  solo (menos que el mínimo viajando), al dejar la primera parada lo inicia la simulación, como lo haría el
+  Administrador a mano, con la hora de llegada a la primera parada.
+- **Vehículo simulado:** horario fijo desde el inicio: llega a la primera parada a los 120 s, se detiene 60 s en cada
+  una y va entre paradas a la velocidad elegida (30 km/h por omisión; distancia en línea recta, al menos 30 s). Los
+  sensores envían «detenido en la parada k» al llegar y «en movimiento, próxima k+1» al salir (también al salir de
+  la última, que termina la ida por llegada; el regreso termina al detenerse en la última). Comportamientos:
+  - **viaja normal:** De camino → En la parada (antes de que llegue el vehículo) → Viajando (5–30 s después de que
+    llegue) → Dejado en su parada de bajada (10–40 s después de que llegue a ella);
+  - **No recogido:** De camino → En la parada → No recogido al irse el vehículo de su parada;
+  - **Retrasado:** De camino → Retrasado al irse el vehículo de su parada;
+  - **No voy:** No voy a los 5–50 s.
+  La **velocidad de la simulación** (×1, ×2, ×5, ×10) acorta todos los tiempos.
+- **Vehículo real:** no hay sensores simulados. Los que viajan suben cuando el vehículo llega a su parada: un
+  pasajero real pasa a Viajando en ella, los sensores dicen que el vehículo está detenido en ella o queda su paso por
+  la parada (de los sensores o «Marcar paso por parada»); bajan igual en su parada de bajada. Los No recogidos y
+  Retrasados reaccionan al paso por su parada. Así se prueba con el teléfono del Administrador en el vehículo.
+- **Sin cron:** `AdvanceSimulation` (middleware de todas las rutas con sesión) avanza la simulación en curso antes de
+  responder, como mucho cada 3 s (`GET simulations` siempre); con `TASKS_ON_REQUESTS=true` también al terminar
+  cualquier petición. Cada avance calcula lo que toca hasta «ahora» desde la hora de inicio y el plan, y envía lo
+  pendiente en orden de hora de captura (los de un mismo simulado a la misma hora, en un solo informe). Un cerrojo
+  de archivo evita dos avances a la vez. Si nadie consulta durante un rato, la siguiente petición lo pone al día con
+  las horas de captura correctas.
+- **Fin:** la simulación queda «terminada» cuando el viaje de prueba termina, se cancela o se elimina; sus datos
+  siguen hasta **Eliminar Simulación**, que borra el viaje (con sus estados, pasos y las notificaciones de ese viaje
+  del Administrador, y le avisa «Viaje eliminado» para que su teléfono quite la notificación), los simulados y la
+  pertenencia añadida al Administrador.
+- **Ambigüedades resueltas:** se añadió la elección del **sentido** y de la **velocidad de la simulación**; el tipo
+  de vehículo es el primero activo (la API admite elegirlo); una simulación a la vez **en todo el servidor**; los
+  simulados no llevan hijos.
+
+**Cómo usar el simulador** (Administrador):
+
+1. *Más → Mantenimiento del servidor →* tarjeta **Simulación** (o Acciones → «Consultar Simulación»).
+2. Elija el itinerario (al menos dos paradas), el sentido, la cantidad de trabajadores simulados, el vehículo
+   (**simulado** para probar desde casa; **real** si va a viajar en el vehículo con su teléfono) y, si quiere, la
+   velocidad y los porcentajes. Toque **Crear Simulación**.
+3. Deje la pantalla abierta (o la app abierta): cada 10 s consulta y la simulación avanza. Verá las cantidades por
+   estado, dónde está el vehículo simulado y su propio estado.
+4. **Consultar Recorrido** abre «Ver recorrido» del viaje de prueba: la línea, los sensores y su «Mi estado». En
+   *Viajes* aparece como «Simulación • …». Las notificaciones del viaje y del vehículo le llegan solo a usted.
+5. Con vehículo real, suba al vehículo con su teléfono (será sensor) o marque el paso por cada parada desde la línea:
+   los simulados suben y bajan según eso.
+6. Al terminar, **Eliminar Simulación** (rojo) borra todo lo que creó. Para otra prueba, cree otra.

@@ -1,7 +1,7 @@
 # 13. API de la próxima versión (servidor Laravel 12)
 
-Referencia para construir la app contra el servidor nuevo (versión **4.3.0**). Implementa lo acordado en `docs/11`
-§11.19–§11.62 y resumido en `docs/12`. Lo que no está aquí (pantallas, textos de la interfaz) sigue en esos documentos.
+Referencia para construir la app contra el servidor nuevo (versión **4.5.0**). Implementa lo acordado en `docs/11`
+§11.19–§11.66 y resumido en `docs/12`. Lo que no está aquí (pantallas, textos de la interfaz) sigue en esos documentos.
 
 - **Base:** `https://<servidor>/api/v1` (en el hospedaje, `http://<dominio>/miruta/api/v1`).
 - **Formato:** JSON:API 1.1, igual que en la versión 3.0: mismos documentos, errores, `include`, paginación y
@@ -625,6 +625,41 @@ Con la sesión del Administrador o con `X-Maintenance-Key`:
 - Con `TASKS_ON_REQUESTS=true` (configuración del hospedaje) las tareas se ejecutan solas al terminar las peticiones,
   como mucho una vez por minuto.
 
+### Simulador de trabajadores — `simulations` (4.5.0, docs/11 §11.66)
+
+Solo el **Administrador** (si no, `403`). Una sola simulación a la vez.
+
+- `GET simulations`: la simulación (lista de 0 o 1, `meta.total`) con su estado. `GET simulations/{id}`: una.
+- `POST simulations` («Crear Simulación»): `relationships.itinerary` (obligatorio; al menos 2 paradas),
+  `relationships.vehicleType` (opcional: el primer tipo activo) y `attributes`:
+
+  | Atributo | Valores | Por omisión |
+  |---|---|---|
+  | `workers` | 1 a 60 trabajadores simulados | (obligatorio) |
+  | `direction` | `ida` o `regreso` | `ida` |
+  | `vehicleMode` | `simulado` (lo mueve el servidor) o `real` (lo informan los teléfonos que viajan) | `simulado` |
+  | `normal`, `late`, `leftBehind`, `notGoing` | % que viajan normal, Retrasado, No recogido y No voy; suman 100 (`422 PERCENTAGES_INVALID`) | 70, 10, 10, 10 |
+  | `speedFactor` | 1, 2, 5 o 10 (solo vehículo simulado) | 1 |
+  | `vehicleSpeed` | km/h del vehículo simulado (5 a 120) | 30 |
+  | `seed` | semilla (misma semilla y parámetros, mismo plan) | al azar |
+
+  Con otra simulación ya creada: `409 SIMULATION_EXISTS` (hay que eliminarla antes). Crea el **viaje de prueba**
+  (observación «Simulación», sale en 2 min) y responde `201`.
+- `DELETE simulations/{id}` («Eliminar Simulación»): borra el viaje de prueba (avisa «Viaje eliminado» al
+  Administrador y borra sus notificaciones de ese viaje), los trabajadores simulados y la pertenencia añadida al
+  Administrador. `204`.
+- Respuesta `simulations`: los parámetros, `itineraryName`, `status` (`en_curso` / `terminada`), `startedAt`,
+  `lastTickAt`, `finishedAt`, `counts` (simulados por estado), `notReported`, `behaviours` (cuántos de cada
+  comportamiento), `sensors`, `tripStatus`, `myState` (el del Administrador en el viaje de prueba),
+  `elapsedSeconds` y `vehicle` (vehículo simulado: `state`, `atStop`, `stopIndex`, `text` «En …» / «Hacia …»);
+  relaciones `itinerary`, `trip`, `createdBy`.
+- **Avance sin cron:** cada petición con sesión hace avanzar la simulación en curso hasta ese momento (como mucho cada
+  3 s; `GET simulations` siempre), antes de responder; con `TASKS_ON_REQUESTS=true`, también al terminar cualquier
+  petición. Los informes pendientes se envían con su hora de captura, así que basta con que consulte la app del
+  Administrador (o que nadie consulte durante un rato: la siguiente petición lo pone al día).
+- En `trips` y en la línea del recorrido, `simulation: true` marca el viaje de prueba. Solo lo ve el Administrador
+  que lo creó; no cuenta para «un viaje por itinerario, sentido y fecha».
+
 ## 13.14 Qué cambió respecto a la versión 3.0 (para la app)
 
 - Se quitan: `vehicles`, `roles`, `worker-roles`, `operations`, `trip-legs`, `trip-boardings`, `trip-positions`,
@@ -704,4 +739,15 @@ Con la sesión del Administrador o con `X-Maintenance-Key`:
 - **Instalación:** tipos de vehículo «Ómnibus Yutong» (45 sentados, 15 de pie) y «Carro Dongfeng» (32, 9).
 - Base de datos: instalación desde cero, o «Actualizar base de datos» sobre una 4.3.0 (migración
   `2026_11_16_000002_upgrade_4_4`, compatible con MariaDB 10.3).
+
+## 13.19 Qué cambió en la 4.5.0 (docs/11 §11.66)
+
+- **Simulador de trabajadores:** `GET/POST simulations`, `GET/DELETE simulations/{id}` (Administrador; §13.13).
+- `trips` y `trips/{id}/live` llevan `simulation` (viaje de prueba).
+- Lo creado por la simulación (personas, pertenencias, viaje) no aparece en Gestión (`users`, `workers`,
+  `worker-itineraries`, `management-summary`), ni en los viajes de otros, ni en las notificaciones de nadie salvo el
+  Administrador que la inició. Los trabajadores simulados no pueden iniciar sesión.
+- Base de datos: instalación desde cero, o «Actualizar base de datos» sobre una 4.4.0 (migración
+  `2026_11_17_000001_upgrade_4_5`: tabla `simulations` y columna `simulation_id` en `users`, `workers`,
+  `worker_itineraries` y `trips`; compatible con MariaDB 10.3).
 

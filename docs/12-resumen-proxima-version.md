@@ -2,7 +2,7 @@
 
 Resumen **consolidado** de lo acordado en `docs/11-acuerdos-registro-qr.md` §11.19–§11.52, con la **última decisión**
 de cada tema (lo sustituido no aparece). **Servidor implementado** (Laravel 12; API en `docs/13-api-proxima-version.md`);
-**app implementada** (versión 4.4.0, `docs/05-app.md`).
+**app implementada** (versión 4.5.0, `docs/05-app.md`).
 
 ## 1. Plataforma
 
@@ -237,3 +237,20 @@ ajustes por Entidad / itinerario / parada / usuario.
 - **Servidor:** migración de actualización 4.3.0 → 4.4.0 con «Actualizar base de datos» (docs/10 §10.3 quater); las
   apps 4.3.0 siguen funcionando.
 
+## 19. Versión 4.5.0 (17/11/2026, docs/11 §11.66)
+
+- **Simulador de trabajadores** (solo el Administrador, *Más → Mantenimiento del servidor → Simulación*): elige
+  itinerario, sentido, cantidad de trabajadores simulados (1 a 60), **vehículo simulado o real**, velocidad de la
+  simulación (×1 a ×10, vehículo simulado) y **porcentajes** (por omisión 70 % viajan normal, 10 % Retrasado, 10 % No
+  recogido, 10 % No voy).
+- El servidor crea un **viaje de prueba** («Simulación» en la lista de viajes) que sale a los 2 min; los simulados se
+  reparten al azar entre las paradas y envían sus estados y, los que hacen de **sensores** (tantos como «Mínimo
+  confirmaciones»), sus observaciones del vehículo **por el mismo camino que los teléfonos** (hora de captura, mayoría,
+  pasos por parada, notificaciones). Con vehículo simulado, el vehículo va de parada en parada a velocidad fija con
+  detenciones de 1 min; con vehículo real, los simulados suben y bajan según lo que informan los teléfonos reales.
+- El Administrador **viaja también** en el viaje de prueba (Ver recorrido, «Mi estado», notificaciones).
+- **Aislado:** lo simulado no sale en Gestión ni en las cantidades, nadie más ve el viaje de prueba y sus
+  notificaciones solo le llegan al Administrador que la inició. **Eliminar Simulación** lo borra todo.
+- **Sin cron:** avanza con cada consulta (la app del Administrador consulta cada 10 s) y, con `TASKS_ON_REQUESTS`,
+  con cualquier petición; lo pendiente se envía con su hora de captura.
+- **Servidor:** migración 4.4.0 → 4.5.0 con «Actualizar base de datos» (docs/10 §10.3 quinquies).

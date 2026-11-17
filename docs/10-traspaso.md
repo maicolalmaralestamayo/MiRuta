@@ -1,14 +1,14 @@
 # 10. Traspaso de tecnología — MiRuta
 
-> **Versión 4.4.0 (docs/12 §18):** servidor **Laravel 12 con PHP 8.2** (el del hospedaje, 8.2.35) y MariaDB 10.3 o
+> **Versión 4.5.0 (docs/12 §19):** servidor **Laravel 12 con PHP 8.2** (el del hospedaje, 8.2.35) y MariaDB 10.3 o
 > superior. El `.zip` del servidor trae **`vendor/` ya instalado** (sin dependencias de desarrollo y con el autoload
 > optimizado): no hace falta Composer ni SSH en el hospedaje. Todo lo que hay que ejecutar en el servidor (instalar o
 > actualizar la base de datos, tareas, limpiezas) se hace con los endpoints de mantenimiento de la API, desde la app
-> (docs/13 §13.13). La base de datos de la 4.4.0 se instala **desde cero** (*Instalar base de datos*) o, sobre una
-> 4.3.0 (o anterior, desde la 4.0.0) ya instalada, con *Actualizar base de datos*, sin perder datos: la migración
-> `2026_11_16_000002_upgrade_4_4` (§10.3 quater) y, si viene de antes, también las de la 4.3.0 (§10.3 ter) y la
-> 4.2.0 (§10.3 bis). No se actualiza sobre una 3.x. En esta versión no se entregan imágenes de Docker ni un SQL inicial:
-> la base de datos se instala desde la app.
+> (docs/13 §13.13). La base de datos de la 4.5.0 se instala **desde cero** (*Instalar base de datos*) o, sobre una
+> 4.4.0 (o anterior, desde la 4.0.0) ya instalada, con *Actualizar base de datos*, sin perder datos: la migración
+> `2026_11_17_000001_upgrade_4_5` (§10.3 quinquies) y, si viene de antes, también las de la 4.4.0 (§10.3 quater), la
+> 4.3.0 (§10.3 ter) y la 4.2.0 (§10.3 bis). No se actualiza sobre una 3.x. En esta versión no se entregan imágenes de
+> Docker ni un SQL inicial: la base de datos se instala desde la app.
 
 Qué se entrega y cómo poner en marcha MiRuta en cada entorno: el hospedaje, un ordenador con Docker y un
 ordenador sin Docker. Se da por hecho que Docker, Apache o nginx, PHP y MySQL/MariaDB ya están instalados.
@@ -16,16 +16,16 @@ ordenador sin Docker. Se da por hecho que Docker, Apache o nginx, PHP y MySQL/Ma
 ## 10.1 Qué se entrega
 
 ```
-4.4.0/
-└── miruta-4.4.0-32bits.apk               App (32 bits, funciona también en los teléfonos de 64 bits; Android 7.0 o superior)
+4.5.0/
+└── miruta-4.5.0-32bits.apk               App (32 bits, funciona también en los teléfonos de 64 bits; Android 7.0 o superior)
 hosting/
 ├── miruta-servidor-<versión>.zip         Servidor para el hospedaje o para un ordenador sin Docker (instalación nueva)
-└── miruta-actualizacion-4.4.0.zip        Actualización de un servidor ya instalado (conserva su configuracion.php)
+└── miruta-actualizacion-4.5.0.zip        Actualización de un servidor ya instalado (conserva su configuracion.php)
 ```
 
 Desde la 4.3.0 se entrega **solo la APK de 32 bits** (docs/11 §11.64) y la **actualización** del servidor (el
-hospedaje ya tiene la 4.3.0). Para una instalación nueva se genera `miruta-servidor-4.4.0.zip` con
-`tools/release/build-hosting-package.sh 4.4.0`. La de 64 bits se compila, si hace falta, con `app/build_release.sh`
+hospedaje ya tiene la 4.4.0). Para una instalación nueva se genera `miruta-servidor-4.5.0.zip` con
+`tools/release/build-hosting-package.sh 4.5.0`. La de 64 bits se compila, si hace falta, con `app/build_release.sh`
 (sin `SOLO_32=1`).
 
 Contenido de `miruta-servidor-<versión>.zip`:
@@ -51,7 +51,7 @@ Sin la clave de firma ninguna versión nueva de la app se instalará encima de e
 
 ## 10.2 La app
 
-1. Copie al teléfono **`miruta-4.4.0-32bits.apk`**. Ábrala y permita «instalar apps desconocidas».
+1. Copie al teléfono **`miruta-4.5.0-32bits.apk`**. Ábrala y permita «instalar apps desconocidas».
 2. La app trae puesta la dirección del hospedaje: `http://www.twintechnology.cu/miruta`. Para usar otro
    servidor, en la pantalla de inicio de sesión pulse el **botón del servidor**, elija el protocolo y escriba la
    dirección:
@@ -73,13 +73,33 @@ Sin la clave de firma ninguna versión nueva de la app se instalará encima de e
 - Como Administrador: *Más → Mantenimiento del servidor*.
 - Sin sesión: botón del servidor → *Mantenimiento del servidor* → clave de mantenimiento.
 
-**Símbolos.** La app va ofuscada. Si un usuario envía el texto de un error de la versión 4.4.0, se traduce a nombres
-legibles con Flutter y los símbolos que deja la compilación en `app/build/symbols/4.4.0+14/` (guárdelos si los
+**Símbolos.** La app va ofuscada. Si un usuario envía el texto de un error de la versión 4.5.0, se traduce a nombres
+legibles con Flutter y los símbolos que deja la compilación en `app/build/symbols/4.5.0+15/` (guárdelos si los
 necesita; no se entregan aparte):
 
 ```bash
-flutter symbolize -i error.txt -d 4.4.0+14/app.android-arm.symbols     # app de 32 bits
+flutter symbolize -i error.txt -d 4.5.0+15/app.android-arm.symbols     # app de 32 bits
 ```
+
+## 10.3 quinquies Actualizar el hospedaje de la 4.4.0 a la 4.5.0
+
+El hospedaje ya tiene la 4.4.0 con datos. **Antes de nada, exporte la base de datos** en SQL con el gestor del
+hospedaje (por si hubiera que volver atrás).
+
+1. **Subir la actualización.** Use `miruta-actualizacion-4.5.0.zip` (no lleva `configuracion.php`) igual que en el
+   paso 1 de §10.3 bis: los 2 archivos de su `subida-rapida/` a `/htdocs/miruta/` y
+   `http://www.twintechnology.cu/miruta/desempaquetar.php?clave=CLAVE` con la clave de mantenimiento que ya tenía.
+2. **Actualizar la base de datos.** *Más → Mantenimiento del servidor →* **Actualizar base de datos**. Aplica la
+   migración `2026_11_17_000001_upgrade_4_5` (compatible con MariaDB 10.3), sin tocar los datos que ya hay: crea la
+   tabla `simulations` y añade la columna `simulation_id` (vacía) a `users`, `workers`, `worker_itineraries` y
+   `trips`. Hasta aplicarla el servidor nuevo funciona igual que la 4.4.0 (el Administrador puede entrar para
+   actualizarla). *Estado del servidor* debe mostrar la versión 4.5.0 y ninguna migración pendiente.
+3. **Actualizar las apps.** Suba la APK de 32 bits de la 4.5.0 en *Más → Actualizaciones de la app* (Opcional basta:
+   lo nuevo es la pantalla *Simulación* del Administrador) o instálela a mano encima de la 4.4.0. Las apps 4.4.0
+   siguen funcionando igual; no ven nunca los viajes de prueba.
+4. **Probar con el simulador** (opcional): *Más → Mantenimiento del servidor → Simulación* (docs/11 §11.66, «Cómo
+   usar el simulador»). Al terminar, **Eliminar Simulación** borra todo lo que creó. Funciona sin cron: avanza con
+   las consultas de la app del Administrador (y, con `TASKS_ON_REQUESTS=true`, con cualquier petición).
 
 ## 10.3 quater Actualizar el hospedaje de la 4.3.0 a la 4.4.0
 

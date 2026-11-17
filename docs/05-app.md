@@ -1,10 +1,10 @@
-# 5. App móvil (Flutter, Android) — versión 4.4
+# 5. App móvil (Flutter, Android) — versión 4.5
 
-La app se llama **MiRuta** (paquete `com.mitransporte.mitransporte`, versión `4.4.0+14`, Android 7.0 o superior).
-Interfaz en **español**, con **trato de usted**. Funciona contra la API 4.4.0
+La app se llama **MiRuta** (paquete `com.mitransporte.mitransporte`, versión `4.5.0+15`, Android 7.0 o superior).
+Interfaz en **español**, con **trato de usted**. Funciona contra la API 4.5.0
 ([13-api-proxima-version.md](13-api-proxima-version.md)); lo acordado está resumido en
 [12-resumen-proxima-version.md](12-resumen-proxima-version.md) y detallado en
-[11-acuerdos-registro-qr.md](11-acuerdos-registro-qr.md) §11.19–§11.65 (la 4.2.0 implementa §11.61 y §11.62; la 4.3.0, §11.63; la 4.4.0, §11.65). La
+[11-acuerdos-registro-qr.md](11-acuerdos-registro-qr.md) §11.19–§11.66 (la 4.2.0 implementa §11.61 y §11.62; la 4.3.0, §11.63; la 4.4.0, §11.65; la 4.5.0, §11.66). La
 versión 3.0 de este documento queda en el historial de git.
 
 ## 5.1 Arquitectura
@@ -95,7 +95,8 @@ compartida desde otras apps usa un canal propio (`mitransporte/share` en `MainAc
 | **Crear Viaje** | Itinerario; **Ida** y **Regreso**, cada uno con su interruptor, **Fecha**, **Hora de salida** (12 h con a. m. / p. m., en un diálogo al tocarla) y **Tipo de vehículo**; por omisión ida hoy 05:00 p. m. y regreso mañana 06:00 a. m.; observación. Un viaje cancelado o eliminado no impide crear otro |
 | **Formulario del viaje** | Itinerario y sentido de solo lectura; fecha, hora (12 h) y tipo de vehículo editables solo en Planificado; estado y ocupación prevista |
 | **Línea del recorrido** («Ver recorrido») | Requiere la ubicación activada solo a los trabajadores de ese viaje (el Administrador y los Jefes que no viajan la ven sin ella); si faltan «todo el tiempo» o la batería sin restricciones, aviso con la pantalla **Permisos del viaje**. Al abrirla, si viaja en él, el viaje entra en su ventana de viaje sin esperar a la próxima consulta. Tarjetas **Sensores** («Sensor / Sensores ahora», tocar = por qué cada uno es o no sensor) y **Mi estado** (con su parada salvo en Viajando; en Dejado, donde se le dejó), **del mismo tamaño**; la **línea** de siempre con el vehículo en su tramo y, en cada parada, cuántos hay **De camino, En la parada, Retrasados, No recogidos y Dejados** (sin ceros, ida y regreso); chip «Parada habitual». Sin la tarjeta de ocupación. Acciones: Actualizar Viaje: Marcar paso por parada / Iniciar / Terminar (Jefe y Administrador); Actualizar Mi estado: En la parada / Viajando (con sus hijos) / Dejado / No voy (eligiendo la parada); Consultar Trabajadores; Consultar Viaje |
-| **Más** | Conversaciones, Compartir la app (64 o 32 bits). Administrador: Ajustes de la app, Olvidé algo, Actualizaciones de la app (sube los APK de 64 y 32 bits y marca Obligatoria), Mantenimiento del servidor (estado, instalar o actualizar la base de datos, tareas, caché, registro de errores) |
+| **Más** | Conversaciones, Compartir la app (64 o 32 bits). Administrador: Ajustes de la app, Olvidé algo, Actualizaciones de la app (sube los APK de 64 y 32 bits y marca Obligatoria), Mantenimiento del servidor (estado, instalar o actualizar la base de datos, tareas, caché, registro de errores y **Simulación**) |
+| **Simulación** (4.5.0, Administrador) | Más → Mantenimiento del servidor → tarjeta o acción «Consultar Simulación». Sin simulación: **itinerario**, **sentido**, **cantidad de trabajadores simulados** (1 a 60), **vehículo simulado o real**, **velocidad de la simulación** (×1, ×2, ×5, ×10; solo vehículo simulado) y **porcentajes** de comportamiento (por omisión 70 % viajan, 10 % Retrasado, 10 % No recogido, 10 % No voy; deben sumar 100), botón «Crear Simulación» (spinner «Creando Simulación»). En curso: tarjeta de la simulación (vehículo, tiempo, estado del viaje), cantidades por estado de los simulados, dónde está el vehículo simulado y «Mi estado»; botones a todo el ancho **Consultar Recorrido** (color principal) y **Eliminar Simulación** (rojo, con confirmación; spinner «Eliminando Simulación»). Se consulta cada 10 s mientras está abierta (eso hace avanzar la simulación en el servidor). El viaje de prueba sale en Viajes como «**Simulación • …**» |
 | **Perfil, Hijo, Mi QR** | Se abren desde Inicio. Mi QR cambia cada 15 s, sin capturas de pantalla |
 | **Conversación** | Con el desarrollador, estilo WhatsApp, solo texto y con motivo; se consulta cada «Frecuencia chat» |
 
@@ -157,6 +158,6 @@ notificación normal al abrirse la ventana («Permita la ubicación todo el tiem
 ## 5.6 Compilar
 
 `./build_release.sh` compila los dos APK (64 y 32 bits; desde la 4.3.0 se entrega solo el de 32 bits,
-`miruta-4.4.0-32bits.apk`, que se compila solo con `SOLO_32=1 ./build_release.sh`) por separado con el mismo `versionCode` (sin el desplazamiento
+`miruta-4.5.0-32bits.apk`, que se compila solo con `SOLO_32=1 ./build_release.sh`) por separado con el mismo `versionCode` (sin el desplazamiento
 de `--split-per-abi`, que rompería la comparación de versiones de la API), firmados con la clave de
 `android/key.properties` (no se sube al repositorio).
