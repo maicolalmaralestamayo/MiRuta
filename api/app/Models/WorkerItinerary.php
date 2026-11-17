@@ -13,6 +13,12 @@ class WorkerItinerary extends Model
 {
     use \App\Models\Concerns\LogsChanges;
 
+    /** Lo creado por el simulador no se ve fuera de él (docs/11 §11.66). */
+    protected static function booted(): void
+    {
+        static::addGlobalScope(new Scopes\NotSimulated());
+    }
+
     protected $fillable = ['worker_id', 'user_id', 'itinerary_id', 'stop_id', 'is_chief'];
 
     protected $casts = [

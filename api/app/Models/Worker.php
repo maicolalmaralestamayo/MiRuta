@@ -12,6 +12,12 @@ class Worker extends Model
 {
     use \App\Models\Concerns\LogsChanges;
 
+    /** Lo creado por el simulador no se ve fuera de él (docs/11 §11.66). */
+    protected static function booted(): void
+    {
+        static::addGlobalScope(new Scopes\NotSimulated());
+    }
+
     protected $fillable = ['user_id', 'entity_id', 'active'];
 
     protected $casts = [

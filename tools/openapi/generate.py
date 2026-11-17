@@ -79,7 +79,7 @@ res("trips", "Trip", {"direction": STR(enum=["ida", "regreso"]), "date": DATE(),
     "departsAt": DT(**RO), "status": STR(enum=["planificado", "en_ejecucion", "terminado", "cancelado"]), "statusChangedAt": DT(**RO),
     "finishReason": STR(nullable=True, **RO), "observation": STR(nullable=True), "vehicleState": STR(enum=["detenido", "en_movimiento"], nullable=True, **RO),
     "vehicleStateSince": DT(nullable=True, **RO), "vehicleAtStop": BOOL(**RO), "nextStopIndex": INT(**RO), "arrivedAt": DT(nullable=True, **RO),
-    "editable": BOOL(**RO), "updatedAt": DT(**RO)},
+    "editable": BOOL(**RO), "updatedAt": DT(**RO), "simulation": BOOL(description="4.5.0: viaje de prueba del simulador («Simulación»)", **RO)},
     {"itinerary": "itineraries", "vehicleType": "vehicle-types", "detentionCause": "detention-causes", "createdBy": "users"})
 res("conversations", "Conversation", {"body": STR(writeOnly=True), "lastMessageAt": DT(**RO), "lastMessage": STR(nullable=True, **RO),
     "unread": BOOL(**RO), "createdAt": DT(**RO)}, {"user": "users", "topic": "conversation-topics"})
@@ -111,9 +111,20 @@ res("trip-reports", "TripReport", {
 res("trip-lives", "TripLive", {"direction": STR(), "status": STR(), "departsAt": DT(), "itineraryName": STR(nullable=True),
     "vehicleTypeName": STR(nullable=True), "vehicle": OBJ(), "sensors": INT(),
     "inVehicle": OBJ(), "expectedPassengers": INT(), "notGoing": INT(), "stops": S("array", items=OBJ()), "myState": OBJ(nullable=True),
-    "myStopId": STR(nullable=True, description="Parada habitual (opcional)"), "travels": BOOL(), "canManage": BOOL(), "serverTime": DT()}, {"trip": "trips"},
+    "myStopId": STR(nullable=True, description="Parada habitual (opcional)"), "travels": BOOL(), "canManage": BOOL(),
+    "simulation": BOOL(description="4.5.0: viaje de prueba del simulador"), "serverTime": DT()}, {"trip": "trips"},
     "Línea del recorrido. vehicle.state null = sin datos del vehículo; stops[] con latitude, longitude, passedManually, expected (parada habitual) "
     "y counts (de_camino, en_parada, retrasado, no_recogido, dejado en la parada detectada); myState con stopId y stopName (parada detectada).")
+res("simulations", "Simulation", {"itineraryName": STR(**RO), "direction": STR(enum=["ida", "regreso"]), "workers": INT(minimum=1, maximum=60),
+    "vehicleMode": STR(enum=["simulado", "real"]), "normal": INT(minimum=0, maximum=100), "late": INT(minimum=0, maximum=100),
+    "leftBehind": INT(minimum=0, maximum=100), "notGoing": INT(minimum=0, maximum=100),
+    "speedFactor": INT(enum=[1, 2, 5, 10], description="Solo con vehículo simulado"), "vehicleSpeed": INT(minimum=5, maximum=120, description="km/h"),
+    "seed": INT(nullable=True), "status": STR(enum=["en_curso", "terminada"], **RO), "startedAt": DT(**RO), "lastTickAt": DT(nullable=True, **RO),
+    "finishedAt": DT(nullable=True, **RO), "counts": OBJ(**RO), "notReported": INT(**RO), "behaviours": OBJ(**RO), "sensors": INT(**RO),
+    "tripStatus": STR(nullable=True, **RO), "myState": STR(nullable=True, **RO), "elapsedSeconds": INT(**RO), "vehicle": OBJ(nullable=True, **RO)},
+    {"itinerary": "itineraries", "trip": "trips", "vehicleType": "vehicle-types", "createdBy": "users"},
+    "Simulación de trabajadores (4.5.0, docs/11 §11.66): viaje de prueba con trabajadores simulados. Porcentajes (normal, late, leftBehind, "
+    "notGoing) que suman 100; por omisión 70/10/10/10.")
 res("trip-stop-passes", "TripStopPass", {"routeIndex": INT(minimum=0)}, desc="«Pasó por la parada X», a mano (Administrador o Jefe).")
 res("trip-workers", "TripWorker", {"fullName": STR(), "photoUrl": IMG, "expected": BOOL(), "state": STR(nullable=True),
     "stateAt": DT(nullable=True), "childrenCount": INT(), "isChief": BOOL(), "lastSeenAt": DT(nullable=True), "gpsOk": BOOL(nullable=True),
@@ -367,6 +378,10 @@ paths["/guest/access-recoveries/{id}"] = {"get": op("Olvidé algo", "Consultar m
 crud("access-recoveries", "Olvidé algo", "LRU", [filt("status", "Lista de estados")], notes={"U": "Administrador: status approved o rejected."})
 MAINT = {"name": "X-Maintenance-Key", "in": "header", "required": False, "schema": STR(), "description": "Sin ella, la sesión del Administrador."}
 paths["/server-status"] = {"get": op("Mantenimiento", "Estado del servidor", ok(200, "ServerStatusDocument"), params=[MAINT], errs=("401", "403"))}
+crud("simulations", "Mantenimiento", "LCRD", notes={
+    "L": "Administrador. La simulación (0 o 1) con su estado; cada consulta la hace avanzar hasta ahora.",
+    "C": "Administrador. Una sola a la vez (409 SIMULATION_EXISTS). Crea el viaje de prueba y los trabajadores simulados.",
+    "D": "Administrador. Borra el viaje de prueba y todo lo creado por la simulación."})
 paths["/maintenance-runs"] = {"post": op("Mantenimiento", "Ejecutar una orden", ok(201, "MaintenanceRunDocument"),
     "install, migrate, run-tasks, clear-cache o log.", [MAINT], "MaintenanceRunDocument", errs=("401", "403", "409", "415", "422"))}
 
@@ -375,7 +390,7 @@ spec = {
     "openapi": "3.0.3",
     "info": {
         "title": "MiRuta API",
-        "version": "4.4.0",
+        "version": "4.5.0",
         "description": "API de MiRuta (Laravel 12): gestión del transporte de trabajadores.\n\n"
                        "- Formato [JSON:API 1.1](https://jsonapi.org/format/) (`application/vnd.api+json`).\n"
                        "- Autenticación JWT (RFC 7519) con token de renovación y rotación.\n"

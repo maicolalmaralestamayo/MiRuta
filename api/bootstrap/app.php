@@ -96,6 +96,7 @@ $app = Application::configure(basePath: $basePath)
         $middleware->append(\App\Http\Middleware\RunScheduledTasks::class);
         $middleware->alias([
             'auth.token' => \App\Http\Middleware\Authenticate::class,
+            'simulation' => \App\Http\Middleware\AdvanceSimulation::class,
             'auth.any' => \App\Http\Middleware\AuthenticateAny::class,
             'installation' => \App\Http\Middleware\AuthenticateInstallation::class,
             'maintenance' => \App\Http\Middleware\AuthenticateMaintenance::class,

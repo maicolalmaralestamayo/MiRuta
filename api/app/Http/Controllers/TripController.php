@@ -8,7 +8,6 @@ use App\JsonApi\JsonApiResponse;
 use App\JsonApi\QueryParameters;
 use App\Models\Trip;
 use App\Models\TripPassenger;
-use App\Models\WorkerItinerary;
 use App\Services\Access;
 use App\Services\SyncFeed;
 use App\Services\Trips;
@@ -217,9 +216,10 @@ class TripController extends Controller
     {
         $trip = $this->find($request, $id);
         $states = TripPassenger::where('trip_id', $trip->id)->get()->keyBy('user_id');
-        $expected = $this->trips->expectedQuery($trip)->with('user')->get();
+        $expected = $this->trips->expectedQuery($trip)->get();
         $userIds = $expected->pluck('user_id')->merge($states->keys())->unique();
-        $workers = WorkerItinerary::where('itinerary_id', $trip->itinerary_id)->whereIn('user_id', $userIds)->with('user')->get()->keyBy('user_id');
+        $workers = $this->trips->placements($trip)->whereIn('user_id', $userIds)
+            ->with(['user' => fn ($q) => $q->withoutGlobalScope(\App\Models\Scopes\NotSimulated::class)])->get()->keyBy('user_id');
         $rows = [];
 
         foreach ($userIds as $userId) {

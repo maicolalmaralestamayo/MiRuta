@@ -17,6 +17,12 @@ class User extends Model
 {
     use \App\Models\Concerns\LogsChanges;
 
+    /** Lo creado por el simulador no se ve fuera de él (docs/11 §11.66). */
+    protected static function booted(): void
+    {
+        static::addGlobalScope(new Scopes\NotSimulated());
+    }
+
     protected $fillable = [
         'username', 'password', 'password_changed_at', 'must_change_password',
         'first_name', 'middle_name', 'first_surname', 'second_surname',

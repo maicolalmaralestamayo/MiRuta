@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: MiRuta API
-  version: 4.4.0
+  version: 4.5.0
   description: 'API de MiRuta (Laravel 12): gestión del transporte de trabajadores.
 
 
@@ -4295,6 +4295,108 @@ paths:
         schema:
           type: string
         description: Sin ella, la sesión del Administrador.
+  /simulations:
+    get:
+      tags:
+      - Mantenimiento
+      summary: Listar simulations
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/SimulationCollection'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '426':
+          $ref: '#/components/responses/UpdateRequired'
+      description: Administrador. La simulación (0 o 1) con su estado; cada consulta la hace avanzar hasta ahora.
+      parameters:
+      - $ref: '#/components/parameters/PageNumber'
+      - $ref: '#/components/parameters/PageSize'
+      - $ref: '#/components/parameters/Sort'
+      - $ref: '#/components/parameters/Include'
+    post:
+      tags:
+      - Mantenimiento
+      summary: Crear simulations
+      responses:
+        '201':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/SimulationDocument'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '426':
+          $ref: '#/components/responses/UpdateRequired'
+      description: Administrador. Una sola a la vez (409 SIMULATION_EXISTS). Crea el viaje de prueba y los trabajadores simulados.
+      requestBody:
+        required: true
+        content:
+          application/vnd.api+json:
+            schema:
+              $ref: '#/components/schemas/SimulationDocument'
+  /simulations/{id}:
+    get:
+      tags:
+      - Mantenimiento
+      summary: Ver simulations
+      responses:
+        '200':
+          description: Correcto
+          content:
+            application/vnd.api+json:
+              schema:
+                $ref: '#/components/schemas/SimulationDocument'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '426':
+          $ref: '#/components/responses/UpdateRequired'
+      parameters:
+      - $ref: '#/components/parameters/Id'
+    delete:
+      tags:
+      - Mantenimiento
+      summary: Eliminar simulations
+      responses:
+        '204':
+          description: Hecho, sin contenido
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '426':
+          $ref: '#/components/responses/UpdateRequired'
+      description: Administrador. Borra el viaje de prueba y todo lo creado por la simulación.
+      parameters:
+      - $ref: '#/components/parameters/Id'
   /maintenance-runs:
     post:
       tags:
@@ -5987,6 +6089,10 @@ components:
               type: string
               format: date-time
               readOnly: true
+            simulation:
+              type: boolean
+              description: '4.5.0: viaje de prueba del simulador («Simulación»)'
+              readOnly: true
         meta:
           type: object
           additionalProperties: true
@@ -6818,6 +6924,9 @@ components:
               type: boolean
             canManage:
               type: boolean
+            simulation:
+              type: boolean
+              description: '4.5.0: viaje de prueba del simulador'
             serverTime:
               type: string
               format: date-time
@@ -6858,6 +6967,190 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/TripLive'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        meta:
+          type: object
+          additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+    Simulation:
+      type: object
+      description: 'Simulación de trabajadores (4.5.0, docs/11 §11.66): viaje de prueba con trabajadores simulados. Porcentajes
+        (normal, late, leftBehind, notGoing) que suman 100; por omisión 70/10/10/10.'
+      required:
+      - type
+      properties:
+        type:
+          type: string
+          enum:
+          - simulations
+        id:
+          type: string
+          readOnly: true
+        attributes:
+          type: object
+          properties:
+            itineraryName:
+              type: string
+              readOnly: true
+            direction:
+              type: string
+              enum:
+              - ida
+              - regreso
+            workers:
+              type: integer
+              minimum: 1
+              maximum: 60
+            vehicleMode:
+              type: string
+              enum:
+              - simulado
+              - real
+            normal:
+              type: integer
+              minimum: 0
+              maximum: 100
+            late:
+              type: integer
+              minimum: 0
+              maximum: 100
+            leftBehind:
+              type: integer
+              minimum: 0
+              maximum: 100
+            notGoing:
+              type: integer
+              minimum: 0
+              maximum: 100
+            speedFactor:
+              type: integer
+              enum:
+              - 1
+              - 2
+              - 5
+              - 10
+              description: Solo con vehículo simulado
+            vehicleSpeed:
+              type: integer
+              minimum: 5
+              maximum: 120
+              description: km/h
+            seed:
+              type: integer
+              nullable: true
+            status:
+              type: string
+              enum:
+              - en_curso
+              - terminada
+              readOnly: true
+            startedAt:
+              type: string
+              format: date-time
+              readOnly: true
+            lastTickAt:
+              type: string
+              format: date-time
+              nullable: true
+              readOnly: true
+            finishedAt:
+              type: string
+              format: date-time
+              nullable: true
+              readOnly: true
+            counts:
+              type: object
+              additionalProperties: true
+              readOnly: true
+            notReported:
+              type: integer
+              readOnly: true
+            behaviours:
+              type: object
+              additionalProperties: true
+              readOnly: true
+            sensors:
+              type: integer
+              readOnly: true
+            tripStatus:
+              type: string
+              nullable: true
+              readOnly: true
+            myState:
+              type: string
+              nullable: true
+              readOnly: true
+            elapsedSeconds:
+              type: integer
+              readOnly: true
+            vehicle:
+              type: object
+              additionalProperties: true
+              nullable: true
+              readOnly: true
+        meta:
+          type: object
+          additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+        relationships:
+          type: object
+          properties:
+            itinerary:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/Identifier'
+                  nullable: true
+            trip:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/Identifier'
+                  nullable: true
+            vehicleType:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/Identifier'
+                  nullable: true
+            createdBy:
+              type: object
+              properties:
+                data:
+                  allOf:
+                  - $ref: '#/components/schemas/Identifier'
+                  nullable: true
+    SimulationDocument:
+      type: object
+      properties:
+        data:
+          $ref: '#/components/schemas/Simulation'
+        included:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        meta:
+          type: object
+          additionalProperties: true
+        links:
+          $ref: '#/components/schemas/Links'
+    SimulationCollection:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Simulation'
         included:
           type: array
           items:

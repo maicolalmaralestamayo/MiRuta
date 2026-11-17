@@ -6,6 +6,8 @@ use App\JsonApi\JsonApiException;
 use App\Models\DetentionCause;
 use App\Models\Itinerary;
 use App\Models\ItineraryStop;
+use App\Models\Scopes\NotSimulated;
+use App\Models\Simulation;
 use App\Models\Stop;
 use App\Models\Trip;
 use App\Models\TripPassenger;
@@ -15,6 +17,7 @@ use App\Models\User;
 use App\Models\VehicleType;
 use App\Models\Worker;
 use App\Models\WorkerItinerary;
+use App\Support\SimulationSchema;
 use App\Support\SpanishDate;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
@@ -72,6 +75,12 @@ class Trips
     {
         $query = Trip::query();
 
+        // Viajes de prueba del simulador (docs/11 §11.66): solo los ve el Administrador que lo inició.
+        if (SimulationSchema::ready()) {
+            $mine = $this->access->isAdmin($user) ? Simulation::where('created_by', $user->id)->pluck('id')->all() : [];
+            $query->where(fn ($q) => $q->whereNull('simulation_id')->when($mine, fn ($q) => $q->orWhereIn('simulation_id', $mine)));
+        }
+
         if ($this->access->isAdmin($user)) {
             return $query;
         }
@@ -98,6 +107,11 @@ class Trips
      */
     public function expectedQuery(Trip $trip): Builder
     {
+        if ($trip->isSimulation()) {
+            // Viaje de prueba: los trabajadores simulados y el Administrador que lo inició.
+            return $this->placements($trip);
+        }
+
         $date = $trip->date->toDateString();
         $absent = DB::table('absence_itinerary')->join('absences', 'absences.id', '=', 'absence_itinerary.absence_id')
             ->where('absence_itinerary.itinerary_id', $trip->itinerary_id)
@@ -109,6 +123,31 @@ class Trips
         return WorkerItinerary::where('itinerary_id', $trip->itinerary_id)
             ->whereIn('worker_id', Worker::where('active', true)->select('id'))
             ->whereNotIn('user_id', $absent);
+    }
+
+    /**
+     * Los del itinerario que viajan en ese viaje. En un viaje de prueba del
+     * simulador (docs/11 §11.66), solo lo creado por esa simulación (los
+     * trabajadores simulados y, si no la tenía, la pertenencia del
+     * Administrador) y el propio Administrador que la inició; en los demás,
+     * solo lo real.
+     */
+    public function placements(Trip $trip): Builder
+    {
+        if (! $trip->isSimulation()) {
+            return WorkerItinerary::where('itinerary_id', $trip->itinerary_id);
+        }
+
+        $creator = (int) Simulation::where('id', $trip->simulation_id)->value('created_by');
+
+        return WorkerItinerary::withoutGlobalScope(NotSimulated::class)->where('itinerary_id', $trip->itinerary_id)
+            ->where(fn ($q) => $q->where('simulation_id', $trip->simulation_id)
+                ->orWhere(fn ($q) => $q->whereNull('simulation_id')->where('user_id', $creator)));
+    }
+
+    public function placementOf(Trip $trip, int $userId): ?WorkerItinerary
+    {
+        return $this->placements($trip)->where('user_id', $userId)->first();
     }
 
     /*
@@ -151,10 +190,16 @@ class Trips
             throw JsonApiException::conflict('TRIP_EXISTS', 'Ya hay un viaje de '.$direction.' de ese itinerario ese día.', '/data/attributes/date');
         }
 
-        $this->notifier->send($this->notifier->tripAudience($trip), Notifier::TRIP_CREATED, 'Viaje planificado',
-            ucfirst($this->describe($trip)).'.', $this->data($trip));
+        $this->announce($trip);
 
         return $trip;
+    }
+
+    /** «Viaje planificado» a los trabajadores del viaje (también el de prueba del simulador). */
+    public function announce(Trip $trip): void
+    {
+        $this->notifier->send($this->notifier->tripAudience($trip), Notifier::TRIP_CREATED, 'Viaje planificado',
+            ucfirst($this->describe($trip)).'.', $this->data($trip));
     }
 
     /**
@@ -398,7 +443,7 @@ class Trips
      */
     public function report(User $user, Trip $trip, array $report): array
     {
-        $worker = WorkerItinerary::where('user_id', $user->id)->where('itinerary_id', $trip->itinerary_id)->first();
+        $worker = $this->placementOf($trip, (int) $user->id);
 
         if (! $worker) {
             throw Access::forbidden('Solo informan su estado los trabajadores del itinerario del viaje.');
@@ -1047,7 +1092,7 @@ class Trips
         }
 
         $mine = $viewer ? $passengers->firstWhere('user_id', $viewer->id) : null;
-        $placement = $viewer ? WorkerItinerary::where('user_id', $viewer->id)->where('itinerary_id', $trip->itinerary_id)->first() : null;
+        $placement = $viewer ? $this->placementOf($trip, (int) $viewer->id) : null;
         $myStop = $mine && $mine->stop_id ? ($stops[$mine->stop_id] ?? Stop::find($mine->stop_id)) : null;
         $childIds = $inVehicle->flatMap(fn (TripPassenger $p) => $p->childIds())->unique()->count();
         $children = $inVehicle->sum(fn (TripPassenger $p) => $p->child_ids ? 0 : (int) $p->children_count) + $childIds;
@@ -1098,6 +1143,7 @@ class Trips
                 'myStopId' => $placement && $placement->stop_id ? (string) $placement->stop_id : null,
                 'travels' => $placement !== null,
                 'canManage' => $viewer !== null && $this->canManage($viewer, $trip),
+                'simulation' => $trip->isSimulation(),
                 'serverTime' => Carbon::now()->toIso8601String(),
             ],
             'relationships' => [
@@ -1130,6 +1176,8 @@ class Trips
     {
         $exists = Trip::where('itinerary_id', $itineraryId)->where('direction', $direction)->whereDate('date', $date)
             ->where('status', '<>', Trip::CANCELLED)
+            // Los viajes de prueba del simulador no cuentan (docs/11 §11.66).
+            ->when(SimulationSchema::ready(), fn ($q) => $q->whereNull('simulation_id'))
             ->when($except !== null, fn ($q) => $q->where('id', '<>', $except))->exists();
 
         if ($exists) {

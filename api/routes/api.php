@@ -43,8 +43,8 @@ Route::prefix('guest')->middleware('installation')->group(function () {
 // Con sesión o con instalación
 Route::get('entities/lookup', [C\EntityController::class, 'lookup'])->middleware('auth.any');
 
-// Con sesión
-Route::middleware('auth.token')->group(function () {
+// Con sesión (cada petición hace avanzar la simulación en curso, docs/11 §11.66)
+Route::middleware(['auth.token', 'simulation'])->group(function () {
     Route::delete('tokens/current', [C\TokenController::class, 'destroyCurrent']);
     Route::delete('tokens', [C\TokenController::class, 'destroyAll']);
 
@@ -132,5 +132,8 @@ Route::middleware('auth.token')->group(function () {
     Route::get('access-recoveries/{id}', [C\AccessRecoveryController::class, 'show']);
     Route::patch('access-recoveries/{id}', [C\AccessRecoveryController::class, 'update']);
     Route::get('installations/{id}', [C\InstallationController::class, 'show']);
+
+    // Simulador de trabajadores (Administrador; docs/11 §11.66)
+    $resource('simulations', C\SimulationController::class, ['index', 'show', 'store', 'destroy']);
     Route::patch('installations/{id}', [C\InstallationController::class, 'update']);
 });

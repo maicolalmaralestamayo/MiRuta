@@ -33,6 +33,8 @@ class RunScheduledTasks
 
         try {
             app(ScheduledTasks::class)->runDue(true);
+            // También la simulación en curso (docs/11 §11.66), con cualquier petición.
+            app(\App\Services\Simulations::class)->advance();
         } catch (\Throwable $e) {
             report($e);
         }

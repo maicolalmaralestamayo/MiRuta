@@ -36,6 +36,8 @@ class TripSerializer extends Serializer
             'arrivedAt' => $this->date($trip->arrived_at),
             'editable' => $trip->status === \App\Models\Trip::PLANNED,
             'updatedAt' => $this->date($trip->updated_at),
+            // Viaje de prueba del simulador (docs/11 §11.66): la app lo muestra como «Simulación».
+            'simulation' => $trip->simulation_id !== null,
         ];
     }
 

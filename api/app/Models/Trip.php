@@ -26,7 +26,7 @@ class Trip extends Model
         'itinerary_id', 'direction', 'date', 'departure_time', 'departs_at', 'vehicle_type_id', 'observation',
         'status', 'status_changed_at', 'finish_reason', 'created_by', 'route',
         'vehicle_state', 'vehicle_state_since', 'vehicle_at_stop', 'next_stop_index', 'detention_cause_id',
-        'long_detention_notified_at', 'arrived_at',
+        'long_detention_notified_at', 'arrived_at', 'simulation_id',
     ];
 
     protected $casts = [
@@ -41,7 +41,14 @@ class Trip extends Model
         'itinerary_id' => 'integer',
         'vehicle_type_id' => 'integer',
         'created_by' => 'integer',
+        'simulation_id' => 'integer',
     ];
+
+    /** Viaje de prueba del simulador (docs/11 §11.66). */
+    public function isSimulation(): bool
+    {
+        return $this->simulation_id !== null;
+    }
 
     public function itinerary()
     {

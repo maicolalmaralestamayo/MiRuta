@@ -56,6 +56,13 @@ class Notifier
     {
         $userIds = array_values(array_unique(array_map('intval', array_filter($userIds))));
 
+        // Los trabajadores simulados no tienen teléfono (docs/11 §11.66).
+        if ($userIds && \App\Support\SimulationSchema::ready()) {
+            $simulated = User::withoutGlobalScope(\App\Models\Scopes\NotSimulated::class)->whereIn('id', $userIds)
+                ->whereNotNull('simulation_id')->pluck('id')->map(fn ($id) => (int) $id)->all();
+            $userIds = array_values(array_diff($userIds, $simulated));
+        }
+
         if (! $userIds) {
             return;
         }
@@ -95,6 +102,11 @@ class Notifier
      */
     public function tripAudience(Trip $trip): array
     {
+        // Viaje de prueba del simulador: solo el Administrador que lo inició (docs/11 §11.66).
+        if ($trip->isSimulation()) {
+            return array_filter([(int) \App\Models\Simulation::where('id', $trip->simulation_id)->value('created_by')]);
+        }
+
         return array_map('intval', WorkerItinerary::where('itinerary_id', $trip->itinerary_id)
             ->whereIn('worker_id', Worker::where('active', true)->select('id'))->pluck('user_id')->all());
     }
