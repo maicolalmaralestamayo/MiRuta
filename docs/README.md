@@ -19,11 +19,6 @@ MiRuta se llamaba antes MiTransporte.
 | [13-api-proxima-version.md](13-api-proxima-version.md) | **API de la próxima versión** (Laravel 12): todas las rutas, roles, tiempo real, sincronización, ajustes con unidades, actualización obligatoria y mantenimiento |
 | [11-acuerdos-registro-qr.md](11-acuerdos-registro-qr.md) | Acuerdos de la versión 3.0 (implementados): carné de identidad (sin Pase ni jerarquía), varias Entidades por persona, registro, contraseñas, tarjetas modelo e Inicio, hijos sin solicitud, ausencias sin aprobación, punto de conexión y QR desechable sin conexión |
 
-## Scrum
-
-| Documento | Contenido |
-|---|---|
-
 ## Cómo ver la API en Swagger
 
 - **En línea:** abrir <https://editor.swagger.io> y usar *File → Import file* con `openapi.yaml`.

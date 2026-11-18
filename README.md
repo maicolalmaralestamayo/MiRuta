@@ -12,8 +12,6 @@
 |---|---|
 | [`api/`](api/README.md) | API (Laravel 12) |
 | [`app/`](app/README.md) | App Android (Flutter) |
-| [`docs/`](docs/README.md) | Documentación funcional, técnica y Scrum; especificación OpenAPI |
-| `docker/` | PHP 8.2 y MariaDB 10.3 para ejecutar las pruebas de la API (`docker/test-api.sh`) |
-| `tools/` | Generador de `docs/openapi.yaml` (`tools/openapi`) y paquete del servidor para el hospedaje (`tools/release`) |
+| [`docs/`](docs/README.md) | Documentación funcional y técnica; especificación OpenAPI |
 
 **Para montar todo desde cero (traspaso de tecnología), empiece por [`docs/10-traspaso.md`](docs/10-traspaso.md).**
