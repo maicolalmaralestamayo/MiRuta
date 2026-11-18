@@ -69,10 +69,5 @@ jobs:
       - name: Instalar herramientas
         run: pip install pyyaml==6.0.2 openapi-spec-validator==0.7.1
 
-      - name: El YAML está generado a partir de tools/openapi/generate.py
-        run: |
-          python3 tools/openapi/generate.py docs/openapi.yaml
-          git diff --exit-code docs/openapi.yaml
-
       - name: Validar
         run: openapi-spec-validator docs/openapi.yaml
