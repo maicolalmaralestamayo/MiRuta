@@ -23,12 +23,6 @@ MiRuta se llamaba antes MiTransporte.
 
 | Documento | Contenido |
 |---|---|
-| [scrum/objetivo-producto.md](scrum/objetivo-producto.md) | Objetivo del producto, equipo Scrum, eventos y artefactos |
-| [scrum/product-backlog.md](scrum/product-backlog.md) | Épicas e historias de usuario con criterios de aceptación, prioridad y estimación |
-| [scrum/definicion-de-hecho.md](scrum/definicion-de-hecho.md) | Definición de Hecho |
-| [scrum/definicion-de-listo.md](scrum/definicion-de-listo.md) | Definición de Listo |
-| [scrum/plan-de-entregas.md](scrum/plan-de-entregas.md) | Entregas y previsión de los 19 sprints |
-| [scrum/sprint-01.md](scrum/sprint-01.md) | Objetivo y Sprint Backlog del sprint 1 |
 
 ## Cómo ver la API en Swagger
 

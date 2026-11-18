@@ -18,3 +18,7 @@ key.properties
 *.jks
 *.keystore
 keystore/
+
+# Restos de compilación
+.kotlin/
+/build/
