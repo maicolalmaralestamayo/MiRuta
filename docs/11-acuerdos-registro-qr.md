@@ -2282,6 +2282,9 @@ Lista del usuario (archivo `modificaciones_miruta_4.5.txt`, capturas en `docs/ca
 
 **Pantalla Viajes**
 16. Contador **en verde** de los viajes Planificados y En ejecución.
+    - **Decidido** (19/11/2026): círculo **verde** con un solo número en el icono **Viajes** de la barra inferior: la
+      suma de los viajes Planificados y En ejecución que le corresponden al usuario (mismo estilo que el rojo de
+      Gestión).
 
 **Observado en las capturas** (para revisar al implementar)
 - Captura 02: la tarjeta del viaje dice «Salió 11:05 a. m.» y la línea «Salió 12:05 p. m.» (una hora de diferencia).
