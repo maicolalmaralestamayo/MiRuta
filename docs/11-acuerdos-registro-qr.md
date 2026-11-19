@@ -2200,6 +2200,10 @@ Lista del usuario (archivo `modificaciones_miruta_4.5.txt`, capturas en `docs/ca
        humana.
      - **En parada**: dentro de **100 m** de al menos una parada.
      - **No viajaré** (antes «No voy»): estaba Fuera de parada antes de que el vehículo pasara por su parada.
+   - **Estados de una parada** (19/11/2026, del usuario; definiciones por precisar): **En espera**, **Recogida**,
+     **Volada**, **Omitida**.
+   - **Información que muestra cada parada** en la línea: su **estado** y la **cantidad de trabajadores por estado**,
+     excepto Viajando; en la **ida** tampoco los Dejados, y en el **regreso** tampoco los Esperando (texto del usuario).
 7. Para cada trabajador debe verse su **velocidad** y su estado de movimiento (**Detenido / En movimiento**) antes de
    llegar a Viajando. Desde Viajando, esos datos son del **vehículo**, no del trabajador que hace de sensor.
 8. **Ver recorrido** disponible desde que el viaje está **Planificado** y la ubicación está activada (ya hay datos que
