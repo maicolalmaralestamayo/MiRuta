@@ -2362,7 +2362,8 @@ Lista del usuario (archivo `modificaciones_miruta_4.5.txt`, capturas en `docs/ca
 - **Velocidad y movimiento:** antes de Viajando, los del propio teléfono (Detenido si se movió menos que la Tolerancia
   GPS); desde Viajando, los del vehículo: estado por mayoría y velocidad = mediana de las de los sensores activos.
 - **Ver recorrido:** al abrirlo quien viaja en el viaje (Planificado o En ejecución), su ventana de viaje empieza ya
-  (el servicio de ubicación calcula y envía; antes había que esperar a X antes de la salida). La tarjeta de estado
+  (el servicio de ubicación calcula y envía; antes había que esperar a X antes de la salida) y sigue adelantada
+  mientras la tiene abierta (hasta 15 min después de su última consulta, para no gastar batería con un viaje lejano). La tarjeta de estado
   usa lo que calcula el servicio; sin ubicación todavía, «Sin ubicación todavía». Paradas a 156 px una de otra.
 - **Tarjeta del viaje:** 3 líneas y la naranja de cambios en las listas; en «Ver recorrido», las 3 líneas sin la
   naranja. La fecha y hora son las planificadas (como la notificación). «Viaje cambiado» mientras siga Planificado

@@ -153,6 +153,21 @@ class _TripLineScreenState extends State<TripLineScreen> with WidgetsBindingObse
       final resource = (await _session.api.get('/trips/${widget.tripId}/live')).resource;
       await ServerClock.learn(resource.attributes['serverTime']?.toString());
       final live = TripLive.from(resource);
+      // Mientras la tiene abierta, su ventana de viaje sigue adelantada (docs/11 §11.67).
+      final trip = _trip;
+      if (trip != null && _membership != null && (live.status == TripStatus.planned || live.status == TripStatus.running)) {
+        await TripWindow.remember(openNow: true, WindowTrip(
+          id: trip.id,
+          itineraryId: trip.itineraryId,
+          itineraryName: trip.itineraryName,
+          direction: trip.direction,
+          status: live.status,
+          departsAt: trip.departsAt,
+          statusChangedAt: trip.statusChangedAt,
+          myStopId: _membership!.stopId,
+          myState: live.myState,
+        ));
+      }
       if (mounted) {
         setState(() {
           _live = live;

@@ -137,6 +137,9 @@ void main() {
       expect(TripWindow.slots([w], const {}, settings, now).single.contains(now), isFalse);
       final opened = TripWindow.slots([w], const {}, settings, now, opened: {'9': DateTime(2026, 11, 19, 7, 59)});
       expect(opened.single.contains(now), isTrue);
+      // Al dejar de verla, la ventana vuelve a empezar X antes de la salida.
+      final old = TripWindow.slots([w], const {}, settings, now, opened: {'9': now.subtract(TripWindow.openedFor + const Duration(minutes: 1))});
+      expect(old.single.contains(now), isFalse);
     });
   });
 

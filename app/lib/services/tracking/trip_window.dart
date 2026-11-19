@@ -104,6 +104,9 @@ class TripWindow {
   /// (docs/11 §11.67: «Ver recorrido» desde Planificado, con datos que se actualizan).
   static const _openedKey = 'user.window.opened';
 
+  /// Cuánto dura la ventana adelantada por «Ver recorrido» sin volver a consultarlo.
+  static const openedFor = Duration(minutes: 15);
+
   /// Próxima conexión con el servidor (contador de la barra superior).
   static final nextContact = ValueNotifier<DateTime?>(null);
 
@@ -167,9 +170,10 @@ class TripWindow {
       // Parada habitual opcional (docs/11 §11.65): viaja en todos los viajes de sus itinerarios.
       if (trip.myStopId == null && !trip.travels) continue;
       var start = trip.departsAt.subtract(settings.windowBefore);
-      // Abrió su línea antes: la ventana empieza entonces (si el viaje sigue abierto).
+      // Tiene abierta su línea (la abrió o la consultó hace menos de [openedFor]): la ventana
+      // empieza entonces, si el viaje sigue abierto. Al cerrarla, vuelve a empezar X antes de la salida.
       final openedAt = opened[trip.id];
-      if (openedAt != null && openedAt.isBefore(start) && !trip.closed) start = openedAt;
+      if (openedAt != null && openedAt.isBefore(start) && !trip.closed && now.difference(openedAt) < openedFor) start = openedAt;
       final cap = trip.departsAt.add(settings.duration('duracion_maxima') + const Duration(hours: 1));
       DateTime? ended;
       DateTime? earliest(DateTime? a, DateTime? b) => a == null ? b : (b == null || a.isBefore(b) ? a : b);

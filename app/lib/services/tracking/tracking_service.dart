@@ -215,12 +215,13 @@ class TrackingHandler extends TaskHandler {
     final raw = await FlutterForegroundTask.getData<String>(key: TrackingService._key);
     var data = raw == null ? <String, dynamic>{} : Map<String, dynamic>.from(jsonDecode(raw) as Map);
 
-    // Sin ventana abierta (o se cerró): se termina el servicio.
-    if (slot == null && data['tripId'] == null) {
+    // Sin ventana abierta (o se cerró, p. ej. al dejar de ver el recorrido de un viaje
+    // que aún no empieza): se termina el servicio.
+    if (slot == null) {
       await _stop(settings);
       return;
     }
-    if (slot != null && data['tripId'] != slot.trip.id) {
+    if (data['tripId'] != slot.trip.id) {
       data = {
         'tripId': slot.trip.id,
         'title': slot.trip.title,
@@ -233,7 +234,7 @@ class TrackingHandler extends TaskHandler {
         'trip': {'status': slot.trip.status, 'states': <String, String>{}, 'left': <int>[], 'next': 0},
         'sensors': 0,
       };
-    } else if (slot != null) {
+    } else {
       data['end'] = slot.end.toIso8601String();
     }
     final tripId = '${data['tripId']}';
