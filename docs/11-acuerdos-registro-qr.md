@@ -2179,6 +2179,10 @@ Lista del usuario (archivo `modificaciones_miruta_4.5.txt`, capturas en `docs/ca
      Planificado ni En ejecución).
    - Las eliminaciones **no se notifican**.
    - **Poda** de la tabla de viajes: borra los Cancelados y Terminados con una frecuencia configurable.
+   - **Decidido** (19/11/2026): «Plazo eliminación» pasa a **«Plazo cancelación»** (5 h por defecto): un viaje que
+     sigue Planificado ese tiempo después de su salida pasa a **Cancelado**. Ajuste nuevo **«Conservación viajes»**
+     (30 días por defecto): la poda borra los Cancelados y Terminados de hace más de ese tiempo, sin avisar. A mano:
+     cancelar solo un Planificado; eliminar solo un Cancelado o Terminado.
 5. Las **tarjetas de viaje** no tienen el formato acordado: deben ser como las **notificaciones** (§11.63). Además, un
    viaje Planificado a las 10:30 a. m. seguía igual a las 10:57 a. m. sin que pasara nada (captura 03).
 6. Nuevo estado del trabajador **Fuera de parada**: fuera del rango de todas las paradas y sin movimiento. Existe porque
