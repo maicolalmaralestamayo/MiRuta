@@ -2201,7 +2201,10 @@ Lista del usuario (archivo `modificaciones_miruta_4.5.txt`, capturas en `docs/ca
      - **En parada**: dentro de **100 m** de al menos una parada.
      - **No viajaré** (antes «No voy»): estaba Fuera de parada antes de que el vehículo pasara por su parada.
    - **Estados de una parada** (19/11/2026, del usuario; definiciones por precisar): **En espera**, **Recogida**,
-     **Volada**, **Omitida**.
+     **Volada**, **Omitida** (definiciones aceptadas el 19/11/2026):
+     - **En espera**: el vehículo todavía no ha llegado a esa parada.
+     - **Recogida**: el vehículo se detuvo en esa parada.
+     - **Volada**: el vehículo pasó por la parada sin detenerse.
      - **Omitida** (definida por el usuario): el vehículo **ni siquiera pasó** por la parada: siguió En espera mientras
        alguna de las paradas siguientes ya cambió de estado.
    - **Información que muestra cada parada** en la línea: su **estado** y la **cantidad de trabajadores por estado**,
