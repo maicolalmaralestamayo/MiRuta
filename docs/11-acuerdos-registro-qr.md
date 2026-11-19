@@ -2219,6 +2219,10 @@ Lista del usuario (archivo `modificaciones_miruta_4.5.txt`, capturas en `docs/ca
        se alejan de forma consecutiva a velocidad no humana pasan a **Viajando**.
      - **No viajaré** (decidido 19/11/2026): se mantiene **solo como estado manual**; lo marca el propio trabajador para
        avisar que no irá; nunca se calcula.
+   - **Ver recorrido, propuesta mostrada** (19/11/2026, en definición): tarjeta del viaje con el formato de las
+     notificaciones; tarjeta **Sensores** (cantidad) y tarjeta **Estado** (estado, parada si procede, Detenido/En
+     movimiento · velocidad, coordenadas y fecha y hora de la última ubicación); cada parada de la línea con su
+     **estado** (En espera, Recogida, Volada, Omitida) y las cantidades por estado del trabajador (sin ceros).
    - **Estados de una parada** (19/11/2026, del usuario; definiciones por precisar): **En espera**, **Recogida**,
      **Volada**, **Omitida** (definiciones aceptadas el 19/11/2026):
      - **En espera**: el vehículo todavía no ha llegado a esa parada.
