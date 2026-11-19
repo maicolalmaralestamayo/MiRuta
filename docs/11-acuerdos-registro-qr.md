@@ -2248,6 +2248,8 @@ Lista del usuario (archivo `modificaciones_miruta_4.5.txt`, capturas en `docs/ca
      excepto Viajando; en la **ida** tampoco los Dejados, y en el **regreso** tampoco los Esperando (texto del usuario).
 7. Para cada trabajador debe verse su **velocidad** y su estado de movimiento (**Detenido / En movimiento**) antes de
    llegar a Viajando. Desde Viajando, esos datos son del **vehículo**, no del trabajador que hace de sensor.
+   - **Decidido** (19/11/2026): cada trabajador ve **solo los suyos** (tarjeta de estado de «Ver recorrido»); no se
+     muestran los de los demás.
 8. **Ver recorrido** disponible desde que el viaje está **Planificado** y la ubicación está activada (ya hay datos que
    se actualizan). Tarjetas más simples:
    - **Sensores**: icono + «Sensores»; debajo la cantidad (p. ej. 5).
