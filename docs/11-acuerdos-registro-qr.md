@@ -2160,3 +2160,55 @@ El usuario prueba solo; necesita simular varios trabajadores. Decidido:
 5. Con vehículo real, suba al vehículo con su teléfono (será sensor) o marque el paso por cada parada desde la línea:
    los simulados suben y bajan según eso.
 6. Al terminar, **Eliminar Simulación** (rojo) borra todo lo que creó. Para otra prueba, cree otra.
+
+## 11.67 Cambios tras probar la 4.5.0 (19/11/2026, pendiente de definir e implementar)
+
+Lista del usuario (archivo `modificaciones_miruta_4.5.txt`, capturas en `docs/capturas/4.5/`):
+
+**Cambios generales**
+1. La app pasa a llamarse **ItinerTwin**.
+2. Se elimina el **carné de identidad** y se sustituye por el **correo electrónico** (único en toda la base de datos).
+   Por eso el **sexo** de la persona se introduce a mano (por defecto Masculino).
+3. Cuando el contador de conexión de la barra llega a cero, en lugar del «0» se muestra que está actualizando (icono
+   girando).
+4. **Cancelado ≠ Eliminado**:
+   - Solo se puede **cancelar** un viaje **Planificado**.
+   - **Eliminar** un viaje es borrarlo de la base de datos, y solo se puede si está **Cancelado o Terminado** (nunca
+     Planificado ni En ejecución).
+   - Las eliminaciones **no se notifican**.
+   - **Poda** de la tabla de viajes: borra los Cancelados y Terminados con una frecuencia configurable.
+5. Las **tarjetas de viaje** no tienen el formato acordado: deben ser como las **notificaciones** (§11.63). Además, un
+   viaje Planificado a las 10:30 a. m. seguía igual a las 10:57 a. m. sin que pasara nada (captura 03).
+6. Nuevo estado del trabajador **Fuera de parada**: fuera del rango de todas las paradas y sin movimiento. Existe porque
+   puede haber un trabajador que sí quiere viajar y está lejos de las paradas antes de empezar el viaje.
+7. Para cada trabajador debe verse su **velocidad** y su estado de movimiento (**Detenido / En movimiento**) antes de
+   llegar a Viajando. Desde Viajando, esos datos son del **vehículo**, no del trabajador que hace de sensor.
+8. **Ver recorrido** disponible desde que el viaje está **Planificado** y la ubicación está activada (ya hay datos que
+   se actualizan). Tarjetas más simples:
+   - **Sensores**: icono + «Sensores»; debajo la cantidad (p. ej. 5).
+   - **Estado** (del trabajador): icono + «Estado»; debajo el nombre de la parada si procede; debajo el movimiento
+     [Detenido | En movimiento] · velocidad; debajo las coordenadas de la última ubicación; debajo la fecha y hora de
+     esas coordenadas. Todo calculado en el teléfono.
+9. **Todos los estados del trabajador** los puede cambiar **a mano** el propio trabajador en cualquier momento.
+10. El selector de hora es **solo un reloj digital con 3 campos: hora, minutos y a. m./p. m.**; se quita el reloj
+    analógico (captura 04: sigue saliendo el reloj de 24 h).
+11. **Nombres de las acciones**: los genéricos Consultar, Crear, Actualizar y Eliminar solo cuando no haya otra forma de
+    expresarlo; se recuperan en toda la app los nombres propios **Aprobar, Rechazar, Solicitar** (y similares), en vez
+    de «Actualizar Solicitud: Aprobar» (corrige §11.65 punto 14).
+
+**Pantalla Gestión** (según el texto del usuario; varios puntos parecen referirse a Inicio: por confirmar)
+12. Se quitan de la vista las solicitudes **aprobadas y rechazadas**; solo se muestran las **pendientes**. Las aprobadas
+    y rechazadas se le muestran al trabajador en la vista Gestión donde corresponda.
+13. Se quitan los **viajes activos**.
+14. Los **hijos** se muestran debajo de la tarjeta del QR, sin título de sección; si no tiene hijos no se muestra nada.
+15. **Sin títulos de sección ni cantidades**; paginado en Entidades, itinerarios y paradas como ya se vio.
+
+**Pantalla Viajes**
+16. Contador **en verde** de los viajes Planificados y En ejecución.
+
+**Observado en las capturas** (para revisar al implementar)
+- Captura 02: la tarjeta del viaje dice «Salió 11:05 a. m.» y la línea «Salió 12:05 p. m.» (una hora de diferencia).
+- Captura 03: viaje Planificado 10:30 a. m. que no pasa a En ejecución a las 10:57 a. m.
+- Captura 04: el selector de hora sigue siendo el de 24 h.
+- Capturas 06 y 09: títulos de sección con cantidades y «1 • 1 solicitud» en Gestión.
+- Captura 08: botones con textos largos en dos líneas («Actualizar Solicitud: Aprobar»).
