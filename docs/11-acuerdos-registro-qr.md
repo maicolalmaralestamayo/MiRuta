@@ -2188,7 +2188,7 @@ Lista del usuario (archivo `modificaciones_miruta_4.5.txt`, capturas en `docs/ca
    - **Decidido** (19/11/2026): tarjeta = mismo formato que la notificación: «Viaje [estado]»; «[Itinerario] •
      [ida|regreso]»; fecha y hora; «[parada de salida] • [tipo de vehículo]»; línea naranja de cambios si procede.
      Sin la ocupación. **Hora en formato de 24 h** (en tarjetas y notificaciones). Icono: **carretera o el icono de
-     la app** (por elegir con imagen).
+     la app** → elegido (19/11/2026) el **icono de la app** (el ómnibus naranja).
 6. Nuevo estado del trabajador **Fuera de parada**: fuera del rango de todas las paradas y sin movimiento. Existe porque
    puede haber un trabajador que sí quiere viajar y está lejos de las paradas antes de empezar el viaje.
 7. Para cada trabajador debe verse su **velocidad** y su estado de movimiento (**Detenido / En movimiento**) antes de
@@ -2204,6 +2204,8 @@ Lista del usuario (archivo `modificaciones_miruta_4.5.txt`, capturas en `docs/ca
     analógico (captura 04: sigue saliendo el reloj de 24 h).
     - **Decidido** (19/11/2026): las horas se **muestran en 24 h** (tarjetas, notificaciones, pantallas); el **selector**
       para elegir una hora es de **12 h** (hora, minutos y a. m./p. m., sin reloj analógico).
+    - **Corregido** (19/11/2026, sustituye a lo anterior): **todo en 24 h**, también el selector: **reloj digital con 2
+      campos, hora (00–23) y minutos**, sin reloj analógico ni a. m./p. m.
 11. **Nombres de las acciones**: los genéricos Consultar, Crear, Actualizar y Eliminar solo cuando no haya otra forma de
     expresarlo; se recuperan en toda la app los nombres propios **Aprobar, Rechazar, Solicitar** (y similares), en vez
     de «Actualizar Solicitud: Aprobar» (corrige §11.65 punto 14).
