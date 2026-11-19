@@ -2202,6 +2202,8 @@ Lista del usuario (archivo `modificaciones_miruta_4.5.txt`, capturas en `docs/ca
 9. **Todos los estados del trabajador** los puede cambiar **a mano** el propio trabajador en cualquier momento.
 10. El selector de hora es **solo un reloj digital con 3 campos: hora, minutos y a. m./p. m.**; se quita el reloj
     analógico (captura 04: sigue saliendo el reloj de 24 h).
+    - **Decidido** (19/11/2026): las horas se **muestran en 24 h** (tarjetas, notificaciones, pantallas); el **selector**
+      para elegir una hora es de **12 h** (hora, minutos y a. m./p. m., sin reloj analógico).
 11. **Nombres de las acciones**: los genéricos Consultar, Crear, Actualizar y Eliminar solo cuando no haya otra forma de
     expresarlo; se recuperan en toda la app los nombres propios **Aprobar, Rechazar, Solicitar** (y similares), en vez
     de «Actualizar Solicitud: Aprobar» (corrige §11.65 punto 14).
