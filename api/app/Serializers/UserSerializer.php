@@ -9,8 +9,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 
 /**
- * Persona. El carné solo lo ven ella misma, el Administrador y el Jefe de
- * itinerario de sus miembros y solicitantes (docs/11 §11.2).
+ * Persona. El correo electrónico (y la fecha de nacimiento) solo los ven ella
+ * misma, el Administrador y el Jefe de itinerario de sus miembros y
+ * solicitantes (docs/11 §11.2 y §11.67).
  */
 class UserSerializer extends Serializer
 {
@@ -36,8 +37,8 @@ class UserSerializer extends Serializer
             'entities' => self::entityAbbreviations($user),
         ];
 
-        if ($access->canSeeIdentityCard($viewer, $user)) {
-            $attributes['identityCard'] = $user->identityCard();
+        if ($access->canSeeEmail($viewer, $user)) {
+            $attributes['email'] = $user->email;
             $attributes['birthDate'] = $this->day($user->birth_date);
         }
 

@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Http\Controllers\TripController;
 use App\Http\Middleware\RequireCurrentAppVersion;
 use App\JsonApi\JsonApiException;
 use App\Models\AppVersion;
@@ -106,6 +105,8 @@ class SyncFeed
                 'applicationsToResolve' => $this->applications->pendingToResolve($user),
                 'applicationsResolvedUnseen' => $this->applications->unseenResolved($user),
                 'conversationsUnread' => $this->conversations->unreadCount($user),
+                // Círculo verde de la pestaña Viajes (docs/11 §11.67): Planificados y En ejecución que le tocan.
+                'activeTrips' => $this->trips->visibleQuery($user)->whereIn('status', [Trip::PLANNED, Trip::RUNNING])->count(),
             ],
             'latestAppVersion' => $latest ? [
                 'id' => (string) $latest->id,
@@ -183,7 +184,7 @@ class SyncFeed
                 'myStopId' => ($expected?->stop_id ?? $state?->stop_id) ? (string) ($expected?->stop_id ?? $state?->stop_id) : null,
                 // Viaja en él (aunque no tenga parada habitual).
                 'travels' => true,
-                'myState' => $request ? TripController::legacyState($request, $trip, $state?->state) : $state?->state,
+                'myState' => $state?->state,
                 'myStateAt' => $state?->state_at?->toIso8601String(),
             ];
         }

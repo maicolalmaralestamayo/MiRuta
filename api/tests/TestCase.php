@@ -13,7 +13,6 @@ use App\Models\Worker;
 use App\Models\WorkerItinerary;
 use App\Services\Access;
 use App\Services\TokenService;
-use App\Support\IdentityCard;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
@@ -86,20 +85,18 @@ abstract class TestCase extends BaseTestCase
     }
 
     /**
-     * Carné válido y distinto en cada llamada (nacimiento a partir de 1980).
+     * Correo válido y distinto en cada llamada (docs/11 §11.67).
      */
-    protected function newIdentityCard(?string $sex = null, ?string $birthDate = null): string
+    protected function newEmail(): string
     {
         self::$sequence++;
-        $birthDate = $birthDate ?: Carbon::create(1980, 1, 1)->addDays(self::$sequence)->toDateString();
 
-        return IdentityCard::make($birthDate, $sex ?: (self::$sequence % 2 ? 'F' : 'M'), self::$sequence);
+        return 'persona'.self::$sequence.'@correo.cu';
     }
 
     protected function createUser(array $attributes = []): User
     {
-        $card = $attributes['identity_card'] ?? $this->newIdentityCard();
-        unset($attributes['identity_card']);
+        $email = $attributes['email'] ?? $this->newEmail();
         self::$sequence++;
         $user = new User();
         $user->forceFill(array_merge([
@@ -110,8 +107,11 @@ abstract class TestCase extends BaseTestCase
             'middle_name' => null,
             'first_surname' => 'Apellido'.self::$sequence,
             'second_surname' => 'Otro',
+            'email' => $email,
+            'sex' => self::$sequence % 2 ? 'F' : 'M',
+            'birth_date' => Carbon::create(1980, 1, 1)->addDays(self::$sequence)->toDateString(),
             'is_admin' => false,
-        ], IdentityCard::columns($card), $attributes))->save();
+        ], $attributes))->save();
 
         return $user->fresh();
     }

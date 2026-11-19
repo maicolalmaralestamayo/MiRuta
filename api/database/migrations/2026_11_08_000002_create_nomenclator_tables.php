@@ -7,10 +7,13 @@ use Illuminate\Support\Facades\Schema;
 /**
  * Nomencladores (docs/11 §11.26, §11.31 y §11.46): nombre, descripción,
  * observación y activación. Lo que está en uso no se elimina (se desactiva).
+ * Motivos de rechazo separados para solicitudes de Entidad y de itinerario
+ * (docs/11 §11.65); denial_reasons queda solo para consultar.
  */
 return new class extends Migration
 {
-    public const TABLES = ['vehicle_types', 'absence_types', 'conversation_topics', 'denial_reasons', 'detention_causes'];
+    public const TABLES = ['vehicle_types', 'absence_types', 'conversation_topics', 'denial_reasons', 'entity_denial_reasons',
+        'itinerary_denial_reasons', 'detention_causes'];
 
     public function up(): void
     {

@@ -11,7 +11,6 @@ use App\Models\Worker;
 use App\Models\WorkerItinerary;
 use App\Services\Access;
 use App\Services\Accounts;
-use App\Support\IdentityCard;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -86,14 +85,14 @@ class PersonController extends Controller
     }
 
     /**
-     * Solo el Administrador: nombres, carné y usuario.
+     * Solo el Administrador: nombres, correo, sexo, nacimiento y usuario.
      */
     public function update(Request $request, Accounts $accounts, $id)
     {
         $this->access->requireAdmin($request->user(), 'Solo el Administrador edita los datos de otras personas.');
         $user = User::findOrFail($id);
-        $data = $this->validateResource($request, 'users', UserController::nameRules('attributes.', false) + [
-            'attributes.identityCard' => ['sometimes', 'required', 'string', 'max:20'],
+        $data = $this->validateResource($request, 'users', UserController::nameRules('attributes.', false) + UserController::personRules() + [
+            'attributes.email' => ['sometimes', 'required', 'string', 'max:200'],
             'attributes.username' => ['sometimes', 'required', 'string', 'max:60'],
         ]);
         $attributes = $data['attributes'] ?? [];
@@ -103,11 +102,11 @@ class PersonController extends Controller
                 $accounts->changeUsername($user, $attributes['username']);
             }
 
-            if (array_key_exists('identityCard', $attributes)) {
-                $accounts->changeIdentityCard($user, $attributes['identityCard']);
+            if (array_key_exists('email', $attributes)) {
+                $accounts->changeEmail($user, $attributes['email']);
             }
 
-            $user->fill(UserController::names($attributes))->save();
+            $user->fill(UserController::names($attributes) + UserController::person($attributes))->save();
         });
 
         return $this->respond($request, $user->fresh());
@@ -144,7 +143,7 @@ class PersonController extends Controller
     }
 
     /**
-     * Busca por nombre, usuario o carné.
+     * Busca por nombre, usuario o correo.
      */
     public static function search(Builder $query, string $text, string $userColumn = 'id'): void
     {
@@ -153,11 +152,8 @@ class PersonController extends Controller
             foreach (preg_split('/\s+/u', $text) as $word) {
                 $like = '%'.str_replace(['%', '_'], ['\%', '\_'], $word).'%';
                 $q->where(fn ($w) => $w->where('first_name', 'like', $like)->orWhere('middle_name', 'like', $like)
-                    ->orWhere('first_surname', 'like', $like)->orWhere('second_surname', 'like', $like)->orWhere('username', 'like', $like));
-            }
-
-            if (IdentityCard::isValid($text)) {
-                $q->orWhere('identity_card_hash', IdentityCard::hash(IdentityCard::normalize($text)));
+                    ->orWhere('first_surname', 'like', $like)->orWhere('second_surname', 'like', $like)->orWhere('username', 'like', $like)
+                    ->orWhere('email', 'like', $like));
             }
         })->select('id');
 

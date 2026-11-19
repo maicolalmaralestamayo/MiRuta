@@ -5,7 +5,8 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Ajustes (un solo nivel), versiones de la app, «Olvidé algo» y claves del QR.
+ * Ajustes (un solo nivel), versiones de la app, «Olvidé algo» (por correo
+ * desde la 5.0.0), claves del QR, registro de cambios y simulaciones.
  */
 return new class extends Migration
 {
@@ -44,8 +45,7 @@ return new class extends Migration
             $table->foreignId('installation_id')->constrained()->cascadeOnDelete();
             $table->boolean('forgot_username');
             $table->boolean('forgot_password');
-            $table->text('identity_card_encrypted')->nullable();
-            $table->char('identity_card_hash', 64);
+            $table->string('email', 150)->comment('Correo de la persona (docs/11 §11.67)');
             $table->text('phone_encrypted')->nullable();
             $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
             $table->enum('status', ['pending', 'approved', 'rejected', 'completed', 'expired']);
@@ -77,11 +77,45 @@ return new class extends Migration
             $table->unique(['user_id', 'nonce']);
             $table->index('expires_at');
         });
+
+        // Registro de cambios para la caché del teléfono (docs/11 §11.65).
+        Schema::create('change_log', function (Blueprint $table) {
+            $table->id();
+            $table->string('table_name', 64);
+            $table->unsignedBigInteger('record_id');
+            $table->string('operation', 10)->comment('create, update o delete');
+            $table->dateTime('changed_at');
+            $table->index('changed_at');
+        });
+
+        // Simulador de trabajadores (docs/11 §11.66): una simulación a la vez.
+        Schema::create('simulations', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('itinerary_id')->constrained()->cascadeOnDelete();
+            $table->unsignedBigInteger('trip_id')->nullable()->comment('Viaje de prueba');
+            $table->foreignId('created_by')->comment('Administrador que la inició')->constrained('users')->cascadeOnDelete();
+            $table->string('direction', 10);
+            $table->string('vehicle_mode', 10)->comment('simulado o real');
+            $table->unsignedSmallInteger('workers_count');
+            $table->unsignedTinyInteger('pct_normal');
+            $table->unsignedTinyInteger('pct_late');
+            $table->unsignedTinyInteger('pct_left_behind');
+            $table->unsignedTinyInteger('pct_not_going');
+            $table->unsignedTinyInteger('speed_factor')->default(1);
+            $table->unsignedSmallInteger('vehicle_speed_kmh')->default(30);
+            $table->unsignedInteger('seed');
+            $table->longText('plan')->nullable()->comment('Plan en JSON');
+            $table->string('status', 12)->default('en_curso');
+            $table->dateTime('started_at');
+            $table->dateTime('last_tick_at')->nullable();
+            $table->dateTime('finished_at')->nullable();
+            $table->timestamps();
+        });
     }
 
     public function down(): void
     {
-        foreach (['qr_nonces', 'server_keys', 'access_recoveries', 'app_version_files', 'app_versions', 'settings'] as $name) {
+        foreach (['simulations', 'change_log', 'qr_nonces', 'server_keys', 'access_recoveries', 'app_version_files', 'app_versions', 'settings'] as $name) {
             Schema::dropIfExists($name);
         }
     }

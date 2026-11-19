@@ -30,6 +30,8 @@ class ScheduledTasks
         'conversaciones:limpiar' => ['02:10', [Conversations::class, 'purgeOld']],
         'notificaciones:limpiar' => ['02:20', [Notifier::class, 'purgeOld']],
         'cambios:podar' => ['02:30', [ChangeLog::class, 'prune']],
+        // Viajes Cancelados y Terminados más viejos que «Conservación viajes» (docs/11 §11.67).
+        'viajes:podar' => ['02:40', [Trips::class, 'prune']],
     ];
 
     public function statePath(): string

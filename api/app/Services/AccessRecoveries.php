@@ -6,14 +6,14 @@ use App\JsonApi\JsonApiException;
 use App\Models\AccessRecovery;
 use App\Models\Installation;
 use App\Models\User;
-use App\Support\IdentityCard;
+use App\Support\Email;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 
 /**
- * «Olvidé algo» (docs/11 §11.7): la persona indica qué olvidó, su carné y
- * un teléfono; solo el Administrador la aprueba, tras verificarlo por una
+ * «Olvidé algo» (docs/11 §11.7): la persona indica qué olvidó, su correo
+ * electrónico (desde la 5.0.0, docs/11 §11.67) y un teléfono; solo el Administrador la aprueba, tras verificarlo por una
  * tercera vía. Al aprobarla se propone una contraseña nueva (hay que
  * cambiarla al entrar) y se comunica solo lo pedido: al Administrador en la
  * respuesta y a la instalación que la pidió.
@@ -27,14 +27,14 @@ class AccessRecoveries
     /**
      * Crea la solicitud. La respuesta no dice si los datos coinciden.
      */
-    public function request(Installation $installation, bool $forgotUsername, bool $forgotPassword, string $identityCard, string $phone): AccessRecovery
+    public function request(Installation $installation, bool $forgotUsername, bool $forgotPassword, string $email, string $phone): AccessRecovery
     {
         if (! $forgotUsername && ! $forgotPassword) {
             throw new JsonApiException(422, 'VALIDATION_ERROR', 'Datos no válidos', 'Indique qué olvidó: el usuario, la contraseña o los dos.',
                 ['pointer' => '/data/attributes/forgotUsername']);
         }
 
-        $card = IdentityCard::validated($identityCard);
+        $email = Email::validated($email);
 
         $limit = $this->settings->int('limite_olvide');
         $recent = AccessRecovery::where('installation_id', $installation->id)->where('created_at', '>=', Carbon::now()->subHour())->count();
@@ -43,9 +43,9 @@ class AccessRecoveries
             throw new JsonApiException(429, 'TOO_MANY_REQUESTS', 'Demasiadas solicitudes', 'Espere un rato antes de enviar otra solicitud.');
         }
 
-        $user = User::findByIdentityCard($card);
+        $user = User::findByEmail($email);
 
-        return DB::transaction(function () use ($installation, $forgotUsername, $forgotPassword, $card, $phone, $user) {
+        return DB::transaction(function () use ($installation, $forgotUsername, $forgotPassword, $email, $phone, $user) {
             // Una nueva sustituye a las abiertas de esta instalación.
             foreach (AccessRecovery::where('installation_id', $installation->id)->whereIn('status', [AccessRecovery::STATUS_PENDING, AccessRecovery::STATUS_APPROVED])->get() as $previous) {
                 $previous->close(AccessRecovery::STATUS_EXPIRED);
@@ -55,8 +55,7 @@ class AccessRecoveries
                 'installation_id' => $installation->id,
                 'forgot_username' => $forgotUsername,
                 'forgot_password' => $forgotPassword,
-                'identity_card_encrypted' => Crypt::encryptString($card),
-                'identity_card_hash' => IdentityCard::hash($card),
+                'email' => $email,
                 'phone_encrypted' => Crypt::encryptString($phone),
                 'user_id' => $user ? $user->id : null,
                 'status' => AccessRecovery::STATUS_PENDING,
@@ -76,7 +75,7 @@ class AccessRecoveries
         $this->ensurePending($recovery);
 
         if (! $recovery->user_id || ! $recovery->user) {
-            throw JsonApiException::conflict('RECOVERY_NOT_MATCHED', 'El carné no coincide con ninguna persona con cuenta: solo se puede rechazar.');
+            throw JsonApiException::conflict('RECOVERY_NOT_MATCHED', 'El correo no coincide con ninguna persona con cuenta: solo se puede rechazar.');
         }
 
         return DB::transaction(function () use ($recovery, $admin) {

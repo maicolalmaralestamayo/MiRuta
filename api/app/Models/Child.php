@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Support\IdentityCard;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -13,18 +12,13 @@ class Child extends Model
     use \App\Models\Concerns\LogsChanges;
 
     protected $fillable = [
-        'identity_card_encrypted', 'identity_card_hash', 'first_name', 'middle_name', 'first_surname', 'second_surname',
+        'first_name', 'middle_name', 'first_surname', 'second_surname',
         'sex', 'birth_date', 'photo_path', 'active',
     ];
 
-    protected $hidden = ['identity_card_encrypted', 'identity_card_hash'];
 
     protected $casts = ['active' => 'boolean', 'birth_date' => 'date'];
 
-    public static function findByIdentityCard(string $card): ?self
-    {
-        return static::where('identity_card_hash', IdentityCard::hash($card))->first();
-    }
 
     public function scopeOfParent($query, int $userId)
     {
@@ -40,10 +34,5 @@ class Child extends Model
     public function parentIds(): array
     {
         return array_map('intval', ChildParent::where('child_id', $this->id)->pluck('user_id')->all());
-    }
-
-    public function identityCard(): ?string
-    {
-        return IdentityCard::decrypt($this->identity_card_encrypted);
     }
 }

@@ -131,10 +131,10 @@ class Access
     }
 
     /**
-     * Ve el carné de esa persona: ella misma, el Administrador y el Jefe de
+     * Ve el correo de esa persona: ella misma, el Administrador y el Jefe de
      * itinerario (miembros de su itinerario y quienes solicitan entrar en él).
      */
-    public function canSeeIdentityCard(?User $viewer, User $person): bool
+    public function canSeeEmail(?User $viewer, User $person): bool
     {
         if (! $viewer) {
             return false;

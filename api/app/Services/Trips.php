@@ -25,13 +25,18 @@ use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Viajes y su tiempo real (docs/11 §11.42 a §11.47).
+ * Viajes y su tiempo real (docs/11 §11.42 a §11.47, §11.65 y §11.67).
  *
- * - Un viaje es de ida o de regreso. Desde la 4.4.0 (docs/11 §11.65) en los dos
- *   sentidos se sube y se baja en cualquier parada: el teléfono detecta la
- *   parada por cercanía y todos los estados valen en los dos sentidos.
- * - Estados: planificado → en_ejecucion → terminado, o planificado → cancelado.
- *   En ejecución ya no se edita.
+ * - Un viaje es de ida o de regreso. En los dos sentidos se sube y se baja en
+ *   cualquier parada: el teléfono detecta la parada por cercanía y todos los
+ *   estados valen en los dos sentidos.
+ * - Estados: planificado → en_ejecucion → terminado, o planificado → cancelado
+ *   (a mano, o solo pasado «Plazo cancelación» desde la salida). Solo se
+ *   eliminan (borrar de la base de datos, sin avisar) los Cancelados y
+ *   Terminados; la poda («Conservación viajes») borra los viejos.
+ * - Cada parada del recorrido tiene su estado (docs/11 §11.67): En espera,
+ *   Recogida (el vehículo se detuvo en ella), Volada (pasó sin detenerse) u
+ *   Omitida (ni pasó y una posterior ya cambió de estado).
  * - El estado de cada trabajador lo calcula su teléfono y envía los cambios
  *   y sus observaciones del vehículo con la hora de captura, en cola si no hay
  *   conexión (report()). El servidor los ordena por esa hora. Los teléfonos
@@ -255,6 +260,8 @@ class Trips
         ]));
 
         if ($changed) {
+            // La tarjeta del viaje muestra «Cambió la …» mientras siga Planificado (docs/11 §11.67).
+            $trip->forceFill(['last_changes' => implode(',', $changed)])->save();
             $this->notifier->send($this->notifier->tripAudience($trip), Notifier::TRIP_CHANGED, 'Viaje modificado',
                 'Antes: '.$before.'. Ahora: '.$this->describe($trip).'.', $this->data($trip, $changed));
         }
@@ -263,8 +270,9 @@ class Trips
     }
 
     /**
-     * Cambio de estado a mano (docs/11 §11.43): Planificado → En ejecución o
-     * Cancelado; En ejecución → Terminado.
+     * Cambio de estado a mano (docs/11 §11.43 y §11.67): Planificado → En
+     * ejecución o Cancelado (cancelar, solo un Planificado); En ejecución →
+     * Terminado.
      */
     public function changeStatus(User $actor, Trip $trip, string $status): Trip
     {
@@ -333,8 +341,10 @@ class Trips
             $trip->forceFill([
                 'status' => Trip::RUNNING,
                 'status_changed_at' => $now,
+                'started_at' => $now,
+                'last_changes' => null,
                 'route' => implode(',', $route),
-                // La parada de salida queda pasada al empezar (docs/11 §11.43).
+                // La parada de salida queda Recogida y atrás al empezar (docs/11 §11.43 y §11.67).
                 'next_stop_index' => max((int) $trip->next_stop_index, min(1, max(0, count($route) - 1))),
                 // Sin datos del vehículo hasta que informen los sensores (docs/11 §11.61).
                 'vehicle_state' => null,
@@ -343,7 +353,8 @@ class Trips
             ])->save();
 
             if ($route) {
-                $this->recordPass($trip, 0, $now);
+                $this->setStopState($trip, 0, TripStopPass::PICKED_UP, $now);
+                $this->leaveStop($trip, 0, $now);
             }
         });
 
@@ -356,7 +367,7 @@ class Trips
     public function finish(Trip $trip, string $reason): Trip
     {
         // La terminación no se notifica (docs/11 §11.47): la app lo sabe al consultar.
-        $trip->forceFill(['status' => Trip::FINISHED, 'status_changed_at' => Carbon::now(), 'finish_reason' => $reason])->save();
+        $trip->forceFill(['status' => Trip::FINISHED, 'status_changed_at' => Carbon::now(), 'finish_reason' => $reason, 'last_changes' => null])->save();
 
         // Al llegar a la parada final se bajan todos: quien sigue Viajando queda Dejado allí.
         if ($reason === 'llegada') {
@@ -374,16 +385,33 @@ class Trips
     }
 
     /**
-     * Elimina el viaje (a mano o por «Plazo eliminación») y lo avisa: la app
-     * pone «Viaje eliminado» en la notificación de ese viaje (docs/11 §11.63).
+     * Elimina el viaje: lo borra de la base de datos (docs/11 §11.67). Solo un
+     * Cancelado o Terminado (lo comprueba quien llama) y sin avisar: la app
+     * quita lo que tenga de él al saber por el registro de cambios que ya no existe.
      */
     public function delete(Trip $trip): void
     {
-        $audience = $this->notifier->tripAudience($trip);
-        $data = ['status' => self::STATUS_DELETED] + $this->data($trip);
-        $description = $this->describe($trip);
         $trip->delete();
-        $this->notifier->send($audience, Notifier::TRIP_DELETED, 'Viaje eliminado', 'Se eliminó el '.$description.'.', $data);
+    }
+
+    /**
+     * Poda (tarea diaria «viajes:podar», docs/11 §11.67): borra sin avisar los
+     * viajes Cancelados y Terminados cuyo último estado es de hace más de
+     * «Conservación viajes». Los viajes de prueba del simulador los borra
+     * «Eliminar Simulación».
+     */
+    public function prune(): int
+    {
+        $limit = Carbon::now()->subSeconds($this->settings->seconds('conservacion_viajes'));
+        $deleted = 0;
+
+        foreach (Trip::whereIn('status', [Trip::CANCELLED, Trip::FINISHED])->where('status_changed_at', '<', $limit)
+            ->when(SimulationSchema::ready(), fn ($q) => $q->whereNull('simulation_id'))->get() as $trip) {
+            $trip->delete();
+            $deleted++;
+        }
+
+        return $deleted;
     }
 
     /**
@@ -411,9 +439,9 @@ class Trips
         return $result;
     }
 
-    public function cancel(Trip $trip): Trip
+    public function cancel(Trip $trip, string $reason = 'manual'): Trip
     {
-        $trip->forceFill(['status' => Trip::CANCELLED, 'status_changed_at' => Carbon::now()])->save();
+        $trip->forceFill(['status' => Trip::CANCELLED, 'status_changed_at' => Carbon::now(), 'finish_reason' => $reason, 'last_changes' => null])->save();
         $this->notifier->send($this->notifier->tripAudience($trip), Notifier::TRIP_STATUS, 'Viaje cancelado',
             'Se canceló el '.$this->describe($trip).'.', $this->data($trip));
 
@@ -476,9 +504,9 @@ class Trips
 
             if (! $passenger) {
                 $passenger = TripPassenger::create([
-                    'trip_id' => $trip->id, 'user_id' => $user->id, 'stop_id' => $worker->stop_id,
+                    'trip_id' => $trip->id, 'user_id' => $user->id, 'stop_id' => null,
                     // Sin estado informado aún: cualquier cambio en cola vale después.
-                    'state' => TripPassenger::ON_THE_WAY, 'state_at' => $now, 'reported_at' => $trip->departs_at->copy()->subDay(),
+                    'state' => TripPassenger::OUT_OF_ROUTE, 'state_at' => $now, 'reported_at' => $trip->departs_at->copy()->subDay(),
                 ]);
             }
 
@@ -559,12 +587,17 @@ class Trips
     }
 
     /**
+     * Cambio de estado del trabajador (docs/11 §11.67). El teléfono manda: lo
+     * calcula o lo pone el trabajador a mano (manual = true) y cualquier
+     * estado puede pasar a cualquier otro. Solo se descarta lo capturado antes
+     * del último aplicado (reenvíos y colas viejas), salvo si el último lo
+     * puso el servidor por un teléfono sin enviar.
+     *
      * @return array{0: bool, 1: ?string}
      */
     private function applyWorkerState(Trip $trip, WorkerItinerary $worker, ?TripPassenger $passenger, array $event, Carbon $at): array
     {
-        // Nombres viejos de los teléfonos 4.2.0 / 4.3.0 (recogido, botado, dormido).
-        $state = TripPassenger::normalize((string) ($event['state'] ?? ''));
+        $state = (string) ($event['state'] ?? '');
 
         if (! in_array($state, TripPassenger::STATES, true)) {
             throw new JsonApiException(422, 'WORKER_STATE_INVALID', 'Estado no válido',
@@ -581,6 +614,8 @@ class Trips
             $stopId = (int) $event['stopId'];
         }
 
+        $manual = (bool) ($event['manual'] ?? false);
+
         if ($passenger) {
             // Reenvío de un informe ya aplicado o más viejo que el último: acuse sin cambios.
             if ($passenger->reported_at && $at->lt($passenger->reported_at) && ! $passenger->set_by_server) {
@@ -591,32 +626,23 @@ class Trips
                 $this->applyChildren($worker, $passenger, $event);
                 $passenger->reported_at = $at;
                 $passenger->set_by_server = false;
+                $passenger->manual = $manual;
                 $passenger->save();
 
                 return [true, null];
             }
-
-            // Los finales no cambian; salvo lo que puso el servidor por un teléfono
-            // sin enviar (el teléfono sabe más) y No recogido que en realidad subió.
-            if (TripPassenger::isFinal($passenger->state) && $passenger->state !== $state) {
-                $correction = $passenger->set_by_server
-                    || ($passenger->state === TripPassenger::LEFT_BEHIND && $state === TripPassenger::TRAVELLING);
-
-                if (! $correction) {
-                    return [false, 'ESTADO_FINAL'];
-                }
-            }
-
-            // Viajando solo pasa a Dejado.
-            if ($passenger->state === TripPassenger::TRAVELLING && ! in_array($state, [TripPassenger::TRAVELLING, TripPassenger::DROPPED], true)) {
-                return [false, 'TRANSICION_NO_PERMITIDA'];
-            }
         }
 
         $passenger = $passenger ?: new TripPassenger(['trip_id' => $trip->id, 'user_id' => $worker->user_id]);
-        // Sin parada detectada (teléfonos viejos), la que tenía o su parada habitual.
-        $stopId = $stopId ?? ($passenger->stop_id ? (int) $passenger->stop_id : ($worker->stop_id ? (int) $worker->stop_id : null));
-        $passenger->fill(['state' => $state, 'state_at' => $at, 'reported_at' => $at, 'stop_id' => $stopId, 'set_by_server' => false]);
+
+        if (in_array($state, TripPassenger::STOPLESS_STATES, true)) {
+            $stopId = null;
+        } else {
+            // Sin parada detectada, la que tenía o su parada habitual.
+            $stopId = $stopId ?? ($passenger->stop_id ? (int) $passenger->stop_id : ($worker->stop_id ? (int) $worker->stop_id : null));
+        }
+
+        $passenger->fill(['state' => $state, 'state_at' => $at, 'reported_at' => $at, 'stop_id' => $stopId, 'set_by_server' => false, 'manual' => $manual]);
         $this->applyChildren($worker, $passenger, $event);
         $passenger->save();
 
@@ -649,15 +675,22 @@ class Trips
     /**
      * Observación de un sensor: la última de cada teléfono decide el estado del
      * vehículo; cada próxima parada vista queda como voto con su hora de
-     * captura, para fijar la hora de paso por cada parada (docs/11 §11.65).
+     * captura, para fijar la hora de paso por cada parada (docs/11 §11.65), y
+     * pasar dentro del radio de la próxima parada, para saber si fue Volada u
+     * Omitida (docs/11 §11.67). Lleva también la velocidad del vehículo.
      */
     private function storeVehicleReport(Trip $trip, User $user, array $event, Carbon $at): void
     {
         $routeLength = count($trip->routeStopIds());
         $next = max(0, min($routeLength, (int) ($event['nextStopIndex'] ?? $trip->next_stop_index)));
+        $inRadius = (bool) ($event['inRadius'] ?? $event['atStop'] ?? false);
 
         for ($k = 1; $k <= $next; $k++) {
-            DB::table('trip_stop_votes')->insertOrIgnore(['trip_id' => $trip->id, 'user_id' => $user->id, 'next_stop_index' => $k, 'voted_at' => $at]);
+            DB::table('trip_stop_votes')->insertOrIgnore(['trip_id' => $trip->id, 'user_id' => $user->id, 'next_stop_index' => $k, 'kind' => 'next', 'voted_at' => $at]);
+        }
+
+        if ($inRadius && $next < $routeLength) {
+            DB::table('trip_stop_votes')->insertOrIgnore(['trip_id' => $trip->id, 'user_id' => $user->id, 'next_stop_index' => $next, 'kind' => 'radio', 'voted_at' => $at]);
         }
 
         $existing = TripVehicleReport::where('trip_id', $trip->id)->where('user_id', $user->id)->first();
@@ -666,10 +699,14 @@ class Trips
             return;
         }
 
+        $speed = isset($event['speed']) && is_numeric($event['speed']) ? max(0, min(300, round((float) $event['speed'], 1))) : null;
+
         TripVehicleReport::updateOrCreate(['trip_id' => $trip->id, 'user_id' => $user->id], [
             'vehicle_state' => in_array($event['vehicleState'] ?? null, [Trip::STOPPED, Trip::MOVING], true) ? $event['vehicleState'] : Trip::MOVING,
             'at_stop' => (bool) ($event['atStop'] ?? false),
+            'in_radius' => $inRadius,
             'next_stop_index' => $next,
+            'speed' => $speed,
             'reported_at' => $at,
         ]);
     }
@@ -776,7 +813,8 @@ class Trips
         for ($k = min($maxReported, count($route)); $k > $trip->next_stop_index; $k--) {
             if ($wins($reports->where('next_stop_index', '>=', $k)->count())) {
                 for ($i = $trip->next_stop_index; $i < $k; $i++) {
-                    $this->recordPass($trip, $i, $this->passTime($trip, $i, $sensors, $required) ?? $now);
+                    // La deja atrás: Recogida si se detuvo en ella; si no, Volada u Omitida.
+                    $this->leaveStop($trip, $i, $this->passTime($trip, $i, $sensors, $required) ?? $now, $sensors, $required);
                 }
                 $trip->next_stop_index = $k;
                 $trip->vehicle_at_stop = false;
@@ -810,6 +848,11 @@ class Trips
         if ($trip->vehicle_state === Trip::STOPPED) {
             $atStop = $wins($reports->where('vehicle_state', Trip::STOPPED)->where('at_stop', true)->count());
 
+            if ($atStop && isset($route[$trip->next_stop_index])) {
+                // Se detuvo en la parada: Recogida (docs/11 §11.67).
+                $this->setStopState($trip, (int) $trip->next_stop_index, TripStopPass::PICKED_UP, $trip->vehicle_state_since ?? $now, null, $sensors, $required);
+            }
+
             if ($atStop && ! $trip->vehicle_at_stop && isset($route[$trip->next_stop_index])) {
                 $stop = Stop::find($route[$trip->next_stop_index]);
                 $events[] = [Notifier::VEHICLE_AT_STOP, 'El vehículo llegó a una parada',
@@ -835,43 +878,83 @@ class Trips
     private function passTime(Trip $trip, int $index, array $sensors, int $required): ?Carbon
     {
         $times = DB::table('trip_stop_votes')->where('trip_id', $trip->id)->whereIn('user_id', $sensors ?: [0])
-            ->where('next_stop_index', '>=', $index + 1)->groupBy('user_id')->selectRaw('min(voted_at) as t')->pluck('t')
+            ->where('kind', 'next')->where('next_stop_index', '>=', $index + 1)->groupBy('user_id')->selectRaw('min(voted_at) as t')->pluck('t')
             ->map(fn ($t) => Carbon::parse($t))->sort()->values();
 
         return $times->isEmpty() ? null : $times[min($times->count(), max(1, $required)) - 1];
     }
 
     /**
-     * Paso por una parada (sensores o a mano). Si el teléfono de quien
-     * esperaba en ella (o iba de camino a ella) no envía, el servidor lo pone
-     * No recogido o Retrasado (docs/11 §11.65); su teléfono, al volver a
-     * enviar, manda sobre esto.
+     * Estado de la parada $index distinto de En espera (docs/11 §11.67).
+     * Recogida manda sobre Volada u Omitida (el vehículo sí se detuvo). Las
+     * anteriores que seguían En espera quedan atrás (Volada u Omitida).
+     *
+     * @param int[] $sensors sensores con que se decide si pasó por su radio
      */
-    private function recordPass(Trip $trip, int $index, Carbon $at, ?int $markedBy = null): TripStopPass
+    private function setStopState(Trip $trip, int $index, string $state, Carbon $at, ?int $markedBy = null, array $sensors = [], int $required = 1): TripStopPass
     {
         $route = $trip->routeStopIds();
-        $pass = TripStopPass::firstOrCreate(['trip_id' => $trip->id, 'route_index' => $index], ['stop_id' => $route[$index] ?? null, 'passed_at' => $at]);
 
-        if ($markedBy !== null && $pass->wasRecentlyCreated) {
-            $pass->marked_by = $markedBy;
-            $pass->save();
+        for ($i = 0; $i < $index; $i++) {
+            if (! TripStopPass::where('trip_id', $trip->id)->where('route_index', $i)->exists()) {
+                $this->leaveStop($trip, $i, $at, $sensors, $required);
+            }
         }
 
-        if ($pass->wasRecentlyCreated && isset($route[$index])) {
-            $silent = fn ($q) => $q->whereNull('last_seen_at')->orWhere('last_seen_at', '<', $this->recentSince());
+        $pass = TripStopPass::firstOrCreate(['trip_id' => $trip->id, 'route_index' => $index],
+            ['stop_id' => $route[$index] ?? null, 'stop_state' => $state, 'passed_at' => $at, 'marked_by' => $markedBy]);
 
-            foreach ([TripPassenger::AT_STOP => TripPassenger::LEFT_BEHIND, TripPassenger::ON_THE_WAY => TripPassenger::LATE] as $from => $to) {
-                foreach (TripPassenger::where('trip_id', $trip->id)->where('stop_id', $route[$index])->where('state', $from)->where($silent)->get() as $passenger) {
-                    $passenger->forceFill(['state' => $to, 'state_at' => $pass->passed_at, 'set_by_server' => true])->save();
-                }
-            }
+        if (! $pass->wasRecentlyCreated && $state === TripStopPass::PICKED_UP && $pass->stop_state !== TripStopPass::PICKED_UP) {
+            $pass->forceFill(['stop_state' => $state, 'marked_by' => $markedBy ?? $pass->marked_by])->save();
+        } elseif (! $pass->wasRecentlyCreated && $markedBy !== null && $pass->marked_by === null) {
+            $pass->forceFill(['marked_by' => $markedBy])->save();
         }
 
         return $pass;
     }
 
     /**
-     * Detención de más de «Detención larga»: se avisa una vez a quienes están En la parada.
+     * El vehículo dejó atrás la parada $index (sensores, a mano o al empezar).
+     * Sin estado aún: Volada si los sensores lo vieron pasar dentro de su radio
+     * y, si no, Omitida. Si el teléfono de quien la esperaba (En Parada,
+     * Acercándose o Alejándose) no envía, el servidor lo pone No recogido o
+     * Llegada tarde (docs/11 §11.65 y §11.67); su teléfono, al volver a enviar,
+     * manda sobre esto.
+     *
+     * @param int[] $sensors
+     */
+    private function leaveStop(Trip $trip, int $index, Carbon $at, array $sensors = [], int $required = 1): void
+    {
+        $route = $trip->routeStopIds();
+        $pass = TripStopPass::where('trip_id', $trip->id)->where('route_index', $index)->first();
+
+        if (! $pass) {
+            $seen = $sensors ? DB::table('trip_stop_votes')->where('trip_id', $trip->id)->whereIn('user_id', $sensors)
+                ->where('kind', 'radio')->where('next_stop_index', $index)->distinct()->count('user_id') : 0;
+            $pass = $this->setStopState($trip, $index, $seen >= max(1, $required) ? TripStopPass::FLOWN : TripStopPass::SKIPPED, $at, null, $sensors, $required);
+        }
+
+        if ($pass->left_at !== null) {
+            return;
+        }
+
+        $pass->forceFill(['left_at' => $at->gt($pass->passed_at) ? $at : $pass->passed_at])->save();
+
+        if (! isset($route[$index])) {
+            return;
+        }
+
+        $silent = fn ($q) => $q->whereNull('last_seen_at')->orWhere('last_seen_at', '<', $this->recentSince());
+
+        foreach (TripPassenger::where('trip_id', $trip->id)->where('stop_id', $route[$index])
+            ->whereIn('state', TripPassenger::WAITING_STATES)->where($silent)->get() as $passenger) {
+            $to = $passenger->state === TripPassenger::AT_STOP ? TripPassenger::LEFT_BEHIND : TripPassenger::LATE;
+            $passenger->forceFill(['state' => $to, 'state_at' => $pass->left_at, 'set_by_server' => true, 'manual' => false])->save();
+        }
+    }
+
+    /**
+     * Detención de más de «Detención larga»: se avisa una vez a quienes están En Parada.
      */
     public function checkLongDetention(Trip $trip): void
     {
@@ -901,7 +984,7 @@ class Trips
             $trip->arrived_at = Carbon::now();
 
             if (! $trip->isOutbound()) {
-                $this->recordPass($trip, $count - 1, Carbon::now());
+                $this->setStopState($trip, $count - 1, TripStopPass::PICKED_UP, Carbon::now());
             }
 
             $this->finish($trip, 'llegada');
@@ -909,29 +992,25 @@ class Trips
     }
 
     /**
-     * Revisión periódica (tarea programada, cada minuto; docs/11 §11.44):
-     * - Planificado sin salir: se elimina pasado «Plazo eliminación» desde la
-     *   salida (o desde su último estado, si es posterior);
+     * Revisión periódica (tarea programada, cada minuto; docs/11 §11.44 y §11.67):
+     * - Planificado sin salir: pasa a Cancelado pasado «Plazo cancelación»
+     *   desde la salida;
      * - En ejecución: termina pasada «Duración máxima» desde que empezó, o
      *   pasada «Espera cierre» desde el último Dejado (en los dos sentidos);
      * - detenciones largas.
      *
-     * @return array{deleted: int, finished: int}
+     * @return array{cancelled: int, finished: int}
      */
     public function review(): array
     {
         $now = Carbon::now();
-        $deleted = 0;
+        $cancelled = 0;
         $finished = 0;
-        $deleteAfter = $this->settings->seconds('plazo_eliminacion');
+        $cancelAfter = $this->settings->seconds('plazo_cancelacion');
 
-        foreach (Trip::where('status', Trip::PLANNED)->where('departs_at', '<=', $now->copy()->subSeconds($deleteAfter))->get() as $trip) {
-            $from = $trip->status_changed_at && $trip->status_changed_at->gt($trip->departs_at) ? $trip->status_changed_at : $trip->departs_at;
-
-            if ($from->copy()->addSeconds($deleteAfter)->lte($now)) {
-                $this->delete($trip);
-                $deleted++;
-            }
+        foreach (Trip::where('status', Trip::PLANNED)->where('departs_at', '<=', $now->copy()->subSeconds($cancelAfter))->get() as $trip) {
+            $this->cancel($trip, 'plazo_cancelacion');
+            $cancelled++;
         }
 
         $maxDuration = $this->settings->seconds('duracion_maxima');
@@ -956,14 +1035,14 @@ class Trips
             $this->checkLongDetention($trip);
         }
 
-        return ['deleted' => $deleted, 'finished' => $finished];
+        return ['cancelled' => $cancelled, 'finished' => $finished];
     }
 
     /**
      * «Pasó por la parada X», a mano (docs/11 §11.61): el Jefe del itinerario
      * o el Administrador. Cuenta igual que la confirmación de los sensores:
      * hora de paso (también de las saltadas), avance de la próxima parada y,
-     * en los teléfonos, Retrasado / No recogido. Marcar la salida de un viaje
+     * en los teléfonos, Llegada tarde / No recogido. Marcar la salida de un viaje
      * Planificado lo pone En ejecución; pasar la parada final lo termina.
      */
     public function markStopPassed(User $actor, Trip $trip, int $index): Trip
@@ -988,8 +1067,11 @@ class Trips
         $now = Carbon::now();
 
         DB::transaction(function () use ($trip, $index, $now, $actor) {
+            // La marcada, Recogida; las anteriores que seguían En espera, Omitidas.
+            $this->setStopState($trip, $index, TripStopPass::PICKED_UP, $now, (int) $actor->id);
+
             for ($i = 0; $i <= $index; $i++) {
-                $this->recordPass($trip, $i, $now, $i === $index ? (int) $actor->id : null);
+                $this->leaveStop($trip, $i, $now);
             }
 
             if ($index + 1 > (int) $trip->next_stop_index) {
@@ -1057,14 +1139,15 @@ class Trips
         $passes = TripStopPass::where('trip_id', $trip->id)->get()->keyBy('route_index');
         $passengers = TripPassenger::where('trip_id', $trip->id)->get();
         $expected = $this->expectedQuery($trip)->get(['id', 'user_id', 'stop_id']);
-        $inVehicleState = TripPassenger::TRAVELLING;
-        $inVehicle = $passengers->where('state', $inVehicleState);
+        $inVehicle = $passengers->where('state', TripPassenger::TRAVELLING);
         $statesByStop = [];
 
-        // Cada parada: cuántos De camino, En la parada, Retrasado, No recogido y
-        // Dejado hay en ella (la parada detectada; docs/11 §11.65), en los dos sentidos.
+        // Cada parada: cuántos hay en cada estado (la parada detectada; docs/11
+        // §11.65), salvo Viajando; la app no muestra los Dejados en la ida ni los
+        // En Parada en el regreso (docs/11 §11.67).
         foreach ($passengers as $passenger) {
-            if ($passenger->stop_id !== null && in_array($passenger->state, TripPassenger::STOP_STATES, true)) {
+            if ($passenger->stop_id !== null && $passenger->state !== TripPassenger::TRAVELLING
+                && in_array($passenger->state, TripPassenger::STOP_STATES, true)) {
                 $statesByStop[$passenger->stop_id][$passenger->state] = ($statesByStop[$passenger->stop_id][$passenger->state] ?? 0) + 1;
             }
         }
@@ -1081,8 +1164,12 @@ class Trips
                 'street' => $stop?->street,
                 'latitude' => $stop?->latitude !== null ? (float) $stop->latitude : null,
                 'longitude' => $stop?->longitude !== null ? (float) $stop->longitude : null,
+                // Estado de la parada (docs/11 §11.67): en_espera, recogida, volada u omitida.
+                'state' => $pass?->stop_state ?? TripStopPass::WAITING,
                 'passed' => $pass !== null,
                 'passedAt' => $pass?->passed_at?->toIso8601String(),
+                // El vehículo ya la dejó atrás.
+                'left' => $pass !== null && $pass->left_at !== null,
                 'passedManually' => $pass !== null && $pass->marked_by !== null,
                 // Los que la tienen como parada habitual (para planificar).
                 'expected' => $expected->where('stop_id', $stopId)->count(),
@@ -1098,6 +1185,11 @@ class Trips
         $children = $inVehicle->sum(fn (TripPassenger $p) => $p->child_ids ? 0 : (int) $p->children_count) + $childIds;
         $cause = $trip->detention_cause_id ? DetentionCause::find($trip->detention_cause_id) : null;
         $capacity = VehicleType::find($trip->vehicle_type_id);
+        $sensorIds = $this->activeSensorIds($trip);
+        // Velocidad del vehículo: la mediana de lo que dicen los sensores activos (docs/11 §11.67).
+        $speeds = $sensorIds ? TripVehicleReport::where('trip_id', $trip->id)->whereIn('user_id', $sensorIds)->whereNotNull('speed')
+            ->pluck('speed')->map(fn ($v) => (float) $v)->sort()->values() : collect();
+        $speed = $speeds->isEmpty() ? null : round($speeds[intdiv($speeds->count(), 2)], 1);
 
         return [
             'type' => 'trip-lives',
@@ -1106,6 +1198,7 @@ class Trips
                 'direction' => $trip->direction,
                 'status' => $trip->status,
                 'departsAt' => $trip->departs_at->toIso8601String(),
+                'startedAt' => $trip->started_at?->toIso8601String(),
                 // Para la notificación del vehículo que compone la app (docs/11 §11.63).
                 'itineraryName' => Itinerary::find($trip->itinerary_id)?->name,
                 'vehicleTypeName' => $capacity?->name,
@@ -1115,10 +1208,11 @@ class Trips
                     'atStop' => (bool) $trip->vehicle_at_stop,
                     'nextStopIndex' => (int) $trip->next_stop_index,
                     'nextStopId' => isset($route[$trip->next_stop_index]) ? (string) $route[$trip->next_stop_index] : null,
+                    'speed' => $speed,
                     'longDetention' => $trip->long_detention_notified_at !== null,
                     'detentionCause' => $cause ? ['id' => (string) $cause->id, 'name' => $cause->name] : null,
                 ],
-                'sensors' => count($this->activeSensorIds($trip)),
+                'sensors' => count($sensorIds),
                 'inVehicle' => [
                     'workers' => $inVehicle->count(),
                     'children' => $children,
@@ -1127,7 +1221,7 @@ class Trips
                     'seats' => $capacity?->seats,
                 ],
                 'expectedPassengers' => $expected->count(),
-                'notGoing' => $passengers->where('state', TripPassenger::NOT_GOING)->count(),
+                'notGoing' => $passengers->where('state', TripPassenger::NOT_TRAVELLING)->count(),
                 'stops' => $line,
                 'myState' => $mine ? [
                     'state' => $mine->state,
@@ -1137,6 +1231,7 @@ class Trips
                     'stopName' => $myStop?->landmark,
                     'childrenCount' => (int) $mine->children_count,
                     'sensor' => $this->isSensorState($trip, $mine->state),
+                    'manual' => (bool) $mine->manual,
                     'setByServer' => (bool) $mine->set_by_server,
                 ] : null,
                 // Su parada habitual (opcional) y si viaja en este itinerario.

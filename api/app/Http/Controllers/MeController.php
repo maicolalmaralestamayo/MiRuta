@@ -36,14 +36,14 @@ class MeController extends Controller
     }
 
     /**
-     * Usuario, nombres, carné y contraseña. Cambiar la contraseña exige la
+     * Usuario, nombres, correo, sexo, nacimiento y contraseña. Cambiar la contraseña exige la
      * actual (meta.currentPassword), salvo si la puso otra persona; cierra las
      * demás sesiones.
      */
     public function update(Request $request, Accounts $accounts, Passwords $passwords)
     {
-        $data = $this->validateResource($request, 'users', UserController::nameRules('attributes.', false) + [
-            'attributes.identityCard' => ['sometimes', 'required', 'string', 'max:20'],
+        $data = $this->validateResource($request, 'users', UserController::nameRules('attributes.', false) + UserController::personRules() + [
+            'attributes.email' => ['sometimes', 'required', 'string', 'max:200'],
             'attributes.username' => ['sometimes', 'required', 'string', 'max:60'],
             'attributes.password' => ['sometimes', 'required', 'string'],
         ]);
@@ -55,11 +55,11 @@ class MeController extends Controller
                 $accounts->changeUsername($user, $attributes['username']);
             }
 
-            if (array_key_exists('identityCard', $attributes)) {
-                $accounts->changeIdentityCard($user, $attributes['identityCard']);
+            if (array_key_exists('email', $attributes)) {
+                $accounts->changeEmail($user, $attributes['email']);
             }
 
-            $user->fill(UserController::names($attributes));
+            $user->fill(UserController::names($attributes) + UserController::person($attributes));
             $user->save();
 
             if (array_key_exists('password', $attributes)) {

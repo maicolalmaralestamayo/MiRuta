@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Model;
  */
 class TripVehicleReport extends Model
 {
-    protected $fillable = ['trip_id', 'user_id', 'vehicle_state', 'at_stop', 'next_stop_index', 'reported_at'];
+    protected $fillable = ['trip_id', 'user_id', 'vehicle_state', 'at_stop', 'in_radius', 'next_stop_index', 'speed', 'reported_at'];
 
-    protected $casts = ['at_stop' => 'boolean', 'next_stop_index' => 'integer', 'reported_at' => 'datetime', 'user_id' => 'integer'];
+    protected $casts = ['at_stop' => 'boolean', 'in_radius' => 'boolean', 'speed' => 'float', 'next_stop_index' => 'integer', 'reported_at' => 'datetime', 'user_id' => 'integer'];
 }

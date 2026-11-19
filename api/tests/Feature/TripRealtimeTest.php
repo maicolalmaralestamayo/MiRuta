@@ -9,7 +9,6 @@ use App\Models\Trip;
 use App\Models\TripStopPass;
 use App\Services\Settings;
 use App\Services\Trips;
-use App\Support\IdentityCard;
 use Carbon\Carbon;
 use Tests\TestCase;
 
@@ -85,9 +84,8 @@ class TripRealtimeTest extends TestCase
         $this->report($c, $trip, ['vehicleState' => 'en_movimiento', 'nextStopIndex' => 2])
             ->assertJsonPath('data.attributes.stops.1.passed', true)->assertJsonPath('data.attributes.vehicle.nextStopIndex', 2);
 
-        // Se baja en la segunda parada: Dejado es definitivo.
+        // Se baja en la segunda parada.
         $this->report($a, $trip, ['workerState' => 'dejado', 'stopId' => $this->stops[1]])->assertJsonPath('data.attributes.stops.1.counts.dejado', 1);
-        $this->report($a, $trip, ['workerState' => 'viajando'])->assertJsonPath('meta.applied', false)->assertJsonPath('meta.reason', 'ESTADO_FINAL');
 
         // Con 2 sensores basta la mayoría de los que hay (2 de 2).
         $this->report($b, $trip, ['vehicleState' => 'en_movimiento', 'nextStopIndex' => 3]);
@@ -103,16 +101,18 @@ class TripRealtimeTest extends TestCase
         [$a] = $this->workers([1]);
         $at = Carbon::now()->toIso8601String();
 
-        $this->report($a, $trip, ['workerState' => 'de_camino', 'reportedAt' => $at])->assertJsonPath('meta.applied', true);
-        $this->report($a, $trip, ['workerState' => 'de_camino', 'reportedAt' => $at])->assertJsonPath('meta.applied', true);
+        $this->report($a, $trip, ['workerState' => 'acercandose', 'reportedAt' => $at])->assertJsonPath('meta.applied', true);
+        $this->report($a, $trip, ['workerState' => 'acercandose', 'reportedAt' => $at])->assertJsonPath('meta.applied', true);
         $this->report($a, $trip, ['workerState' => 'en_parada', 'reportedAt' => Carbon::now()->subMinute()->toIso8601String()])
             ->assertJsonPath('meta.applied', false)->assertJsonPath('meta.reason', 'INFORME_ANTERIOR');
         $this->report($a, $trip, ['workerState' => 'dejado_mal'])->assertStatus(422)->assertJsonPath('errors.0.code', 'WORKER_STATE_INVALID');
 
         // Con un solo trabajador esperado, basta él para empezar.
         $this->report($a, $trip, ['workerState' => 'viajando'])->assertJsonPath('data.attributes.status', 'en_ejecucion');
-        // Viajando solo puede pasar a Dejado.
-        $this->report($a, $trip, ['workerState' => 'no_voy'])->assertJsonPath('meta.reason', 'TRANSICION_NO_PERMITIDA');
+        // Todos los estados se pueden poner a mano en cualquier momento (docs/11 §11.67).
+        $this->report($a, $trip, ['events' => [['kind' => 'worker', 'state' => 'no_viajare', 'manual' => true, 'capturedAt' => Carbon::now()->toIso8601String()]]])
+            ->assertJsonPath('meta.applied', true)->assertJsonPath('data.attributes.myState.state', 'no_viajare')
+            ->assertJsonPath('data.attributes.myState.manual', true)->assertJsonPath('data.attributes.myState.stopId', null);
 
         // Quien no es del itinerario no informa.
         $this->report($this->createWorker($this->entity), $trip, ['workerState' => 'en_parada'])->assertNotFound();
@@ -123,8 +123,7 @@ class TripRealtimeTest extends TestCase
     {
         $trip = $this->trip();
         [$a, $b] = $this->workers([1, 2]);
-        $card = IdentityCard::make(Carbon::now()->subYears(8)->toDateString(), 'F', 7);
-        $child = Child::create(IdentityCard::columns($card) + ['first_name' => 'Niña', 'first_surname' => 'A', 'second_surname' => 'B']);
+        $child = Child::create(['birth_date' => Carbon::now()->subYears(8)->toDateString(), 'sex' => 'F', 'first_name' => 'Niña', 'first_surname' => 'A', 'second_surname' => 'B']);
         ChildParent::create(['child_id' => $child->id, 'user_id' => $a->user_id]);
         ChildParent::create(['child_id' => $child->id, 'user_id' => $b->user_id]);
 
@@ -149,7 +148,8 @@ class TripRealtimeTest extends TestCase
         foreach ([$a, $b, $c] as $w) {
             $response = $this->report($w, $trip, ['workerState' => 'viajando']);
         }
-        $response->assertJsonPath('data.attributes.status', 'en_ejecucion')->assertJsonPath('data.attributes.stops.1.counts.en_parada', 1);
+        $response->assertJsonPath('data.attributes.status', 'en_ejecucion')->assertJsonPath('data.attributes.stops.1.counts.en_parada', 1)
+            ->assertJsonPath('data.attributes.stops.0.state', 'recogida')->assertJsonPath('data.attributes.stops.1.state', 'en_espera');
 
         // Detención larga: se avisa a quien está En la parada, y luego que sigue.
         foreach ([$a, $b, $c] as $w) {
@@ -179,7 +179,8 @@ class TripRealtimeTest extends TestCase
             $this->report($w, $trip, ['vehicleState' => 'detenido', 'atStop' => true, 'nextStopIndex' => 1]);
         }
         $this->assertSame(1, Notification::where('user_id', $waiting->user_id)->where('kind', 'vehiculo_en_parada')->count());
-        $this->report($waiting, $trip, ['workerState' => 'viajando']);
+        // Se detuvo en ella: Recogida (docs/11 §11.67).
+        $this->report($waiting, $trip, ['workerState' => 'viajando'])->assertJsonPath('data.attributes.stops.1.state', 'recogida');
 
         // Pasa la parada intermedia y se detiene en la primera: termina.
         foreach ([$a, $b, $c, $waiting] as $w) {
@@ -208,7 +209,7 @@ class TripRealtimeTest extends TestCase
             ->assertJsonPath('data.attributes.vehicle.state', 'detenido');
     }
 
-    public function test_plazos_eliminacion_duracion_maxima_y_espera_cierre(): void
+    public function test_plazos_cancelacion_duracion_maxima_y_espera_cierre(): void
     {
         $trips = app(Trips::class);
         $planned = $this->trip('ida', '07:00');
@@ -216,12 +217,13 @@ class TripRealtimeTest extends TestCase
         $trips->start($running);
 
         Carbon::setTestNow(Carbon::now()->addHours(4));
-        $this->assertSame(['deleted' => 0, 'finished' => 0], $trips->review());
+        $this->assertSame(['cancelled' => 0, 'finished' => 0], $trips->review());
 
-        // Plazo eliminación (5 h desde la salida) y Duración máxima (5 h desde que empezó).
+        // Plazo cancelación (5 h desde la salida) y Duración máxima (5 h desde que empezó).
         Carbon::setTestNow(Carbon::now()->addHours(1)->addMinute());
-        $this->assertSame(['deleted' => 1, 'finished' => 1], $trips->review());
-        $this->assertNull(Trip::find($planned->id));
+        $this->assertSame(['cancelled' => 1, 'finished' => 1], $trips->review());
+        $this->assertSame(Trip::CANCELLED, $planned->fresh()->status);
+        $this->assertSame('plazo_cancelacion', $planned->fresh()->finish_reason);
         $this->assertSame('duracion_maxima', $running->fresh()->finish_reason);
 
         // Espera cierre: 2 h tras el último Dejado sin llegar a la última parada.

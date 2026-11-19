@@ -14,27 +14,34 @@ class AuthTest extends TestCase
 
         $document = fn (string $username) => self::resource('users', [
             'firstName' => 'Maicol', 'firstSurname' => 'Almarales', 'secondSurname' => 'Tamayo',
-            'identityCard' => $this->newIdentityCard(), 'username' => $username, 'password' => 'Clave.Segura1',
+            'email' => $username.'@correo.cu', 'username' => $username, 'password' => 'Clave.Segura1',
         ]);
 
         $this->jsonApi('POST', '/api/v1/users', $document('maicol'))->assertCreated()
             ->assertHeader('Content-Type', 'application/vnd.api+json')
             ->assertJsonPath('data.attributes.isAdmin', true)
-            ->assertJsonPath('data.attributes.username', 'maicol');
+            ->assertJsonPath('data.attributes.username', 'maicol')
+            // Sin carné (docs/11 §11.67): correo y sexo por omisión Masculino.
+            ->assertJsonPath('data.attributes.email', 'maicol@correo.cu')->assertJsonPath('data.attributes.sex', 'M');
 
         $this->jsonApi('POST', '/api/v1/users', $document('otro'))->assertCreated()->assertJsonPath('data.attributes.isAdmin', false);
         $this->jsonApi('GET', '/api/v1/registration-status')->assertJsonPath('data.attributes.adminExists', true);
     }
 
-    public function test_carne_repetido_da_el_texto_acordado(): void
+    public function test_correo_repetido_da_el_texto_acordado_y_se_valida(): void
     {
-        $card = $this->newIdentityCard();
-        $this->createUser(['identity_card' => $card]);
+        $this->createUser(['email' => 'ana@correo.cu']);
+        $document = fn (string $email) => self::resource('users', [
+            'firstName' => 'Ana', 'firstSurname' => 'Pérez', 'secondSurname' => 'Gil', 'sex' => 'F', 'birthDate' => '1990-05-04',
+            'email' => $email, 'username' => 'ana.perez', 'password' => 'Clave.Segura1',
+        ]);
 
-        $this->jsonApi('POST', '/api/v1/users', self::resource('users', [
-            'firstName' => 'Ana', 'firstSurname' => 'Pérez', 'secondSurname' => 'Gil',
-            'identityCard' => $card, 'username' => 'ana.perez', 'password' => 'Clave.Segura1',
-        ]))->assertStatus(409)->assertJsonPath('errors.0.code', 'IDENTITY_CARD_TAKEN');
+        $this->jsonApi('POST', '/api/v1/users', $document(' ANA@correo.cu '))->assertStatus(409)->assertJsonPath('errors.0.code', 'EMAIL_TAKEN')
+            ->assertJsonPath('errors.0.detail', \App\Services\Accounts::EMAIL_TAKEN);
+        $this->jsonApi('POST', '/api/v1/users', $document('ana.correo.cu'))->assertStatus(422)->assertJsonPath('errors.0.code', 'EMAIL_INVALID');
+        $this->jsonApi('POST', '/api/v1/users', $document('Ana.Perez@Correo.cu'))->assertCreated()
+            ->assertJsonPath('data.attributes.email', 'ana.perez@correo.cu')->assertJsonPath('data.attributes.sex', 'F')
+            ->assertJsonPath('data.attributes.birthDate', '1990-05-04');
     }
 
     public function test_inicio_de_sesion_renovacion_y_cierre(): void

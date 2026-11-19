@@ -69,6 +69,7 @@ return new class extends Migration
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
             $table->foreignId('entity_id')->constrained()->cascadeOnDelete();
             $table->boolean('active')->default(true);
+            $table->unsignedBigInteger('simulation_id')->nullable()->index()->comment('Creado por el simulador (docs/11 §11.66)');
             $table->timestamps();
             $table->unique(['user_id', 'entity_id']);
         });
@@ -82,14 +83,17 @@ return new class extends Migration
             $table->foreignId('itinerary_id')->constrained()->cascadeOnDelete();
             $table->foreignId('stop_id')->nullable()->constrained()->nullOnDelete();
             $table->boolean('is_chief')->default(false)->comment('Jefe de este itinerario (de uno solo por persona)');
+            $table->unsignedBigInteger('simulation_id')->nullable()->index()->comment('Creado por el simulador (docs/11 §11.66)');
             $table->timestamps();
             $table->unique(['user_id', 'itinerary_id']);
             $table->index(['itinerary_id', 'stop_id']);
         });
 
+        // Ausencia de la persona en uno o varios de sus itinerarios (docs/11 §11.61).
         Schema::create('absences', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('worker_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('user_id')->nullable()->comment('La persona ausente')->constrained()->cascadeOnDelete();
+            $table->foreignId('worker_id')->nullable()->comment('Sin uso desde la 4.2.0')->constrained()->nullOnDelete();
             $table->foreignId('absence_type_id')->constrained();
             $table->date('starts_on');
             $table->date('ends_on')->nullable()->comment('NULL = indefinida');
@@ -98,15 +102,22 @@ return new class extends Migration
             $table->index(['worker_id', 'starts_on']);
         });
 
+        Schema::create('absence_itinerary', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('absence_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('itinerary_id')->constrained()->cascadeOnDelete();
+            $table->unique(['absence_id', 'itinerary_id']);
+            $table->index('itinerary_id');
+        });
+
+        // Sin carné desde la 5.0.0 (docs/11 §11.67): sexo y nacimiento a mano.
         Schema::create('children', function (Blueprint $table) {
             $table->id();
-            $table->text('identity_card_encrypted');
-            $table->char('identity_card_hash', 64)->unique();
             $table->string('first_name', 50);
             $table->string('middle_name', 50)->nullable();
             $table->string('first_surname', 50);
             $table->string('second_surname', 50);
-            $table->enum('sex', ['F', 'M']);
+            $table->enum('sex', ['F', 'M'])->default('M');
             $table->date('birth_date');
             $table->string('photo_path')->nullable();
             $table->boolean('active')->default(true);
@@ -129,7 +140,9 @@ return new class extends Migration
             $table->foreignId('entity_id')->constrained()->cascadeOnDelete();
             $table->foreignId('itinerary_id')->nullable()->constrained()->cascadeOnDelete();
             $table->foreignId('stop_id')->nullable()->constrained()->nullOnDelete();
-            $table->foreignId('denial_reason_id')->nullable()->constrained();
+            $table->foreignId('denial_reason_id')->nullable()->comment('Solo la 4.3.0')->constrained();
+            $table->foreignId('entity_denial_reason_id')->nullable()->comment('Motivo (solicitud de Entidad)')->constrained()->nullOnDelete();
+            $table->foreignId('itinerary_denial_reason_id')->nullable()->comment('Motivo (solicitud de itinerario)')->constrained()->nullOnDelete();
             $table->text('resolution_note')->nullable();
             $table->foreignId('resolved_by')->nullable()->constrained('users')->nullOnDelete();
             $table->dateTime('resolved_at')->nullable();
@@ -141,7 +154,7 @@ return new class extends Migration
 
     public function down(): void
     {
-        foreach (['applications', 'child_parents', 'children', 'absences', 'worker_itineraries', 'workers', 'itinerary_stop', 'stops', 'itineraries', 'entities'] as $name) {
+        foreach (['applications', 'child_parents', 'children', 'absence_itinerary', 'absences', 'worker_itineraries', 'workers', 'itinerary_stop', 'stops', 'itineraries', 'entities'] as $name) {
             Schema::dropIfExists($name);
         }
     }

@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Crypt;
 
 /**
- * Solicitud «Olvidé algo» (docs/11 §11.7): carné y teléfono.
+ * Solicitud «Olvidé algo» (docs/11 §11.7 y §11.67): correo y teléfono.
  */
 class AccessRecovery extends Model
 {
@@ -19,12 +19,12 @@ class AccessRecovery extends Model
     const STATUS_EXPIRED = 'expired';
 
     protected $fillable = [
-        'installation_id', 'forgot_username', 'forgot_password', 'identity_card_encrypted', 'identity_card_hash',
+        'installation_id', 'forgot_username', 'forgot_password', 'email',
         'phone_encrypted', 'user_id', 'status', 'resolved_by', 'resolved_at',
         'password_encrypted', 'expires_at', 'completed_at',
     ];
 
-    protected $hidden = ['phone_encrypted', 'password_encrypted', 'identity_card_encrypted', 'identity_card_hash'];
+    protected $hidden = ['phone_encrypted', 'password_encrypted'];
 
     protected $casts = [
         'forgot_username' => 'boolean',
@@ -54,11 +54,6 @@ class AccessRecovery extends Model
         return $this->phone_encrypted ? Crypt::decryptString($this->phone_encrypted) : null;
     }
 
-    public function identityCard(): ?string
-    {
-        return $this->identity_card_encrypted ? Crypt::decryptString($this->identity_card_encrypted) : null;
-    }
-
     /**
      * Contraseña propuesta al aprobar (solo mientras está aprobada).
      */
@@ -80,7 +75,6 @@ class AccessRecovery extends Model
         $this->forceFill([
             'status' => $status,
             'phone_encrypted' => null,
-            'identity_card_encrypted' => null,
             'password_encrypted' => null,
             'completed_at' => $status === self::STATUS_COMPLETED ? Carbon::now() : $this->completed_at,
         ])->save();

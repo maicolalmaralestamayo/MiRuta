@@ -53,7 +53,8 @@ class MaintenanceTest extends TestCase
             'status' => Trip::PLANNED, 'status_changed_at' => Carbon::now()->subHours(6)]);
         $output = $run('run-tasks')->assertCreated()->assertJsonPath('data.attributes.ok', true)->json('data.attributes.output');
         $this->assertStringContainsString('viajes:revisar: bien', $output);
-        $this->assertNull(Trip::find($trip->id));
+        // Pasado «Plazo cancelación» (5 h), Planificado → Cancelado (docs/11 §11.67).
+        $this->assertSame(Trip::CANCELLED, Trip::find($trip->id)->status);
         $this->assertSame('No había tareas pendientes.', $run('run-tasks')->json('data.attributes.output'));
     }
 

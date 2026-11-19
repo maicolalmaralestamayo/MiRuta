@@ -6,6 +6,10 @@ use Illuminate\Support\Facades\Schema;
 
 /**
  * Personas, sesiones e instalaciones de la app (docs/11 §11.2 a §11.7).
+ *
+ * Versión 5.0.0 (docs/11 §11.67): se instala sobre una base de datos vacía.
+ * Sin carné de identidad: la persona se identifica por su correo electrónico
+ * (único en toda la base de datos) y el sexo se introduce a mano.
  */
 return new class extends Migration
 {
@@ -21,13 +25,13 @@ return new class extends Migration
             $table->string('middle_name', 50)->nullable();
             $table->string('first_surname', 50);
             $table->string('second_surname', 50);
-            $table->text('identity_card_encrypted')->comment('Carné de identidad cifrado');
-            $table->char('identity_card_hash', 64)->unique()->comment('HMAC del carné: para buscarlo y que no se repita');
-            $table->enum('sex', ['F', 'M'])->comment('Sale del carné');
-            $table->date('birth_date')->comment('Sale del carné');
+            $table->string('email', 150)->unique()->comment('Correo electrónico, en minúsculas; único');
+            $table->enum('sex', ['F', 'M'])->default('M')->comment('A mano (por omisión Masculino)');
+            $table->date('birth_date')->nullable()->comment('Opcional');
             $table->string('photo_path')->nullable();
             $table->boolean('is_admin')->default(false)->comment('Administrador (rol fijo)');
             $table->unsignedInteger('app_version_code')->nullable()->comment('Versión de la app (cabecera X-App-Version)');
+            $table->unsignedBigInteger('simulation_id')->nullable()->index()->comment('Creado por el simulador (docs/11 §11.66)');
             $table->timestamps();
         });
 

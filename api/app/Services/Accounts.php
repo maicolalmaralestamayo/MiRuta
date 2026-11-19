@@ -7,14 +7,15 @@ use App\Models\Entity;
 use App\Models\ReleasedUsername;
 use App\Models\User;
 use App\Models\Worker;
-use App\Support\IdentityCard;
+use App\Support\Email;
 use App\Support\Username;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Personas: registro, registro por el Administrador, usuario y carné
- * (docs/11 §11.2, §11.4 y §11.5).
+ * Personas: registro, registro por el Administrador, usuario y correo
+ * electrónico (docs/11 §11.2, §11.4, §11.5 y §11.67: el correo sustituye al
+ * carné de identidad y es único en toda la base de datos).
  */
 class Accounts
 {
@@ -24,8 +25,8 @@ class Accounts
      */
     const TRANSACTION_ATTEMPTS = 3;
 
-    /** Texto exacto de docs/11 §11.5. */
-    const IDENTITY_CARD_TAKEN = 'Alguien ya se registró con este carné de identidad. Si fue usted, emplee la opción Olvidé algo. '
+    /** Texto de docs/11 §11.5, con el correo en lugar del carné (§11.67). */
+    const EMAIL_TAKEN = 'Alguien ya se registró con este correo electrónico. Si fue usted, emplee la opción Olvidé algo. '
         .'Si no fue usted, comuníquese con el Administrador de la aplicación o con su Jefe de itinerario.';
 
     public function __construct(private Passwords $passwords, private Memberships $memberships)
@@ -36,19 +37,19 @@ class Accounts
      * Registro de la propia persona, sin Entidad. Si aún no hay
      * Administrador, quien se registra lo es (comprobado con bloqueo).
      *
-     * @param array $names [first_name, middle_name, first_surname, second_surname]
+     * @param array $names [first_name, middle_name, first_surname, second_surname, sex?, birth_date?]
      */
-    public function register(array $names, string $identityCard, string $username, string $password): User
+    public function register(array $names, string $email, string $username, string $password): User
     {
-        $card = IdentityCard::validated($identityCard);
-        $this->ensureIdentityCardFree($card);
+        $email = Email::validated($email);
+        $this->ensureEmailFree($email);
         $username = $this->ensureUsernameAvailable($username);
-        $this->passwords->validate($password, array_merge([$username], array_values($names)));
+        $this->passwords->validate($password, array_merge([$username], self::passwordWords($names)));
 
-        return DB::transaction(function () use ($names, $card, $username, $password) {
+        return DB::transaction(function () use ($names, $email, $username, $password) {
             $adminExists = User::where('is_admin', true)->lockForUpdate()->exists();
             $user = new User();
-            $user->forceFill($names + IdentityCard::columns($card) + [
+            $user->forceFill($names + ['email' => $email, 'sex' => 'M'] + [
                 'username' => $username,
                 'password' => '',
                 'is_admin' => ! $adminExists,
@@ -66,20 +67,20 @@ class Accounts
 
     /**
      * El Administrador registra a una persona en una
-     * Entidad. Si el carné ya existe no se crea otra cuenta: se le añade la
+     * Entidad. Si el correo ya existe no se crea otra cuenta: se le añade la
      * Entidad, ya aprobada. Usuario y contraseña se proponen si faltan; la
      * contraseña hay que cambiarla al entrar.
      *
      * @return array ['worker' => Worker, 'created' => bool, 'username' => ?string, 'password' => ?string]
      */
-    public function registerByAdmin(Entity $entity, array $names, string $identityCard, ?string $username, ?string $password): array
+    public function registerByAdmin(Entity $entity, array $names, string $email, ?string $username, ?string $password): array
     {
-        $card = IdentityCard::validated($identityCard);
-        $existing = User::findByIdentityCard($card);
+        $email = Email::validated($email);
+        $existing = User::findByEmail($email);
 
         if ($existing) {
             if (Worker::where('user_id', $existing->id)->where('entity_id', $entity->id)->exists()) {
-                throw JsonApiException::conflict('ALREADY_MEMBER', 'Esa persona ya pertenece a la Entidad.', '/data/attributes/identityCard');
+                throw JsonApiException::conflict('ALREADY_MEMBER', 'Esa persona ya pertenece a la Entidad.', '/data/attributes/email');
             }
 
             $worker = $this->memberships->join($existing, $entity);
@@ -91,11 +92,11 @@ class Accounts
             ? $this->ensureUsernameAvailable($username)
             : Username::suggest($names['first_name'] ?? null, $names['middle_name'] ?? null, $names['first_surname'] ?? null, $names['second_surname'] ?? null);
         $password = $password !== null && $password !== '' ? $password : $this->passwords->suggest();
-        $this->passwords->validate($password, array_merge([$username], array_values($names)));
+        $this->passwords->validate($password, array_merge([$username], self::passwordWords($names)));
 
-        return DB::transaction(function () use ($entity, $names, $card, $username, $password) {
+        return DB::transaction(function () use ($entity, $names, $email, $username, $password) {
             $user = new User();
-            $user->forceFill($names + IdentityCard::columns($card) + [
+            $user->forceFill($names + ['email' => $email, 'sex' => 'M'] + [
                 'username' => $username,
                 'password' => '',
                 'is_admin' => false,
@@ -109,31 +110,37 @@ class Accounts
         });
     }
 
-    /**
-     * El carné no lo tiene ya otra persona (409 IDENTITY_CARD_TAKEN).
-     */
-    public function ensureIdentityCardFree(string $card, ?User $except = null, string $pointer = '/data/attributes/identityCard'): void
+    /** Palabras que la contraseña no puede contener (nombres y apellidos). */
+    private static function passwordWords(array $names): array
     {
-        $other = User::findByIdentityCard($card);
+        return array_values(array_intersect_key($names, array_flip(['first_name', 'middle_name', 'first_surname', 'second_surname'])));
+    }
+
+    /**
+     * El correo no lo tiene ya otra persona (409 EMAIL_TAKEN).
+     */
+    public function ensureEmailFree(string $email, ?User $except = null, string $pointer = '/data/attributes/email'): void
+    {
+        $other = User::findByEmail($email);
 
         if ($other && (! $except || (int) $other->id !== (int) $except->id)) {
-            throw JsonApiException::conflict('IDENTITY_CARD_TAKEN', self::IDENTITY_CARD_TAKEN, $pointer);
+            throw JsonApiException::conflict('EMAIL_TAKEN', self::EMAIL_TAKEN, $pointer);
         }
     }
 
     /**
-     * Cambia el carné (y con él el sexo y la fecha de nacimiento).
+     * Cambia el correo electrónico.
      */
-    public function changeIdentityCard(User $user, $identityCard, string $pointer = '/data/attributes/identityCard'): void
+    public function changeEmail(User $user, $email, string $pointer = '/data/attributes/email'): void
     {
-        $card = IdentityCard::validated($identityCard, $pointer);
+        $email = Email::validated($email, $pointer);
 
-        if (IdentityCard::hash($card) === $user->identity_card_hash) {
+        if ($email === $user->email) {
             return;
         }
 
-        $this->ensureIdentityCardFree($card, $user, $pointer);
-        $user->forceFill(IdentityCard::columns($card))->save();
+        $this->ensureEmailFree($email, $user, $pointer);
+        $user->forceFill(['email' => $email])->save();
     }
 
     /**

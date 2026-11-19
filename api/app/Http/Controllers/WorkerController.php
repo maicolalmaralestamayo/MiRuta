@@ -101,9 +101,10 @@ class WorkerController extends Controller
     /**
      * Solo el Administrador:
      * - persona existente (relationships.user) en una Entidad (también él mismo);
-     * - persona nueva: nombres, carné y, si quiere, usuario y contraseña (si
-     *   no, se proponen; se devuelven en meta para comunicárselos). Si el carné
-     *   ya existe, no se crea otra cuenta: se le añade la Entidad.
+     * - persona nueva: nombres, correo electrónico, sexo y, si quiere, fecha de
+     *   nacimiento, usuario y contraseña (si no, se proponen; se devuelven en
+     *   meta para comunicárselos). Si el correo ya existe, no se crea otra
+     *   cuenta: se le añade la Entidad.
      * Con relationships.itinerary (de esa Entidad) y relationships.stop se le
      * añade además ese itinerario. Sin usuario o contraseña, el sistema los
      * genera (se devuelven en meta).
@@ -115,8 +116,8 @@ class WorkerController extends Controller
             + $this->relationshipRules('user', 'users', 'users', false)
             + $this->relationshipRules('itinerary', 'itineraries', 'itineraries', false)
             + $this->relationshipRules('stop', 'stops', 'stops', false)
-            + UserController::nameRules('attributes.', false) + [
-                'attributes.identityCard' => ['sometimes', 'string', 'max:20'],
+            + UserController::nameRules('attributes.', false) + UserController::personRules() + [
+                'attributes.email' => ['sometimes', 'string', 'max:200'],
                 'attributes.username' => ['sometimes', 'nullable', 'string', 'max:60'],
                 'attributes.password' => ['sometimes', 'nullable', 'string'],
             ]);
@@ -135,15 +136,15 @@ class WorkerController extends Controller
 
                 $worker = $this->memberships->join($user, $entity);
             } else {
-                foreach (['firstName', 'firstSurname', 'secondSurname', 'identityCard'] as $field) {
+                foreach (['firstName', 'firstSurname', 'secondSurname', 'email'] as $field) {
                     if (empty($attributes[$field])) {
                         throw new JsonApiException(422, 'VALIDATION_ERROR', 'Faltan datos',
-                            'Para registrar a una persona hacen falta sus nombres, sus apellidos y su carné (o relationships.user si ya tiene cuenta).',
+                            'Para registrar a una persona hacen falta sus nombres, sus apellidos y su correo (o relationships.user si ya tiene cuenta).',
                             ['pointer' => '/data/attributes/'.$field]);
                     }
                 }
 
-                $result = $accounts->registerByAdmin($entity, UserController::names($attributes), $attributes['identityCard'],
+                $result = $accounts->registerByAdmin($entity, UserController::names($attributes) + UserController::person($attributes), $attributes['email'],
                     $attributes['username'] ?? null, $attributes['password'] ?? null);
                 $worker = $result['worker'];
                 $meta = ['created' => $result['created'], 'username' => $result['username'], 'password' => $result['password']];

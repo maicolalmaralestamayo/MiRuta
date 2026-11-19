@@ -178,22 +178,23 @@ class ManagementTest extends TestCase
         $this->jsonApiAs($worker, 'PATCH', "/api/v1/stops/{$first}", self::resource('stops', ['landmark' => 'X']))->assertForbidden();
     }
 
-    public function test_el_administrador_registra_personas_y_si_el_carne_existe_le_anade_la_entidad(): void
+    public function test_el_administrador_registra_personas_y_si_el_correo_existe_le_anade_la_entidad(): void
     {
         $admin = $this->createAdmin();
         $entity = $this->createEntity();
         $other = $this->createEntity('OTRA');
-        $card = $this->newIdentityCard();
+        $card = 'ana.perez@correo.cu';
 
         $response = $this->jsonApiAs($admin, 'POST', '/api/v1/workers', self::resource('workers', [
-            'firstName' => 'Ana', 'firstSurname' => 'Pérez', 'secondSurname' => 'Gil', 'identityCard' => $card,
+            'firstName' => 'Ana', 'firstSurname' => 'Pérez', 'secondSurname' => 'Gil', 'email' => $card, 'sex' => 'F',
         ], ['entity' => ['entities', $entity->id]]))->assertCreated()->assertJsonPath('meta.created', true);
         $this->assertSame('ana', $response->json('meta.username'));
         $this->assertNotEmpty($response->json('meta.password'));
         $this->assertTrue(User::where('username', 'ana')->first()->must_change_password);
+        $this->assertSame('F', User::where('username', 'ana')->first()->sex);
 
         $this->jsonApiAs($admin, 'POST', '/api/v1/workers', self::resource('workers', [
-            'firstName' => 'Ana', 'firstSurname' => 'Pérez', 'secondSurname' => 'Gil', 'identityCard' => $card,
+            'firstName' => 'Ana', 'firstSurname' => 'Pérez', 'secondSurname' => 'Gil', 'email' => strtoupper($card),
         ], ['entity' => ['entities', $other->id]]))->assertCreated()->assertJsonPath('meta.created', false);
         $this->assertSame(1, User::count() - 1);
         $this->assertSame(2, Worker::count());
@@ -307,7 +308,7 @@ class ManagementTest extends TestCase
         $this->jsonApiAs($chief, 'DELETE', "/api/v1/worker-itineraries/{$this->placement($outsider, $itinerary)->id}")->assertNoContent();
     }
 
-    public function test_quien_ve_que_personas_y_quien_ve_el_carne(): void
+    public function test_quien_ve_que_personas_y_quien_ve_el_correo(): void
     {
         $admin = $this->createAdmin();
         $entity = $this->createEntity();
@@ -322,10 +323,10 @@ class ManagementTest extends TestCase
         $this->assertCount(3, $this->jsonApiAs($colleague, "GET", "/api/v1/workers?filter[entity]={$entity->id}")->json("data"));
         $this->assertCount(4, $this->jsonApiAs($admin, "GET", "/api/v1/workers?filter[entity]={$entity->id}")->json("data"));
         $this->jsonApiAs($colleague, 'GET', "/api/v1/users/{$foreign->user_id}")->assertNotFound();
-        $this->assertArrayNotHasKey('identityCard', $this->jsonApiAs($colleague, 'GET', "/api/v1/users/{$member->user_id}")->json('data.attributes'));
-        $this->assertArrayHasKey('identityCard', $this->jsonApiAs($chief, 'GET', "/api/v1/users/{$member->user_id}")->json('data.attributes'));
-        $this->assertArrayNotHasKey('identityCard', $this->jsonApiAs($chief, 'GET', "/api/v1/users/{$colleague->user_id}")->json('data.attributes'));
-        $this->assertArrayHasKey('identityCard', $this->jsonApiAs($admin, 'GET', "/api/v1/users/{$colleague->user_id}")->json('data.attributes'));
+        $this->assertArrayNotHasKey('email', $this->jsonApiAs($colleague, 'GET', "/api/v1/users/{$member->user_id}")->json('data.attributes'));
+        $this->assertArrayHasKey('email', $this->jsonApiAs($chief, 'GET', "/api/v1/users/{$member->user_id}")->json('data.attributes'));
+        $this->assertArrayNotHasKey('email', $this->jsonApiAs($chief, 'GET', "/api/v1/users/{$colleague->user_id}")->json('data.attributes'));
+        $this->assertArrayHasKey('email', $this->jsonApiAs($admin, 'GET', "/api/v1/users/{$colleague->user_id}")->json('data.attributes'));
 
         // «Sin Entidad», solo el Administrador.
         $this->jsonApiAs($colleague, 'GET', '/api/v1/users?filter[entity]=none')->assertForbidden();
@@ -333,8 +334,8 @@ class ManagementTest extends TestCase
         $this->assertContains((string) $loner->id, $ids);
         $this->assertContains((string) $admin->id, $ids);
 
-        // Búsqueda por nombre, usuario o carné; filtros «Sin itinerario».
-        $this->assertCount(1, $this->jsonApiAs($admin, 'GET', '/api/v1/workers?filter[search]='.User::find($member->user_id)->identityCard())->json('data'));
+        // Búsqueda por nombre, usuario o correo; filtros «Sin itinerario».
+        $this->assertCount(1, $this->jsonApiAs($admin, 'GET', '/api/v1/workers?filter[search]='.User::find($member->user_id)->email)->json('data'));
         $this->assertCount(2, $this->jsonApiAs($admin, 'GET', "/api/v1/workers?filter[entity]={$entity->id}&filter[itinerary]=none")->json('data'));
         $this->assertSame((string) $member->user_id, $this->jsonApiAs($admin, 'GET', "/api/v1/workers?filter[itinerary]={$itinerary->id}&filter[stop]={$itinerary->stopIds()[0]}&include=user")->json('included.0.id'));
     }

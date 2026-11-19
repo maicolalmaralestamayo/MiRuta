@@ -58,13 +58,16 @@ class ChildController extends Controller
     }
 
     /**
-     * Añade un hijo por su carné. Si ya lo tiene declarado otra persona, se le
-     * vincula igualmente y meta.alreadyDeclared = true.
+     * Añade un hijo: nombres, sexo (por omisión Masculino) y fecha de
+     * nacimiento (docs/11 §11.67, sin carné). Si ya lo tiene declarado otra
+     * persona (mismos nombres y fecha de nacimiento), se le vincula igualmente
+     * y meta.alreadyDeclared = true.
      */
     public function store(Request $request)
     {
         $data = $this->validateResource($request, 'children', UserController::nameRules() + [
-            'attributes.identityCard' => ['required', 'string', 'max:20'],
+            'attributes.sex' => ['sometimes', 'in:F,M'],
+            'attributes.birthDate' => ['required', 'date_format:Y-m-d', 'before_or_equal:today'],
         ] + $this->relationshipRules('parent', 'users', 'users', false));
         $user = $request->user();
         $parentId = $this->relationshipId($data, 'parent') ?? (int) $user->id;
@@ -73,7 +76,8 @@ class ChildController extends Controller
             $this->access->requireAdmin($user, 'Solo puede añadir sus propios hijos.');
         }
 
-        [$child, $alreadyDeclared] = $this->children->add(User::findOrFail($parentId), UserController::names($data['attributes']), $data['attributes']['identityCard']);
+        [$child, $alreadyDeclared] = $this->children->add(User::findOrFail($parentId), UserController::names($data['attributes'])
+            + ['sex' => $data['attributes']['sex'] ?? 'M', 'birth_date' => $data['attributes']['birthDate']]);
         $document = (new Document($request))->resource($child);
         $document['meta'] = ['alreadyDeclared' => $alreadyDeclared]
             + ($alreadyDeclared ? ['notice' => 'Ese niño ya está declarado por otra persona. Se le asignó también a usted.'] : []);
@@ -85,11 +89,13 @@ class ChildController extends Controller
     {
         $child = $this->manageable($request, $id);
         $data = $this->validateResource($request, 'children', UserController::nameRules('attributes.', false) + [
-            'attributes.identityCard' => ['sometimes', 'required', 'string', 'max:20'],
+            'attributes.sex' => ['sometimes', 'in:F,M'],
+            'attributes.birthDate' => ['sometimes', 'required', 'date_format:Y-m-d', 'before_or_equal:today'],
             'attributes.active' => ['sometimes', 'boolean'],
         ]);
         $attributes = $data['attributes'] ?? [];
-        $child = $this->children->update($child, UserController::names($attributes), $attributes['identityCard'] ?? null,
+        $person = array_filter(UserController::person($attributes), fn ($v) => $v !== null);
+        $child = $this->children->update($child, UserController::names($attributes) + $person,
             array_key_exists('active', $attributes) ? (bool) $attributes['active'] : null);
 
         return $this->respond($request, $child);

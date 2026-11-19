@@ -6,7 +6,6 @@ use App\JsonApi\JsonApiException;
 use App\Models\Child;
 use App\Models\ChildParent;
 use App\Models\User;
-use App\Support\IdentityCard;
 use App\Support\SpanishDate;
 use Illuminate\Support\Facades\DB;
 
@@ -21,28 +20,30 @@ class Children
     }
 
     /**
-     * Añade (o vincula) un hijo a la persona.
+     * Añade (o vincula) un hijo a la persona. Sin carné (docs/11 §11.67): el
+     * mismo niño declarado por otra persona es el de iguales nombres,
+     * apellidos y fecha de nacimiento.
      *
+     * @param array $data [first_name, middle_name, first_surname, second_surname, sex, birth_date]
      * @return array{0: Child, 1: bool} [hijo, ya lo tenía declarado otra persona]
      */
-    public function add(User $parent, array $names, string $identityCard): array
+    public function add(User $parent, array $data): array
     {
-        $card = IdentityCard::validated($identityCard);
-        $existing = Child::findByIdentityCard($card);
+        $existing = $this->findSame($data);
 
         if ($existing && ChildParent::where('child_id', $existing->id)->where('user_id', $parent->id)->exists()) {
-            throw JsonApiException::conflict('CHILD_ALREADY_DECLARED', 'Ya tiene declarado a ese hijo.', '/data/attributes/identityCard');
+            throw JsonApiException::conflict('CHILD_ALREADY_DECLARED', 'Ya tiene declarado a ese hijo.', '/data/attributes/firstName');
         }
 
-        $this->ensureEligible(IdentityCard::birthDate($card));
+        $this->ensureEligible($data['birth_date']);
 
-        return DB::transaction(function () use ($parent, $names, $card, $existing) {
+        return DB::transaction(function () use ($parent, $data, $existing) {
             $child = $existing;
             $declared = $existing !== null;
 
             if (! $child) {
                 $child = new Child();
-                $child->forceFill($names + IdentityCard::columns($card) + ['active' => true])->save();
+                $child->forceFill($data + ['sex' => 'M', 'active' => true])->save();
             }
 
             ChildParent::firstOrCreate(['child_id' => $child->id, 'user_id' => $parent->id]);
@@ -51,25 +52,28 @@ class Children
         });
     }
 
-    public function update(Child $child, array $names, ?string $identityCard, ?bool $active): Child
+    /** Un niño ya registrado con los mismos nombres, apellidos y fecha de nacimiento. */
+    public function findSame(array $data, ?int $except = null): ?Child
     {
-        DB::transaction(function () use ($child, $names, $identityCard, $active) {
-            if ($identityCard !== null) {
-                $card = IdentityCard::validated($identityCard);
+        $normalize = fn ($v) => mb_strtolower(trim((string) $v));
 
-                if (IdentityCard::hash($card) !== $child->identity_card_hash) {
-                    $other = Child::findByIdentityCard($card);
+        return Child::whereDate('birth_date', $data['birth_date'])
+            ->when($except !== null, fn ($q) => $q->where('id', '<>', $except))
+            ->get()
+            ->first(fn (Child $c) => $normalize($c->first_name) === $normalize($data['first_name'] ?? '')
+                && $normalize($c->middle_name) === $normalize($data['middle_name'] ?? '')
+                && $normalize($c->first_surname) === $normalize($data['first_surname'] ?? '')
+                && $normalize($c->second_surname) === $normalize($data['second_surname'] ?? ''));
+    }
 
-                    if ($other && (int) $other->id !== (int) $child->id) {
-                        throw JsonApiException::conflict('IDENTITY_CARD_TAKEN', 'Ya hay otro niño registrado con ese carné de identidad.', '/data/attributes/identityCard');
-                    }
-
-                    $this->ensureEligible(IdentityCard::birthDate($card));
-                    $child->forceFill(IdentityCard::columns($card));
-                }
+    public function update(Child $child, array $data, ?bool $active): Child
+    {
+        DB::transaction(function () use ($child, $data, $active) {
+            if (isset($data['birth_date']) && (string) $data['birth_date'] !== $child->birth_date?->toDateString()) {
+                $this->ensureEligible($data['birth_date'], '/data/attributes/birthDate');
             }
 
-            $child->fill($names);
+            $child->fill($data);
 
             if ($active !== null) {
                 if ($active && ! $child->active) {
@@ -104,7 +108,7 @@ class Children
         return ChildParent::where('child_id', $child->id)->where('user_id', $user->id)->exists();
     }
 
-    private function ensureEligible($birthDate, string $pointer = '/data/attributes/identityCard'): void
+    private function ensureEligible($birthDate, string $pointer = '/data/attributes/birthDate'): void
     {
         if (! $this->eligibility->isEligible($birthDate)) {
             throw new JsonApiException(422, 'CHILD_NOT_ELIGIBLE', 'Sin derecho a viajar',

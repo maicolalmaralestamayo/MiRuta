@@ -80,7 +80,7 @@ class Version45Test extends TestCase
             ->assertJsonPath('data.attributes.vehicleMode', 'simulado')
             ->assertJsonPath('data.attributes.normal', 70)
             ->assertJsonPath('data.attributes.behaviours.viaja', 7)
-            ->assertJsonPath('data.attributes.behaviours.no_voy', 1)
+            ->assertJsonPath('data.attributes.behaviours.no_viajare', 1)
             // «Mínimo confirmaciones» = 3: tres simulados hacen de sensores.
             ->assertJsonPath('data.attributes.sensors', 3);
         $trip = Trip::findOrFail($response->json('data.relationships.trip.data.id'));
@@ -102,8 +102,8 @@ class Version45Test extends TestCase
 
         // El Administrador informa como un trabajador más.
         $this->jsonApiAs($this->admin, 'POST', "/api/v1/trips/{$trip->id}/reports", self::resource('trip-reports', [
-            'events' => [['kind' => 'worker', 'state' => 'no_voy', 'capturedAt' => Carbon::now()->toIso8601String()]], 'gps' => true,
-        ]))->assertOk()->assertJsonPath('meta.applied', true)->assertJsonPath('data.attributes.myState.state', 'no_voy');
+            'events' => [['kind' => 'worker', 'state' => 'no_viajare', 'manual' => true, 'capturedAt' => Carbon::now()->toIso8601String()]], 'gps' => true,
+        ]))->assertOk()->assertJsonPath('meta.applied', true)->assertJsonPath('data.attributes.myState.state', 'no_viajare');
 
         // Hasta el final.
         $status = $this->poll(900);
@@ -112,13 +112,15 @@ class Version45Test extends TestCase
         $this->assertSame('llegada', $trip->finish_reason);
         $status->assertJsonPath('data.0.attributes.status', 'terminada');
         $this->assertSame(4, TripStopPass::where('trip_id', $trip->id)->count(), 'Pasó por todas las paradas (por los sensores).');
+        // Se detuvo en todas: Recogidas (docs/11 §11.67).
+        $this->assertSame(['recogida'], TripStopPass::where('trip_id', $trip->id)->pluck('stop_state')->unique()->values()->all());
 
         $passes = TripStopPass::where('trip_id', $trip->id)->orderBy('route_index')->pluck('passed_at')->map(fn ($t) => Carbon::parse($t));
         for ($i = 1; $i < 4; $i++) {
             $this->assertTrue($passes[$i]->gt($passes[$i - 1]), 'Las horas de paso van en orden.');
         }
 
-        $this->assertSame(['dejado' => 7, 'no_recogido' => 1, 'no_voy' => 1, 'retrasado' => 1], collect($this->states($trip))->sortKeys()->all());
+        $this->assertSame(['dejado' => 7, 'llegada_tarde' => 1, 'no_recogido' => 1, 'no_viajare' => 1], collect($this->states($trip))->sortKeys()->all());
 
         // Notificaciones: solo al Administrador que la inició.
         $simulated = User::withoutGlobalScope(NotSimulated::class)->whereNotNull('simulation_id')->pluck('id');
@@ -193,8 +195,8 @@ class Version45Test extends TestCase
         $this->assertSame(0, DB::table('worker_itineraries')->whereNotNull('simulation_id')->count());
         // Lo real sigue.
         $this->assertNotNull(WorkerItinerary::where('user_id', $this->real->user_id)->first());
-        // Al Administrador le queda solo «Viaje eliminado» (su teléfono quita la notificación del viaje).
-        $this->assertSame(['viaje_eliminado'], Notification::where('user_id', $this->admin->id)->pluck('kind')->all());
+        // Las eliminaciones no se avisan (docs/11 §11.67): al Administrador no le queda nada de ese viaje.
+        $this->assertSame([], Notification::where('user_id', $this->admin->id)->pluck('kind')->all());
         $this->jsonApiAs($this->admin, 'GET', '/api/v1/simulations')->assertOk()->assertJsonPath('meta.total', 0);
     }
 
@@ -219,9 +221,9 @@ class Version45Test extends TestCase
             $state = $states[$w['userId']]->state ?? null;
             $expected = match ($w['behaviour']) {
                 'viaja' => $w['drop'] <= 2 ? 'dejado' : 'viajando',
-                'retrasado' => 'retrasado',
+                'llegada_tarde' => 'llegada_tarde',
                 'no_recogido' => 'no_recogido',
-                default => 'no_voy',
+                default => 'no_viajare',
             };
             $this->assertSame($expected, $state, "Trabajador {$w['n']} ({$w['behaviour']}, sube en {$w['board']})");
         }

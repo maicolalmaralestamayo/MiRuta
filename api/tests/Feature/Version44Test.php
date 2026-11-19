@@ -116,13 +116,13 @@ class Version44Test extends TestCase
             $at = Carbon::now()->subMinute();
 
             $this->send($a, $trip, [self::worker('en_parada', $route[2], $at)]);
-            $this->send($b, $trip, [self::worker('de_camino', $route[2], $at)]);
+            $this->send($b, $trip, [self::worker('acercandose', $route[2], $at)]);
             $this->send($c, $trip, [self::worker('en_parada', $route[1], $at)]);
-            $live = $this->send($d, $trip, [self::worker('no_voy', null, $at)])->assertOk();
+            $live = $this->send($d, $trip, [self::worker('no_viajare', null, $at)])->assertOk();
 
             // Cantidades en la parada detectada, no en la habitual; sin ceros.
             $live->assertJsonPath('data.attributes.stops.2.counts.en_parada', 1)
-                ->assertJsonPath('data.attributes.stops.2.counts.de_camino', 1)
+                ->assertJsonPath('data.attributes.stops.2.counts.acercandose', 1)
                 ->assertJsonPath('data.attributes.stops.1.counts.en_parada', 1)
                 ->assertJsonPath('data.attributes.stops.0.counts', [])
                 ->assertJsonPath('data.attributes.notGoing', 1)
@@ -134,11 +134,12 @@ class Version44Test extends TestCase
                 ->assertJsonPath('data.attributes.myState.stopName', Stop::find($route[2])->landmark)
                 ->assertJsonPath('data.attributes.myStopId', (string) $this->stops[0]);
 
-            // Retrasado y No recogido los calcula el teléfono, también en la ida.
-            $this->send($b, $trip, [self::worker('retrasado', $route[2], $at->copy()->addSeconds(30))])->assertJsonPath('meta.applied', true)
-                ->assertJsonPath('data.attributes.stops.2.counts.retrasado', 1);
-            $this->send($b, $trip, [self::worker('de_camino', $route[3], $at->copy()->addSeconds(40))])
-                ->assertJsonPath('meta.applied', false)->assertJsonPath('meta.reason', 'ESTADO_FINAL');
+            // Llegada tarde y No recogido los calcula el teléfono, también en la ida; y
+            // puede volver a acercarse a otra parada (docs/11 §11.67).
+            $this->send($b, $trip, [self::worker('llegada_tarde', $route[2], $at->copy()->addSeconds(30))])->assertJsonPath('meta.applied', true)
+                ->assertJsonPath('data.attributes.stops.2.counts.llegada_tarde', 1);
+            $this->send($b, $trip, [self::worker('alejandose', $route[3], $at->copy()->addSeconds(40))])
+                ->assertJsonPath('meta.applied', true)->assertJsonPath('data.attributes.stops.3.counts.alejandose', 1);
 
             // Viajando y luego Dejado en la parada donde se bajó (regreso incluido).
             $this->send($c, $trip, [self::worker('viajando', $route[1], $at->copy()->addSeconds(10)), self::worker('dejado', $route[3], $at->copy()->addSeconds(50))])
@@ -158,7 +159,7 @@ class Version44Test extends TestCase
         $at = Carbon::now()->subMinutes(10);
 
         $this->send($waiting, $trip, [self::worker('en_parada', $this->stops[1], $at)]);
-        $this->send($coming, $trip, [self::worker('de_camino', $this->stops[1], $at)]);
+        $this->send($coming, $trip, [self::worker('acercandose', $this->stops[1], $at)]);
         $this->send($active, $trip, [self::worker('en_parada', $this->stops[1], $at)]);
 
         // Sus teléfonos dejan de enviar (salvo uno).
@@ -167,7 +168,8 @@ class Version44Test extends TestCase
 
         $this->jsonApiAs($chief, 'POST', "/api/v1/trips/{$trip->id}/stop-passes", self::resource('trip-stop-passes', ['routeIndex' => 1]))->assertCreated()
             ->assertJsonPath('data.attributes.stops.1.counts.no_recogido', 1)
-            ->assertJsonPath('data.attributes.stops.1.counts.retrasado', 1)
+            ->assertJsonPath('data.attributes.stops.1.counts.llegada_tarde', 1)
+            ->assertJsonPath('data.attributes.stops.1.state', 'recogida')->assertJsonPath('data.attributes.stops.1.passedManually', true)
             ->assertJsonPath('data.attributes.stops.1.counts.en_parada', 1);
         $this->assertTrue((bool) TripPassenger::where('user_id', $waiting->user_id)->value('set_by_server'));
 
@@ -196,22 +198,6 @@ class Version44Test extends TestCase
         $this->assertSame('dejado', TripPassenger::where('user_id', $worker->user_id)->value('state'));
     }
 
-    public function test_telefonos_4_3_reciben_botado_y_dormido(): void
-    {
-        $trip = $this->trip();
-        [$a, $b] = array_map(fn () => $this->createWorker($this->entity, $this->itinerary, $this->stops[1]), [1, 2]);
-
-        $this->jsonApiAs($a, 'POST', "/api/v1/trips/{$trip->id}/reports", self::resource('trip-reports', ['workerState' => 'en_parada']), ['X-App-Version' => '13']);
-        $this->jsonApiAs($a, 'POST', "/api/v1/trips/{$trip->id}/reports", self::resource('trip-reports', ['workerState' => 'botado']), ['X-App-Version' => '13'])
-            ->assertJsonPath('data.attributes.myState.state', 'botado')
-            ->assertJsonPath('data.attributes.stops.1.counts.botado', 1);
-        $this->jsonApiAs($b, 'POST', "/api/v1/trips/{$trip->id}/reports", self::resource('trip-reports', ['workerState' => 'dormido']), ['X-App-Version' => '13']);
-
-        $this->assertSame(['no_recogido', 'retrasado'], TripPassenger::orderBy('id')->pluck('state')->all());
-        $this->jsonApiAs($b, 'GET', "/api/v1/trips/{$trip->id}/live", null, ['X-App-Version' => '14'])->assertJsonPath('data.attributes.myState.state', 'retrasado');
-        $this->jsonApiAs($b, 'GET', '/api/v1/sync', null, ['X-App-Version' => '13'])->assertJsonPath('meta.myTrips.0.myState', 'dormido');
-    }
-
     public function test_un_viaje_por_itinerario_sentido_y_fecha_sin_contar_los_cancelados(): void
     {
         $admin = $this->createAdmin();
@@ -223,6 +209,7 @@ class Version44Test extends TestCase
         $plan()->assertStatus(409)->assertJsonPath('errors.0.code', 'TRIP_EXISTS');
         $this->jsonApiAs($admin, 'PATCH', "/api/v1/trips/{$id}", self::resource('trips', ['status' => 'cancelado'], [], $id))->assertOk();
         $second = $plan()->assertCreated()->json('data.id');
+        $this->jsonApiAs($admin, 'PATCH', "/api/v1/trips/{$second}", self::resource('trips', ['status' => 'cancelado'], [], $second))->assertOk();
         $this->jsonApiAs($admin, 'DELETE', "/api/v1/trips/{$second}")->assertNoContent();
         $plan()->assertCreated();
     }
@@ -254,44 +241,6 @@ class Version44Test extends TestCase
 
         $types = VehicleType::orderBy('name')->get()->map(fn ($t) => [$t->name, (int) $t->seats, (int) $t->standing])->all();
         $this->assertSame([['Carro Dongfeng', 32, 9], ['Ómnibus Yutong', 45, 15]], $types);
-    }
-
-    public function test_la_actualizacion_desde_la_4_3(): void
-    {
-        $trip = $this->trip();
-        $worker = $this->createWorker($this->entity, $this->itinerary, $this->stops[1]);
-        $other = $this->createWorker($this->entity, $this->itinerary, $this->stops[2]);
-        $now = Carbon::now();
-        DB::table('trip_passengers')->insert([
-            ['trip_id' => $trip->id, 'user_id' => $worker->user_id, 'stop_id' => $this->stops[1], 'state' => 'no_recogido', 'state_at' => $now, 'reported_at' => $now, 'children_count' => 0, 'created_at' => $now, 'updated_at' => $now],
-            ['trip_id' => $trip->id, 'user_id' => $other->user_id, 'stop_id' => $this->stops[2], 'state' => 'retrasado', 'state_at' => $now, 'reported_at' => $now, 'children_count' => 0, 'created_at' => $now, 'updated_at' => $now],
-        ]);
-        // Como en una 4.3.0: estados viejos, ajustes y motivos.
-        // Con MariaDB la columna ya tiene la lista nueva: se amplía como en la versión vieja.
-        if (DB::getDriverName() !== 'sqlite') {
-            DB::statement("ALTER TABLE trip_passengers MODIFY state ENUM('de_camino','en_parada','viajando','dejado','recogido','botado','dormido','no_recogido','retrasado','no_voy') NOT NULL");
-        }
-        DB::table('trip_passengers')->where('user_id', $worker->user_id)->update(['state' => 'botado']);
-        DB::table('trip_passengers')->where('user_id', $other->user_id)->update(['state' => 'dormido']);
-        DB::table('settings')->insert([
-            ['key' => 'frecuencia_calculo', 'value' => '20seg', 'created_at' => $now, 'updated_at' => $now],
-            ['key' => 'frecuencia_reposo', 'value' => '30min', 'created_at' => $now, 'updated_at' => $now],
-        ]);
-        $old = DB::table('denial_reasons')->insertGetId(['name' => 'Datos incorrectos', 'active' => true, 'created_at' => $now, 'updated_at' => $now]);
-        $application = Application::create(['user_id' => $worker->user_id, 'type' => Application::TYPE_ENTITY, 'status' => Application::REJECTED,
-            'entity_id' => $this->entity->id, 'denial_reason_id' => $old]);
-
-        (require database_path('migrations/2026_11_16_000002_upgrade_4_4.php'))->up();
-
-        $this->assertSame(['no_recogido', 'retrasado'], TripPassenger::orderBy('id')->pluck('state')->all());
-        $this->assertSame('20seg', DB::table('settings')->where('key', 'frecuencia_corta')->value('value'));
-        $this->assertSame('30min', DB::table('settings')->where('key', 'frecuencia_larga')->value('value'));
-        $this->assertFalse(DB::table('settings')->where('key', 'frecuencia_calculo')->exists());
-        // El motivo viejo se copia a las dos tablas y la rechazada lo conserva.
-        $this->assertTrue(EntityDenialReason::where('name', 'Datos incorrectos')->exists());
-        $this->assertTrue(ItineraryDenialReason::where('name', 'Datos incorrectos')->exists());
-        $this->assertSame('Datos incorrectos', $application->fresh()->rejectionReason()?->name);
-        $this->assertTrue(ItineraryDenialReason::where('name', 'El itinerario está sobrecargado')->exists());
     }
 
     public function test_registro_de_cambios(): void

@@ -129,15 +129,16 @@ class TripController extends Controller
     }
 
     /**
-     * Eliminar: el Administrador o el Jefe del itinerario, si no está en ejecución.
+     * Eliminar (borrarlo de la base de datos, sin avisar; docs/11 §11.67): el
+     * Administrador o el Jefe del itinerario, solo si está Cancelado o Terminado.
      */
     public function destroy(Request $request, $id)
     {
         $trip = $this->find($request, $id);
         $this->access->requireItineraryManager($request->user(), $trip->itinerary_id, 'Solo el Administrador o el Jefe del itinerario eliminan sus viajes.');
 
-        if ($trip->status === Trip::RUNNING) {
-            throw JsonApiException::conflict('TRIP_RUNNING', 'Un viaje en ejecución no se elimina: termínelo primero.');
+        if (! in_array($trip->status, [Trip::CANCELLED, Trip::FINISHED], true)) {
+            throw JsonApiException::conflict('TRIP_NOT_DELETABLE', 'Solo se elimina un viaje Cancelado o Terminado: cancele antes el viaje Planificado.');
         }
 
         $this->trips->delete($trip);
@@ -152,60 +153,8 @@ class TripController extends Controller
         return JsonApiResponse::make(Document::fromArray(self::forClient($request, $trip, $this->trips->live($trip, $request->user()))));
     }
 
-    /** versionCode de la 4.3.0: las apps anteriores conocen «recogido» en el regreso. */
-    public const VERSION_CODE_4_3 = 13;
-
-    /** versionCode de la 4.4.0: las apps anteriores conocen «botado» y «dormido». */
-    public const VERSION_CODE_4_4 = 14;
-
-    /**
-     * Estado para la app que consulta: las 4.2.0 (versionCode < 13) llaman
-     * «recogido» a Viajando en el regreso (docs/11 §11.63) y las 4.3.0
-     * (versionCode < 14) «botado» y «dormido» a No recogido y Retrasado
-     * (docs/11 §11.65): se les devuelve así para que sigan funcionando.
-     */
-    public static function legacyState(Request $request, Trip $trip, ?string $state): ?string
-    {
-        $code = \App\Http\Middleware\RequireCurrentAppVersion::versionCode($request);
-
-        if ($code === null || $code >= self::VERSION_CODE_4_4) {
-            return $state;
-        }
-
-        if ($state === TripPassenger::TRAVELLING && ! $trip->isOutbound() && $code < self::VERSION_CODE_4_3) {
-            return TripPassenger::LEGACY_PICKED_UP;
-        }
-
-        return match ($state) {
-            TripPassenger::LEFT_BEHIND => TripPassenger::LEGACY_LEFT_BEHIND,
-            TripPassenger::LATE => TripPassenger::LEGACY_LATE,
-            default => $state,
-        };
-    }
-
-    /** Las cantidades de cada parada con los nombres de la app que consulta. */
-    private static function legacyCounts(Request $request, Trip $trip, $counts)
-    {
-        $result = [];
-
-        foreach ((array) $counts as $state => $count) {
-            $name = self::legacyState($request, $trip, $state);
-            $result[$name] = ($result[$name] ?? 0) + $count;
-        }
-
-        return (object) $result;
-    }
-
     private static function forClient(Request $request, Trip $trip, array $live): array
     {
-        if (isset($live['attributes']['myState']['state'])) {
-            $live['attributes']['myState']['state'] = self::legacyState($request, $trip, $live['attributes']['myState']['state']);
-        }
-
-        foreach ($live['attributes']['stops'] ?? [] as $i => $stop) {
-            $live['attributes']['stops'][$i]['counts'] = self::legacyCounts($request, $trip, $stop['counts']);
-        }
-
         return $live;
     }
 
@@ -233,7 +182,8 @@ class TripController extends Controller
                     'fullName' => $worker?->user?->fullName(),
                     'photoUrl' => $worker?->user?->photo_path ? url($worker->user->photo_path) : null,
                     'expected' => $expected->contains('user_id', $userId),
-                    'state' => self::legacyState($request, $trip, $state?->state),
+                    'state' => $state?->state,
+                    'manual' => (bool) $state?->manual,
                     'stateAt' => $state?->state_at?->toIso8601String(),
                     'childrenCount' => (int) ($state?->children_count ?? 0),
                     'isChief' => (bool) $worker?->is_chief,

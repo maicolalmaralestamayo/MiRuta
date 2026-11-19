@@ -54,33 +54,33 @@ final class SettingCatalog
 
         // Generales
         'radio_parada' => ['general', 'Radio parada', self::TYPE_DISTANCE, '100m', '10m', '2km',
-            'Distancia a una parada dentro de la cual se está en ella (trabajador y vehículo).'],
+            'A esta distancia o menos de una parada se está En Parada (trabajador) o en la parada (vehículo).'],
+        'radio_acercamiento' => ['general', 'Radio acercamiento', self::TYPE_DISTANCE, '300m', '20m', '5km',
+            'Entre este radio y el Radio parada, el trabajador está Acercándose a Parada o Alejándose de Parada; a más de él de todas las paradas, Fuera de itinerario.'],
         'minimo_confirmaciones' => ['general', 'Mínimo confirmaciones', self::TYPE_INTEGER, 3, 1, 50,
             'Trabajadores o teléfonos que deben coincidir para cambiar el estado del viaje o del vehículo.'],
 
-        // Estado del trabajador (se calcula en el teléfono)
+        // Estado del trabajador (se calcula en el teléfono; docs/11 §11.67)
         'velocidad_humana' => ['estado_trabajador', 'Velocidad humana', self::TYPE_SPEED, '10km/hor', '1km/hor', '40km/hor',
-            'Por encima de esta velocidad va en el vehículo (Viajando).'],
+            'Hasta esta velocidad se va a pie; por encima, en un vehículo.'],
         'tolerancia_gps' => ['estado_trabajador', 'Tolerancia GPS', self::TYPE_DISTANCE, '20m', '1m', '500m',
-            'Diferencia mínima entre dos distancias para considerar que se movió; también, umbral de «misma posición» del sensor.'],
-        'distancia_abandono' => ['estado_trabajador', 'Distancia abandono', self::TYPE_DISTANCE, '1km', '100m', '50km',
-            'Alejándose a velocidad humana más allá de esta distancia, «No voy a viajar» es definitivo.'],
-        'calculos_consecutivos' => ['estado_trabajador', 'Cálculos consecutivos', self::TYPE_INTEGER, 6, 1, 100,
-            'Cálculos seguidos a velocidad humana (separado del vehículo) para quedar Dejado en la parada más cercana.'],
-        'espera_final' => ['estado_trabajador', 'Espera final', self::TYPE_DURATION, '10min', '1min', '5hor',
-            'Tras quedar Retrasado o No recogido sin alejarse, la app deja de calcular y recuerda desactivar el GPS.'],
+            'Diferencia mínima entre dos distancias para considerar que se movió; también, umbral de «misma posición» (Detenido).'],
+        'calculos_consecutivos' => ['estado_trabajador', 'Cálculos consecutivos', self::TYPE_INTEGER, 3, 1, 100,
+            'Cálculos seguidos que confirman una tendencia: acercarse o alejarse de una parada, alejarse a velocidad de vehículo (Viajando) o a velocidad humana (Dejado).'],
 
-        // Estado del viaje (lo revisa el servidor)
-        'plazo_eliminacion' => ['estado_viaje', 'Plazo eliminación', self::TYPE_DURATION, '5hor', '10min', '7dia',
-            'Un viaje que sigue Planificado se elimina pasado este tiempo desde su salida (o su último estado, si es posterior).'],
+        // Estado del viaje (lo revisa el servidor; docs/11 §11.67)
+        'plazo_cancelacion' => ['estado_viaje', 'Plazo cancelación', self::TYPE_DURATION, '5hor', '10min', '7dia',
+            'Un viaje que sigue Planificado pasa a Cancelado pasado este tiempo desde su salida.'],
         'duracion_maxima' => ['estado_viaje', 'Duración máxima', self::TYPE_DURATION, '5hor', '10min', '2dia',
             'Un viaje En ejecución pasa a Terminado pasado este tiempo desde que empezó.'],
         'espera_cierre' => ['estado_viaje', 'Espera cierre', self::TYPE_DURATION, '2hor', '1min', '1dia',
             'Termina el viaje si pasa este tiempo desde el último Dejado sin llegar a la parada final.'],
+        'conservacion_viajes' => ['estado_viaje', 'Conservación viajes', self::TYPE_DURATION, '30dia', '1dia', '3ano',
+            'Los viajes Cancelados y Terminados se borran (sin avisar) pasado este tiempo desde su último estado.'],
 
         // Notificaciones
         'detencion_larga' => ['notificaciones', 'Detención larga', self::TYPE_DURATION, '5min', '30seg', '2hor',
-            'Se avisa a quienes están En la parada si el vehículo lleva detenido más de este tiempo.'],
+            'Se avisa a quienes están En Parada si el vehículo lleva detenido más de este tiempo.'],
 
         // Sincronización
         'conservacion_cambios' => ['sincronizacion', 'Conservación cambios', self::TYPE_DURATION, '1mes', '1dia', '1ano',

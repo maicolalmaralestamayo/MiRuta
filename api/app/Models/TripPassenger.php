@@ -5,53 +5,60 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Estado de un trabajador en un viaje (docs/11 §11.43). Lo calcula su teléfono
- * y envía solo los cambios, con la hora de captura; stop_id es la parada
- * detectada por cercanía (docs/11 §11.65).
+ * Estado de un trabajador en un viaje (docs/11 §11.43 y §11.67). Lo calcula su
+ * teléfono (o lo pone él a mano) y envía solo los cambios, con la hora de
+ * captura; stop_id es la parada detectada por cercanía (docs/11 §11.65).
  */
 class TripPassenger extends Model
 {
-    // Estados, iguales en la ida y en el regreso (docs/11 §11.65).
-    public const ON_THE_WAY = 'de_camino';
+    // Estados del trabajador, versión definitiva (docs/11 §11.67), iguales en la ida y en el regreso.
+    /** A más del «Radio acercamiento» de todas las paradas del itinerario. */
+    public const OUT_OF_ROUTE = 'fuera_itinerario';
+    /** Entre el «Radio acercamiento» y el «Radio parada» de una parada, a pie, acercándose. */
+    public const APPROACHING = 'acercandose';
+    /** Entre el «Radio acercamiento» y el «Radio parada» de una parada, a pie, alejándose. */
+    public const MOVING_AWAY = 'alejandose';
+    /** A «Radio parada» o menos de una parada. */
     public const AT_STOP = 'en_parada';
+    /** Su parada dejó de estar En espera antes de que llegara a ella. */
+    public const LATE = 'llegada_tarde';
+    /** Su parada dejó de estar En espera y él siguió En Parada. */
+    public const LEFT_BEHIND = 'no_recogido';
     public const TRAVELLING = 'viajando';
     public const DROPPED = 'dejado';
-    /** Estaba En la parada, el vehículo pasó por ella y no subió (antes «botado»). */
-    public const LEFT_BEHIND = 'no_recogido';
-    /** Estaba De camino y el vehículo pasó por su parada antes de que llegara (antes «dormido»). */
-    public const LATE = 'retrasado';
-    public const NOT_GOING = 'no_voy';
+    /** Solo a mano: avisa que no irá (nunca se calcula). */
+    public const NOT_TRAVELLING = 'no_viajare';
 
-    /** Nombres de la 4.2.0 y de la 4.3.0 que aún envían los teléfonos viejos. */
-    public const LEGACY_PICKED_UP = 'recogido';
-    public const LEGACY_LEFT_BEHIND = 'botado';
-    public const LEGACY_LATE = 'dormido';
+    public const STATES = [self::OUT_OF_ROUTE, self::APPROACHING, self::MOVING_AWAY, self::AT_STOP, self::LATE, self::LEFT_BEHIND,
+        self::TRAVELLING, self::DROPPED, self::NOT_TRAVELLING];
 
-    public const STATES = [self::ON_THE_WAY, self::AT_STOP, self::TRAVELLING, self::DROPPED, self::LEFT_BEHIND, self::LATE, self::NOT_GOING];
+    /** Estados con parada (detectada por cercanía): las cantidades de cada parada de la línea. */
+    public const STOP_STATES = [self::APPROACHING, self::MOVING_AWAY, self::AT_STOP, self::LATE, self::LEFT_BEHIND, self::TRAVELLING, self::DROPPED];
 
-    /** Estados en que el trabajador está en una parada detectada (cantidades de la línea). */
-    public const STOP_STATES = [self::ON_THE_WAY, self::AT_STOP, self::LATE, self::LEFT_BEHIND, self::DROPPED];
+    /** Estados sin parada. */
+    public const STOPLESS_STATES = [self::OUT_OF_ROUTE, self::NOT_TRAVELLING];
 
-    /** Finales: ya no cambian (docs/11 §11.65). */
-    public const FINAL_STATES = [self::DROPPED, self::LEFT_BEHIND, self::LATE, self::NOT_GOING];
+    /** Quien aún espera una parada (para No recogido / Llegada tarde puestos por el servidor). */
+    public const WAITING_STATES = [self::APPROACHING, self::MOVING_AWAY, self::AT_STOP];
+
+    /** El viaje terminó para él (fin de su ventana de viaje). */
+    public const FINAL_STATES = [self::DROPPED, self::NOT_TRAVELLING];
 
     public static function isFinal(string $state): bool
     {
         return in_array($state, self::FINAL_STATES, true);
     }
 
-    /** Estado recibido de un teléfono: los nombres viejos pasan a los nuevos. */
-    public static function normalize(?string $state): ?string
+    public static function name(?string $state): string
     {
-        return match ($state) {
-            self::LEGACY_PICKED_UP => self::TRAVELLING,
-            self::LEGACY_LEFT_BEHIND => self::LEFT_BEHIND,
-            self::LEGACY_LATE => self::LATE,
-            default => $state,
-        };
+        return [
+            self::OUT_OF_ROUTE => 'Fuera de itinerario', self::APPROACHING => 'Acercándose a Parada', self::MOVING_AWAY => 'Alejándose de Parada',
+            self::AT_STOP => 'En Parada', self::LATE => 'Llegada tarde', self::LEFT_BEHIND => 'No recogido', self::TRAVELLING => 'Viajando',
+            self::DROPPED => 'Dejado', self::NOT_TRAVELLING => 'No viajaré',
+        ][$state] ?? 'Sin estado';
     }
 
-    protected $fillable = ['trip_id', 'user_id', 'stop_id', 'state', 'state_at', 'reported_at', 'children_count', 'child_ids', 'last_seen_at', 'gps_ok', 'set_by_server'];
+    protected $fillable = ['trip_id', 'user_id', 'stop_id', 'state', 'state_at', 'reported_at', 'manual', 'children_count', 'child_ids', 'last_seen_at', 'gps_ok', 'set_by_server'];
 
     protected $casts = [
         'state_at' => 'datetime',
@@ -59,6 +66,7 @@ class TripPassenger extends Model
         'last_seen_at' => 'datetime',
         'gps_ok' => 'boolean',
         'set_by_server' => 'boolean',
+        'manual' => 'boolean',
         'children_count' => 'integer',
         'trip_id' => 'integer',
         'user_id' => 'integer',

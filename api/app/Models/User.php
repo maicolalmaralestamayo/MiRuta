@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Support\IdentityCard;
 use App\Support\Username;
 use Illuminate\Database\Eloquent\Model;
 
@@ -26,11 +25,11 @@ class User extends Model
     protected $fillable = [
         'username', 'password', 'password_changed_at', 'must_change_password',
         'first_name', 'middle_name', 'first_surname', 'second_surname',
-        'identity_card_encrypted', 'identity_card_hash', 'sex', 'birth_date',
+        'email', 'sex', 'birth_date',
         'photo_path', 'is_admin', 'app_version_code',
     ];
 
-    protected $hidden = ['password', 'identity_card_encrypted', 'identity_card_hash'];
+    protected $hidden = ['password'];
 
     protected $casts = [
         'is_admin' => 'boolean',
@@ -48,9 +47,10 @@ class User extends Model
         return Username::looksValid($username) ? static::where('username', Username::normalize($username))->first() : null;
     }
 
-    public static function findByIdentityCard(string $card): ?self
+    /** Por su correo (docs/11 §11.67), también entre los simulados (el correo es único en toda la base de datos). */
+    public static function findByEmail(string $email): ?self
     {
-        return static::where('identity_card_hash', IdentityCard::hash($card))->first();
+        return static::withoutGlobalScope(Scopes\NotSimulated::class)->where('email', \App\Support\Email::normalize($email))->first();
     }
 
     public function workers()
@@ -76,10 +76,5 @@ class User extends Model
     public function isAdmin(): bool
     {
         return (bool) $this->is_admin;
-    }
-
-    public function identityCard(): ?string
-    {
-        return IdentityCard::decrypt($this->identity_card_encrypted);
     }
 }

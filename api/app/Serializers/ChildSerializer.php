@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 
 /**
- * Hijo (docs/11 §11.11). El carné y quién más lo tiene declarado los ven
+ * Hijo (docs/11 §11.11). Quién más lo tiene declarado lo ven
  * sus padres y el Administrador.
  */
 class ChildSerializer extends Serializer
@@ -35,10 +35,6 @@ class ChildSerializer extends Serializer
             'active' => (bool) $child->active,
             'photoUrl' => $this->image($child->photo_path),
         ];
-
-        if (self::canSeePrivateData($child, $request)) {
-            $attributes['identityCard'] = $child->identityCard();
-        }
 
         return $attributes;
     }

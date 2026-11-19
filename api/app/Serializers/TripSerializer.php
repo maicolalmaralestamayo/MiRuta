@@ -27,6 +27,10 @@ class TripSerializer extends Serializer
             'departsAt' => $this->date($trip->departs_at),
             'status' => $trip->status,
             'statusChangedAt' => $this->date($trip->status_changed_at),
+            // Salida real (docs/11 §11.67: «Salió» de la tarjeta).
+            'startedAt' => $this->date($trip->started_at),
+            // Qué cambió en el último «Viaje cambiado», mientras siga Planificado.
+            'changes' => $trip->lastChanges(),
             'finishReason' => $trip->finish_reason,
             'observation' => $trip->observation,
             'vehicleState' => $trip->vehicle_state,
@@ -60,7 +64,7 @@ class TripSerializer extends Serializer
         return [
             'expectedPassengers' => app(Trips::class)->expectedQuery($trip)->count(),
             'capacity' => $type ? $type->capacity() : null,
-            'myState' => \App\Http\Controllers\TripController::legacyState($request, $trip, $mine),
+            'myState' => $mine,
         ];
     }
 }

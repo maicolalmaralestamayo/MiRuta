@@ -11,8 +11,9 @@ use App\Support\Username;
 use Illuminate\Http\Request;
 
 /**
- * Registro (público, docs/11 §11.5): nombres, carné, usuario y contraseña,
- * sin Entidad. Si aún no hay Administrador, quien se registra lo es.
+ * Registro (público, docs/11 §11.5 y §11.67): nombres, correo electrónico,
+ * sexo (por omisión Masculino), fecha de nacimiento (opcional), usuario y
+ * contraseña, sin Entidad. Si aún no hay Administrador, quien se registra lo es.
  */
 class UserController extends Controller
 {
@@ -49,16 +50,43 @@ class UserController extends Controller
         return $names;
     }
 
+    /** Sexo y fecha de nacimiento, escritos a mano desde la 5.0.0 (docs/11 §11.67). */
+    public static function personRules(string $prefix = 'attributes.'): array
+    {
+        return [
+            $prefix.'sex' => ['sometimes', 'in:F,M'],
+            $prefix.'birthDate' => ['sometimes', 'nullable', 'date_format:Y-m-d', 'before_or_equal:today'],
+        ];
+    }
+
+    /**
+     * Las columnas sex y birth_date de lo que trae la petición.
+     */
+    public static function person(array $attributes): array
+    {
+        $person = [];
+
+        if (array_key_exists('sex', $attributes)) {
+            $person['sex'] = $attributes['sex'];
+        }
+
+        if (array_key_exists('birthDate', $attributes)) {
+            $person['birth_date'] = $attributes['birthDate'] ?: null;
+        }
+
+        return $person;
+    }
+
     public function store(Request $request, Accounts $accounts)
     {
-        $data = $this->validateResource($request, 'users', self::nameRules() + [
-            'attributes.identityCard' => ['required', 'string', 'max:20'],
+        $data = $this->validateResource($request, 'users', self::nameRules() + self::personRules() + [
+            'attributes.email' => ['required', 'string', 'max:200'],
             'attributes.username' => ['required', 'string', 'max:60'],
             'attributes.password' => ['required', 'string'],
         ]);
         $attributes = $data['attributes'];
 
-        $user = $accounts->register(self::names($attributes), $attributes['identityCard'], $attributes['username'], $attributes['password']);
+        $user = $accounts->register(self::names($attributes) + self::person($attributes), $attributes['email'], $attributes['username'], $attributes['password']);
 
         if ($installation = AuthenticateInstallation::resolve($request)) {
             TokenController::linkInstallation($installation, $user);

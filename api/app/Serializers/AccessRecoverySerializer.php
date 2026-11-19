@@ -42,7 +42,7 @@ class AccessRecoverySerializer extends Serializer
 
         if ($viewer && $viewer->isAdmin()) {
             return $attributes + [
-                'identityCard' => $recovery->identityCard(),
+                'email' => $recovery->email,
                 'phone' => $recovery->phone(),
                 'matched' => $recovery->user_id !== null,
                 'resolvedAt' => $this->date($recovery->resolved_at),

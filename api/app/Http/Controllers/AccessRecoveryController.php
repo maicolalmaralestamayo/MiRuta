@@ -12,7 +12,7 @@ use App\Services\TokenService;
 use Illuminate\Http\Request;
 
 /**
- * «Olvidé algo» (docs/11 §11.7): carné y teléfono.
+ * «Olvidé algo» (docs/11 §11.7 y §11.67): correo electrónico y teléfono.
  *
  * - La instalación (sin sesión) la crea y la consulta: una vez aprobada ve
  *   solo lo que pidió (usuario, contraseña propuesta o ambos) y la
@@ -37,7 +37,7 @@ class AccessRecoveryController extends Controller
         $data = $this->validateResource($request, 'access-recoveries', [
             'attributes.forgotUsername' => ['required', 'boolean'],
             'attributes.forgotPassword' => ['required', 'boolean'],
-            'attributes.identityCard' => ['required', 'string', 'max:20'],
+            'attributes.email' => ['required', 'string', 'max:200'],
             'attributes.phone' => ['required', 'string', 'regex:/^\+?[0-9 ()\-]{7,20}$/'],
         ]);
         $attributes = $data['attributes'];
@@ -46,7 +46,7 @@ class AccessRecoveryController extends Controller
             $request->attributes->get('installation'),
             (bool) $attributes['forgotUsername'],
             (bool) $attributes['forgotPassword'],
-            $attributes['identityCard'],
+            $attributes['email'],
             trim($attributes['phone'])
         );
 

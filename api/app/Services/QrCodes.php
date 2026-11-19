@@ -273,7 +273,7 @@ class QrCodes
             'user' => $this->activeUser((int) $payload['u'], $pointer),
             'kind' => self::KIND_DYNAMIC,
             'nonce' => $payload['n'],
-            'issuedAt' => Carbon::createFromTimestamp($payload['t']),
+            'issuedAt' => Carbon::createFromTimestamp($payload['t'], config('app.timezone')),
         ];
     }
 

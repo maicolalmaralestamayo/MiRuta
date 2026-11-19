@@ -59,41 +59,18 @@ class Version43Test extends TestCase
         return Notification::where('user_id', $userId)->where('kind', $kind)->orderByDesc('id')->firstOrFail()->dataArray();
     }
 
-    public function test_la_actualizacion_convierte_recogido_en_viajando(): void
-    {
-        $trip = $this->trip('regreso');
-        $worker = $this->createWorker($this->entity, $this->itinerary, $this->stops[1]);
-        // Con MariaDB la columna ya tiene la lista nueva: se amplía como en la versión vieja.
-        if (DB::getDriverName() !== 'sqlite') {
-            DB::statement("ALTER TABLE trip_passengers MODIFY state ENUM('de_camino','en_parada','viajando','dejado','recogido','botado','dormido','no_recogido','retrasado','no_voy') NOT NULL");
-        }
-        DB::table('trip_passengers')->insert([
-            'trip_id' => $trip->id, 'user_id' => $worker->user_id, 'stop_id' => $this->stops[1], 'state' => 'recogido',
-            'state_at' => Carbon::now(), 'reported_at' => Carbon::now(), 'children_count' => 0, 'created_at' => Carbon::now(), 'updated_at' => Carbon::now(),
-        ]);
-
-        (require database_path('migrations/2026_11_16_000001_upgrade_4_3.php'))->up();
-
-        $this->assertSame('viajando', TripPassenger::where('trip_id', $trip->id)->value('state'));
-        $this->assertSame(0, TripPassenger::where('state', 'recogido')->count());
-    }
-
-    public function test_regreso_viajando_es_sensor_y_definitivo_y_se_acepta_recogido_de_la_4_2(): void
+    public function test_regreso_viajando_es_sensor(): void
     {
         $trip = $this->trip('regreso');
         [$a, $b] = array_map(fn ($i) => $this->createWorker($this->entity, $this->itinerary, $this->stops[$i]), [2, 1]);
 
-        // Un teléfono 4.2.0 envía «recogido»: se guarda como viajando y a él se le devuelve «recogido».
-        $this->report($a, $trip, ['workerState' => 'recogido'], ['X-App-Version' => '12'])
-            ->assertJsonPath('meta.applied', true)->assertJsonPath('meta.sensor', true)
-            ->assertJsonPath('data.attributes.myState.state', 'recogido');
-        $this->assertSame('viajando', TripPassenger::where('user_id', $a->user_id)->value('state'));
-        $this->jsonApiAs($a, 'GET', "/api/v1/trips/{$trip->id}/live", null, ['X-App-Version' => '13'])
+        $this->report($a, $trip, ['workerState' => 'viajando'])->assertJsonPath('meta.applied', true)->assertJsonPath('meta.sensor', true)
             ->assertJsonPath('data.attributes.myState.state', 'viajando')->assertJsonPath('data.attributes.myState.sensor', true);
+        $this->assertSame('viajando', TripPassenger::where('user_id', $a->user_id)->value('state'));
+        // Un estado que el servidor no conoce (p. ej. «recogido» de la 4.2.0) se rechaza.
+        $this->report($a, $trip, ['workerState' => 'recogido'])->assertStatus(422);
 
-        // La 4.3.0 envía viajando; desde la 4.4.0 Viajando solo pasa a Dejado (también en el regreso).
         $this->report($b, $trip, ['workerState' => 'viajando'])->assertJsonPath('meta.sensor', true);
-        $this->report($b, $trip, ['workerState' => 'no_voy'])->assertJsonPath('meta.applied', false)->assertJsonPath('meta.reason', 'TRANSICION_NO_PERMITIDA');
         $this->jsonApiAs($b, 'GET', "/api/v1/trips/{$trip->id}/live")->assertJsonPath('data.attributes.inVehicle.workers', 2)
             ->assertJsonPath('data.attributes.itineraryName', $this->itinerary->name)
             ->assertJsonPath('data.attributes.vehicleTypeName', $this->vehicleType()->name);
@@ -144,17 +121,20 @@ class Version43Test extends TestCase
         $this->assertSame($count, Notification::where('kind', 'viaje_modificado')->count());
     }
 
-    public function test_viaje_eliminado_se_avisa(): void
+    public function test_eliminar_solo_cancelados_o_terminados_y_sin_avisar(): void
     {
         $trip = $this->trip();
         $chief = $this->createChief($this->itinerary, $this->stops[0]);
         $worker = $this->createWorker($this->entity, $this->itinerary, $this->stops[1]);
 
+        // Planificado: no se elimina (se cancela).
+        $this->jsonApiAs($chief, 'DELETE', "/api/v1/trips/{$trip->id}")->assertStatus(409)->assertJsonPath('errors.0.code', 'TRIP_NOT_DELETABLE');
+        // Lo cancela el Administrador (o el Jefe que lo planificó).
+        $this->jsonApiAs($this->createAdmin(), 'PATCH', "/api/v1/trips/{$trip->id}", self::resource('trips', ['status' => 'cancelado'], [], (string) $trip->id))->assertOk();
         $this->jsonApiAs($chief, 'DELETE', "/api/v1/trips/{$trip->id}")->assertNoContent();
 
-        $data = $this->lastData($worker->user_id, 'viaje_eliminado');
-        $this->assertSame('eliminado', $data['status']);
-        $this->assertSame((string) $trip->id, $data['tripId']);
+        $this->assertNull(Trip::find($trip->id));
+        $this->assertSame(0, Notification::where('user_id', $worker->user_id)->where('kind', 'viaje_eliminado')->count());
     }
 
     public function test_sync_trae_viajes_terminados_y_solicitudes_pendientes_por_tipo(): void

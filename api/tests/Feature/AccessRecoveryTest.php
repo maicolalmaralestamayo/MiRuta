@@ -22,23 +22,23 @@ class AccessRecoveryTest extends TestCase
     public function test_el_administrador_aprueba_y_la_instalacion_ve_solo_lo_pedido(): void
     {
         $admin = $this->createAdmin();
-        $card = $this->newIdentityCard();
-        $user = $this->createUser(['identity_card' => $card, 'username' => 'pepe']);
+        $card = 'Pepe@Correo.CU';
+        $user = $this->createUser(['email' => 'pepe@correo.cu', 'username' => 'pepe']);
         $this->tokenFor($user);
         $header = ['X-Installation' => $this->installation()];
 
         $this->jsonApi('POST', '/api/v1/guest/access-recoveries', self::resource('access-recoveries', [
-            'forgotUsername' => true, 'forgotPassword' => true, 'identityCard' => $card, 'phone' => '+53 5 1234567',
+            'forgotUsername' => true, 'forgotPassword' => true, 'email' => $card, 'phone' => '+53 5 1234567',
         ]))->assertStatus(401)->assertJsonPath('errors.0.code', 'INSTALLATION_REQUIRED');
 
         $id = $this->jsonApi('POST', '/api/v1/guest/access-recoveries', self::resource('access-recoveries', [
-            'forgotUsername' => true, 'forgotPassword' => true, 'identityCard' => $card, 'phone' => '+53 5 1234567',
+            'forgotUsername' => true, 'forgotPassword' => true, 'email' => $card, 'phone' => '+53 5 1234567',
         ]), $header)->assertCreated()->assertJsonPath('data.attributes.status', 'pending')->json('data.id');
         $this->assertSame(1, Notification::where('user_id', $admin->id)->where('kind', 'olvide_recibida')->count());
 
         $this->jsonApiAs($user, 'PATCH', "/api/v1/access-recoveries/{$id}", self::resource('access-recoveries', ['status' => 'approved']))->assertForbidden();
         $this->jsonApiAs($admin, 'GET', '/api/v1/access-recoveries')->assertJsonCount(1, 'data')
-            ->assertJsonPath('data.0.attributes.phone', '+53 5 1234567')->assertJsonPath('data.0.attributes.matched', true);
+            ->assertJsonPath('data.0.attributes.phone', '+53 5 1234567')->assertJsonPath('data.0.attributes.email', 'pepe@correo.cu')->assertJsonPath('data.0.attributes.matched', true);
         $password = $this->jsonApiAs($admin, 'PATCH', "/api/v1/access-recoveries/{$id}", self::resource('access-recoveries', ['status' => 'approved']))
             ->assertOk()->json('data.attributes.password');
 
@@ -56,7 +56,7 @@ class AccessRecoveryTest extends TestCase
     {
         $admin = $this->createAdmin();
         $header = ['X-Installation' => $this->installation()];
-        $document = self::resource('access-recoveries', ['forgotUsername' => false, 'forgotPassword' => true, 'identityCard' => $this->newIdentityCard(), 'phone' => '55555555']);
+        $document = self::resource('access-recoveries', ['forgotUsername' => false, 'forgotPassword' => true, 'email' => $this->newEmail(), 'phone' => '55555555']);
 
         for ($i = 0; $i < 3; $i++) {
             $this->jsonApi('POST', '/api/v1/guest/access-recoveries', $document, $header)->assertCreated();

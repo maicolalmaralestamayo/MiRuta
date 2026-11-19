@@ -9,7 +9,6 @@ use App\Models\TripPassenger;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 /**
@@ -71,21 +70,21 @@ class Version42Test extends TestCase
             ->assertJsonPath('data.attributes.canManage', true);
     }
 
-    public function test_ida_dormidos_y_botados_en_la_primera_parada(): void
+    public function test_no_recogido_y_llegada_tarde_en_su_parada(): void
     {
         $trip = $this->trip();
         [$a, $b, $c] = array_map(fn ($i) => $this->createWorker($this->entity, $this->itinerary, $this->stops[$i]), [1, 2, 2]);
 
         $this->report($a, $trip, ['workerState' => 'en_parada']);
-        $this->report($a, $trip, ['workerState' => 'botado'])->assertJsonPath('meta.applied', true);
-        // Nombres de la 4.3.0: se guardan como No recogido y Retrasado, en su parada.
-        $this->report($b, $trip, ['workerState' => 'dormido'])
+        $this->report($a, $trip, ['workerState' => 'no_recogido'])->assertJsonPath('meta.applied', true);
+        // Sin parada informada: su parada habitual.
+        $this->report($b, $trip, ['workerState' => 'llegada_tarde'])
             ->assertJsonPath('data.attributes.stops.1.counts.no_recogido', 1)
-            ->assertJsonPath('data.attributes.stops.2.counts.retrasado', 1);
+            ->assertJsonPath('data.attributes.stops.2.counts.llegada_tarde', 1);
 
-        // Un Botado al que el teléfono detecta luego en el vehículo pasa a Viajando.
+        // Un No recogido al que el teléfono detecta luego en el vehículo pasa a Viajando.
         $this->report($a, $trip, ['workerState' => 'viajando'])->assertJsonPath('meta.applied', true);
-        $this->report($c, $trip, ['workerState' => 'no_voy'])->assertJsonPath('data.attributes.notGoing', 1);
+        $this->report($c, $trip, ['workerState' => 'no_viajare'])->assertJsonPath('data.attributes.notGoing', 1);
     }
 
     public function test_paso_por_la_parada_a_mano(): void
@@ -206,33 +205,5 @@ class Version42Test extends TestCase
             ->assertJsonPath('data.attributes.indefinite', true)->json('data.id');
         $this->jsonApiAs($worker, 'GET', '/api/v1/absences?filter[current]=true')->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $id);
         $this->jsonApiAs($worker, 'POST', '/api/v1/absences', $document([]))->assertStatus(422)->assertJsonPath('errors.0.code', 'ABSENCE_WITHOUT_ITINERARY');
-    }
-
-    public function test_actualizar_base_de_datos_pasa_las_ausencias_de_la_4_1(): void
-    {
-        // Esquema de la 4.1.0: sin user_id ni absence_itinerary.
-        Schema::dropIfExists('absence_itinerary');
-        Schema::table('absences', fn ($t) => $t->dropConstrainedForeignId('user_id'));
-        $other = $this->createItinerary($this->entity, 2, 'Otra');
-        $worker = $this->createWorker($this->entity, $this->itinerary, $this->stops[1]);
-        $this->placeIn($worker, $other, $other->stopIds()[0]);
-        $type = AbsenceType::create(['name' => 'Vacaciones']);
-        DB::table('absences')->insert(['worker_id' => $worker->id, 'absence_type_id' => $type->id, 'starts_on' => Carbon::today()->toDateString(),
-            'created_at' => Carbon::now(), 'updated_at' => Carbon::now()]);
-        DB::table('settings')->insert(['key' => 'frecuencia_dia_viaje', 'value' => '15min', 'created_at' => Carbon::now(), 'updated_at' => Carbon::now()]);
-        DB::table('settings')->insert(['key' => 'frecuencia_reposo', 'value' => '5min', 'created_at' => Carbon::now(), 'updated_at' => Carbon::now()]);
-
-        (require database_path('migrations/2026_11_15_000001_upgrade_4_2.php'))->up();
-
-        $absence = Absence::first();
-        $this->assertSame((int) $worker->user_id, $absence->user_id);
-        $this->assertEqualsCanonicalizing([$this->itinerary->id, $other->id], $absence->itineraryIds());
-        $this->assertSame(0, DB::table('settings')->count());
-        $this->assertTrue(Schema::hasColumn('trip_passengers', 'gps_ok'));
-
-        // Se puede volver a ejecutar sin efecto.
-        (require database_path('migrations/2026_11_15_000001_upgrade_4_2.php'))->up();
-        $this->assertSame(2, DB::table('absence_itinerary')->count());
-        $this->assertSame(0, TripPassenger::count());
     }
 }

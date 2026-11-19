@@ -19,7 +19,11 @@ class SettingsTest extends TestCase
         $this->assertSame(3, $settings['minimo_confirmaciones']['attributes']['base']);
         $this->assertEqualsWithDelta(2.7778, $settings['velocidad_humana']['attributes']['base'], 0.001);
         $this->assertSame('m/seg', $settings['velocidad_humana']['attributes']['baseUnit']);
-        $this->assertSame(18000, $settings['plazo_eliminacion']['attributes']['base']);
+        $this->assertSame(18000, $settings['plazo_cancelacion']['attributes']['base']);
+        $this->assertSame('Plazo cancelación', $settings['plazo_cancelacion']['attributes']['name']);
+        $this->assertSame(30 * 86400, $settings['conservacion_viajes']['attributes']['base']);
+        $this->assertSame(300, $settings['radio_acercamiento']['attributes']['base']);
+        $this->assertArrayNotHasKey('plazo_eliminacion', $settings->all());
         $this->assertSame('Generales', $settings['radio_parada']['attributes']['groupName']);
         $this->assertNotEmpty($response->json('meta.groups'));
     }
@@ -34,7 +38,7 @@ class SettingsTest extends TestCase
             ->assertOk()->assertJsonPath('data.attributes.value', '2hor30min')->assertJsonPath('data.attributes.base', 9000);
         $this->assertSame(9000, app(Settings::class)->seconds('espera_cierre'));
 
-        $this->jsonApiAs($admin, 'PATCH', '/api/v1/settings/distancia_abandono', self::resource('settings', ['value' => '1km200m']))
+        $this->jsonApiAs($admin, 'PATCH', '/api/v1/settings/radio_acercamiento', self::resource('settings', ['value' => '1km200m']))
             ->assertOk()->assertJsonPath('data.attributes.base', 1200);
 
         // Volver al valor por omisión.

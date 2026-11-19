@@ -24,7 +24,7 @@ class Trip extends Model
 
     protected $fillable = [
         'itinerary_id', 'direction', 'date', 'departure_time', 'departs_at', 'vehicle_type_id', 'observation',
-        'status', 'status_changed_at', 'finish_reason', 'created_by', 'route',
+        'status', 'status_changed_at', 'started_at', 'finish_reason', 'last_changes', 'created_by', 'route',
         'vehicle_state', 'vehicle_state_since', 'vehicle_at_stop', 'next_stop_index', 'detention_cause_id',
         'long_detention_notified_at', 'arrived_at', 'simulation_id',
     ];
@@ -33,6 +33,7 @@ class Trip extends Model
         'date' => 'date',
         'departs_at' => 'datetime',
         'status_changed_at' => 'datetime',
+        'started_at' => 'datetime',
         'vehicle_state_since' => 'datetime',
         'long_detention_notified_at' => 'datetime',
         'arrived_at' => 'datetime',
@@ -73,6 +74,12 @@ class Trip extends Model
     public function isOutbound(): bool
     {
         return $this->direction === self::OUTBOUND;
+    }
+
+    /** @return string[] Qué cambió en el último «Viaje cambiado» (mientras siga Planificado). */
+    public function lastChanges(): array
+    {
+        return $this->status === self::PLANNED && $this->last_changes ? explode(',', $this->last_changes) : [];
     }
 
     public function isOpen(): bool

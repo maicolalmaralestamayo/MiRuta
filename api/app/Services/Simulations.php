@@ -62,9 +62,9 @@ class Simulations
     public const SPEED_FACTORS = [1, 2, 5, 10];
 
     public const NORMAL = 'viaja';
-    public const LATE = 'retrasado';
+    public const LATE = 'llegada_tarde';
     public const LEFT_BEHIND = 'no_recogido';
-    public const NOT_GOING = 'no_voy';
+    public const NOT_GOING = 'no_viajare';
 
     /** Entre dos avances automáticos (las consultas de la simulación siempre avanzan). */
     public const THROTTLE = 3;
@@ -302,8 +302,8 @@ class Simulations
                 'first_name' => 'Trabajador',
                 'first_surname' => 'Simulado',
                 'second_surname' => str_pad((string) $w['n'], 2, '0', STR_PAD_LEFT),
-                'identity_card_encrypted' => 'simulado',
-                'identity_card_hash' => hash('sha256', 'simulacion-'.$simulation->id.'-'.$w['n'].'-'.$simulation->seed),
+                // Correo único (docs/11 §11.67), de un dominio que no existe.
+                'email' => 'sim'.$simulation->id.'-'.$w['n'].'-'.$simulation->seed.'@simulacion.miruta.invalid',
                 'sex' => $w['n'] % 2 ? 'F' : 'M',
                 'birth_date' => '1990-01-01',
                 'is_admin' => false,
@@ -499,14 +499,16 @@ class Simulations
         return $simulation->started_at->copy()->addSeconds((int) round($offset / max(1, $simulation->speed_factor)));
     }
 
-    private static function worker(string $state, ?int $stopId): array
+    private static function worker(string $state, ?int $stopId, bool $manual = false): array
     {
-        return ['kind' => 'worker', 'state' => $state, 'stopId' => $stopId];
+        return ['kind' => 'worker', 'state' => $state, 'stopId' => $stopId] + ($manual ? ['manual' => true] : []);
     }
 
-    private static function vehicle(string $state, bool $atStop, int $next): array
+    /** Lo que ve un sensor: detenido en la parada (dentro de su radio) o en movimiento, con la velocidad. */
+    private static function vehicle(string $state, bool $atStop, int $next, float $speed = 0): array
     {
-        return ['kind' => 'vehicle', 'vehicleState' => $state, 'atStop' => $atStop, 'nextStopIndex' => $next];
+        return ['kind' => 'vehicle', 'vehicleState' => $state, 'atStop' => $atStop, 'inRadius' => $atStop, 'nextStopIndex' => $next,
+            'speed' => $state === Trip::MOVING ? $speed : 0];
     }
 
     /**
@@ -533,11 +535,11 @@ class Simulations
             $b = $p['board'];
 
             if ($p['behaviour'] === self::NOT_GOING) {
-                $add($w, 'nv', $p['notGoing'], self::worker(TripPassenger::NOT_GOING, null));
+                $add($w, 'nv', $p['notGoing'], self::worker(TripPassenger::NOT_TRAVELLING, null, true));
                 continue;
             }
 
-            $add($w, 'dc', $p['onTheWay'], self::worker(TripPassenger::ON_THE_WAY, $route[$b]));
+            $add($w, 'dc', $p['onTheWay'], self::worker(TripPassenger::APPROACHING, $route[$b]));
 
             if (in_array($p['behaviour'], [self::NORMAL, self::LEFT_BEHIND], true)) {
                 $lo = $p['onTheWay'] + 5;
@@ -561,7 +563,7 @@ class Simulations
                         if ($k > $b) {
                             $add($w, 'a'.$k, $arrive[$k] + $p['jitter'], self::vehicle(Trip::STOPPED, true, $k), 1);
                         }
-                        $add($w, 'm'.$k, $depart[$k] + $p['jitter'], self::vehicle(Trip::MOVING, false, $k + 1), 1);
+                        $add($w, 'm'.$k, $depart[$k] + $p['jitter'], self::vehicle(Trip::MOVING, false, $k + 1, (float) $simulation->vehicle_speed_kmh), 1);
                     }
 
                     $add($w, 'dj', $depart[$last] + $p['jitter'] + 3, self::worker(TripPassenger::DROPPED, $route[$last]));
@@ -629,13 +631,13 @@ class Simulations
 
             if ($p['behaviour'] === self::NOT_GOING) {
                 if ($t = $due($p['notGoing'])) {
-                    $add($w, 'nv', $t, self::worker(TripPassenger::NOT_GOING, null));
+                    $add($w, 'nv', $t, self::worker(TripPassenger::NOT_TRAVELLING, null, true));
                 }
                 continue;
             }
 
             if ($t = $due($p['onTheWay'])) {
-                $add($w, 'dc', $t, self::worker(TripPassenger::ON_THE_WAY, $route[$b]));
+                $add($w, 'dc', $t, self::worker(TripPassenger::APPROACHING, $route[$b]));
             }
 
             $waiting = in_array($p['behaviour'], [self::NORMAL, self::LEFT_BEHIND], true);
@@ -652,9 +654,9 @@ class Simulations
             }
 
             if ($p['behaviour'] === self::NORMAL) {
-                // Sube cuando el vehículo llega a su parada (antes, si no, «De camino» y «En la parada»).
+                // Sube cuando el vehículo llega a su parada (antes, si no, «Acercándose a Parada» y «En Parada»).
                 $boardAt = isset($sent[$w.':vj']) ? Carbon::createFromTimestamp($sent[$w.':vj'], config('app.timezone')) : $arrived->copy()->addSeconds(2);
-                $add($w, 'dc', $boardAt->copy()->subSeconds(2), self::worker(TripPassenger::ON_THE_WAY, $route[$b]));
+                $add($w, 'dc', $boardAt->copy()->subSeconds(2), self::worker(TripPassenger::APPROACHING, $route[$b]));
                 $add($w, 'ep', $boardAt->copy()->subSecond(), self::worker(TripPassenger::AT_STOP, $route[$b]));
                 $add($w, 'vj', $boardAt, self::worker(TripPassenger::TRAVELLING, $route[$b]));
                 $dropped = $reached($p['drop']);
@@ -665,7 +667,7 @@ class Simulations
             } elseif (isset($passes[$b])) {
                 // El vehículo pasó por su parada sin él.
                 $at = $passes[$b]->passed_at->copy()->addSeconds($p['missDelay']);
-                $add($w, 'dc', $passes[$b]->passed_at->copy()->subSeconds(2), self::worker(TripPassenger::ON_THE_WAY, $route[$b]));
+                $add($w, 'dc', $passes[$b]->passed_at->copy()->subSeconds(2), self::worker(TripPassenger::APPROACHING, $route[$b]));
 
                 if ($p['behaviour'] === self::LEFT_BEHIND) {
                     $add($w, 'ep', $passes[$b]->passed_at->copy()->subSecond(), self::worker(TripPassenger::AT_STOP, $route[$b]));
@@ -757,7 +759,7 @@ class Simulations
             if ($trip) {
                 Notification::where('user_id', $simulation->created_by)
                     ->where('data', 'like', '%"tripId":"'.$trip->id.'"%')->delete();
-                // Avisa «Viaje eliminado» al Administrador (su teléfono quita la notificación del viaje).
+                // Sin aviso (docs/11 §11.67): su teléfono quita la notificación al saber que el viaje ya no existe.
                 $this->trips->delete($trip);
             }
 
