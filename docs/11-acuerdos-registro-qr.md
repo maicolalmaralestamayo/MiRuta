@@ -2191,6 +2191,15 @@ Lista del usuario (archivo `modificaciones_miruta_4.5.txt`, capturas en `docs/ca
      la app** → elegido (19/11/2026) el **icono de la app** (el ómnibus naranja).
 6. Nuevo estado del trabajador **Fuera de parada**: fuera del rango de todas las paradas y sin movimiento. Existe porque
    puede haber un trabajador que sí quiere viajar y está lejos de las paradas antes de empezar el viaje.
+   - **Definiciones del usuario** (19/11/2026, en definición; sustituyen a las reglas de §11.65 donde choquen):
+     - **Fuera de parada**: a más de **300 m** de todas las paradas del itinerario, antes de que el viaje pase a
+       ejecución.
+     - **Acercándose** (antes «De camino»): entre **300 y 100 m** de al menos una parada y la distancia tiende a
+       disminuir, a velocidad humana.
+     - **Alejándose** (nuevo): entre 300 y 100 m de al menos una parada y la distancia tiende a aumentar, a velocidad
+       humana.
+     - **En parada**: dentro de **100 m** de al menos una parada.
+     - **No viajaré** (antes «No voy»): estaba Fuera de parada antes de que el vehículo pasara por su parada.
 7. Para cada trabajador debe verse su **velocidad** y su estado de movimiento (**Detenido / En movimiento**) antes de
    llegar a Viajando. Desde Viajando, esos datos son del **vehículo**, no del trabajador que hace de sensor.
 8. **Ver recorrido** disponible desde que el viaje está **Planificado** y la ubicación está activada (ya hay datos que
