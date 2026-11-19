@@ -2166,7 +2166,7 @@ El usuario prueba solo; necesita simular varios trabajadores. Decidido:
 Lista del usuario (archivo `modificaciones_miruta_4.5.txt`, capturas en `docs/capturas/4.5/`):
 
 **Cambios generales**
-1. La app pasa a llamarse **ItinerTwin**.
+1. ~~La app pasa a llamarse **ItinerTwin**.~~ **Descartado** (19/11/2026): la app **sigue llamándose MiRuta**.
 2. Se elimina el **carné de identidad** y se sustituye por el **correo electrónico** (único en toda la base de datos).
    Por eso el **sexo** de la persona se introduce a mano (por defecto Masculino).
    - **Decidido** (19/11/2026): **sin conversión de datos**. La próxima versión se instala con el **servidor completo
