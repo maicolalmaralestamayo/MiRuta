@@ -24,14 +24,15 @@ void main() {
     expect(parseSpeed('10km'), isNull);
   });
 
-  test('fechas «sáb. dd-mm-aa» y horas de 12 h con a. m. / p. m. (4.4.0)', () async {
+  test('fechas «Sáb. 07/11/26» y horas de 24 h, como en las notificaciones (docs/11 §11.67)', () async {
     await initializeDateFormatting('es');
-    expect(formatDate(DateTime(2026, 11, 7)), 'sáb. 07-11-26');
-    expect(formatDate(DateTime(2026, 11, 9)), 'lun. 09-11-26');
-    expect(formatTime(DateTime(2026, 11, 7, 17, 5)), '05:05 p. m.');
-    expect(formatTime(DateTime(2026, 11, 7, 0, 30)), '12:30 a. m.');
-    expect(formatTime(DateTime(2026, 11, 7, 12, 0)), '12:00 p. m.');
-    expect(hhmm12('06:00'), '06:00 a. m.');
+    expect(formatDate(DateTime(2026, 11, 7)), 'Sáb. 07/11/26');
+    expect(formatDate(DateTime(2026, 11, 9)), 'Lun. 09/11/26');
+    expect(formatTime(DateTime(2026, 11, 7, 17, 5)), '17:05');
+    expect(formatTime(DateTime(2026, 11, 7, 0, 30)), '00:30');
+    expect(formatDateTime(DateTime(2026, 11, 19, 10, 30)), 'Jue. 19/11/26 10:30');
+    expect(formatDayTime(DateTime(2026, 11, 19), '07:05'), 'Jue. 19/11/26 07:05');
+    expect(hhmm24('6:00'), '06:00');
     expect(apiDay(DateTime(2026, 1, 2)), '2026-01-02');
     expect(parseDay('2026-03-14'), DateTime(2026, 3, 14));
     expect(plural(1, 'asiento', 'asientos'), '1 asiento');

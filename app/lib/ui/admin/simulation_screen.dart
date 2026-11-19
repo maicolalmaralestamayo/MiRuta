@@ -129,7 +129,7 @@ class _SimulationScreenState extends State<SimulationScreen> {
     if (s == null) return [ActionItem(Icons.science_outlined, 'Crear Simulación', _create)];
     return [
       ActionItem(Icons.science_outlined, 'Consultar Simulación', () => _load()),
-      if (s.tripId != null) ActionItem(Icons.timeline, 'Consultar Recorrido', () => _openLine(s)),
+      if (s.tripId != null) ActionItem(Icons.timeline, 'Ver recorrido', () => _openLine(s)),
       if (s.tripId != null) ActionItem(Icons.directions_bus_outlined, 'Consultar Viaje', () => push(context, TripFormScreen(tripId: s.tripId!))),
       ActionItem(Icons.delete_outline, 'Eliminar Simulación', () => _delete(s), destructive: true),
     ];
@@ -217,9 +217,9 @@ class _SimulationScreenState extends State<SimulationScreen> {
             style: TextStyle(fontWeight: FontWeight.w600, color: _input.total == 100 ? null : red)),
       ),
       _number('Viajan normal (%)', _percent['normal']!),
-      _number('Retrasado (%)', _percent['late']!),
+      _number('Llegada tarde (%)', _percent['late']!),
       _number('No recogido (%)', _percent['leftBehind']!),
-      _number('No voy (%)', _percent['notGoing']!),
+      _number('No viajaré (%)', _percent['notGoing']!),
       if (_input.error != null)
         Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 0), child: Text(_input.error!, style: const TextStyle(color: red))),
       Padding(
@@ -252,7 +252,7 @@ class _SimulationScreenState extends State<SimulationScreen> {
         title: '${s.workers} ${s.workers == 1 ? 'trabajador simulado' : 'trabajadores simulados'}',
         lines: [
           s.countsText,
-          '${s.normal} % viajan • ${s.late} % Retrasado • ${s.leftBehind} % No recogido • ${s.notGoing} % No voy',
+          '${s.normal} % viajan • ${s.late} % Llegada tarde • ${s.leftBehind} % No recogido • ${s.notGoing} % No viajaré',
           if (s.simulatedVehicle) '${s.sensors} ${s.sensors == 1 ? 'hace' : 'hacen'} de sensor',
         ],
       ),
@@ -262,7 +262,7 @@ class _SimulationScreenState extends State<SimulationScreen> {
       if (s.tripId != null)
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-          child: SizedBox(width: double.infinity, height: 48, child: primaryButton(context, 'Consultar Recorrido', Icons.timeline, () => _openLine(s))),
+          child: SizedBox(width: double.infinity, height: 48, child: primaryButton(context, 'Ver recorrido', Icons.timeline, () => _openLine(s))),
         ),
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),

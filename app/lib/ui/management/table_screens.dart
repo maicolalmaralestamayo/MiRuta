@@ -74,13 +74,19 @@ abstract class _TableState<W extends StatefulWidget, D> extends State<W> {
     );
   }
 
-  /// Solicitudes pendientes de ese tipo que ve (docs/11 §11.61): las que le
-  /// toca resolver (Administrador; Jefe en su itinerario) y las propias.
+  /// Solicitudes de ese tipo que ve (docs/11 §11.61 y §11.67): las pendientes
+  /// que le toca resolver (Administrador; Jefe en su itinerario) y las propias,
+  /// también las aprobadas y rechazadas (en Inicio solo se ven las pendientes).
   Future<List<Application>> pendingApplications(String type) async {
     final api = context.read<Session>().api;
-    final list = (await api.getAll('/applications', query: {'filter[type]': type, 'filter[status]': 'pendiente', 'include': 'user,entity,itinerary,stop'}))
+    final pending = (await api.getAll('/applications', query: {'filter[type]': type, 'filter[status]': 'pendiente', 'include': 'user,entity,itinerary,stop'}))
         .map(Application.from)
         .toList();
+    final resolved = (await api.getAll('/applications',
+            query: {'filter[type]': type, 'filter[mine]': 'true', 'filter[status]': 'aprobada,rechazada', 'include': 'user,entity,itinerary,stop,denialReason,resolvedBy'}))
+        .map(Application.from)
+        .toList();
+    final list = [...pending, ...resolved];
     final q = query.toLowerCase();
     return q.isEmpty ? list : list.where((a) => '${a.userName} ${a.what}'.toLowerCase().contains(q)).toList();
   }
@@ -91,7 +97,7 @@ abstract class _TableState<W extends StatefulWidget, D> extends State<W> {
         storageKey: storageKey,
         title: 'Solicitudes',
         items: applications,
-        emptyText: 'No hay solicitudes pendientes.',
+        emptyText: 'No hay solicitudes.',
         builder: (a) => applicationTile(a,
             mine: a.userId == me.userId,
             onTap: () => doneWith(() => Ops(context).showApplication(a,
@@ -119,7 +125,7 @@ abstract class _TableState<W extends StatefulWidget, D> extends State<W> {
         if (data == null) return const [];
         if (view.currentState!.offline) {
           return [
-            if (me.manages) ActionItem(Icons.qr_code_scanner, 'Crear Trabajador: Incluir por QR', () => openScreen(() => push(context, const IncludeByQrScreen()))),
+            if (me.manages) ActionItem(Icons.qr_code_scanner, 'Incluir por QR', () => openScreen(() => push(context, const IncludeByQrScreen()))),
             ActionItem(Icons.refresh, 'Reintentar', reload),
           ];
         }
@@ -228,7 +234,7 @@ class _EntitiesScreenState extends _TableState<EntitiesScreen, _EntitiesData> {
       return [
         if (admin) ActionItem(Icons.add_business_outlined, 'Crear Entidad', () => openScreen(() => push(context, const EntityForm()))),
         if (admin) ActionItem(Icons.person_add_alt_1, 'Crear Trabajador', () => openScreen(() => push(context, const RegisterWorkerForm()))),
-        if (!admin) ActionItem(Icons.add_business_outlined, 'Crear Solicitud: Entidad', () => doneWith(Ops(context).requestEntity)),
+        if (!admin) ActionItem(Icons.add_business_outlined, 'Solicitar Entidad', () => doneWith(Ops(context).requestEntity)),
       ];
     }
     if (marks.type == 'entity') {
@@ -247,7 +253,7 @@ class _EntitiesScreenState extends _TableState<EntitiesScreen, _EntitiesData> {
     return [
       ...markActions(marks, data.loose.map((p) => p.id)),
       if (marks.one) ActionItem(Icons.edit_outlined, 'Consultar Trabajador', () => openScreen(() => openWorker(context, marked.first.id, person: marked.first))),
-      if (admin) ActionItem(Icons.add_business_outlined, 'Actualizar Trabajador: Asociar Entidad', () => doneWith(() => Ops(context).associateEntity(marked.map((p) => p.id).toList()))),
+      if (admin) ActionItem(Icons.add_business_outlined, 'Asociar Entidad', () => doneWith(() => Ops(context).associateEntity(marked.map((p) => p.id).toList()))),
       if (admin)
         ActionItem(Icons.delete_outline, 'Eliminar Trabajador', () => doneWith(() => deleteAll('users', marked.map((p) => p.id), marked.length == 1 ? 'a ${marked.first.fullName}' : 'a ${marked.length} personas',
             'Se elimina la persona con su cuenta y sus solicitudes.', marked.length == 1 ? 'Persona eliminada' : 'Personas eliminadas')), destructive: true),
@@ -344,7 +350,7 @@ class _ItinerariesScreenState extends _TableState<ItinerariesScreen, _Itinerarie
     if (!marks.active) {
       return [
         if (admin) ActionItem(Icons.add_road, 'Crear itinerario', () => openScreen(() => push(context, const ItineraryForm()))),
-        if (!admin && me.hasEntity) ActionItem(Icons.alt_route, 'Crear Solicitud: Itinerario', () => doneWith(() => Ops(context).requestItinerary(me))),
+        if (!admin && me.hasEntity) ActionItem(Icons.alt_route, 'Solicitar Itinerario', () => doneWith(() => Ops(context).requestItinerary(me))),
       ];
     }
     if (marks.type == 'itinerary') {
@@ -354,10 +360,10 @@ class _ItinerariesScreenState extends _TableState<ItinerariesScreen, _Itinerarie
       return [
         ...markActions(marks, all.map((i) => i.id)),
         if (marks.one) ActionItem(Icons.edit_outlined, 'Consultar Itinerario', () => openScreen(() => push(context, ItineraryForm(itinerary: first)))),
-        if (admin) ActionItem(Icons.swap_horiz, 'Actualizar Itinerario: Cambiar de Entidad', () => doneWith(() => _changeEntity(marked))),
+        if (admin) ActionItem(Icons.swap_horiz, 'Cambiar de Entidad', () => doneWith(() => _changeEntity(marked))),
         if (marks.one && !admin && first != null && mine == null && first.entityId != null && me.membershipIn(first.entityId) != null)
-          ActionItem(Icons.send, 'Crear Solicitud: este itinerario', () => doneWith(() => Ops(context).requestItinerary(me, itinerary: first))),
-        if (marks.one && mine != null) ActionItem(Icons.logout, 'Actualizar Itinerario: Salir', () => doneWith(() => Ops(context).removeFromItinerary(mine))),
+          ActionItem(Icons.send, 'Solicitar este itinerario', () => doneWith(() => Ops(context).requestItinerary(me, itinerary: first))),
+        if (marks.one && mine != null) ActionItem(Icons.logout, 'Salir del itinerario', () => doneWith(() => Ops(context).removeFromItinerary(mine))),
         if (admin)
           ActionItem(Icons.delete_outline, 'Eliminar Itinerario', () => doneWith(() => deleteAll('itineraries', marked.map((i) => i.id),
               marked.length == 1 ? 'el itinerario ${marked.first.name}' : '${marked.length} itinerarios',
@@ -369,7 +375,7 @@ class _ItinerariesScreenState extends _TableState<ItinerariesScreen, _Itinerarie
     return [
       ...markActions(marks, data.withoutItinerary.map((w) => w.id)),
       if (marks.one) ActionItem(Icons.edit_outlined, 'Consultar Trabajador', () => openScreen(() => openWorker(context, marked.first.person.id, person: marked.first.person))),
-      if (marks.one) ActionItem(Icons.add_road, 'Actualizar Trabajador: Añadir itinerario', () => doneWith(() => Ops(context).addItinerary(me, marked.first.person.id, entityId: marked.first.entityId))),
+      if (marks.one) ActionItem(Icons.add_road, 'Añadir itinerario', () => doneWith(() => Ops(context).addItinerary(me, marked.first.person.id, entityId: marked.first.entityId))),
     ];
   }
 }
@@ -462,9 +468,9 @@ class _StopsScreenState extends _TableState<StopsScreen, _StopsData> {
       return [
         ...markActions(marks, all.map((s) => s.id)),
         if (marks.one) ActionItem(Icons.edit_outlined, 'Consultar Parada', () => openScreen(() => push(context, StopForm(stop: first)))),
-        if (admin || chief) ActionItem(Icons.playlist_add, 'Actualizar Parada: Asociar itinerario', () => doneWith(() => _associate(marked))),
+        if (admin || chief) ActionItem(Icons.playlist_add, 'Asociar itinerario', () => doneWith(() => _associate(marked))),
         if (marks.one && mine != null)
-          ActionItem(Icons.where_to_vote_outlined, 'Actualizar Trabajador: Mi parada habitual', () => doneWith(() async {
+          ActionItem(Icons.where_to_vote_outlined, 'Mi parada habitual', () => doneWith(() async {
                 await context.api.patch('/worker-itineraries/${mine.id}', resourceData('worker-itineraries', id: mine.id, relationships: {'stop': ResourceId('stops', first!.id)}));
                 if (mounted) Ops(context).done('Parada cambiada');
                 return true;
@@ -482,7 +488,7 @@ class _StopsScreenState extends _TableState<StopsScreen, _StopsData> {
       ...markActions(marks, data.withoutStop.map((p) => p.id)),
       if (marks.one) ActionItem(Icons.edit_outlined, 'Consultar Trabajador', () => openScreen(() => openWorker(context, first!.userId ?? ''))),
       if (marks.one && first != null && (admin || me.isChiefOf(first.itineraryId)))
-        ActionItem(Icons.where_to_vote_outlined, 'Actualizar Trabajador: Parada habitual', () => doneWith(() => Ops(context).changeStop(first))),
+        ActionItem(Icons.where_to_vote_outlined, 'Cambiar parada habitual', () => doneWith(() => Ops(context).changeStop(first))),
     ];
   }
 }
@@ -503,7 +509,7 @@ class _WorkersScreenState extends _TableState<WorkersScreen, List<Person>> {
   String get title => 'Trabajadores';
 
   @override
-  String get searchHint => 'Buscar persona (nombre, carné o usuario)';
+  String get searchHint => 'Buscar persona (nombre, correo o usuario)';
 
   @override
   Future<List<Person>> load() async {
@@ -530,15 +536,15 @@ class _WorkersScreenState extends _TableState<WorkersScreen, List<Person>> {
     if (!marks.active) {
       return [
         if (admin) ActionItem(Icons.person_add_alt_1, 'Crear Trabajador', () => openScreen(() => push(context, const RegisterWorkerForm()))),
-        if (me.manages) ActionItem(Icons.qr_code_scanner, 'Crear Trabajador: Incluir por QR', () => openScreen(() => push(context, const IncludeByQrScreen()))),
+        if (me.manages) ActionItem(Icons.qr_code_scanner, 'Incluir por QR', () => openScreen(() => push(context, const IncludeByQrScreen()))),
       ];
     }
     final marked = marks.of('person', data, (p) => p.id);
     return [
       ...markActions(marks, data.map((p) => p.id)),
       if (marks.one) ActionItem(Icons.edit_outlined, 'Consultar Trabajador', () => openScreen(() => openWorker(context, marked.first.id, person: marked.first))),
-      if (admin) ActionItem(Icons.add_business_outlined, 'Actualizar Trabajador: Asociar Entidad', () => doneWith(() => Ops(context).associateEntity(marked.map((p) => p.id).toList()))),
-      if (admin && marks.one) ActionItem(Icons.add_road, 'Actualizar Trabajador: Añadir itinerario', () => doneWith(() => Ops(context).addItinerary(me, marked.first.id))),
+      if (admin) ActionItem(Icons.add_business_outlined, 'Asociar Entidad', () => doneWith(() => Ops(context).associateEntity(marked.map((p) => p.id).toList()))),
+      if (admin && marks.one) ActionItem(Icons.add_road, 'Añadir itinerario', () => doneWith(() => Ops(context).addItinerary(me, marked.first.id))),
       if (admin && marked.every((p) => !p.isAdmin))
         ActionItem(Icons.delete_outline, 'Eliminar Trabajador', () => doneWith(() => deleteAll('users', marked.map((p) => p.id), marked.length == 1 ? 'a ${marked.first.fullName}' : 'a ${marked.length} personas',
             'Se elimina la persona con su cuenta, sus pertenencias y sus solicitudes. No afecta a lo demás.', marked.length == 1 ? 'Persona eliminada' : 'Personas eliminadas')), destructive: true),

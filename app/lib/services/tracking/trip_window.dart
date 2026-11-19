@@ -100,6 +100,10 @@ class TripWindow {
   static const _tripsKey = 'user.window.trips';
   static const _doneKey = 'user.window.done';
 
+  /// Viajes cuya línea abrió quien viaja en ellos: su ventana empieza ya
+  /// (docs/11 §11.67: «Ver recorrido» desde Planificado, con datos que se actualizan).
+  static const _openedKey = 'user.window.opened';
+
   /// Próxima conexión con el servidor (contador de la barra superior).
   static final nextContact = ValueNotifier<DateTime?>(null);
 
@@ -110,9 +114,23 @@ class TripWindow {
   /// la ventana dependía solo de la lista guardada en la última consulta y,
   /// si el viaje se planificó después, no se abría: ni contador corto ni
   /// cálculo de su estado.
-  static Future<void> remember(WindowTrip trip) async {
+  static Future<void> remember(WindowTrip trip, {bool openNow = false}) async {
     final list = [for (final t in await trips()) if (t.id != trip.id) t.toJson(), trip.toJson()];
     await save(list);
+    if (openNow) {
+      final json = await Storage.getJson(_openedKey);
+      json[trip.id] = DateTime.now().toIso8601String();
+      while (json.length > 30) {
+        json.remove(json.keys.first);
+      }
+      await Storage.setJson(_openedKey, json);
+    }
+  }
+
+  /// Desde cuándo está abierta la línea de cada viaje (ventana adelantada).
+  static Future<Map<String, DateTime>> opened() async {
+    final json = await Storage.getJson(_openedKey);
+    return {for (final e in json.entries) if (DateTime.tryParse('${e.value}') != null) e.key: DateTime.parse('${e.value}')};
   }
 
   static Future<List<WindowTrip>> trips() async {
@@ -143,19 +161,22 @@ class TripWindow {
   }
 
   /// Ventanas abiertas o futuras, por orden de inicio (código puro, con pruebas).
-  static List<WindowSlot> slots(List<WindowTrip> trips, Map<String, DateTime> done, AppSettings settings, DateTime now) {
+  static List<WindowSlot> slots(List<WindowTrip> trips, Map<String, DateTime> done, AppSettings settings, DateTime now, {Map<String, DateTime> opened = const {}}) {
     final result = <WindowSlot>[];
     for (final trip in trips) {
       // Parada habitual opcional (docs/11 §11.65): viaja en todos los viajes de sus itinerarios.
       if (trip.myStopId == null && !trip.travels) continue;
-      final start = trip.departsAt.subtract(settings.windowBefore);
+      var start = trip.departsAt.subtract(settings.windowBefore);
+      // Abrió su línea antes: la ventana empieza entonces (si el viaje sigue abierto).
+      final openedAt = opened[trip.id];
+      if (openedAt != null && openedAt.isBefore(start) && !trip.closed) start = openedAt;
       final cap = trip.departsAt.add(settings.duration('duracion_maxima') + const Duration(hours: 1));
       DateTime? ended;
       DateTime? earliest(DateTime? a, DateTime? b) => a == null ? b : (b == null || a.isBefore(b) ? a : b);
       if (trip.closed) ended = trip.statusChangedAt ?? trip.departsAt;
       ended = earliest(ended, done[trip.id]);
-      // Estado final (Dejado, No recogido, Retrasado o No voy): termina Y después.
-      if (const {'dejado', 'no_recogido', 'retrasado', 'no_voy', 'botado', 'dormido'}.contains(trip.myState)) ended = earliest(ended, trip.myStateAt ?? now);
+      // Estado final (Dejado o No viajaré, docs/11 §11.67): termina Y después.
+      if (const {'dejado', 'no_viajare'}.contains(trip.myState)) ended = earliest(ended, trip.myStateAt ?? now);
       var end = ended == null ? cap : ended.add(settings.windowAfter);
       if (end.isAfter(cap)) end = cap;
       if (end.isAfter(now) && end.isAfter(start)) result.add(WindowSlot(trip, start, end));
@@ -165,7 +186,7 @@ class TripWindow {
   }
 
   static Future<List<WindowSlot>> current({AppSettings? settings}) async =>
-      slots(await trips(), await done(), settings ?? await AppSettings.cached(), DateTime.now());
+      slots(await trips(), await done(), settings ?? await AppSettings.cached(), DateTime.now(), opened: await opened());
 
   /// La ventana abierta ahora (o null).
   static Future<WindowSlot?> open({AppSettings? settings}) async {
@@ -182,7 +203,7 @@ class TripWindow {
   static Future<void> reschedule(AppSettings settings, {bool foreground = false}) async {
     try {
       final now = DateTime.now();
-      final list = slots(await trips(), await done(), settings, now);
+      final list = slots(await trips(), await done(), settings, now, opened: await opened());
       final active = list.where((s) => s.contains(now)).firstOrNull;
       final upcoming = list.where((s) => s.start.isAfter(now)).firstOrNull;
       final permissions = await TripPermissions.check();

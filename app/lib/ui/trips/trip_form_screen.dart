@@ -1,7 +1,9 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/busy_scope.dart';
 import '../../core/formats.dart';
 import '../../core/json_api.dart';
 import '../../models/models.dart';
@@ -12,6 +14,7 @@ import '../widgets/app_scaffold.dart';
 import '../widgets/cards.dart';
 import '../widgets/common.dart';
 import '../widgets/data_view.dart';
+import 'trip_card.dart';
 import 'trip_line_screen.dart';
 import 'trip_workers_screen.dart';
 
@@ -19,15 +22,81 @@ String _hhmm(TimeOfDay t) => '${t.hour.toString().padLeft(2, '0')}:${t.minute.to
 
 /// Selector de hora de 12 h con a. m. / p. m., en un diálogo que se abre al
 /// tocar la Hora de salida (docs/11 §11.65, puntos 15 y 21).
-Future<TimeOfDay?> pickTime12(BuildContext context, TimeOfDay initial) => showTimePicker(
+/// Selector de hora (docs/11 §11.67): solo un reloj digital de 24 h con dos
+/// campos, hora (00–23) y minutos (00–59); sin reloj analógico ni a. m./p. m.
+Future<TimeOfDay?> pickTime24(BuildContext context, TimeOfDay initial) => showDialog<TimeOfDay>(
       context: context,
-      initialTime: initial,
-      initialEntryMode: TimePickerEntryMode.dial,
-      helpText: 'Hora de salida',
-      cancelText: 'Cancelar',
-      confirmText: 'Confirmar',
-      builder: (context, child) => MediaQuery(data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: false), child: child!),
+      builder: (context) => _TimeDialog(initial: initial),
     );
+
+class _TimeDialog extends StatefulWidget {
+  final TimeOfDay initial;
+
+  const _TimeDialog({required this.initial});
+
+  @override
+  State<_TimeDialog> createState() => _TimeDialogState();
+}
+
+class _TimeDialogState extends State<_TimeDialog> {
+  final _form = GlobalKey<FormState>();
+  late final _hour = TextEditingController(text: widget.initial.hour.toString().padLeft(2, '0'));
+  late final _minute = TextEditingController(text: widget.initial.minute.toString().padLeft(2, '0'));
+
+  @override
+  void dispose() {
+    _hour.dispose();
+    _minute.dispose();
+    super.dispose();
+  }
+
+  static String? _check(String? v, int max, String what) {
+    final n = int.tryParse((v ?? '').trim());
+    return n == null || n < 0 || n > max ? '00–${max.toString().padLeft(2, '0')}' : null;
+  }
+
+  void _accept() {
+    if (!_form.currentState!.validate()) return;
+    Navigator.pop(context, TimeOfDay(hour: int.parse(_hour.text.trim()), minute: int.parse(_minute.text.trim())));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final style = Theme.of(context).textTheme.displaySmall;
+    Widget field(TextEditingController c, String label, int max, {bool last = false}) => SizedBox(
+          width: 96,
+          child: TextFormField(
+            controller: c,
+            autofocus: !last,
+            textAlign: TextAlign.center,
+            style: style,
+            keyboardType: TextInputType.number,
+            textInputAction: last ? TextInputAction.done : TextInputAction.next,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(2)],
+            decoration: InputDecoration(labelText: label, alignLabelWithHint: true),
+            validator: (v) => _check(v, max, label),
+            onTap: () => c.selection = TextSelection(baseOffset: 0, extentOffset: c.text.length),
+            onFieldSubmitted: last ? (_) => _accept() : null,
+          ),
+        );
+    return AppDialog(
+      icon: const Icon(Icons.schedule, size: 32),
+      title: 'Hora de salida',
+      content: Form(
+        key: _form,
+        child: Row(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          field(_hour, 'Hora', 23),
+          Padding(padding: const EdgeInsets.fromLTRB(8, 12, 8, 0), child: Text(':', style: style)),
+          field(_minute, 'Minutos', 59, last: true),
+        ]),
+      ),
+      buttons: [
+        primaryButton(context, 'Confirmar', Icons.check, _accept),
+        cancelButton(context),
+      ],
+    );
+  }
+}
 
 TimeOfDay? _parseTime(String text) {
   final parts = text.split(':');
@@ -101,13 +170,15 @@ class _TripFormScreenState extends State<TripFormScreen> {
     return true;
   }
 
-  Future<void> _status(Trip t, String status, String verb) async {
+  Future<void> _status(Trip t, String status) async {
     final cancelling = status == TripStatus.cancelled;
-    if (!await confirm(context, 'Actualizar Viaje: $verb', '¿$verb el ${t.title.toLowerCase()}?',
-        accept: verb, icon: Icons.check, destructive: cancelling, headerIcon: cancelling ? Icons.cancel_outlined : Icons.directions_bus_outlined)) {
+    final (verb, doing) = tripStatusVerb(status);
+    if (!await confirm(context, '$verb Viaje', '¿$verb el ${t.title.toLowerCase()}?',
+        accept: '$verb Viaje', icon: cancelling ? Icons.cancel_outlined : Icons.check, destructive: cancelling, headerIcon: cancelling ? Icons.cancel_outlined : Icons.directions_bus_outlined)) {
       return;
     }
     if (!mounted) return;
+    BusyScope.relabel('$doing Viaje');
     await context.read<Session>().api.patch('/trips/${t.id}', resourceData('trips', id: t.id, attributes: {'status': status}));
     _view.currentState?.reload();
   }
@@ -131,16 +202,17 @@ class _TripFormScreenState extends State<TripFormScreen> {
     return [
       if (manage && t.isPlanned) ActionItem(Icons.save_outlined, 'Guardar', () => _save(t)),
       if (manage) ActionItem(Icons.event_available, 'Crear Viaje', () => Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => PlanTripScreen(itineraryId: t.itineraryId)), result: true)),
-      ActionItem(Icons.timeline, 'Consultar Recorrido', () => push(context, TripLineScreen(tripId: t.id))),
+      ActionItem(Icons.timeline, 'Ver recorrido', () => push(context, TripLineScreen(tripId: t.id))),
       ActionItem(Icons.groups_outlined, 'Consultar Trabajadores', () => push(context, TripWorkersScreen(trip: t))),
-      if (manage && t.isPlanned) ActionItem(Icons.play_arrow, 'Actualizar Viaje: Iniciar', () => _status(t, TripStatus.running, 'Empezar')),
-      if (manage && t.isRunning) ActionItem(Icons.flag_outlined, 'Actualizar Viaje: Terminar', () => _status(t, TripStatus.finished, 'Terminar')),
-      if (manage && t.isRunning && t.vehicleState == 'detenido') ActionItem(Icons.report_outlined, 'Actualizar Viaje: Causa de detención', () => _detentionCause(t)),
-      if (manage && t.isPlanned && (me.isAdmin || t.createdById == me.userId))
-        ActionItem(Icons.cancel_outlined, 'Actualizar Viaje: Cancelar', () => _status(t, TripStatus.cancelled, 'Cancelar'), destructive: true),
-      if (manage && !t.isRunning)
+      if (manage && t.isPlanned) ActionItem(Icons.play_arrow, 'Iniciar Viaje', () => _status(t, TripStatus.running)),
+      if (manage && t.isRunning) ActionItem(Icons.flag_outlined, 'Terminar Viaje', () => _status(t, TripStatus.finished)),
+      if (manage && t.isRunning && t.vehicleState == 'detenido') ActionItem(Icons.report_outlined, 'Indicar causa de detención', () => _detentionCause(t)),
+      // Cancelar solo un Planificado; eliminar solo un Cancelado o Terminado (docs/11 §11.67).
+      if (manage && t.canCancel && (me.isAdmin || t.createdById == me.userId))
+        ActionItem(Icons.cancel_outlined, 'Cancelar Viaje', () => _status(t, TripStatus.cancelled), destructive: true),
+      if (manage && t.canDelete)
         ActionItem(Icons.delete_outline, 'Eliminar Viaje', () async {
-          if (!await confirmDelete(context, 'el ${t.title.toLowerCase()}')) return;
+          if (!await confirmDelete(context, 'el ${t.title.toLowerCase()}', consequences: 'Se borra con sus estados y su recorrido, sin avisar a nadie.')) return;
           if (!mounted) return;
           await context.read<Session>().api.delete('/trips/${t.id}');
           _editable = false;
@@ -190,12 +262,12 @@ class _TripFormScreenState extends State<TripFormScreen> {
             FormText(
               key: ValueKey('t$_time'),
               label: 'Hora de salida',
-              value: _time == null ? '' : time12(_time!.hour, _time!.minute),
+              value: _time == null ? '' : time24(_time!.hour, _time!.minute),
               icon: Icons.schedule,
               enabled: edit,
               onTap: edit
                   ? () async {
-                      final v = await pickTime12(context, _time ?? const TimeOfDay(hour: 7, minute: 0));
+                      final v = await pickTime24(context, _time ?? const TimeOfDay(hour: 7, minute: 0));
                       if (v != null) setState(() => _time = v);
                     }
                   : null,
@@ -367,10 +439,10 @@ class _PlanTripScreenState extends State<PlanTripScreen> {
           FormText(
             key: ValueKey('${l.direction}${l.time}'),
             label: 'Hora de salida',
-            value: time12(l.time.hour, l.time.minute),
+            value: time24(l.time.hour, l.time.minute),
             icon: Icons.schedule,
             onTap: () async {
-              final v = await pickTime12(context, l.time);
+              final v = await pickTime24(context, l.time);
               if (v != null) setState(() => l.time = v);
             },
           ),

@@ -7,7 +7,9 @@ import 'package:workmanager/workmanager.dart';
 
 import '../core/api_client.dart';
 import '../core/json_api.dart';
+import '../core/formats.dart';
 import '../core/local_cache.dart';
+import '../core/server_clock.dart';
 import '../core/storage.dart';
 import '../core/username.dart';
 import '../models/models.dart';
@@ -65,7 +67,12 @@ class Session extends ChangeNotifier {
   /// Jefe). Las propias resueltas se ven en Inicio.
   int get managementBadge => (me?.manages ?? false) ? (counters['applicationsToResolve'] ?? 0) : 0;
 
+  /// Círculo verde de la pestaña Viajes (docs/11 §11.67): Planificados y En
+  /// ejecución que le corresponden.
+  int get tripsBadge => (me?.seesTrips ?? false) ? (counters['activeTrips'] ?? 0) : 0;
+
   Future<void> init() async {
+    await ServerClock.load();
     settings = await AppSettings.cached();
     if (await AppUpdates.mandatory() != null) updateRequired = true;
     if (await Storage.refreshToken() == null || updateRequired || !await Storage.getBool(rememberKey, fallback: true)) {
@@ -98,10 +105,12 @@ class Session extends ChangeNotifier {
     await _enter();
   }
 
-  Future<void> register({required PersonName name, required String identityCard, required String username, required String password}) async {
+  Future<void> register({required PersonName name, required String email, required String sex, DateTime? birthDate, required String username, required String password}) async {
     await api.post('/users', resourceData('users', attributes: {
       ...name.toAttributes(),
-      'identityCard': identityCard.trim(),
+      'email': EmailAddress.normalize(email),
+      'sex': sex,
+      'birthDate': ?(birthDate == null ? null : apiDay(birthDate)),
       'username': Username.normalize(username),
       'password': password,
     }), auth: false, withInstallation: true);
@@ -140,29 +149,59 @@ class Session extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Una consulta en curso (no se lanzan dos a la vez).
+  Future<void>? _syncing;
+
   /// Sincroniza (GET sync) y avisa a las pantallas de lo que cambió. Con el
   /// servicio de la ventana de viaje activo, la petición la hace él (una sola
   /// cada Z, docs/11 §11.62): aquí solo se le pide que conecte ya.
-  Future<void> sync({bool all = false, bool now = false}) async {
+  ///
+  /// Pase lo que pase, la próxima consulta queda programada (finally) y nada
+  /// puede dejarla colgada (tiempo límite): en la 4.5.0, si una llamada al
+  /// sistema al abrir la ventana de viaje no respondía, el contador se
+  /// quedaba en 0, la app no volvía a consultar y el servicio que calcula el
+  /// estado (y hace salir el viaje) no arrancaba (docs/11 §11.67, captura 03).
+  Future<void> sync({bool all = false, bool now = false}) {
+    final running = _syncing;
+    if (running != null) {
+      if (now && _busySince != null && DateTime.now().difference(_busySince!) > const Duration(seconds: 70)) {
+        // Colgada: se abandona y se empieza otra.
+        _syncing = null;
+      } else {
+        return running;
+      }
+    }
+    _busySince = DateTime.now();
+    final future = _sync(all: all, now: now).whenComplete(() {
+      _syncing = null;
+      _busySince = null;
+    });
+    _syncing = future;
+    return future;
+  }
+
+  DateTime? _busySince;
+
+  Future<void> _sync({bool all = false, bool now = false}) async {
     if (state != SessionState.ready) return;
     try {
       await Storage.setForeground(true);
-      if (await TrackingService.isRunning) {
+      if (await TrackingService.isRunning.timeout(const Duration(seconds: 5), onTimeout: () => false)) {
         if (now) TrackingService.syncNow();
-        _schedule();
         return;
       }
-      final result = await SyncService.run(api, foreground: _foreground);
+      final result = await SyncService.run(api, foreground: _foreground).timeout(const Duration(seconds: 60));
       _apply({...result.changed, if (result.cacheChanged) 'cache'}, all: all);
       counters = result.counters;
       nextTrip = result.nextTrip;
       if (result.settingsChanged) settings = await AppSettings.cached();
       notifyListeners();
-      await TripWindow.reschedule(settings, foreground: _foreground);
+      await TripWindow.reschedule(settings, foreground: _foreground).timeout(const Duration(seconds: 20), onTimeout: () {});
     } catch (_) {
-      // Sin conexión: el punto de conexión lo indica.
+      // Sin conexión (o sin respuesta a tiempo): el punto de conexión lo indica.
+    } finally {
+      await _schedule();
     }
-    _schedule();
   }
 
   void _apply(Set<String> changed, {bool all = false}) {
@@ -178,6 +217,9 @@ class Session extends ChangeNotifier {
     if (data is! Map) return;
     final next = DateTime.tryParse('${data['nextAt'] ?? ''}');
     if (next != null) TripWindow.nextContact.value = next;
+    // Estado, movimiento y ubicación calculados por el servicio (tarjeta de estado de «Ver recorrido»).
+    final me = data['me'];
+    if (me is Map) TrackingService.myMotion.value = MyMotion.fromJson(Map<String, dynamic>.from(me));
     // Tocó «Mi estado» (la notificación del servicio): la pantalla principal lo atiende.
     final tap = data['tap'];
     if (tap is String && tap.isNotEmpty) {
@@ -211,7 +253,7 @@ class Session extends ChangeNotifier {
     _timer = null;
     if (state != SessionState.ready) return;
     final interval = settings.every(appOpen: true, inWindow: false);
-    if (await TrackingService.isRunning) {
+    if (await TrackingService.isRunning.timeout(const Duration(seconds: 5), onTimeout: () => false)) {
       // La conexión la hace el servicio: el contador sigue su ritmo.
       await Storage.setForeground(true);
       final current = TripWindow.nextContact.value;

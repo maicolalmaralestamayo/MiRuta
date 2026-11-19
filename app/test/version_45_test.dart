@@ -52,7 +52,7 @@ void main() {
       expect(s.running, isTrue);
       expect(s.simulatedVehicle, isTrue);
       expect(s.tripId, '40');
-      expect(s.countsText, '4 Viajando • 3 Dejados • 1 No recogido • 2 sin informar');
+      expect(s.countsText, '1 No recogido • 4 Viajando • 3 Dejados • 2 sin informar');
       expect(s.elapsedText, '2 min 05 s');
       expect(s.vehicleText, 'En Parada 2');
       expect(WorkerSimulation.from(Resource(type: 'simulations', id: '1')).countsText, 'Sin informes aún');

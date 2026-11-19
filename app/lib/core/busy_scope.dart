@@ -20,6 +20,13 @@ class BusyScope {
   int _pending = 0;
   bool _closed = false;
 
+  /// Texto del spinner que pone la propia operación cuando ya sabe qué hace
+  /// (p. ej. «Aprobando Solicitud» tras elegir Aprobar en el diálogo).
+  String? label;
+
+  /// Cambia el texto del spinner de la operación en curso (si la hay).
+  static void relabel(String text) => active?.label = text;
+
   BusyScope({required this.onBusyChanged});
 
   /// El ámbito activo (no terminado) de la zona actual. Lo que quede en la

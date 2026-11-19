@@ -1,10 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../../core/formats.dart';
 import '../../core/json_api.dart';
 import '../../models/models.dart';
+import '../auth/person_fields.dart';
 import '../management/forms.dart';
 import '../navigation.dart';
 import '../widgets/actions.dart';
@@ -33,13 +33,14 @@ class _ChildFormState extends State<ChildForm> {
   late final _middle = TextEditingController(text: _c?.name.middleName);
   late final _firstSurname = TextEditingController(text: _c?.name.firstSurname);
   late final _secondSurname = TextEditingController(text: _c?.name.secondSurname);
-  late final _card = TextEditingController(text: _c?.identityCard);
+  late String _sex = _c?.sex ?? 'M';
+  late DateTime? _birthDate = _c?.birthDate;
   late bool _active = _c?.active ?? true;
   String? _photo;
   late final List<Object?> _initial = _snapshot();
   bool _leaving = false;
 
-  List<Object?> _snapshot() => [_first.text, _middle.text, _firstSurname.text, _secondSurname.text, _card.text, _active];
+  List<Object?> _snapshot() => [_first.text, _middle.text, _firstSurname.text, _secondSurname.text, _sex, _birthDate, _active];
 
   bool get _dirty => !_leaving && !listEquals(_initial, _snapshot());
 
@@ -51,10 +52,11 @@ class _ChildFormState extends State<ChildForm> {
   }
 
   Future<bool> _save() async {
-    if (!_form.currentState!.validate()) return false;
+    if (!_form.currentState!.validate() || _birthDate == null) return false;
     final attributes = {
       ...PersonName(firstName: _first.text, middleName: _middle.text, firstSurname: _firstSurname.text, secondSurname: _secondSurname.text).toAttributes(),
-      'identityCard': _card.text.trim(),
+      'sex': _sex,
+      'birthDate': apiDay(_birthDate!),
     };
     final me = context.me;
     Resource? saved;
@@ -106,8 +108,6 @@ class _ChildFormState extends State<ChildForm> {
 
   @override
   Widget build(BuildContext context) {
-    final card = _card.text.trim();
-    final birth = _c?.birthDate ?? IdentityCard.birthDate(card);
     return LeaveGuard(
       dirty: () => _dirty,
       onSave: _save,
@@ -142,20 +142,13 @@ class _ChildFormState extends State<ChildForm> {
               FormText(controller: _middle, label: 'Segundo nombre', capitalization: TextCapitalization.words),
               FormText(controller: _firstSurname, label: 'Primer apellido', capitalization: TextCapitalization.words, validator: (v) => requiredText(v, 'Escriba el primer apellido')),
               FormText(controller: _secondSurname, label: 'Segundo apellido', capitalization: TextCapitalization.words, validator: (v) => requiredText(v, 'Escriba el segundo apellido')),
-              FormText(
-                controller: _card,
-                label: 'Carné de identidad',
-                icon: Icons.badge_outlined,
-                keyboard: TextInputType.number,
-                last: true,
-                formatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(11)],
-                validator: IdentityCard.validate,
-              ),
-              FormText(key: ValueKey('sex$card'), label: 'Sexo y nacimiento', value: sexAndBirth(_c?.sex ?? IdentityCard.sex(card), birth), readOnly: true),
+              // Sin carné (docs/11 §11.67): sexo y fecha de nacimiento a mano.
+              SexField(value: _sex, onChanged: (v) => setState(() => _sex = v)),
+              BirthDateField(value: _birthDate, required: true, onChanged: (v) => setState(() => _birthDate = v)),
               if (_c != null) FormText(label: 'Derecho a viajar hasta', value: formatDate(_c!.eligibleUntil), readOnly: true),
               if (_c != null && _c!.otherParents.isNotEmpty) FormText(label: 'También lo tiene declarado', value: _c!.otherParents.join(', '), readOnly: true),
               if (_c != null) ActiveSwitch(value: _active, onChanged: (v) => setState(() => _active = v)),
-              if (_c == null) const Padding(padding: EdgeInsets.all(16), child: Text('Si el niño ya lo declaró otra persona, con el carné se le asigna también a usted.')),
+              if (_c == null) const Padding(padding: EdgeInsets.all(16), child: Text('Si el niño ya lo declaró otra persona (mismos nombres, apellidos y fecha de nacimiento), se le asigna también a usted.')),
             ],
           ),
         ),

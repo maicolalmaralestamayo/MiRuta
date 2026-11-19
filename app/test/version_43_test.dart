@@ -119,11 +119,12 @@ void main() {
     });
 
     test('se quita al llegar a un estado definitivo', () {
-      // Desde la 4.4.0 los finales son los mismos en los dos sentidos (docs/11 §11.65).
-      for (final s in ['dejado', 'no_recogido', 'retrasado', 'no_voy', 'botado', 'dormido']) {
+      // Desde la 5.0.0 terminan el viaje para él Dejado y No viajaré (docs/11 §11.67).
+      for (final s in ['dejado', 'no_viajare']) {
         expect(WorkerState.isFinalFor(s, outbound: true), isTrue, reason: s);
         expect(WorkerState.isFinalFor(s, outbound: false), isTrue, reason: s);
       }
+      expect(WorkerState.isFinalFor('no_recogido', outbound: true), isFalse, reason: 'puede ir a otra parada');
       expect(WorkerState.isFinalFor('viajando', outbound: true), isFalse);
       expect(WorkerState.isFinalFor('viajando', outbound: false), isFalse);
       expect(WorkerState.isFinalFor('en_parada', outbound: false), isFalse);
@@ -133,13 +134,13 @@ void main() {
   group('Mi estado', () {
     test('estado, itinerario y mi parada', () {
       final n = myStateNotice(stateName: WorkerState.notice('en_parada'), state: 'en_parada', itineraryName: 'XX Aniversario', myStop: 'La llama');
-      expect(n.title, 'En la parada');
+      expect(n.title, 'En Parada');
       expect(n.lines, ['XX Aniversario • ida', 'Mi parada: La llama']);
       expect(n.highlight, isNull);
     });
 
-    test('destacadas: Retrasado, No recogido y estado definitivo', () {
-      expect(myStateNotice(stateName: 'Retrasado', state: 'retrasado').highlight, 'Llegó tarde a la parada');
+    test('destacadas: Llegada tarde, No recogido y estado definitivo', () {
+      expect(myStateNotice(stateName: 'Llegada tarde', state: 'llegada_tarde').highlight, 'Llegó tarde a la parada');
       expect(myStateNotice(stateName: 'No recogido', state: 'no_recogido', outbound: false).highlight, 'El vehículo pasó sin recogerle');
       expect(myStateNotice(stateName: 'Dejado', state: 'dejado', ended: true).highlight, 'Ya puede quitar la ubicación');
     });
@@ -153,11 +154,15 @@ void main() {
       expect(permission.allLines, isEmpty);
     });
 
-    test('nombres de los estados', () {
-      expect(WorkerState.notice('de_camino'), 'De camino');
-      expect(WorkerState.notice('no_voy'), 'No voy');
-      expect(WorkerState.notice('recogido'), 'Viajando');
-      expect(WorkerState.name('recogido'), 'Viajando');
+    test('nombres de los estados (versión definitiva, docs/11 §11.67)', () {
+      expect(WorkerState.notice('fuera_itinerario'), 'Fuera de itinerario');
+      expect(WorkerState.notice('acercandose'), 'Acercándose a Parada');
+      expect(WorkerState.notice('alejandose'), 'Alejándose de Parada');
+      expect(WorkerState.notice('llegada_tarde'), 'Llegada tarde');
+      expect(WorkerState.notice('no_viajare'), 'No viajaré');
+      // Los de versiones anteriores ya no existen.
+      expect(WorkerState.name('recogido'), 'Sin estado');
+      expect(WorkerState.name('no_voy'), 'Sin estado');
     });
   });
 
@@ -210,18 +215,17 @@ void main() {
     });
   });
 
-  group('Viajando unificado', () {
+  group('Viajando', () {
     const route = [
       RouteStop('1', 'A', GeoPoint(23.0, -82.0)),
       RouteStop('2', 'B', GeoPoint(23.01, -82.0)),
     ];
 
-    test('«recogido» de la 4.2.0 es Viajando y hace de sensor', () {
-      final tracker = WorkerTracker(outbound: false, route: route)..declare('recogido');
-      expect(tracker.state, 'viajando');
+    test('Viajando hace de sensor; un estado desconocido no se acepta', () {
+      final tracker = WorkerTracker(outbound: false, route: route)..declare('viajando', stopId: '1');
       expect(tracker.isSensor, isTrue);
       final restored = WorkerTracker.fromJson({...tracker.toJson(), 'state': 'recogido'});
-      expect(restored.state, 'viajando');
+      expect(restored.state, isNull);
     });
   });
 

@@ -3,6 +3,8 @@
 /// toca, una línea destacada al final (en naranja donde Android lo permite).
 library;
 
+import '../core/formats.dart';
+
 /// Contenido de una notificación.
 class NoticeContent {
   final String title;
@@ -23,12 +25,8 @@ class NoticeContent {
   String toString() => [title, ...allLines].join('\n');
 }
 
-const _weekdays = ['Lun.', 'Mar.', 'Mié.', 'Jue.', 'Vie.', 'Sáb.', 'Dom.'];
-
-String _two(int n) => n.toString().padLeft(2, '0');
-
-/// «Lun. 16/11/26 07:00».
-String noticeDate(DateTime d) => '${_weekdays[d.weekday - 1]} ${_two(d.day)}/${_two(d.month)}/${_two(d.year % 100)} ${_two(d.hour)}:${_two(d.minute)}';
+/// «Lun. 16/11/26 07:00» (24 h, en la zona del servidor; docs/11 §11.67).
+String noticeDate(DateTime d) => formatDateTime(d);
 
 /// «Ruta 1 • ida».
 String itineraryLine(String? itinerary, String direction) => '${itinerary == null || itinerary.isEmpty ? 'Viaje' : itinerary} • ${direction == 'ida' ? 'ida' : 'regreso'}';
@@ -178,8 +176,8 @@ NoticeContent myStateNotice({
   final highlight = ended
       ? 'Ya puede quitar la ubicación'
       : switch (state) {
-          'retrasado' || 'dormido' => 'Llegó tarde a la parada',
-          'no_recogido' || 'botado' => 'El vehículo pasó sin recogerle',
+          'llegada_tarde' => 'Llegó tarde a la parada',
+          'no_recogido' => 'El vehículo pasó sin recogerle',
           _ => null,
         };
   return NoticeContent(stateName, [

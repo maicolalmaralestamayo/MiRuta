@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/formats.dart';
@@ -9,6 +8,7 @@ import '../../core/username.dart';
 import '../../models/models.dart';
 import '../../services/session.dart';
 import '../auth/password_fields.dart';
+import '../auth/person_fields.dart';
 import '../management/forms.dart';
 import '../navigation.dart';
 import '../widgets/actions.dart';
@@ -32,11 +32,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   late final _middle = TextEditingController(text: _me.name.middleName);
   late final _firstSurname = TextEditingController(text: _me.name.firstSurname);
   late final _secondSurname = TextEditingController(text: _me.name.secondSurname);
-  late final _card = TextEditingController(text: _me.identityCard);
+  late final _email = TextEditingController(text: _me.email);
+  late String _sex = _me.sex ?? 'M';
+  late DateTime? _birthDate = _me.birthDate;
   late final _username = TextEditingController(text: _me.username);
   late List<Object?> _initial = _snapshot();
 
-  List<Object?> _snapshot() => [_first.text, _middle.text, _firstSurname.text, _secondSurname.text, _card.text, _username.text];
+  List<Object?> _snapshot() => [_first.text, _middle.text, _firstSurname.text, _secondSurname.text, _email.text, _sex, _birthDate, _username.text];
 
   bool get _dirty => !listEquals(_initial, _snapshot());
 
@@ -51,7 +53,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final ok = await runAction(context, () async {
       await context.api.patch('/me', resourceData('users', attributes: {
         ...PersonName(firstName: _first.text, middleName: _middle.text, firstSurname: _firstSurname.text, secondSurname: _secondSurname.text).toAttributes(),
-        'identityCard': _card.text.trim(),
+        'email': EmailAddress.normalize(_email.text),
+        'sex': _sex,
+        'birthDate': _birthDate == null ? null : apiDay(_birthDate!),
         'username': Username.normalize(_username.text),
       }));
       if (mounted) await context.read<Session>().reloadMe();
@@ -78,7 +82,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final card = _card.text.trim();
     return LeaveGuard(
       dirty: () => _dirty,
       child: AppScaffold(
@@ -99,9 +102,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           FormText(controller: _middle, label: 'Segundo nombre', capitalization: TextCapitalization.words),
           FormText(controller: _firstSurname, label: 'Primer apellido', capitalization: TextCapitalization.words, validator: (v) => requiredText(v, 'Escriba el primer apellido')),
           FormText(controller: _secondSurname, label: 'Segundo apellido', capitalization: TextCapitalization.words, validator: (v) => requiredText(v, 'Escriba el segundo apellido')),
-          FormText(controller: _card, label: 'Carné de identidad', icon: Icons.badge_outlined, keyboard: TextInputType.number,
-              formatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(11)], validator: IdentityCard.validate),
-          FormText(label: 'Sexo y nacimiento', value: sexAndBirth(_me.sex ?? IdentityCard.sex(card), _me.birthDate ?? IdentityCard.birthDate(card)), readOnly: true),
+          EmailField(controller: _email),
+          SexField(value: _sex, onChanged: (v) => setState(() => _sex = v)),
+          BirthDateField(value: _birthDate, onChanged: (v) => setState(() => _birthDate = v)),
           FormText(controller: _username, label: 'Usuario', icon: Icons.alternate_email, validator: validateUsername, capitalization: TextCapitalization.none, last: true),
           FormText(label: 'Contraseña', value: _me.passwordExpiresAt == null ? 'Sin caducidad' : 'Caduca el ${formatDate(_me.passwordExpiresAt)}', readOnly: true),
         ]),

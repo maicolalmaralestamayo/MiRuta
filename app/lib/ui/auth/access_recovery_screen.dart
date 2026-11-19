@@ -12,7 +12,7 @@ import '../widgets/app_scaffold.dart';
 import '../widgets/common.dart';
 
 /// «Olvidé usuario/contraseña» (docs/11 §11.7 y §11.51): olvidé el usuario, la contraseña o los dos,
-/// con el carné de identidad y un teléfono. Solo el Administrador lo aprueba,
+/// con el correo electrónico y un teléfono. Solo el Administrador lo aprueba,
 /// tras confirmarlo por una tercera vía. Al aprobarse, aquí se ve una sola vez
 /// solo lo pedido (el usuario y/o una contraseña propuesta, que habrá que
 /// cambiar al entrar).
@@ -27,7 +27,7 @@ class _AccessRecoveryScreenState extends State<AccessRecoveryScreen> {
   static const _storageKey = 'access_recovery_id';
 
   final _form = GlobalKey<FormState>();
-  final _identityCard = TextEditingController();
+  final _email = TextEditingController();
   final _phone = TextEditingController(text: '+53 ');
   bool _forgotUsername = false;
   bool _forgotPassword = true;
@@ -112,7 +112,7 @@ class _AccessRecoveryScreenState extends State<AccessRecoveryScreen> {
     final recovery = (await context.api.post('/guest/access-recoveries', resourceData('access-recoveries', attributes: {
       'forgotUsername': _forgotUsername,
       'forgotPassword': _forgotPassword,
-      'identityCard': _identityCard.text.trim(),
+      'email': EmailAddress.normalize(_email.text),
       'phone': _phone.text.trim(),
     }), guest: true)).resource;
     await Storage.setString(_storageKey, recovery.id);
@@ -144,13 +144,14 @@ class _AccessRecoveryScreenState extends State<AccessRecoveryScreen> {
       CheckboxListTile(value: _forgotPassword, onChanged: (v) => setState(() => _forgotPassword = v ?? false), title: const Text('Mi contraseña')),
       const SizedBox(height: 8),
       TextFormField(
-        controller: _identityCard,
-        decoration: const InputDecoration(labelText: 'Carné de identidad', hintText: 'p. ej. 85031512345', prefixIcon: Icon(Icons.badge_outlined)),
-        keyboardType: TextInputType.number,
+        controller: _email,
+        decoration: const InputDecoration(labelText: 'Correo electrónico', hintText: 'p. ej. nombre@correo.cu', prefixIcon: Icon(Icons.mail_outline)),
+        keyboardType: TextInputType.emailAddress,
         textInputAction: TextInputAction.next,
-        inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(IdentityCard.length)],
+        autocorrect: false,
+        inputFormatters: [LengthLimitingTextInputFormatter(EmailAddress.maxLength)],
         autovalidateMode: AutovalidateMode.onUserInteraction,
-        validator: IdentityCard.validate,
+        validator: EmailAddress.validate,
       ),
       const SizedBox(height: 12),
       TextFormField(

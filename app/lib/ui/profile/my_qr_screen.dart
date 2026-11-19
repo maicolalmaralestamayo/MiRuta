@@ -129,7 +129,7 @@ class _MyQrScreenState extends State<MyQrScreen> with WidgetsBindingObserver {
         Center(child: CardImage(url: me.photoUrl, icon: Icons.person, round: true, size: 88)),
         const SizedBox(height: 10),
         Text(me.fullName, textAlign: TextAlign.center, style: theme.textTheme.titleLarge),
-        if (me.identityCard != null) Text('CI ${me.identityCard}', textAlign: TextAlign.center),
+        if (me.email != null) Text(me.email!, textAlign: TextAlign.center),
         const SizedBox(height: 4),
         Text('Muéstrelo al Administrador o a su Jefe de itinerario para que le incluyan en una Entidad, un itinerario o una parada.',
             textAlign: TextAlign.center, style: theme.textTheme.bodySmall),

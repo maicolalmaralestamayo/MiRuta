@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/api_client.dart';
+import '../../core/busy_scope.dart';
 import '../../core/formats.dart';
 import '../../core/json_api.dart';
 import '../../models/models.dart';
@@ -57,12 +58,12 @@ class Ops {
     return (cancelled: false, stop: picked.id.isEmpty ? null : picked);
   }
 
-  /// Elegir una persona (búsqueda por nombre, usuario o carné).
+  /// Elegir una persona (búsqueda por nombre, usuario o correo).
   Future<Person?> pickPerson(String title, {Map<String, dynamic> query = const {}, Set<String> exclude = const {}}) async {
     final people = (await api.getAll('/users', query: query)).map(Person.from).where((p) => !exclude.contains(p.id)).toList();
     if (!context.mounted) return null;
     return pickOne<Person>(context, title, people, (p) => p.fullName,
-        subtitle: (p) => [p.username ?? '', if (p.identityCard != null) 'CI ${p.identityCard}'].where((s) => s.isNotEmpty).join(' • '), search: true);
+        subtitle: (p) => [p.username ?? '', ?p.email].where((s) => s.isNotEmpty).join(' • '), search: true);
   }
 
   // Solicitudes
@@ -71,12 +72,14 @@ class Ops {
   Future<bool> requestEntity() async {
     final abbreviation = await promptText(context, 'Solicitar Entidad', label: 'Abreviatura de la Entidad (p. ej. UMIM)', required: true, accept: 'Buscar', icon: Icons.search);
     if (abbreviation == null || !context.mounted) return false;
+    BusyScope.relabel('Consultando Entidad');
     final lookup = await api.get('/entities/lookup', query: {'filter[abbreviation]': abbreviation.toUpperCase()});
     final name = lookup.resource.string('name') ?? abbreviation;
     if (!context.mounted) return false;
     if (!await confirm(context, 'Solicitar Entidad', '¿Solicitar entrar en ${abbreviation.toUpperCase()} ($name)?', accept: 'Solicitar', icon: Icons.send, headerIcon: Icons.add_business_outlined)) {
       return false;
     }
+    BusyScope.relabel('Solicitando Entidad');
     await api.post('/applications', resourceData('applications', attributes: {'type': 'entidad', 'entityAbbreviation': abbreviation.toUpperCase()}));
     done('Solicitud enviada');
     return true;
@@ -108,6 +111,7 @@ class Ops {
     }
     final stop = await pickStopOf(target.id);
     if (stop.cancelled) return false;
+    BusyScope.relabel('Solicitando Itinerario');
     await api.post('/applications', resourceData('applications', attributes: {'type': 'itinerario'}, relationships: {
       'itinerary': ResourceId('itineraries', target.id),
       if (stop.stop != null) 'stop': ResourceId('stops', stop.stop!.id),
@@ -125,12 +129,14 @@ class Ops {
     }
     // Motivos separados por tipo de solicitud (docs/11 §11.65).
     final type = types.first == 'entidad' ? 'entity-denial-reasons' : 'itinerary-denial-reasons';
+    BusyScope.relabel('Consultando Motivos de rechazo');
     final reasons = (await api.getAll('/$type', query: {'filter[active]': 'true'})).map(NomenclatorItem.from).toList();
     if (!context.mounted) return false;
     final reason = await pickOne<NomenclatorItem>(context, 'Motivo del rechazo', reasons, (r) => r.name, subtitle: (r) => r.description ?? '');
     if (reason == null || !context.mounted) return false;
     final note = await promptText(context, 'Observación (opcional)', label: 'Observación', maxLines: 3, accept: 'Confirmar', icon: Icons.block);
     if (note == null) return false;
+    BusyScope.relabel(applications.length == 1 ? 'Rechazando Solicitud' : 'Rechazando Solicitudes');
     for (final a in applications) {
       await api.patch('/applications/${a.id}', resourceData('applications', id: a.id, attributes: {
         'status': 'rechazada',
@@ -142,6 +148,7 @@ class Ops {
   }
 
   Future<bool> approve(List<Application> applications) async {
+    BusyScope.relabel(applications.length == 1 ? 'Aprobando Solicitud' : 'Aprobando Solicitudes');
     for (final a in applications) {
       await api.patch('/applications/${a.id}', resourceData('applications', id: a.id, attributes: {'status': 'aprobada'}));
     }
@@ -157,6 +164,7 @@ class Ops {
         : await confirm(context, 'Eliminar Solicitud', '¿Quitar de la lista esta solicitud ya resuelta?',
             accept: 'Eliminar', icon: Icons.delete_outline, destructive: true, headerIcon: Icons.delete_outline);
     if (!ok) return false;
+    BusyScope.relabel('Eliminando Solicitud');
     await api.delete('/applications/${a.id}');
     done(a.pending ? 'Solicitud cancelada' : 'Solicitud eliminada');
     return true;
@@ -182,8 +190,8 @@ class Ops {
         // La acción arriba y Cancelar abajo (docs/11 §11.65).
         buttons: [
           if (canResolve && a.pending) ...[
-            primaryButton(context, 'Actualizar Solicitud: Aprobar', Icons.check, () => Navigator.pop(context, 'approve')),
-            dangerButton(context, 'Actualizar Solicitud: Rechazar', Icons.block, () => Navigator.pop(context, 'reject')),
+            primaryButton(context, 'Aprobar', Icons.check, () => Navigator.pop(context, 'approve')),
+            dangerButton(context, 'Rechazar', Icons.block, () => Navigator.pop(context, 'reject')),
           ],
           if (mine) dangerButton(context, 'Eliminar Solicitud', a.pending ? Icons.cancel_outlined : Icons.delete_outline, () => Navigator.pop(context, 'withdraw')),
           cancelButton(context),

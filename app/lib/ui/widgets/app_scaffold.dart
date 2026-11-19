@@ -197,6 +197,8 @@ class _AppScaffoldState extends State<AppScaffold> {
 /// notificaciones pendientes y los datos de la pantalla visible. Muestra la
 /// cuenta atrás hasta la próxima conexión con el servidor («↻ 7 s» dentro de
 /// la ventana de viaje, «↻ 12:34» fuera); al tocarlo conecta ya y la reinicia.
+/// Al llegar a cero, en lugar del «0» el icono gira mientras actualiza
+/// (docs/11 §11.67); si sigue así demasiado, vuelve a pedir la consulta.
 class RefreshButton extends StatefulWidget {
   final Future<void> Function()? onRefresh;
 
@@ -209,12 +211,21 @@ class RefreshButton extends StatefulWidget {
 class _RefreshButtonState extends State<RefreshButton> {
   bool _busy = false;
   Timer? _tick;
+  DateTime? _nudgedAt;
 
   @override
   void initState() {
     super.initState();
     _tick = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted && TripWindow.nextContact.value != null) setState(() {});
+      final next = TripWindow.nextContact.value;
+      if (!mounted || next == null) return;
+      // Vigilante: si la consulta debida no llega en 30 s, se vuelve a pedir.
+      final now = DateTime.now();
+      if (now.difference(next) > const Duration(seconds: 30) && (_nudgedAt == null || now.difference(_nudgedAt!) > const Duration(seconds: 30))) {
+        _nudgedAt = now;
+        context.read<Session>().sync(now: true);
+      }
+      setState(() {});
     });
   }
 
@@ -236,7 +247,9 @@ class _RefreshButtonState extends State<RefreshButton> {
 
   @override
   Widget build(BuildContext context) {
-    final label = countdownText(TripWindow.nextContact.value);
+    final next = TripWindow.nextContact.value;
+    final due = countdownDue(next);
+    final label = due ? null : countdownText(next);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Material(
@@ -250,7 +263,7 @@ class _RefreshButtonState extends State<RefreshButton> {
             child: Padding(
               padding: EdgeInsets.symmetric(horizontal: label == null ? 8 : 10),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                _busy ? const BusyIndicator(size: 16, color: Colors.white) : const Icon(Icons.refresh, color: Colors.white, size: 20),
+                _busy ? const BusyIndicator(size: 16, color: Colors.white) : SpinningRefresh(spinning: due, color: Colors.white, size: 20),
                 if (label != null) ...[
                   const SizedBox(width: 4),
                   Text(label, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700, fontFeatures: [FontFeature.tabularFigures()])),
@@ -298,8 +311,9 @@ class _CountdownLabelState extends State<CountdownLabel> {
 
   @override
   Widget build(BuildContext context) {
-    final label = countdownText(widget.next);
-    if (label == null) return const SizedBox.shrink();
+    if (widget.next == null) return const SizedBox.shrink();
+    final due = countdownDue(widget.next);
+    final label = due ? null : countdownText(widget.next);
     final color = Theme.of(context).colorScheme.onSurfaceVariant;
     return Tooltip(
       message: widget.tooltip,
@@ -309,14 +323,60 @@ class _CountdownLabelState extends State<CountdownLabel> {
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.refresh, size: 18, color: color),
-            const SizedBox(width: 2),
-            Text(label, style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.w700, fontFeatures: const [FontFeature.tabularFigures()])),
+            SpinningRefresh(spinning: due, size: 18, color: color),
+            if (label != null) ...[
+              const SizedBox(width: 2),
+              Text(label, style: TextStyle(color: color, fontSize: 13, fontWeight: FontWeight.w700, fontFeatures: const [FontFeature.tabularFigures()])),
+            ],
           ]),
         ),
       ),
     );
   }
+}
+
+/// La cuenta atrás llegó a cero: se está actualizando (docs/11 §11.67).
+bool countdownDue(DateTime? next, {DateTime? now}) => next != null && next.difference(now ?? DateTime.now()).inSeconds <= 0;
+
+/// El icono de Actualizar (el de siempre), girando mientras actualiza.
+class SpinningRefresh extends StatefulWidget {
+  final bool spinning;
+  final Color? color;
+  final double size;
+
+  const SpinningRefresh({super.key, required this.spinning, this.color, this.size = 20});
+
+  @override
+  State<SpinningRefresh> createState() => _SpinningRefreshState();
+}
+
+class _SpinningRefreshState extends State<SpinningRefresh> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.spinning) _controller.repeat();
+  }
+
+  @override
+  void didUpdateWidget(SpinningRefresh old) {
+    super.didUpdateWidget(old);
+    if (widget.spinning && !_controller.isAnimating) _controller.repeat();
+    if (!widget.spinning && _controller.isAnimating) _controller.reset();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => RotationTransition(
+        turns: _controller,
+        child: Icon(Icons.refresh, color: widget.color, size: widget.size, semanticLabel: widget.spinning ? 'Actualizando' : null),
+      );
 }
 
 /// «7 s» (menos de un minuto) o «12:34» (minutos y segundos); null sin cuenta.
@@ -330,15 +390,22 @@ String? countdownText(DateTime? next, {DateTime? now}) {
   return '$m:${s.toString().padLeft(2, '0')}';
 }
 
-/// Barra principal con el número de solicitudes en Gestión.
+/// Barra principal con el número de solicitudes en Gestión (círculo rojo) y
+/// el de viajes Planificados y En ejecución en Viajes (círculo verde, mismo
+/// estilo; docs/11 §11.67).
 class MainNavigationBar extends StatelessWidget {
   final MainTab selected;
 
   const MainNavigationBar({super.key, required this.selected});
 
+  static const tripsBadgeColor = Color(0xFF2E7D32);
+
   @override
   Widget build(BuildContext context) {
     final badge = context.select<Session, int>((s) => s.managementBadge);
+    final trips = context.select<Session, int>((s) => s.tripsBadge);
+    Widget tripsIcon(IconData icon) =>
+        Badge(isLabelVisible: trips > 0, backgroundColor: tripsBadgeColor, textColor: Colors.white, label: Text('$trips'), child: Icon(icon));
     return NavigationBar(
       selectedIndex: selected.index,
       onDestinationSelected: (index) => MainTabs.go(context, MainTab.values[index]),
@@ -349,7 +416,7 @@ class MainNavigationBar extends StatelessWidget {
           selectedIcon: Badge(isLabelVisible: badge > 0, label: Text('$badge'), child: const Icon(Icons.settings)),
           label: 'Gestión',
         ),
-        const NavigationDestination(icon: Icon(Icons.directions_bus_outlined), selectedIcon: Icon(Icons.directions_bus), label: 'Viajes'),
+        NavigationDestination(icon: tripsIcon(Icons.directions_bus_outlined), selectedIcon: tripsIcon(Icons.directions_bus), label: 'Viajes'),
         const NavigationDestination(icon: Icon(Icons.menu), label: 'Más'),
       ],
     );

@@ -1,40 +1,60 @@
 import 'package:intl/intl.dart';
 
-/// Formatos de fechas y horas de toda la app (docs/11 §11.33 y §11.65):
-/// fechas «sáb. 07-11-26» y horas de 12 h «05:30 p. m.».
+import 'server_clock.dart';
+
+/// Formatos de fechas y horas de toda la app (docs/11 §11.63 y §11.67):
+/// «Jue. 19/11/26 10:30», horas de 24 h, en la zona del servidor
+/// (ServerClock), como en las notificaciones.
+const _weekdays = ['Lun.', 'Mar.', 'Mié.', 'Jue.', 'Vie.', 'Sáb.', 'Dom.'];
+
+String _two(int n) => n.toString().padLeft(2, '0');
+
+/// La fecha y hora que se muestran. Un día sin hora (medianoche local, como
+/// los que da [parseDay]) se muestra tal cual; un instante, en la zona del
+/// servidor.
+DateTime _shown(DateTime date) {
+  final local = date.isUtc ? date.toLocal() : date;
+  final calendarDay = !date.isUtc && local.hour == 0 && local.minute == 0 && local.second == 0 && local.millisecond == 0;
+  return calendarDay ? local : ServerClock.wall(date);
+}
+
+/// «Jue. 19/11/26».
 String formatDate(DateTime? date) {
   if (date == null) return '';
-  final local = date.toLocal();
-  return '${weekday(local)} ${DateFormat('dd-MM-yy').format(local)}';
+  final d = _shown(date);
+  return '${weekday(d)} ${_two(d.day)}/${_two(d.month)}/${_two(d.year % 100)}';
 }
 
-/// Día de la semana abreviado con punto: «sáb.».
-String weekday(DateTime date) {
-  const names = ['lun.', 'mar.', 'mié.', 'jue.', 'vie.', 'sáb.', 'dom.'];
-  return names[date.weekday - 1];
-}
+/// Día de la semana abreviado con mayúscula y punto: «Jue.».
+String weekday(DateTime date) => _weekdays[date.weekday - 1];
 
+/// «10:30» (24 h).
 String formatTime(DateTime? date) {
   if (date == null) return '';
-  final local = date.toLocal();
-  return time12(local.hour, local.minute);
+  final d = ServerClock.wall(date);
+  return time24(d.hour, d.minute);
 }
 
-/// «05:00 p. m.», «12:30 a. m.» (docs/11 §11.65: horas de 12 h con a. m. / p. m.).
-String time12(int hour, int minute) {
-  final h = hour % 12 == 0 ? 12 : hour % 12;
-  return '${h.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')} ${hour < 12 ? 'a. m.' : 'p. m.'}';
-}
+/// «07:05», «17:30».
+String time24(int hour, int minute) => '${_two(hour)}:${_two(minute)}';
 
-/// «17:30» (como lo guarda el servidor) → «05:30 p. m.»; si no se entiende, tal cual.
-String hhmm12(String hhmm) {
+/// «17:30» (como lo guarda el servidor) → «17:30»; si no se entiende, tal cual.
+String hhmm24(String hhmm) {
   final parts = hhmm.split(':');
   final h = parts.isNotEmpty ? int.tryParse(parts[0]) : null;
   final m = parts.length > 1 ? int.tryParse(parts[1]) : null;
-  return h == null || m == null ? hhmm : time12(h, m);
+  return h == null || m == null ? hhmm : time24(h, m);
 }
 
-String formatDateTime(DateTime? date) => date == null ? '' : '${formatDate(date)} ${formatTime(date)}';
+/// «Jue. 19/11/26 10:30».
+String formatDateTime(DateTime? date) {
+  if (date == null) return '';
+  final d = ServerClock.wall(date);
+  return '${weekday(d)} ${_two(d.day)}/${_two(d.month)}/${_two(d.year % 100)} ${time24(d.hour, d.minute)}';
+}
+
+/// Un día (AAAA-MM-DD) y una hora «HH:MM» como se planificaron: «Jue. 19/11/26 10:30».
+String formatDayTime(DateTime day, String hhmm) => '${formatDate(DateTime(day.year, day.month, day.day))} ${hhmm24(hhmm)}';
 
 /// Día para la API: AAAA-MM-DD.
 String apiDay(DateTime date) => DateFormat('yyyy-MM-dd').format(date);

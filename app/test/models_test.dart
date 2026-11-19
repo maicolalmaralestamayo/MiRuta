@@ -86,20 +86,25 @@ void main() {
           'expectedPassengers': 38,
           'notGoing': 1,
           'stops': [
-            {'index': 0, 'stopId': '9', 'landmark': 'Reparto', 'passed': true, 'passedAt': '2026-11-09T17:31:00-05:00', 'expected': 5, 'counts': {'botado': 1}, 'mine': false},
-            {'index': 1, 'stopId': '7', 'landmark': 'Coppelia', 'passed': false, 'expected': 4, 'counts': {}, 'mine': true},
+            {'index': 0, 'stopId': '9', 'landmark': 'Reparto', 'state': 'recogida', 'passed': true, 'left': true, 'passedAt': '2026-11-09T17:31:00-05:00', 'expected': 5, 'counts': {'no_recogido': 1}, 'mine': false},
+            {'index': 1, 'stopId': '7', 'landmark': 'Coppelia', 'state': 'en_espera', 'passed': false, 'expected': 4, 'counts': {}, 'mine': true},
           ],
-          'myState': {'state': 'en_parada', 'stopId': '7', 'childrenCount': 0, 'sensor': false},
+          'myState': {'state': 'en_parada', 'stopId': '7', 'childrenCount': 0, 'sensor': false, 'manual': true},
         },
       },
     }));
     expect(live.outbound, isFalse);
     expect(live.sensors, 3);
     expect(live.inVehicleWorkers + live.inVehicleChildren, 14);
-    // «botado» de un servidor 4.3.0 se lee como No recogido.
     expect(live.stops.first.counts, {'no_recogido': 1});
+    expect(live.stops.first.state, 'recogida');
+    expect(live.stops.first.left, isTrue);
+    expect(live.stops.last.state, 'en_espera');
+    expect(live.lastLeftIndex, 0);
+    expect(live.stoppedAt(1), isTrue);
     expect(live.myStop!.landmark, 'Coppelia');
-    expect(WorkerState.name(live.myState), 'En la parada');
+    expect(live.myManual, isTrue);
+    expect(WorkerState.name(live.myState), 'En Parada');
   });
 
   test('parada con sus itinerarios y dirección', () {
@@ -120,11 +125,14 @@ void main() {
     expect(stop.linkIn('1')!.itineraryStopId, '3');
   });
 
-  test('carné de identidad: sexo y nacimiento', () {
-    expect(IdentityCard.birthDate('85031512345'), DateTime(1985, 3, 15));
-    expect(IdentityCard.sex('85031512345'), 'M');
-    expect(IdentityCard.validate('123'), isNotNull);
-    expect(sexAndBirth('M', DateTime(1985, 3, 15)), 'Masculino • vie. 15-03-85');
+  test('correo electrónico en lugar del carné (docs/11 §11.67); sexo y nacimiento', () {
+    expect(EmailAddress.validate(''), 'Escriba el correo electrónico');
+    expect(EmailAddress.validate('ana.correo.cu'), isNotNull);
+    expect(EmailAddress.validate('ana@correo'), isNotNull);
+    expect(EmailAddress.validate(' Ana.Perez@Correo.CU '), isNull);
+    expect(EmailAddress.normalize(' Ana.Perez@Correo.CU '), 'ana.perez@correo.cu');
+    expect(sexAndBirth('M', DateTime(1985, 3, 15)), 'Masculino • Vie. 15/03/85');
+    expect(sexAndBirth('F', null), 'Femenino');
   });
 
   test('ocupación del viaje', () {

@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api_client.dart';
+import '../../core/formats.dart';
 import '../../core/json_api.dart';
 import '../../core/username.dart';
 import '../../models/models.dart';
@@ -13,6 +14,7 @@ import '../../services/session.dart';
 import '../../services/shared_location.dart';
 import '../../services/tracking/worker_tracker.dart' show GeoPoint;
 import '../auth/password_fields.dart';
+import '../auth/person_fields.dart';
 import '../navigation.dart';
 import '../profile/children_screen.dart';
 import '../widgets/actions.dart';
@@ -461,7 +463,7 @@ class _EntityFormState extends _FormState<EntityForm> {
       title: 'Entidad',
       extra: () => [
         if (!isNew && me.membershipIn(_e!.id) != null && !admin)
-          ActionItem(Icons.logout, 'Actualizar Entidad: Salir', () => relation((ops) => ops.leaveEntity(me.membershipIn(_e!.id)!))),
+          ActionItem(Icons.logout, 'Salir de la Entidad', () => relation((ops) => ops.leaveEntity(me.membershipIn(_e!.id)!))),
       ],
       fields: [
         PhotoHeader(
@@ -509,7 +511,7 @@ class _EntityFormState extends _FormState<EntityForm> {
                   items: _applications,
                   emptyText: 'No hay solicitudes pendientes.',
                   builder: (a) => applicationTile(a, mine: a.userId == me.userId,
-                      onTap: () => now(() => Ops(context).showApplication(a, mine: a.userId == me.userId, canResolve: admin), label: 'Actualizando Solicitud')),
+                      onTap: () => now(() => Ops(context).showApplication(a, mine: a.userId == me.userId, canResolve: admin), label: 'Consultando Solicitud')),
                 ),
             ],
     );
@@ -734,8 +736,8 @@ class _ItineraryFormState extends _FormState<ItineraryForm> {
     return formScaffold(
       title: 'Itinerario',
       extra: () => [
-        if (manages && _stops.isNotEmpty) ActionItem(Icons.playlist_remove, 'Actualizar Itinerario: Quitar parada', () => relation(_removeStop)),
-        if (!isNew && me.isAdmin && _workers.isNotEmpty) ActionItem(Icons.badge_outlined, 'Actualizar Itinerario: Asignar o quitar Jefe', () => relation(_assignChief)),
+        if (manages && _stops.isNotEmpty) ActionItem(Icons.playlist_remove, 'Quitar parada', () => relation(_removeStop)),
+        if (!isNew && me.isAdmin && _workers.isNotEmpty) ActionItem(Icons.badge_outlined, 'Asignar o quitar Jefe', () => relation(_assignChief)),
       ],
       fields: [
         PhotoHeader(
@@ -800,7 +802,7 @@ class _ItineraryFormState extends _FormState<ItineraryForm> {
                   items: _applications,
                   emptyText: 'No hay solicitudes pendientes.',
                   builder: (a) => applicationTile(a, mine: a.userId == me.userId,
-                      onTap: () => now(() => Ops(context).showApplication(a, mine: a.userId == me.userId, canResolve: manages), label: 'Actualizando Solicitud')),
+                      onTap: () => now(() => Ops(context).showApplication(a, mine: a.userId == me.userId, canResolve: manages), label: 'Consultando Solicitud')),
                 ),
             ],
     );
@@ -1012,7 +1014,7 @@ class _StopFormState extends _FormState<StopForm> {
       title: 'Parada',
       extra: () => [
         if (!isNew && manages && links.any((l) => me.isAdmin || me.isChiefOf(l.itineraryId)))
-          ActionItem(Icons.playlist_remove, 'Actualizar Parada: Quitar de un itinerario', () => relation(_dissociate)),
+          ActionItem(Icons.playlist_remove, 'Quitar de un itinerario', () => relation(_dissociate)),
       ],
       fields: [
         PhotoHeader(
@@ -1100,7 +1102,9 @@ class _WorkerFormState extends _FormState<WorkerForm> {
   final _middle = TextEditingController();
   final _firstSurname = TextEditingController();
   final _secondSurname = TextEditingController();
-  final _card = TextEditingController();
+  final _email = TextEditingController();
+  String _sex = 'M';
+  DateTime? _birthDate;
   final _username = TextEditingController();
   List<Child> _children = const [];
   bool _loaded = false;
@@ -1116,7 +1120,9 @@ class _WorkerFormState extends _FormState<WorkerForm> {
     _middle.text = p.name.middleName;
     _firstSurname.text = p.name.firstSurname;
     _secondSurname.text = p.name.secondSurname;
-    _card.text = p.identityCard ?? '';
+    _email.text = p.email ?? '';
+    _sex = p.sex ?? 'M';
+    _birthDate = p.birthDate;
     _username.text = p.username ?? '';
     active = p.memberships.isEmpty || p.memberships.every((m) => m.active);
   }
@@ -1149,7 +1155,7 @@ class _WorkerFormState extends _FormState<WorkerForm> {
   Widget emptyForm() => const RegisterWorkerForm();
 
   @override
-  List<Object?> snapshot() => [_first.text, _middle.text, _firstSurname.text, _secondSurname.text, _card.text, _username.text, active];
+  List<Object?> snapshot() => [_first.text, _middle.text, _firstSurname.text, _secondSurname.text, _email.text, _sex, _birthDate, _username.text, active];
 
   @override
   Future<void> loadRelations() async {
@@ -1170,7 +1176,9 @@ class _WorkerFormState extends _FormState<WorkerForm> {
     if (_admin) {
       await api.patch('/users/${_p.id}', resourceData('users', id: _p.id, attributes: {
         ...PersonName(firstName: _first.text, middleName: _middle.text, firstSurname: _firstSurname.text, secondSurname: _secondSurname.text).toAttributes(),
-        if (_card.text.trim().isNotEmpty) 'identityCard': _card.text.trim(),
+        if (_email.text.trim().isNotEmpty) 'email': EmailAddress.normalize(_email.text),
+        'sex': _sex,
+        'birthDate': _birthDate == null ? null : apiDay(_birthDate!),
         if (_username.text.trim().isNotEmpty) 'username': Username.normalize(_username.text),
       }));
     }
@@ -1256,14 +1264,13 @@ class _WorkerFormState extends _FormState<WorkerForm> {
   @override
   Widget build(BuildContext context) {
     final edit = _admin && _loaded;
-    final card = _card.text.trim();
     final canChildren = _admin || _self;
     return formScaffold(
       title: 'Trabajador',
       extra: () => [
-        if (_admin) ActionItem(Icons.add_business_outlined, 'Actualizar Trabajador: Asociar Entidad', () => relation((ops) => ops.associateEntity([widget.userId], exclude: _p.memberships.map((m) => m.entityId).toSet()))),
+        if (_admin) ActionItem(Icons.add_business_outlined, 'Asociar Entidad', () => relation((ops) => ops.associateEntity([widget.userId], exclude: _p.memberships.map((m) => m.entityId).toSet()))),
         if (_admin || me.chiefItineraryId != null)
-          ActionItem(Icons.add_road, 'Actualizar Trabajador: Añadir itinerario', () => relation((ops) => ops.addItinerary(me, widget.userId, exclude: {for (final m in _p.memberships) ...m.itineraries.map((p) => p.itineraryId)}))),
+          ActionItem(Icons.add_road, 'Añadir itinerario', () => relation((ops) => ops.addItinerary(me, widget.userId, exclude: {for (final m in _p.memberships) ...m.itineraries.map((p) => p.itineraryId)}))),
         if (canChildren) ActionItem(Icons.person_add_alt_1, 'Crear Hijo', _openChild),
       ],
       fields: [
@@ -1272,11 +1279,13 @@ class _WorkerFormState extends _FormState<WorkerForm> {
         FormText(controller: _middle, label: 'Segundo nombre', readOnly: !edit, capitalization: TextCapitalization.words),
         FormText(controller: _firstSurname, label: 'Primer apellido', readOnly: !edit, capitalization: TextCapitalization.words, validator: (v) => requiredText(v, 'Escriba el primer apellido')),
         FormText(controller: _secondSurname, label: 'Segundo apellido', readOnly: !edit, capitalization: TextCapitalization.words, validator: (v) => requiredText(v, 'Escriba el segundo apellido')),
-        if (_p.identityCard != null)
-          FormText(controller: _card, label: 'Carné de identidad', icon: Icons.badge_outlined, readOnly: !edit, keyboard: TextInputType.number,
-              formatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(11)], validator: IdentityCard.validate, last: _p.username == null),
-        if (_p.sex != null || _p.birthDate != null || card.isNotEmpty)
-          FormText(key: ValueKey('sex$card'), label: 'Sexo y nacimiento', value: sexAndBirth(_p.sex ?? IdentityCard.sex(card), _p.birthDate ?? IdentityCard.birthDate(card)), readOnly: true),
+        // Correo y nacimiento: los ve ella, el Administrador y su Jefe (docs/11 §11.67).
+        if (_p.email != null) EmailField(controller: _email, readOnly: !(edit && _admin)),
+        if (edit && _admin) ...[
+          SexField(value: _sex, onChanged: (v) => setState(() => _sex = v)),
+          BirthDateField(value: _birthDate, onChanged: (v) => setState(() => _birthDate = v)),
+        ] else if (_p.sex != null || _p.birthDate != null)
+          FormText(key: ValueKey('sex$_sex$_birthDate'), label: 'Sexo y nacimiento', value: sexAndBirth(_p.sex, _p.birthDate), readOnly: true),
         if (_p.username != null) FormText(controller: _username, label: 'Usuario', icon: Icons.alternate_email, readOnly: !edit, validator: validateUsername, last: true),
         if (_p.memberships.isNotEmpty) ActiveSwitch(value: active, onChanged: _canActivate ? (v) => setState(() => active = v) : null),
       ],
@@ -1334,7 +1343,9 @@ class _RegisterWorkerFormState extends State<RegisterWorkerForm> {
   final _middle = TextEditingController();
   final _firstSurname = TextEditingController();
   final _secondSurname = TextEditingController();
-  final _card = TextEditingController();
+  final _email = TextEditingController();
+  String _sex = 'M';
+  DateTime? _birthDate;
   final _username = TextEditingController();
   final _password = TextEditingController();
   final _repeat = TextEditingController();
@@ -1347,7 +1358,7 @@ class _RegisterWorkerFormState extends State<RegisterWorkerForm> {
     _entity = widget.entity;
   }
 
-  bool get _dirty => !_done && [_first, _middle, _firstSurname, _secondSurname, _card, _username, _password].any((c) => c.text.trim().isNotEmpty);
+  bool get _dirty => !_done && [_first, _middle, _firstSurname, _secondSurname, _email, _username, _password].any((c) => c.text.trim().isNotEmpty);
 
   Future<void> _pickEntity() async {
     final list = await Ops(context).entities();
@@ -1366,7 +1377,9 @@ class _RegisterWorkerFormState extends State<RegisterWorkerForm> {
     final ok = await runAction(context, label: 'Creando Trabajador', () async {
       document = await context.api.post('/workers', resourceData('workers', attributes: {
         ...PersonName(firstName: _first.text, middleName: _middle.text, firstSurname: _firstSurname.text, secondSurname: _secondSurname.text).toAttributes(),
-        'identityCard': _card.text.trim(),
+        'email': EmailAddress.normalize(_email.text),
+        'sex': _sex,
+        'birthDate': ?(_birthDate == null ? null : apiDay(_birthDate!)),
         'username': Username.normalize(_username.text),
         'password': _password.text,
       }, relationships: {'entity': ResourceId('entities', _entity!.id)}));
@@ -1400,7 +1413,6 @@ class _RegisterWorkerFormState extends State<RegisterWorkerForm> {
 
   @override
   Widget build(BuildContext context) {
-    final card = _card.text.trim();
     return LeaveGuard(
       dirty: () => _dirty,
       child: AppScaffold(
@@ -1415,28 +1427,14 @@ class _RegisterWorkerFormState extends State<RegisterWorkerForm> {
             FormText(controller: _middle, label: 'Segundo nombre', capitalization: TextCapitalization.words),
             FormText(controller: _firstSurname, label: 'Primer apellido', capitalization: TextCapitalization.words, validator: (v) => requiredText(v, 'Escriba el primer apellido')),
             FormText(controller: _secondSurname, label: 'Segundo apellido', capitalization: TextCapitalization.words, validator: (v) => requiredText(v, 'Escriba el segundo apellido')),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
-              child: TextFormField(
-                controller: _card,
-                decoration: InputDecoration(
-                  labelText: 'Carné de identidad',
-                  prefixIcon: const Icon(Icons.badge_outlined),
-                  helperText: IdentityCard.birthDate(card) == null ? null : sexAndBirth(IdentityCard.sex(card), IdentityCard.birthDate(card)),
-                ),
-                keyboardType: TextInputType.number,
-                textInputAction: TextInputAction.next,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(11)],
-                autovalidateMode: AutovalidateMode.onUserInteraction,
-                onChanged: (_) => setState(() {}),
-                validator: IdentityCard.validate,
-              ),
-            ),
+            EmailField(controller: _email),
+            SexField(value: _sex, onChanged: (v) => setState(() => _sex = v)),
+            BirthDateField(value: _birthDate, onChanged: (v) => setState(() => _birthDate = v)),
             FormText(controller: _username, label: 'Usuario', icon: Icons.alternate_email, capitalization: TextCapitalization.none, validator: validateUsername),
             Padding(padding: const EdgeInsets.fromLTRB(16, 6, 16, 6), child: PasswordFields(password: _password, confirmation: _repeat)),
             const Padding(
               padding: EdgeInsets.all(16),
-              child: Text('Si el carné ya tiene cuenta, solo se le añade la Entidad. La persona deberá cambiar la contraseña al entrar.'),
+              child: Text('Si el correo ya tiene cuenta, solo se le añade la Entidad. La persona deberá cambiar la contraseña al entrar.'),
             ),
           ]),
         ),

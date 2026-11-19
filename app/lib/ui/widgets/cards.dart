@@ -56,6 +56,9 @@ class InfoCard extends StatelessWidget {
   final List<Widget> images;
   final String title;
   final List<String> lines;
+
+  /// Línea destacada (naranja), la última (p. ej. «Cambió la hora»).
+  final String? highlight;
   final Widget? chip;
   final Widget? trailing;
   final bool dim;
@@ -69,6 +72,7 @@ class InfoCard extends StatelessWidget {
     required this.images,
     required this.title,
     this.lines = const [],
+    this.highlight,
     this.chip,
     this.trailing,
     this.dim = false,
@@ -107,6 +111,7 @@ class InfoCard extends StatelessWidget {
                 ]),
                 const SizedBox(height: 2),
                 for (final l in lines) line(l, muted),
+                if (highlight != null) line(highlight!, muted.copyWith(color: highlightTextColor(t), fontWeight: FontWeight.w600)),
               ]),
             ),
             if (trailing != null) ...[const SizedBox(width: 8), trailing!],
@@ -298,6 +303,10 @@ class FoldSection<T> extends StatefulWidget {
   /// Contenido en lugar de las tarjetas (p. ej. una lista para arrastrar).
   final Widget? child;
 
+  /// Con título y cantidad (plegable). Sin él (Inicio, docs/11 §11.67): solo
+  /// las tarjetas, paginadas, y nada si no hay (salvo [emptyText]).
+  final bool header;
+
   const FoldSection({
     super.key,
     required this.storageKey,
@@ -310,6 +319,7 @@ class FoldSection<T> extends StatefulWidget {
     this.emptyText,
     this.initiallyOpen = true,
     this.child,
+    this.header = true,
   });
 
   @override
@@ -344,7 +354,9 @@ class _FoldSectionState<T> extends State<FoldSection<T>> {
     final pages = widget.paginate ? ((widget.items.length + widget.pageSize - 1) ~/ widget.pageSize).clamp(1, 1 << 20) : 1;
     if (_page >= pages) _page = pages - 1;
     final visible = widget.paginate ? widget.items.skip(_page * widget.pageSize).take(widget.pageSize).toList() : widget.items;
+    final open = _open || !widget.header;
     final children = <Widget>[
+      if (widget.header)
       InkWell(
         onTap: _toggle,
         child: Padding(
@@ -356,11 +368,13 @@ class _FoldSectionState<T> extends State<FoldSection<T>> {
         ),
       ),
     ];
-    if (_open) {
+    if (open) {
       if (widget.child != null) {
         children.add(widget.child!);
       } else if (widget.items.isEmpty) {
-        children.add(Padding(padding: const EdgeInsets.fromLTRB(16, 4, 16, 8), child: Text(widget.emptyText ?? 'No hay nada que mostrar.', style: t.textTheme.bodyMedium)));
+        if (widget.header || widget.emptyText != null) {
+          children.add(Padding(padding: const EdgeInsets.fromLTRB(16, 4, 16, 8), child: Text(widget.emptyText ?? 'No hay nada que mostrar.', style: t.textTheme.bodyMedium)));
+        }
       } else {
         children.addAll(visible.map(widget.builder));
         if (widget.paginate && widget.items.length > widget.pageSize) {
@@ -379,3 +393,6 @@ class _FoldSectionState<T> extends State<FoldSection<T>> {
     return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children);
   }
 }
+
+/// Naranja de las líneas destacadas (como en las notificaciones), legible en los dos temas.
+Color highlightTextColor(ThemeData theme) => theme.brightness == Brightness.dark ? const Color(0xFFFFB74D) : const Color(0xFFE65100);

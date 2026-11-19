@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../core/storage.dart';
 import '../../models/models.dart';
 import '../../services/notifications.dart';
 import '../../services/session.dart';
@@ -15,8 +14,6 @@ import '../navigation.dart';
 import '../profile/children_screen.dart';
 import '../profile/my_qr_screen.dart';
 import '../profile/profile_screen.dart';
-import '../trips/trip_card.dart';
-import '../trips/trip_form_screen.dart';
 import '../trips/trip_permissions_screen.dart';
 import '../widgets/actions.dart';
 import '../widgets/app_scaffold.dart';
@@ -26,23 +23,24 @@ import '../widgets/data_view.dart';
 
 /// Lo que muestra Inicio además de la persona (GET me).
 class _HomeData {
+  /// Sus solicitudes pendientes (las resueltas las ve en Gestión).
   final List<Application> applications;
-  final TripList trips;
   final List<Child> children;
   final List<Absence> absences;
 
   /// Viaja en algún viaje próximo y faltan permisos para la app cerrada.
   final bool needsPermissions;
 
-  const _HomeData(this.applications, this.trips, this.children, [this.absences = const [], this.needsPermissions = false]);
+  const _HomeData(this.applications, this.children, [this.absences = const [], this.needsPermissions = false]);
 }
 
-/// Inicio (docs/11 §11.60, maqueta G22): prácticamente el formulario del
-/// Trabajador de la propia persona: sus datos en una tarjeta, su QR, sus
-/// viajes activos, sus Entidades e itinerarios con sus solicitudes, sus
-/// paradas y sus hijos. Acciones: ver o editar el perfil, solicitar Entidad
-/// o itinerario, cambiar de parada, añadir hijo, declarar ausencia y cerrar
-/// sesión.
+/// Inicio (docs/11 §11.60 y §11.67): sus datos en una tarjeta, su QR y,
+/// debajo y sin títulos de sección ni cantidades, sus hijos (nada si no
+/// tiene), sus Entidades e itinerarios con sus solicitudes **pendientes**
+/// (las aprobadas y rechazadas las ve en Gestión → Entidades / Itinerarios),
+/// sus paradas habituales y sus ausencias, con paginado. Sin viajes activos
+/// (están en Viajes). Acciones: perfil, solicitar Entidad o itinerario,
+/// cambiar de parada, añadir hijo, declarar ausencia y cerrar sesión.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -58,37 +56,15 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Ausencias en curso (para «Terminar ausencia»).
   List<Absence> _absences = const [];
 
-  /// Solicitudes aprobadas a la vista (docs/11 §11.65, punto 22): por omisión
-  /// ocultas; el teléfono recuerda la elección. Pendientes y rechazadas, siempre.
-  static const _approvedKey = 'inicio.solicitudes_aprobadas';
-  bool _showApproved = false;
-
-  @override
-  void initState() {
-    super.initState();
-    Storage.getBool(_approvedKey).then((v) {
-      if (mounted && v != _showApproved) setState(() => _showApproved = v);
-    });
-  }
-
-  void _toggleApproved() {
-    setState(() => _showApproved = !_showApproved);
-    Storage.setBool(_approvedKey, _showApproved);
-  }
-
   Future<_HomeData> _load() async {
     final session = _session;
     final api = session.api;
     await session.reloadMe().catchError((_) {});
     final me = session.me!;
-    final applications = (await api.getAll('/applications', query: {'filter[mine]': 'true', 'include': 'entity,itinerary,stop,denialReason,resolvedBy'})).map(Application.from).toList();
-    final mine = {for (final p in me.placements) p.itineraryId};
-    final trips = mine.isEmpty
-        ? const TripList([], {})
-        : await TripList.load(api, {
-            'filter[status]': '${TripStatus.planned},${TripStatus.running}',
-            if (mine.length == 1) 'filter[itinerary]': mine.first,
-          });
+    final applications = (await api.getAll('/applications', query: {'filter[mine]': 'true', 'include': 'entity,itinerary,stop,denialReason,resolvedBy'}))
+        .map(Application.from)
+        .where((a) => a.pending)
+        .toList();
     final children = (await api.getAll('/children', query: {'filter[parent]': me.userId})).map(Child.from).toList();
     final absences = me.hasItinerary
         ? (await api.getAll('/absences', query: {'filter[user]': me.userId, 'filter[current]': 'true'})).map(Absence.from).toList()
@@ -101,7 +77,7 @@ class _HomeScreenState extends State<HomeScreen> {
     Notifications.resolvedSeen();
     final upcoming = (await TripWindow.current(settings: session.settings)).isNotEmpty;
     final needsPermissions = upcoming && !(await TripPermissions.check()).complete;
-    return _HomeData(applications, TripList(trips.trips.where((t) => mine.contains(t.itineraryId)).toList(), trips.ends), children, absences, needsPermissions);
+    return _HomeData(applications, children, absences, needsPermissions);
   }
 
   Future<void> _reload() async => _view.currentState?.reload();
@@ -146,12 +122,12 @@ class _HomeScreenState extends State<HomeScreen> {
     return [
       ActionItem(Icons.person_outline, 'Consultar Perfil', () => _open(() => push(context, const ProfileScreen()))),
       const ActionItem.divider(),
-      ActionItem(Icons.add_business_outlined, 'Crear Solicitud: Entidad', () => _change(ops.requestEntity)),
-      if (me.hasEntity) ActionItem(Icons.alt_route, 'Crear Solicitud: Itinerario', () => _change(() => ops.requestItinerary(me))),
-      if (me.hasItinerary) ActionItem(Icons.where_to_vote_outlined, 'Actualizar Trabajador: Parada habitual', () => _change(() => _changeStop(me))),
+      ActionItem(Icons.add_business_outlined, 'Solicitar Entidad', () => _change(ops.requestEntity)),
+      if (me.hasEntity) ActionItem(Icons.alt_route, 'Solicitar Itinerario', () => _change(() => ops.requestItinerary(me))),
+      if (me.hasItinerary) ActionItem(Icons.where_to_vote_outlined, 'Cambiar parada habitual', () => _change(() => _changeStop(me))),
       ActionItem(Icons.person_add_alt_1, 'Crear Hijo', () => _open(() => push(context, const ChildForm()))),
       if (me.hasItinerary) ActionItem(Icons.event_busy, 'Crear Ausencia', () => _change(() => ops.declareAbsence(me.userId, me.placements))),
-      if (_absences.isNotEmpty) ActionItem(Icons.event_available, 'Actualizar Ausencia: Terminar', () => _change(() => ops.endAbsence(_absences))),
+      if (_absences.isNotEmpty) ActionItem(Icons.event_available, 'Terminar ausencia', () => _change(() => ops.endAbsence(_absences))),
       const ActionItem.divider(),
       ActionItem(Icons.logout, 'Cerrar sesión', () async {
         if (await confirm(context, 'Cerrar sesión', '¿Cerrar la sesión en este teléfono?', accept: 'Cerrar sesión', icon: Icons.logout, destructive: true, headerIcon: Icons.logout) &&
@@ -162,23 +138,17 @@ class _HomeScreenState extends State<HomeScreen> {
     ];
   }
 
-  Widget _applications(String title, List<Application> all) {
-    if (all.isEmpty) return const SizedBox.shrink();
-    final t = Theme.of(context);
-    final approved = all.where((a) => a.status == 'aprobada').length;
-    final list = _showApproved ? all : all.where((a) => a.status != 'aprobada').toList();
-    return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      Padding(
-        padding: const EdgeInsets.fromLTRB(24, 10, 8, 2),
-        child: Row(children: [
-          Expanded(child: Text('$title (${list.length})', style: t.textTheme.titleSmall!.copyWith(color: t.colorScheme.onSurfaceVariant))),
-          if (approved > 0)
-            TextButton(onPressed: _toggleApproved, child: Text(approvedToggleText(_showApproved))),
-        ]),
-      ),
-      for (final a in list) applicationTile(a, mine: true, onTap: () => _changeWith('Actualizando Solicitud', () => Ops(context).showApplication(a, mine: true, canResolve: _session.me!.isAdmin || (!a.isEntity && _session.me!.isChiefOf(a.itineraryId))))),
-    ]);
-  }
+  /// Sus solicitudes pendientes, sin título (docs/11 §11.67).
+  Widget _applications(String key, List<Application> pending) => FoldSection<Application>(
+        storageKey: key,
+        title: '',
+        header: false,
+        items: pending,
+        builder: (a) => applicationTile(a,
+            mine: true,
+            onTap: () => _changeWith('Consultando Solicitud',
+                () => Ops(context).showApplication(a, mine: true, canResolve: _session.me!.isAdmin || (!a.isEntity && _session.me!.isChiefOf(a.itineraryId))))),
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -192,10 +162,10 @@ class _HomeScreenState extends State<HomeScreen> {
       body: DataView<_HomeData>(
         what: 'Inicio',
         key: _view,
-        kinds: const {'applications', 'trips', 'children', 'absences'},
+        kinds: const {'applications', 'children', 'absences'},
         cacheKey: 'inicio',
         load: _load,
-        fallback: const _HomeData([], TripList([], {}), []),
+        fallback: const _HomeData([], []),
         builder: (context, data, reload) {
           final placements = me.placements;
           final entityApps = data.applications.where((a) => a.isEntity).toList();
@@ -218,26 +188,29 @@ class _HomeScreenState extends State<HomeScreen> {
                   onPressed: () => _open(() => push(context, const TripPermissionsScreen())),
                 ),
               _QrCard(onTap: () => push(context, const MyQrScreen())),
-              FoldSection<Trip>(
-                storageKey: 'inicio.viajes',
-                title: 'Viajes activos',
-                items: data.trips.trips,
-                emptyText: me.seesTrips ? 'No hay viajes planificados ni en ejecución.' : 'Para ver viajes necesita un itinerario.',
-                builder: (t) => TripCard(trip: t, departure: data.trips.departureOf(t), onTap: () => _open(() => push(context, TripFormScreen(tripId: t.id)))),
+              // Sin títulos de sección ni cantidades, con paginado (docs/11 §11.67).
+              FoldSection<Child>(
+                storageKey: 'inicio.hijos',
+                title: '',
+                header: false,
+                items: data.children,
+                builder: (c) => childTile(c, onTap: () => _open(() => push(context, ChildForm(child: c)))),
               ),
               FoldSection<Membership>(
                 storageKey: 'inicio.entidades',
-                title: 'Entidades',
+                title: '',
+                header: false,
                 items: me.memberships,
-                emptyText: 'Aún no tiene Entidad. Use Acciones → Crear Solicitud: Entidad.',
+                emptyText: entityApps.isEmpty ? 'Aún no tiene Entidad. Use Acciones → Solicitar Entidad.' : null,
                 builder: (m) => membershipTile(m, onTap: () => _open(() => openEntity(context, m.entityId))),
               ),
-              _applications('Solicitudes de Entidad', entityApps),
+              _applications('inicio.solicitudes.entidad', entityApps),
               FoldSection<Placement>(
                 storageKey: 'inicio.itinerarios',
-                title: 'Itinerarios',
+                title: '',
+                header: false,
                 items: placements,
-                emptyText: me.hasEntity ? 'Aún no tiene itinerario. Use Acciones → Crear Solicitud: Itinerario.' : 'Primero solicite entrar en una Entidad.',
+                emptyText: !me.hasEntity || itineraryApps.isNotEmpty ? null : 'Aún no tiene itinerario. Use Acciones → Solicitar Itinerario.',
                 builder: (p) => InfoCard(
                   images: [CardImage(url: p.itineraryImageUrl, icon: Icons.route, dim: !p.itineraryActive)],
                   title: p.itineraryName,
@@ -246,12 +219,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   onTap: () => _open(() => openItinerary(context, p.itineraryId)),
                 ),
               ),
-              _applications('Solicitudes de itinerario', itineraryApps),
+              _applications('inicio.solicitudes.itinerario', itineraryApps),
               FoldSection<Placement>(
                 storageKey: 'inicio.paradas',
-                title: 'Paradas habituales',
+                title: '',
+                header: false,
                 items: stops,
-                emptyText: me.hasItinerary ? 'Sin parada habitual (es opcional: la app detecta la parada en cada viaje).' : 'Sin itinerario no hay parada.',
                 builder: (p) => InfoCard(
                   images: [CardImage(url: p.stopImageUrl, icon: Icons.place)],
                   title: p.stopLandmark ?? '',
@@ -259,25 +232,18 @@ class _HomeScreenState extends State<HomeScreen> {
                   onTap: () => _open(() => openStop(context, p.stopId!)),
                 ),
               ),
-              if (data.absences.isNotEmpty)
-                FoldSection<Absence>(
-                  storageKey: 'inicio.ausencias',
-                  title: 'Ausencias',
-                  items: data.absences,
-                  builder: (a) => InfoCard(
-                    images: const [CardImage(icon: Icons.event_busy)],
-                    title: a.typeName,
-                    lines: [a.itineraryNames, absencePeriod(a)],
-                    chip: a.indefinite ? const Chip2('Indefinida', amber) : null,
-                    onTap: () => _change(() => Ops(context).endAbsence([a])),
-                  ),
+              FoldSection<Absence>(
+                storageKey: 'inicio.ausencias',
+                title: '',
+                header: false,
+                items: data.absences,
+                builder: (a) => InfoCard(
+                  images: const [CardImage(icon: Icons.event_busy)],
+                  title: a.typeName,
+                  lines: [a.itineraryNames, absencePeriod(a)],
+                  chip: a.indefinite ? const Chip2('Indefinida', amber) : null,
+                  onTap: () => _change(() => Ops(context).endAbsence([a])),
                 ),
-              FoldSection<Child>(
-                storageKey: 'inicio.hijos',
-                title: 'Hijos',
-                items: data.children,
-                emptyText: 'No ha declarado hijos.',
-                builder: (c) => childTile(c, onTap: () => _open(() => push(context, ChildForm(child: c)))),
               ),
             ],
           );
@@ -288,7 +254,7 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 /// Datos de la persona en una tarjeta (maqueta G22): foto, nombre, usuario,
-/// carné, sexo y nacimiento, y sus roles.
+/// correo, sexo y nacimiento, y sus roles.
 class _PersonHeader extends StatelessWidget {
   final Me me;
 
@@ -325,7 +291,7 @@ class _PersonHeader extends StatelessWidget {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(me.fullName, style: const TextStyle(color: Colors.white, fontSize: 19, fontWeight: FontWeight.w700)),
             const SizedBox(height: 4),
-            Text(['@${me.username}', if (me.identityCard != null) 'CI ${me.identityCard}'].join(' • '), style: const TextStyle(color: Colors.white70, fontSize: 13)),
+            Text(['@${me.username}', ?me.email].join(' • '), style: const TextStyle(color: Colors.white70, fontSize: 13)),
             if (me.sex != null || me.birthDate != null) Text(sexAndBirth(me.sex, me.birthDate), style: const TextStyle(color: Colors.white70, fontSize: 13)),
             if (roles.isNotEmpty) ...[const SizedBox(height: 8), Wrap(spacing: 6, runSpacing: 4, children: roles)],
           ]),
@@ -374,6 +340,3 @@ class _QrCard extends StatelessWidget {
     );
   }
 }
-
-/// Texto de la opción de Inicio (docs/11 §11.65): alterna según el estado.
-String approvedToggleText(bool showing) => showing ? 'Ocultar solicitudes aprobadas' : 'Mostrar solicitudes aprobadas';

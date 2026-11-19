@@ -97,15 +97,20 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Rosa Martínez Gil'), findsOneWidget);
     expect(find.text('@rosa'), findsOneWidget);
-    for (final label in ['Mi QR', 'Viajes activos (0)', 'Entidades (0)', 'Itinerarios (0)', 'Inicio', 'Gestión', 'Viajes', 'Más']) {
+    for (final label in ['Mi QR', 'Inicio', 'Gestión', 'Viajes', 'Más']) {
       expect(find.text(label), findsWidgets, reason: label);
     }
+    // Sin viajes activos, títulos de sección ni cantidades (docs/11 §11.67).
+    for (final label in ['Viajes activos (0)', 'Entidades (0)', 'Itinerarios (0)', 'Hijos (0)']) {
+      expect(find.text(label), findsNothing, reason: label);
+    }
+    expect(find.text('Aún no tiene Entidad. Use Acciones → Solicitar Entidad.'), findsOneWidget);
     // Sin Perfil, Hijos ni Mi QR como botones sueltos: están en Acciones y en la tarjeta del QR.
     expect(find.text('Perfil'), findsNothing);
     await tester.tap(find.text('Acciones'));
     await tester.pumpAndSettle();
-    // Nombres CRUD (docs/11 §11.65).
-    for (final label in ['Consultar Perfil', 'Crear Solicitud: Entidad', 'Crear Hijo', 'Cerrar sesión']) {
+    // Nombres propios de las acciones (docs/11 §11.67).
+    for (final label in ['Consultar Perfil', 'Solicitar Entidad', 'Crear Hijo', 'Cerrar sesión']) {
       expect(find.text(label), findsOneWidget, reason: label);
     }
   });

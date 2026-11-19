@@ -52,7 +52,7 @@ Widget stopTile(Stop s, {int? position, bool selected = false, Widget? trailing,
       onLongPress: onLongPress,
     );
 
-/// Persona (recurso users): «usuario • CI …» o sus Entidades.
+/// Persona (recurso users): «usuario • correo» o sus Entidades.
 Widget personTile(Person p, {bool selected = false, String? line, VoidCallback? onTap, VoidCallback? onLongPress}) => InfoCard(
       images: [CardImage(url: p.photoUrl, icon: Icons.person, round: true)],
       title: p.fullName,
@@ -60,8 +60,8 @@ Widget personTile(Person p, {bool selected = false, String? line, VoidCallback? 
         line ??
             [
               p.username ?? '',
-              if (p.identityCard != null) 'CI ${p.identityCard}',
-              if (p.username == null && p.identityCard == null) p.entities.isEmpty ? 'Sin Entidad' : p.entities.join(', '),
+              ?p.email,
+              if (p.username == null && p.email == null) p.entities.isEmpty ? 'Sin Entidad' : p.entities.join(', '),
             ].where((s) => s.isNotEmpty).join(' • '),
       ],
       chip: p.isAdmin ? const Chip2('Admin.', blue2) : null,

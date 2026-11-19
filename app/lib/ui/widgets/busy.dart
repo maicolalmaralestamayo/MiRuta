@@ -6,18 +6,42 @@ import '../../core/api_exception.dart';
 import '../../core/busy_scope.dart';
 import '../theme.dart';
 
-/// «Crear Parada» → «Creando Parada»; «Actualizar Viaje: Cancelar» →
-/// «Actualizando Viaje» (docs/11 §11.65, puntos 9, 10 y 14). Null si la
-/// acción no empieza por un verbo CRUD.
+/// «Crear Parada» → «Creando Parada»; «Aprobar Solicitud» → «Aprobando
+/// Solicitud»; «Cancelar Viaje» → «Cancelando Viaje» (docs/11 §11.65 y
+/// §11.67: nombres propios de las acciones). Null si la acción no empieza por
+/// un verbo conocido.
 String? progressiveLabel(String? action) {
   if (action == null) return null;
   final text = action.split(':').first.trim();
-  for (final (verb, ing) in const [('Consultar', 'Consultando'), ('Crear', 'Creando'), ('Actualizar', 'Actualizando'), ('Eliminar', 'Eliminando')]) {
+  for (final (verb, ing) in _gerunds) {
     if (text == verb) return ing;
     if (text.startsWith('$verb ')) return '$ing ${text.substring(verb.length + 1)}';
   }
   return null;
 }
+
+const _gerunds = [
+  ('Consultar', 'Consultando'),
+  ('Crear', 'Creando'),
+  ('Actualizar', 'Actualizando'),
+  ('Eliminar', 'Eliminando'),
+  ('Aprobar', 'Aprobando'),
+  ('Rechazar', 'Rechazando'),
+  ('Solicitar', 'Solicitando'),
+  ('Cancelar', 'Cancelando'),
+  ('Iniciar', 'Iniciando'),
+  ('Terminar', 'Terminando'),
+  ('Marcar', 'Marcando'),
+  ('Asociar', 'Asociando'),
+  ('Añadir', 'Añadiendo'),
+  ('Quitar', 'Quitando'),
+  ('Asignar', 'Asignando'),
+  ('Cambiar', 'Cambiando'),
+  ('Indicar', 'Indicando'),
+  ('Incluir', 'Incluyendo'),
+  ('Salir', 'Saliendo'),
+  ('Guardar', 'Guardando'),
+];
 
 /// Lo que muestra el spinner de una operación en curso.
 class BusyRequest {
@@ -109,14 +133,14 @@ Future<bool> runBusy(BuildContext context, FutureOr<void> Function() action,
       hide?.cancel();
       if (route != null || request != null) return;
       if (BusyOverlay.hosts > 0) {
-        request = BusyRequest(text, scope.cancel);
+        request = BusyRequest(scope.label ?? text, scope.cancel);
         BusyOverlay.current.value = request;
       } else if (navigator.mounted) {
         route = DialogRoute<void>(
           context: navigator.context,
           barrierDismissible: false,
           barrierColor: Colors.black54,
-          builder: (_) => PopScope(canPop: false, child: BusyDialog(text: text, onCancel: scope.cancel)),
+          builder: (_) => PopScope(canPop: false, child: BusyDialog(text: scope.label ?? text, onCancel: scope.cancel)),
         );
         navigator.push(route!);
       }

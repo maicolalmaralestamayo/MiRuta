@@ -3,6 +3,7 @@ import 'package:workmanager/workmanager.dart';
 import '../core/api_client.dart';
 import '../core/json_api.dart';
 import '../core/local_cache.dart';
+import '../core/server_clock.dart';
 import '../core/storage.dart';
 import 'app_settings.dart';
 import 'app_updates.dart';
@@ -121,7 +122,14 @@ class SyncService {
       await LocalCache.feedApplied();
       return true;
     }
-    final (any, lists) = await LocalCache.applyChanges(CacheChanges.fromJson(changes));
+    final parsed = CacheChanges.fromJson(changes);
+    // Viajes eliminados (sin aviso desde la 5.0.0, docs/11 §11.67): se quitan sus notificaciones.
+    for (final id in parsed.deleted['trips'] ?? const <String>{}) {
+      try {
+        await Notifications.tripFinished(id);
+      } catch (_) {}
+    }
+    final (any, lists) = await LocalCache.applyChanges(parsed);
     changed = any;
     if (next != null) await Storage.setString(_changesKey, next);
     // Las listas de tipos con altas, por detrás (las demás marcadas se preguntan al abrirlas).
@@ -135,6 +143,8 @@ class SyncService {
   /// por QR pendientes.
   static Future<SyncResult> apply(ApiClient api, List<Resource> notifications, Map<String, dynamic> meta, {bool notify = true, bool foreground = false}) async {
     final changed = <String>{};
+    // Zona y reloj del servidor: las horas se muestran en su zona (docs/11 §11.67).
+    await ServerClock.learn(meta['serverTime']?.toString());
     final hadCursor = await Storage.getString(_cursorKey) != null;
     for (final n in notifications) {
       if (notify && hadCursor) {
@@ -206,8 +216,10 @@ class SyncService {
       await QrQueue.flush(api);
     } catch (_) {}
 
-    await TripWindow.reschedule(settings, foreground: foreground);
-    await scheduleBackground(settings);
+    // Con tiempo límite: una llamada al sistema que no responde no puede
+    // detener la consulta (docs/11 §11.67, captura 03 de la 4.5.0).
+    await TripWindow.reschedule(settings, foreground: foreground).timeout(const Duration(seconds: 20), onTimeout: () {});
+    await scheduleBackground(settings).timeout(const Duration(seconds: 10), onTimeout: () {});
     return SyncResult(changed: changed, counters: counters, nextTrip: next, settingsChanged: settingsChanged, cacheChanged: cacheChanged);
   }
 

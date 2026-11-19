@@ -34,44 +34,28 @@ class PersonName {
       };
 }
 
-/// Carné de identidad cubano (11 dígitos): de él salen el sexo y la fecha de nacimiento.
-class IdentityCard {
-  static const length = 11;
+/// Correo electrónico de la persona (docs/11 §11.67): sustituye al carné de
+/// identidad; único en toda la base de datos (lo comprueba el servidor).
+class EmailAddress {
+  static const maxLength = 150;
 
-  static DateTime? birthDate(String? card, {DateTime? today}) {
-    final text = (card ?? '').trim();
-    if (!RegExp(r'^\d{11}$').hasMatch(text)) return null;
-    final yy = int.parse(text.substring(0, 2));
-    final mm = int.parse(text.substring(2, 4));
-    final dd = int.parse(text.substring(4, 6));
-    final century = int.parse(text[6]);
-    final base = century == 9 ? 1800 : (century <= 5 ? 1900 : 2000);
-    final year = base + yy;
-    final date = DateTime(year, mm, dd);
-    if (date.year != year || date.month != mm || date.day != dd) return null;
-    final now = today ?? DateTime.now();
-    if (date.isAfter(DateTime(now.year, now.month, now.day))) return null;
-    return date;
+  static String normalize(String? text) => (text ?? '').trim().toLowerCase();
+
+  static bool isValid(String? text) {
+    final email = normalize(text);
+    return email.length <= maxLength && RegExp(r'^[^@\s]+@[^@\s]+\.[a-z]{2,}$').hasMatch(email);
   }
 
-  /// 'M' o 'F', o null si el carné no es válido.
-  static String? sex(String? card) {
-    if (birthDate(card) == null) return null;
-    return int.parse(card!.trim()[9]).isEven ? 'M' : 'F';
-  }
-
-  static String? validate(String? card) {
-    final text = (card ?? '').trim();
-    if (text.isEmpty) return 'Escriba el carné de identidad';
-    if (!RegExp(r'^\d{11}$').hasMatch(text)) return 'El carné tiene 11 dígitos';
-    if (birthDate(text) == null) return 'El carné no es válido';
+  static String? validate(String? text) {
+    if (normalize(text).isEmpty) return 'Escriba el correo electrónico';
+    if (!isValid(text)) return 'El correo no es válido (p. ej. nombre@correo.cu)';
     return null;
   }
 }
 
 String sexName(String? sex) => switch (sex) { 'M' => 'Masculino', 'F' => 'Femenino', _ => '' };
 
-/// «Masculino • vie. 15-03-85».
+/// «Masculino • Vie. 15/03/85».
 String sexAndBirth(String? sex, DateTime? birth) => [sexName(sex), if (birth != null) formatDate(birth)].where((s) => s.isNotEmpty).join(' • ');
 
 /// Rol fijo de la persona (docs/11 §11.30).
@@ -233,7 +217,7 @@ class Me {
   final String? sex;
   final String? photoUrl;
   final bool isAdmin;
-  final String? identityCard;
+  final String? email;
   final DateTime? birthDate;
   final bool mustChangePassword;
   final bool currentPasswordRequired;
@@ -250,7 +234,7 @@ class Me {
     this.sex,
     this.photoUrl,
     this.isAdmin = false,
-    this.identityCard,
+    this.email,
     this.birthDate,
     this.mustChangePassword = false,
     this.currentPasswordRequired = true,
@@ -268,7 +252,7 @@ class Me {
         sex: r.string('sex'),
         photoUrl: r.string('photoUrl'),
         isAdmin: r.boolean('isAdmin'),
-        identityCard: r.string('identityCard'),
+        email: r.string('email'),
         birthDate: parseDay(r.string('birthDate')),
         mustChangePassword: r.boolean('mustChangePassword'),
         currentPasswordRequired: r.attributes['currentPasswordRequired'] != false,
@@ -448,13 +432,13 @@ class Person {
   final String? photoUrl;
   final bool isAdmin;
   final List<String> entities;
-  final String? identityCard;
+  final String? email;
   final DateTime? birthDate;
 
   /// Sus Entidades con itinerarios y paradas (solo en GET users/{id}).
   final List<Membership> memberships;
 
-  const Person({required this.id, this.username, this.name = const PersonName(), this.fullName = '', this.sex, this.photoUrl, this.isAdmin = false, this.entities = const [], this.identityCard, this.birthDate, this.memberships = const []});
+  const Person({required this.id, this.username, this.name = const PersonName(), this.fullName = '', this.sex, this.photoUrl, this.isAdmin = false, this.entities = const [], this.email, this.birthDate, this.memberships = const []});
 
   factory Person.from(Resource r) => Person(
         id: r.id,
@@ -465,7 +449,7 @@ class Person {
         photoUrl: r.string('photoUrl'),
         isAdmin: r.boolean('isAdmin'),
         entities: [for (final e in (r.attributes['entities'] as List? ?? const [])) '$e'],
-        identityCard: r.string('identityCard'),
+        email: r.string('email'),
         birthDate: parseDay(r.string('birthDate')),
         memberships: membershipsFrom(r.meta['memberships']),
       );
@@ -588,10 +572,9 @@ class Child {
   final bool eligible;
   final bool active;
   final String? photoUrl;
-  final String? identityCard;
   final List<String> otherParents;
 
-  const Child({required this.id, this.name = const PersonName(), this.fullName = '', this.sex, this.birthDate, this.eligibleUntil, this.eligible = true, this.active = true, this.photoUrl, this.identityCard, this.otherParents = const []});
+  const Child({required this.id, this.name = const PersonName(), this.fullName = '', this.sex, this.birthDate, this.eligibleUntil, this.eligible = true, this.active = true, this.photoUrl, this.otherParents = const []});
 
   factory Child.from(Resource r) => Child(
         id: r.id,
@@ -603,7 +586,6 @@ class Child {
         eligible: r.attributes['eligible'] != false,
         active: r.attributes['active'] != false,
         photoUrl: r.string('photoUrl'),
-        identityCard: r.string('identityCard'),
         otherParents: [for (final p in (r.meta['parents'] as List? ?? const [])) '${(p as Map)['fullName']}'],
       );
 
@@ -730,6 +712,13 @@ class Trip {
   final DateTime departsAt;
   final String status;
   final DateTime? statusChangedAt;
+
+  /// Salida real (En ejecución; docs/11 §11.67).
+  final DateTime? startedAt;
+
+  /// Qué cambió en el último «Viaje cambiado» (fecha, hora, tipo_vehiculo,
+  /// observacion, parada_salida), mientras siga Planificado.
+  final List<String> changes;
   final String? observation;
   final String? vehicleState;
   final bool editable;
@@ -754,6 +743,8 @@ class Trip {
     required this.departsAt,
     required this.status,
     this.statusChangedAt,
+    this.startedAt,
+    this.changes = const [],
     this.observation,
     this.vehicleState,
     this.editable = true,
@@ -777,6 +768,8 @@ class Trip {
         departsAt: r.date('departsAt') ?? DateTime.now(),
         status: r.string('status') ?? TripStatus.planned,
         statusChangedAt: r.date('statusChangedAt'),
+        startedAt: r.date('startedAt'),
+        changes: [for (final c in (r.attributes['changes'] as List? ?? const [])) '$c'],
         observation: r.string('observation'),
         vehicleState: r.string('vehicleState'),
         editable: r.attributes['editable'] != false,
@@ -805,6 +798,16 @@ class Trip {
 
   bool get isOpen => isPlanned || isRunning;
 
+  bool get isCancelled => status == TripStatus.cancelled;
+
+  bool get isFinished => status == TripStatus.finished;
+
+  /// Solo se cancela un Planificado (docs/11 §11.67).
+  bool get canCancel => isPlanned;
+
+  /// Solo se elimina (se borra) un Cancelado o un Terminado (docs/11 §11.67).
+  bool get canDelete => isCancelled || isFinished;
+
   /// «45 de 60 • Normal».
   String get occupancy {
     final cap = capacity;
@@ -814,54 +817,47 @@ class Trip {
   }
 }
 
-/// Estados del trabajador en un viaje (docs/13 §13.8). Viajando es el mismo
-/// en la ida y en el regreso (docs/11 §11.63: Viajando y Recogido unificados).
+/// Estados del trabajador en un viaje, versión definitiva (docs/11 §11.67),
+/// iguales en la ida y en el regreso. Todos se pueden poner a mano; No
+/// viajaré solo a mano.
 abstract final class WorkerState {
-  static const onTheWay = 'de_camino';
+  static const outOfRoute = 'fuera_itinerario';
+  static const approaching = 'acercandose';
+  static const movingAway = 'alejandose';
   static const atStop = 'en_parada';
+  static const late = 'llegada_tarde';
+  static const leftBehind = 'no_recogido';
   static const travelling = 'viajando';
   static const dropped = 'dejado';
-
-  /// Estaba En la parada y el vehículo pasó sin recogerle (antes «Botado»; docs/11 §11.65).
-  static const leftBehind = 'no_recogido';
-
-  /// Estaba De camino y el vehículo pasó por su parada antes de que llegara (antes «Dormido»).
-  static const late = 'retrasado';
-  static const notGoing = 'no_voy';
+  static const notTravelling = 'no_viajare';
 
   /// Todos, en el orden en que se muestran.
-  static const states = [onTheWay, atStop, travelling, dropped, leftBehind, late, notGoing];
+  static const states = [outOfRoute, approaching, movingAway, atStop, late, leftBehind, travelling, dropped, notTravelling];
 
-  /// Nombres viejos (4.2.0 y 4.3.0), solo para leer datos guardados o de un servidor viejo.
-  static const legacyPickedUp = 'recogido';
+  /// Estados sin parada.
+  static const stopless = {outOfRoute, notTravelling};
 
-  static String? normalize(String? state) => switch (state) {
-        'recogido' => travelling,
-        'botado' => leftBehind,
-        'dormido' => late,
-        _ => state,
-      };
+  static String? normalize(String? state) => states.contains(state) ? state : null;
 
-  /// Nombre del estado, igual en toda la app y en las notificaciones (docs/11 §11.65).
+  /// Nombre del estado, igual en toda la app y en las notificaciones.
   static String name(String? state) => const {
-        onTheWay: 'De camino',
-        atStop: 'En la parada',
+        outOfRoute: 'Fuera de itinerario',
+        approaching: 'Acercándose a Parada',
+        movingAway: 'Alejándose de Parada',
+        atStop: 'En Parada',
+        late: 'Llegada tarde',
+        leftBehind: 'No recogido',
         travelling: 'Viajando',
         dropped: 'Dejado',
-        leftBehind: 'No recogido',
-        late: 'Retrasado',
-        notGoing: 'No voy',
-      }[normalize(state)] ??
+        notTravelling: 'No viajaré',
+      }[state] ??
       'Sin estado';
 
   /// Nombre en la notificación «Mi estado» (el mismo).
   static String notice(String? state) => name(state);
 
-  /// Estados finales (docs/11 §11.65): Dejado, No recogido, Retrasado y No voy.
-  static bool isFinal(String? state) {
-    final s = normalize(state);
-    return s == dropped || s == leftBehind || s == late || s == notGoing;
-  }
+  /// El viaje terminó para él (fin de su ventana): Dejado y No viajaré.
+  static bool isFinal(String? state) => state == dropped || state == notTravelling;
 
   /// Estado definitivo para la notificación del vehículo (se quita al llegar a uno).
   static bool isFinalFor(String? state, {required bool outbound}) => isFinal(state);
@@ -869,20 +865,47 @@ abstract final class WorkerState {
   /// Nombre para las cantidades de cada parada de la línea, con plural.
   static String count(String state, int n) {
     final one = n == 1;
-    return switch (normalize(state)) {
-      onTheWay => 'De camino',
-      atStop => 'En la parada',
+    return switch (state) {
+      outOfRoute => 'Fuera de itinerario',
+      approaching => 'Acercándose',
+      movingAway => 'Alejándose',
+      atStop => 'En Parada',
+      late => one ? 'Llegada tarde' : 'Llegadas tarde',
+      leftBehind => one ? 'No recogido' : 'No recogidos',
       travelling => 'Viajando',
       dropped => one ? 'Dejado' : 'Dejados',
-      leftBehind => one ? 'No recogido' : 'No recogidos',
-      late => one ? 'Retrasado' : 'Retrasados',
-      notGoing => 'No van',
+      notTravelling => 'No viajarán',
       _ => state,
     };
   }
 
-  /// Nombre corto (plural) para las cantidades.
-  static String short(String state) => count(state, 2);
+  /// Cantidades que muestra cada parada (docs/11 §11.67): todas menos
+  /// Viajando; en la ida tampoco los Dejados y en el regreso tampoco los que
+  /// esperan (En Parada).
+  static bool shownInLine(String state, {required bool outbound}) {
+    if (state == travelling || stopless.contains(state)) return false;
+    if (outbound && state == dropped) return false;
+    if (!outbound && state == atStop) return false;
+    return true;
+  }
+}
+
+/// Estado de una parada del recorrido (docs/11 §11.67).
+abstract final class StopState {
+  /// El vehículo todavía no ha llegado a ella.
+  static const waiting = 'en_espera';
+
+  /// El vehículo se detuvo en ella.
+  static const pickedUp = 'recogida';
+
+  /// El vehículo pasó por ella sin detenerse.
+  static const flown = 'volada';
+
+  /// El vehículo ni pasó por ella y una posterior ya cambió de estado.
+  static const skipped = 'omitida';
+
+  static String name(String? state) =>
+      const {waiting: 'En espera', pickedUp: 'Recogida', flown: 'Volada', skipped: 'Omitida'}[state] ?? 'En espera';
 }
 
 /// Una parada en la línea del recorrido.
@@ -893,6 +916,12 @@ class LiveStop {
   final String? street;
   final bool passed;
   final DateTime? passedAt;
+
+  /// Estado de la parada: en_espera, recogida, volada u omitida (docs/11 §11.67).
+  final String state;
+
+  /// El vehículo ya la dejó atrás.
+  final bool left;
   final int expected;
   final Map<String, int> counts;
   final bool mine;
@@ -909,6 +938,8 @@ class LiveStop {
       this.street,
       this.passed = false,
       this.passedAt,
+      this.state = StopState.waiting,
+      this.left = false,
       this.expected = 0,
       this.counts = const {},
       this.mine = false,
@@ -923,8 +954,10 @@ class LiveStop {
         street: _str(j['street']),
         passed: j['passed'] == true,
         passedAt: j['passedAt'] == null ? null : DateTime.tryParse('${j['passedAt']}')?.toLocal(),
+        state: '${j['state'] ?? (j['passed'] == true ? StopState.pickedUp : StopState.waiting)}',
+        left: j['left'] == true,
         expected: _int(j['expected']),
-        counts: j['counts'] is Map ? {for (final e in (j['counts'] as Map).entries) WorkerState.normalize('${e.key}')!: _int(e.value)} : const {},
+        counts: j['counts'] is Map ? {for (final e in (j['counts'] as Map).entries) '${e.key}': _int(e.value)} : const {},
         mine: j['mine'] == true,
         latitude: (j['latitude'] as num?)?.toDouble(),
         longitude: (j['longitude'] as num?)?.toDouble(),
@@ -938,8 +971,12 @@ class TripLive {
   final String direction;
   final String status;
   final DateTime? departsAt;
+  final DateTime? startedAt;
   final String? vehicleState;
   final DateTime? vehicleSince;
+
+  /// Velocidad del vehículo en km/h (mediana de los sensores; docs/11 §11.67).
+  final double? vehicleSpeed;
   final bool vehicleAtStop;
   final int nextStopIndex;
   final String? detentionCause;
@@ -962,6 +999,12 @@ class TripLive {
   /// Su estado lo puso el servidor (su teléfono no enviaba).
   final bool mySetByServer;
 
+  /// Lo puso él a mano.
+  final bool myManual;
+
+  /// Viaje de prueba del simulador.
+  final bool simulation;
+
   /// Parada habitual de quien consulta en ese itinerario (opcional).
   final String? viewerStopId;
 
@@ -980,8 +1023,10 @@ class TripLive {
     this.direction = 'ida',
     this.status = TripStatus.planned,
     this.departsAt,
+    this.startedAt,
     this.vehicleState,
     this.vehicleSince,
+    this.vehicleSpeed,
     this.vehicleAtStop = false,
     this.nextStopIndex = 0,
     this.detentionCause,
@@ -999,6 +1044,8 @@ class TripLive {
     this.myStateAt,
     this.mySensor = false,
     this.mySetByServer = false,
+    this.myManual = false,
+    this.simulation = false,
     this.viewerStopId,
     this.travels = false,
     this.canManage = false,
@@ -1015,8 +1062,10 @@ class TripLive {
       direction: r.string('direction') ?? 'ida',
       status: r.string('status') ?? TripStatus.planned,
       departsAt: r.date('departsAt'),
+      startedAt: r.date('startedAt'),
       vehicleState: _str(vehicle['state']),
       vehicleSince: vehicle['since'] == null ? null : DateTime.tryParse('${vehicle['since']}')?.toLocal(),
+      vehicleSpeed: (vehicle['speed'] as num?)?.toDouble(),
       vehicleAtStop: vehicle['atStop'] == true,
       nextStopIndex: _int(vehicle['nextStopIndex']),
       detentionCause: vehicle['detentionCause'] is Map ? _str((vehicle['detentionCause'] as Map)['name']) : null,
@@ -1034,6 +1083,8 @@ class TripLive {
       myStateAt: mine?['stateAt'] == null ? null : DateTime.tryParse('${mine!['stateAt']}')?.toLocal(),
       mySensor: mine?['sensor'] == true,
       mySetByServer: mine?['setByServer'] == true,
+      myManual: mine?['manual'] == true,
+      simulation: r.boolean('simulation'),
       viewerStopId: r.string('myStopId'),
       travels: r.boolean('travels') || r.string('myStopId') != null,
       canManage: r.boolean('canManage'),
@@ -1046,6 +1097,18 @@ class TripLive {
 
   /// La parada de la persona en el recorrido (o null).
   LiveStop? get myStop => stops.where((s) => s.mine).firstOrNull;
+
+  /// Posición en el recorrido de la última parada que el vehículo dejó atrás (o -1).
+  int get lastLeftIndex {
+    var last = -1;
+    for (final s in stops) {
+      if (s.left) last = s.index;
+    }
+    return last;
+  }
+
+  /// El vehículo está detenido en la parada [index] (en su radio).
+  bool stoppedAt(int index) => status == TripStatus.running && vehicleState == 'detenido' && vehicleAtStop && nextStopIndex == index;
 }
 
 /// Ajuste de la app (recurso settings; id = clave).

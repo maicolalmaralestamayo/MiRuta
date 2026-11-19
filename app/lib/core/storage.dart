@@ -69,6 +69,10 @@ class Storage {
 
   static Future<String?> getString(String key) async => (await _prefs).getString(key);
 
+  static Future<int?> getInt(String key) async => (await _prefs).getInt(key);
+
+  static Future<void> setInt(String key, int value) async => (await _prefs).setInt(key, value);
+
   static Future<void> setString(String key, String? value) async {
     final prefs = await _prefs;
     value == null ? await prefs.remove(key) : await prefs.setString(key, value);

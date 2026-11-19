@@ -1,15 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mitransporte/core/local_cache.dart';
-import 'package:mitransporte/models/models.dart';
 import 'package:mitransporte/services/app_settings.dart';
-import 'package:mitransporte/services/notification_texts.dart';
 import 'package:mitransporte/services/shared_location.dart';
 import 'package:mitransporte/services/tracking/tracking_service.dart';
 import 'package:mitransporte/services/tracking/worker_tracker.dart';
-import 'package:mitransporte/ui/home/home_screen.dart';
 import 'package:mitransporte/ui/trips/trip_form_screen.dart';
-import 'package:mitransporte/ui/trips/trip_line_screen.dart';
 import 'package:mitransporte/ui/widgets/busy.dart';
 
 /// Versión 4.4.0 (docs/11 §11.65). La máquina de estados está en
@@ -32,46 +28,13 @@ void main() {
     });
   });
 
-  group('Estados (docs/11 §11.65)', () {
-    test('nombres iguales en toda la app y en las notificaciones; los viejos se leen con los nuevos', () {
-      expect(WorkerState.name('de_camino'), 'De camino');
-      expect(WorkerState.name('en_parada'), 'En la parada');
-      expect(WorkerState.name('no_recogido'), 'No recogido');
-      expect(WorkerState.name('retrasado'), 'Retrasado');
-      expect(WorkerState.name('botado'), 'No recogido');
-      expect(WorkerState.name('dormido'), 'Retrasado');
-      expect(WorkerState.name('no_voy'), 'No voy');
-      expect(WorkerState.notice('en_parada'), 'En la parada');
-    });
-
-    test('Mi estado: la parada en todos los estados salvo Viajando; en Dejado, donde se le dejó', () {
-      LiveStop stop(String id, String name) => LiveStop(index: 0, stopId: id, landmark: name);
-      final stops = [stop('1', 'La llama'), stop('2', 'Banco')];
-      expect(myStateStop(TripLive(tripId: '1', stops: stops, myState: 'en_parada', myStopId: '1')), 'La llama');
-      expect(myStateStop(TripLive(tripId: '1', stops: stops, myState: 'viajando', myStopId: '1')), '');
-      expect(myStateStop(TripLive(tripId: '1', stops: stops, myState: 'dejado', myStopId: '2', myStopName: 'Banco')), 'Banco');
-      expect(myStateStop(TripLive(tripId: '1', stops: stops, myState: 'no_recogido', myStopId: '1')), 'La llama');
-    });
-
-    test('cantidades de cada parada: sin ceros, con plural', () {
-      final chips = stopCountChips({'de_camino': 2, 'en_parada': 0, 'retrasado': 1, 'no_recogido': 3, 'dejado': 1});
-      expect([for (final c in chips) c.$1], ['De camino: 2', 'Retrasado: 1', 'No recogidos: 3', 'Dejado: 1']);
-      expect(stopCountChips(const {}), isEmpty);
-    });
-
-    test('«Mi estado»: destacadas de Retrasado y No recogido; sin parada en Viajando', () {
-      expect(myStateNotice(stateName: 'Retrasado', state: 'retrasado').highlight, 'Llegó tarde a la parada');
-      expect(myStateNotice(stateName: 'No recogido', state: 'no_recogido').highlight, 'El vehículo pasó sin recogerle');
-      expect(myStateNotice(stateName: 'Viajando', state: 'viajando', itineraryName: 'R').lines, ['R • ida']);
-    });
-  });
-
   group('Cola con hora de captura', () {
     test('cambios del trabajador con la parada detectada; observaciones del vehículo solo si cambian', () {
       final at = DateTime(2026, 11, 16, 10, 40, 5);
       final worker = workerEvent('en_parada', '7', at, childIds: ['3']);
-      expect(worker, {'kind': 'worker', 'state': 'en_parada', 'stopId': 7, 'childIds': [3], 'capturedAt': at.toIso8601String()});
-      expect(workerEvent('no_voy', null, at).containsKey('stopId'), isFalse);
+      // La hora de captura va en UTC (docs/11 §11.67).
+      expect(worker, {'kind': 'worker', 'state': 'en_parada', 'stopId': 7, 'childIds': [3], 'capturedAt': at.toUtc().toIso8601String()});
+      expect(workerEvent('no_viajare', null, at).containsKey('stopId'), isFalse);
       final a = vehicleEvent(const TrackerStep(vehicleState: 'en_movimiento', nextStopIndex: 2, atStop: false), at);
       final b = vehicleEvent(const TrackerStep(vehicleState: 'en_movimiento', nextStopIndex: 2, atStop: false), at.add(const Duration(seconds: 10)));
       final c = vehicleEvent(const TrackerStep(vehicleState: 'detenido', nextStopIndex: 2, atStop: true), at.add(const Duration(seconds: 20)));
@@ -91,9 +54,11 @@ void main() {
       expect([for (final e in trimmed) if (e['kind'] == 'vehicle') e['nextStopIndex']], [3, 4]);
     });
 
-    test('lo guardado del viaje para el cálculo: paradas pasadas y vehículo', () {
-      final info = tripInfoFrom({'status': 'en_ejecucion', 'passed': [0, 1], 'next': 2, 'vehicle': 'en_movimiento', 'sensors': 2});
-      expect(info.passed, {0, 1});
+    test('lo guardado del viaje para el cálculo: estados de las paradas y vehículo', () {
+      final info = tripInfoFrom({'status': 'en_ejecucion', 'states': {'0': 'recogida', '1': 'volada'}, 'left': [0, 1], 'next': 2, 'vehicle': 'en_movimiento', 'sensors': 2});
+      expect(info.stopStates, {0: 'recogida', 1: 'volada'});
+      expect(info.left, {0, 1});
+      expect(info.waiting(2), isTrue);
       expect(info.nextStopIndex, 2);
       expect(info.vehicleState, 'en_movimiento');
       expect(info.sensors, 2);
@@ -165,11 +130,6 @@ void main() {
       expect(p('https://www.openstreetmap.org/?mlat=23.1136&mlon=-82.3666#map=17/23.1136/-82.3666')!.longitude, closeTo(-82.3666, 1e-6));
       expect(p('geo:23.1136,-82.3666')!.latitude, closeTo(23.1136, 1e-6));
       expect(p('hola mundo'), isNull);
-    });
-
-    test('Inicio: la opción alterna su texto', () {
-      expect(approvedToggleText(false), 'Mostrar solicitudes aprobadas');
-      expect(approvedToggleText(true), 'Ocultar solicitudes aprobadas');
     });
 
     testWidgets('spinner: texto arriba, círculo en el color de acento y «✕ Cancelar» gris debajo', (tester) async {

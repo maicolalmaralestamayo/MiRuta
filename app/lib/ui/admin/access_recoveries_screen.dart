@@ -72,23 +72,23 @@ class _AccessRecoveriesScreenState extends State<AccessRecoveriesScreen> {
         content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(_what(r)),
           const SizedBox(height: 6),
-          Text('Carné: ${r.string('identityCard') ?? ''}'),
+          Text('Correo: ${r.string('email') ?? ''}'),
           Text('Teléfono: ${r.string('phone') ?? ''}'),
           Text('Pedida: ${formatDateTime(r.date('createdAt'))}'),
-          if (r.attributes['matched'] == false) const Padding(padding: EdgeInsets.only(top: 6), child: Text('El carné no coincide con ninguna persona registrada.', style: TextStyle(color: red))),
+          if (r.attributes['matched'] == false) const Padding(padding: EdgeInsets.only(top: 6), child: Text('El correo no coincide con ninguna persona registrada.', style: TextStyle(color: red))),
           const SizedBox(height: 8),
           const Text('Antes de aprobar, confirme los datos llamando o escribiendo a ese teléfono.'),
         ]),
         buttons: [
-          if (pending && r.attributes['matched'] != false) primaryButton(context, 'Actualizar Solicitud: Aprobar', Icons.check, () => Navigator.pop(context, 'approved')),
-          if (pending) dangerButton(context, 'Actualizar Solicitud: Rechazar', Icons.block, () => Navigator.pop(context, 'rejected')),
+          if (pending && r.attributes['matched'] != false) primaryButton(context, 'Aprobar', Icons.check, () => Navigator.pop(context, 'approved')),
+          if (pending) dangerButton(context, 'Rechazar', Icons.block, () => Navigator.pop(context, 'rejected')),
           otherButton(context, 'Llamar', Icons.call, () => launchUrl(Uri.parse('tel:${_phoneDigits(r)}'))),
           otherButton(context, 'WhatsApp', Icons.chat, () => launchUrl(Uri.parse('https://wa.me/${_phoneDigits(r)}'), mode: LaunchMode.externalApplication)),
           cancelButton(context, label: pending ? 'Cancelar' : 'Cerrar'),
         ],
       ),
     );
-    if (action != null && mounted) await runAction(context, () => _resolve(r, action), label: 'Actualizando Solicitud');
+    if (action != null && mounted) await runAction(context, () => _resolve(r, action), label: action == 'approved' ? 'Aprobando Solicitud' : 'Rechazando Solicitud');
   }
 
   Widget _card(Resource r) {
