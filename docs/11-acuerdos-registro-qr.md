@@ -2232,6 +2232,8 @@ Lista del usuario (archivo `modificaciones_miruta_4.5.txt`, capturas en `docs/ca
        [movimiento] · [velocidad]»; «[coordenadas] • [fecha y hora]»); la de sensores con su misma altura.
      - **Disposición** (19/11/2026): en cada tarjeta el **icono a la izquierda** y **todo el texto a la derecha** (en la
        de sensores, icono y cantidad uno al lado del otro).
+     - **Separador** (19/11/2026): los campos se separan siempre con **«•»** (p. ej. «ITM • En movimiento • 4 km/h»),
+       nunca con «·».
    - **Estados de una parada** (19/11/2026, del usuario; definiciones por precisar): **En espera**, **Recogida**,
      **Volada**, **Omitida** (definiciones aceptadas el 19/11/2026):
      - **En espera**: el vehículo todavía no ha llegado a esa parada.
