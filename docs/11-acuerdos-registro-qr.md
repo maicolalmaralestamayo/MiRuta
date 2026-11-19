@@ -2234,6 +2234,9 @@ Lista del usuario (archivo `modificaciones_miruta_4.5.txt`, capturas en `docs/ca
        de sensores, icono y cantidad uno al lado del otro).
      - **Separador** (19/11/2026): los campos se separan siempre con **«•»** (p. ej. «ITM • En movimiento • 4 km/h»),
        nunca con «·».
+     - **Aceptada la pantalla** (19/11/2026). **Línea del recorrido**: todas las paradas a la **misma distancia** entre
+       sí (aunque físicamente no lo estén), con **más espacio** entre paradas; el vehículo se dibuja **en medio del
+       tramo** entre la última parada que dejó y la siguiente (o sobre la parada si está detenido en ella).
    - **Estados de una parada** (19/11/2026, del usuario; definiciones por precisar): **En espera**, **Recogida**,
      **Volada**, **Omitida** (definiciones aceptadas el 19/11/2026):
      - **En espera**: el vehículo todavía no ha llegado a esa parada.
