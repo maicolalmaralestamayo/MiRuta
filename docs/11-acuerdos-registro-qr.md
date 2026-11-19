@@ -2169,6 +2169,8 @@ Lista del usuario (archivo `modificaciones_miruta_4.5.txt`, capturas en `docs/ca
 1. La app pasa a llamarse **ItinerTwin**.
 2. Se elimina el **carné de identidad** y se sustituye por el **correo electrónico** (único en toda la base de datos).
    Por eso el **sexo** de la persona se introduce a mano (por defecto Masculino).
+   - **Decidido** (19/11/2026): **sin conversión de datos**. La próxima versión se instala con el **servidor completo
+     sobre una base de datos vacía** (el usuario empieza desde cero); no hace falta pasar carnés a correos.
 3. Cuando el contador de conexión de la barra llega a cero, en lugar del «0» se muestra que está actualizando (icono
    girando).
 4. **Cancelado ≠ Eliminado**:
