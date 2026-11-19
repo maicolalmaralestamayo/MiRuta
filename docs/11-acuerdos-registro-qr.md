@@ -2255,6 +2255,9 @@ Lista del usuario (archivo `modificaciones_miruta_4.5.txt`, capturas en `docs/ca
      [Detenido | En movimiento] · velocidad; debajo las coordenadas de la última ubicación; debajo la fecha y hora de
      esas coordenadas. Todo calculado en el teléfono.
 9. **Todos los estados del trabajador** los puede cambiar **a mano** el propio trabajador en cualquier momento.
+   - **Decidido** (19/11/2026): el estado manual **se respeta hasta que el cálculo detecte un cambio real** (p. ej.
+     marcado En Parada a mano y luego el GPS lo ve alejarse a velocidad de vehículo → Viajando). Mientras tanto, la
+     línea y los sensores toman el estado manual como válido.
 10. El selector de hora es **solo un reloj digital con 3 campos: hora, minutos y a. m./p. m.**; se quita el reloj
     analógico (captura 04: sigue saliendo el reloj de 24 h).
     - **Decidido** (19/11/2026): las horas se **muestran en 24 h** (tarjetas, notificaciones, pantallas); el **selector**
