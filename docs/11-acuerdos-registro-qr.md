@@ -2185,6 +2185,10 @@ Lista del usuario (archivo `modificaciones_miruta_4.5.txt`, capturas en `docs/ca
      cancelar solo un Planificado; eliminar solo un Cancelado o Terminado.
 5. Las **tarjetas de viaje** no tienen el formato acordado: deben ser como las **notificaciones** (§11.63). Además, un
    viaje Planificado a las 10:30 a. m. seguía igual a las 10:57 a. m. sin que pasara nada (captura 03).
+   - **Decidido** (19/11/2026): tarjeta = mismo formato que la notificación: «Viaje [estado]»; «[Itinerario] •
+     [ida|regreso]»; fecha y hora; «[parada de salida] • [tipo de vehículo]»; línea naranja de cambios si procede.
+     Sin la ocupación. **Hora en formato de 24 h** (en tarjetas y notificaciones). Icono: **carretera o el icono de
+     la app** (por elegir con imagen).
 6. Nuevo estado del trabajador **Fuera de parada**: fuera del rango de todas las paradas y sin movimiento. Existe porque
    puede haber un trabajador que sí quiere viajar y está lejos de las paradas antes de empezar el viaje.
 7. Para cada trabajador debe verse su **velocidad** y su estado de movimiento (**Detenido / En movimiento**) antes de
