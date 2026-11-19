@@ -2230,6 +2230,8 @@ Lista del usuario (archivo `modificaciones_miruta_4.5.txt`, capturas en `docs/ca
      - **Tarjetas más bajas** (19/11/2026): tarjeta del viaje en 3 líneas («Viaje [estado]»; «[Itinerario] • [sentido]
        • [fecha y hora]»; «[parada de salida] • [tipo de vehículo]»); tarjeta de estado en 3 líneas (estado; «[parada] •
        [movimiento] · [velocidad]»; «[coordenadas] • [fecha y hora]»); la de sensores con su misma altura.
+     - **Disposición** (19/11/2026): en cada tarjeta el **icono a la izquierda** y **todo el texto a la derecha** (en la
+       de sensores, icono y cantidad uno al lado del otro).
    - **Estados de una parada** (19/11/2026, del usuario; definiciones por precisar): **En espera**, **Recogida**,
      **Volada**, **Omitida** (definiciones aceptadas el 19/11/2026):
      - **En espera**: el vehículo todavía no ha llegado a esa parada.
