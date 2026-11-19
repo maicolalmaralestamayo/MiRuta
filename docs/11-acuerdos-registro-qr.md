@@ -2200,6 +2200,23 @@ Lista del usuario (archivo `modificaciones_miruta_4.5.txt`, capturas en `docs/ca
        humana.
      - **En parada**: dentro de **100 m** de al menos una parada.
      - **No viajaré** (antes «No voy»): estaba Fuera de parada antes de que el vehículo pasara por su parada.
+   - **Estados del trabajador, versión definitiva** (19/11/2026, del usuario; **sustituye** a las definiciones de
+     arriba y a las reglas de §11.65). Todas las distancias son **configurables** (por defecto 300 m y 100 m):
+     - **Fuera de itinerario**: a más de 300 m de cada una de las paradas del itinerario.
+     - **Acercándose a Parada**: entre 300 y 100 m de al menos una parada, a velocidad humana, y la distancia
+       consecutiva tiende a disminuir.
+     - **Alejándose de Parada**: entre 300 y 100 m de al menos una parada, a velocidad humana, y la distancia
+       consecutiva tiende a aumentar.
+     - **En Parada**: a 100 m o menos de alguna parada del itinerario.
+     - **Llegada tarde**: la parada pasó a algún estado posterior a En espera antes de que el trabajador llegara a En
+       Parada.
+     - **No recogido**: la parada pasó a cualquier estado posterior a En espera y el trabajador siguió En Parada.
+     - **Viajando**: la parada pasó a Recogida y el trabajador se aleja de forma consecutiva a velocidad superior a
+       la humana.
+     - **Dejado**: el trabajador pasa a velocidad humana y la distancia a una de las paradas del itinerario tiende a
+       aumentar.
+     - **Al iniciarse un viaje** (ida y regreso): los trabajadores En Parada en la **primera parada de recogida** que
+       se alejan de forma consecutiva a velocidad no humana pasan a **Viajando**.
    - **Estados de una parada** (19/11/2026, del usuario; definiciones por precisar): **En espera**, **Recogida**,
      **Volada**, **Omitida** (definiciones aceptadas el 19/11/2026):
      - **En espera**: el vehículo todavía no ha llegado a esa parada.
