@@ -2161,7 +2161,7 @@ El usuario prueba solo; necesita simular varios trabajadores. Decidido:
    los simulados suben y bajan según eso.
 6. Al terminar, **Eliminar Simulación** (rojo) borra todo lo que creó. Para otra prueba, cree otra.
 
-## 11.67 Cambios tras probar la 4.5.0 (19/11/2026, pendiente de definir e implementar)
+## 11.67 Cambios tras probar la 4.5.0 (19/11/2026; implementado en la 5.0.0)
 
 Lista del usuario (archivo `modificaciones_miruta_4.5.txt`, capturas en `docs/capturas/4.5/`):
 
@@ -2294,3 +2294,93 @@ Lista del usuario (archivo `modificaciones_miruta_4.5.txt`, capturas en `docs/ca
 - Captura 04: el selector de hora sigue siendo el de 24 h.
 - Capturas 06 y 09: títulos de sección con cantidades y «1 • 1 solicitud» en Gestión.
 - Captura 08: botones con textos largos en dos líneas («Actualizar Solicitud: Aprobar»).
+
+**Decisiones de la implementación (5.0.0)** (19/11/2026):
+
+- **Causas de lo visto en las capturas de la 4.5.0:**
+  - *Captura 02, una hora de diferencia («Salió 11:05» en la tarjeta y «Salió 12:05» en la línea):* dos fallos que se
+    suman. (1) La tarjeta de «Ver recorrido» tomaba la hora de `statusChangedAt` del viaje **cargado al abrir la
+    pantalla**: si se abrió con el viaje Planificado, después de empezar seguía mostrando como «Salió» la hora del
+    último cambio de estado de entonces (cuando se planificó), no la salida; la línea sí mostraba la salida real
+    (paso por la primera parada). (2) La app pasaba las horas del servidor a la **zona del teléfono** y enviaba sus
+    horas de captura **sin zona** (el servidor las leía como hora de La Habana). Con un teléfono cuya zona no es la
+    de La Habana (p. ej. puesta a mano, una hora corrida, y la hora del reloj ajustada a mano) todas las horas del
+    servidor salen una hora corridas respecto al reloj del teléfono —es lo que se ve también en la captura 01: el
+    teléfono marca 1:17 y la tarjeta y la línea 02:14 y 02:16— y las horas de captura que envía (p. ej. el Viajando
+    que hace salir el viaje) se guardan con ese error. El servidor es coherente (comprobado en el entorno igual al
+    hospedaje: PHP con UTC por omisión, `APP_TIMEZONE=America/Havana`, MariaDB 10.3). **Arreglo:** la tarjeta ya no
+    muestra «Salió» (formato de la notificación, con la fecha y hora planificadas; la salida real va en `startedAt`
+    y en la línea); la app muestra **todas las horas en la zona del servidor** (la de sus fechas ISO, `ServerClock`;
+    si el teléfono está en la misma zona, con sus reglas de horario) y envía la **hora de captura en UTC** («Z»),
+    corregida con la diferencia entre su reloj y el del servidor (`serverTime`). Además, en el servidor, la hora del
+    QR comprobado sin conexión se creaba en UTC (`Carbon::createFromTimestamp` de Carbon 3) y se guardaba 5 h corrida:
+    ahora en la zona del servidor.
+  - *Captura 03, Planificado a las 10:30 que a las 10:57 seguía igual («Actualizado hace 34 min», contador en «0 s»):*
+    (1) la consulta de la app con la app abierta (`Session.sync`) esperaba, antes de programar la siguiente, a
+    llamadas al sistema para abrir la ventana de viaje (permisos, alarma, arrancar el servicio de ubicación); si una
+    no respondía, la siguiente consulta **no se programaba nunca**: el contador se quedaba en 0, la app dejaba de
+    consultar y el servicio de ubicación —lo único que calcula el estado del trabajador y, con él, hace salir el viaje—
+    no arrancaba. Ahora la consulta tiene tiempo límite, la siguiente se programa siempre (`finally`), las llamadas
+    al sistema tienen tiempo límite y, si la consulta debida no llega en 30 s, el botón Actualizar la vuelve a pedir;
+    en cero, el icono gira. (2) El viaje solo sale solo cuando hay al menos «Mínimo confirmaciones» (o todos los
+    esperados) **Viajando**; sin nadie que viaje (p. ej. probando desde casa) sigue Planificado hasta que el Jefe o
+    el Administrador lo inicia o pasa el «Plazo cancelación» (ahora pasa a Cancelado). Con la regla nueva («Al
+    iniciarse un viaje…»), quien está En Parada en la primera parada y se aleja de forma consecutiva a velocidad no
+    humana pasa a Viajando sin esperar datos del vehículo; y «Ver recorrido» abre la ventana de viaje al momento.
+- **Instalación nueva:** las migraciones base crean el esquema final de la 5.0.0 (se quitan las de actualización de la
+  4.1 a la 4.5). Se instala con «Instalar base de datos» (`install`) sobre una base de datos vacía (docs/10 §10.3
+  cero); comprobado con MariaDB 10.3.35. Se quitan los nombres viejos de los estados para las apps 4.2–4.4.
+- **Correo:** obligatorio, en minúsculas, único en toda la base de datos (también entre los simulados), validado en
+  la app y en el servidor; lo ven la persona, el Administrador y su Jefe. La **fecha de nacimiento** de la persona
+  pasa a ser **opcional** (salía del carné); la de los **hijos**, obligatoria (para el derecho a viajar). Sin carné,
+  el mismo hijo declarado por otra persona es el de iguales nombres, apellidos y fecha de nacimiento. «Olvidé algo»
+  con el correo. Se sigue entrando con el **usuario**.
+- **Estados del trabajador** (`worker_tracker.dart`): «tiende a disminuir / aumentar» = en los últimos «Cálculos
+  consecutivos» (3 por omisión, antes 6 solo para Dejado) ningún paso en contra más allá de la Tolerancia GPS y en
+  total más que ella; velocidad humana = «Velocidad humana» (10 km/h). Entre los dos radios y sin tendencia se
+  conserva Acercándose / Alejándose; la primera vez, Acercándose. **Viajando** desde En Parada (o No recogido) al
+  alejarse de la parada de forma consecutiva a velocidad no humana si la parada está Recogida, si es la **primera
+  parada del recorrido** con el viaje aún Planificado («primera parada de recogida») o si aún no hay datos del
+  vehículo (ningún sensor: si no, después de un inicio a mano nadie podría ser el primero). **No recogido** cuando la
+  parada dejó de estar En espera **y el vehículo ya la dejó atrás** (Recogida empieza al detenerse el vehículo; mientras
+  está detenido en ella todavía puede subir). **Llegada tarde** también al llegar a una parada que ya no está En
+  espera. Llegada tarde y No recogido no son finales: se conservan hasta llegar a otra parada En espera (puede subir
+  en otra). **Dejado** desde Viajando: velocidad humana de forma consecutiva y la distancia a la parada más cercana
+  tiende a aumentar; ya no se deja a nadie mientras el vehículo está detenido. Fin del cálculo (y de la ventana, Y
+  después): Dejado, No viajaré, viaje cerrado o ninguna parada En espera. Se quitan «Distancia abandono» y «Espera
+  final».
+- **A mano:** acción «Cambiar Mi estado» (cualquiera de los nueve, con la parada si la tiene). El teléfono guarda la
+  clasificación de su posición en el momento de marcarlo y la respeta hasta que cambia (o hasta un suceso: subir,
+  quedar No recogido o Llegada tarde); el servidor acepta cualquier cambio en el orden de captura (`manual`).
+- **Estados de las paradas** (servidor, `trip_stop_passes.stop_state`): **Recogida** al detenerse el vehículo en su
+  radio (mayoría de sensores), al marcar el paso a mano y la de salida al empezar el viaje; al dejarla atrás sin
+  haberse detenido, **Volada** si la mayoría de los sensores pasó por su radio (`inRadius`) y **Omitida** si no; las
+  anteriores que seguían En espera cuando cambia una posterior, Omitidas. Quien la esperaba con el teléfono sin
+  enviar queda No recogido (En Parada) o Llegada tarde (Acercándose / Alejándose).
+- **Cantidades de cada parada:** «los Esperando» del texto del usuario se interpretan como **En Parada**: en el regreso
+  no se muestran los En Parada; en la ida, los Dejados; nunca Viajando ni los ceros.
+- **Velocidad y movimiento:** antes de Viajando, los del propio teléfono (Detenido si se movió menos que la Tolerancia
+  GPS); desde Viajando, los del vehículo: estado por mayoría y velocidad = mediana de las de los sensores activos.
+- **Ver recorrido:** al abrirlo quien viaja en el viaje (Planificado o En ejecución), su ventana de viaje empieza ya
+  (el servicio de ubicación calcula y envía; antes había que esperar a X antes de la salida). La tarjeta de estado
+  usa lo que calcula el servicio; sin ubicación todavía, «Sin ubicación todavía». Paradas a 156 px una de otra.
+- **Tarjeta del viaje:** 3 líneas y la naranja de cambios en las listas; en «Ver recorrido», las 3 líneas sin la
+  naranja. La fecha y hora son las planificadas (como la notificación). «Viaje cambiado» mientras siga Planificado
+  con cambios (`trips.last_changes`). La notificación del viaje conserva el formato aceptado en §11.63 (con la fecha
+  en su propia línea), ahora con la hora en la zona del servidor.
+- **Eliminar sin avisar:** el servidor ya no envía «Viaje eliminado»; la app quita la notificación del viaje al saber
+  por el registro de cambios que ya no existe. El paso a Cancelado por «Plazo cancelación» sí avisa («Viaje
+  cancelado»). La poda cuenta desde el último estado y no toca los viajes de prueba del simulador.
+- **Inicio:** las Entidades, itinerarios, paradas, solicitudes pendientes, ausencias e hijos van sin títulos y con
+  paginado de 5 en 5; si no tiene Entidad, una línea «Aún no tiene Entidad. Use Acciones → Solicitar Entidad.». En
+  **Gestión → Entidades / Itinerarios**, la sección Solicitudes muestra además las propias aprobadas y rechazadas.
+- **Círculo verde de Viajes:** `meta.counters.activeTrips` = viajes Planificados y En ejecución que ve el usuario
+  (para el Administrador, todos; para el Jefe, los de su itinerario; para el trabajador, los de sus itinerarios).
+- **Nombres de las acciones:** Aprobar, Rechazar, Solicitar Entidad / Itinerario, Iniciar / Terminar / Cancelar
+  Viaje, Marcar paso por parada, Indicar causa de detención, Terminar ausencia, Cambiar parada habitual, Asociar
+  Entidad, Añadir itinerario, Asociar itinerario, Quitar parada, Salir de la Entidad / del itinerario, Incluir por QR,
+  Ver recorrido, Cambiar Mi estado; los spinners con su gerundio («Aprobando Solicitud», «Cancelando Viaje»).
+- **Selector de hora:** diálogo propio con dos campos (hora 00–23 y minutos 00–59), sin reloj ni a. m./p. m.
+- **Simulador:** comportamientos `llegada_tarde` y `no_viajare` (antes Retrasado y No voy); los sensores simulados
+  envían velocidad y si están en el radio, así las paradas quedan Recogidas.
+

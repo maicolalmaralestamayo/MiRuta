@@ -1,14 +1,14 @@
 # 10. Traspaso de tecnología — MiRuta
 
-> **Versión 4.5.0 (docs/12 §19):** servidor **Laravel 12 con PHP 8.2** (el del hospedaje, 8.2.35) y MariaDB 10.3 o
+> **Versión 5.0.0 (docs/12 §20):** servidor **Laravel 12 con PHP 8.2** (el del hospedaje, 8.2.35) y MariaDB 10.3 o
 > superior. El `.zip` del servidor trae **`vendor/` ya instalado** (sin dependencias de desarrollo y con el autoload
-> optimizado): no hace falta Composer ni SSH en el hospedaje. Todo lo que hay que ejecutar en el servidor (instalar o
-> actualizar la base de datos, tareas, limpiezas) se hace con los endpoints de mantenimiento de la API, desde la app
-> (docs/13 §13.13). La base de datos de la 4.5.0 se instala **desde cero** (*Instalar base de datos*) o, sobre una
-> 4.4.0 (o anterior, desde la 4.0.0) ya instalada, con *Actualizar base de datos*, sin perder datos: la migración
-> `2026_11_17_000001_upgrade_4_5` (§10.3 quinquies) y, si viene de antes, también las de la 4.4.0 (§10.3 quater), la
-> 4.3.0 (§10.3 ter) y la 4.2.0 (§10.3 bis). No se actualiza sobre una 3.x. En esta versión no se entregan imágenes de
-> Docker ni un SQL inicial: la base de datos se instala desde la app.
+> optimizado): no hace falta Composer ni SSH en el hospedaje. Todo lo que hay que ejecutar en el servidor (instalar la
+> base de datos, tareas, limpiezas) se hace con los endpoints de mantenimiento de la API, desde la app (docs/13
+> §13.13). **La 5.0.0 se instala desde cero, con el servidor completo sobre una base de datos vacía** (§10.3 cero):
+> cambia el modelo de datos (correo en lugar del carné, estados del trabajador y de las paradas) y **no hay
+> actualización desde la 4.5.0** (decidido el 19/11/2026: el usuario empieza desde cero). Las secciones §10.3 bis a
+> quinquies quedan solo como historia de las 4.x. En esta versión no se entregan imágenes de Docker ni un SQL
+> inicial: la base de datos se instala desde la app (o con la orden `install` de la API).
 
 Qué se entrega y cómo poner en marcha MiRuta en cada entorno: el hospedaje, un ordenador con Docker y un
 ordenador sin Docker. Se da por hecho que Docker, Apache o nginx, PHP y MySQL/MariaDB ya están instalados.
@@ -16,17 +16,16 @@ ordenador sin Docker. Se da por hecho que Docker, Apache o nginx, PHP y MySQL/Ma
 ## 10.1 Qué se entrega
 
 ```
-4.5.0/
-└── miruta-4.5.0-32bits.apk               App (32 bits, funciona también en los teléfonos de 64 bits; Android 7.0 o superior)
+5.0.0/
+└── miruta-5.0.0-32bits.apk               App (32 bits, funciona también en los teléfonos de 64 bits; Android 7.0 o superior)
 hosting/
-├── miruta-servidor-<versión>.zip         Servidor para el hospedaje o para un ordenador sin Docker (instalación nueva)
-└── miruta-actualizacion-4.5.0.zip        Actualización de un servidor ya instalado (conserva su configuracion.php)
+└── miruta-servidor-5.0.0.zip             Servidor completo para el hospedaje o para un ordenador sin Docker (instalación nueva)
 ```
 
-Desde la 4.3.0 se entrega **solo la APK de 32 bits** (docs/11 §11.64) y la **actualización** del servidor (el
-hospedaje ya tiene la 4.4.0). Para una instalación nueva se genera `miruta-servidor-4.5.0.zip` con
-`tools/release/build-hosting-package.sh 4.5.0`. La de 64 bits se compila, si hace falta, con `app/build_release.sh`
-(sin `SOLO_32=1`).
+Desde la 4.3.0 se entrega **solo la APK de 32 bits** (docs/11 §11.64). En la 5.0.0 se entrega el **servidor completo**
+(no hay zip de actualización: se instala desde cero). Se genera con `tools/release/build-hosting-package.sh 5.0.0`
+(con los datos del hospedaje en variables; sin ellos `configuracion.php` lleva «CAMBIAR»). La de 64 bits se compila,
+si hace falta, con `app/build_release.sh` (sin `SOLO_32=1`).
 
 Contenido de `miruta-servidor-<versión>.zip`:
 
@@ -51,7 +50,8 @@ Sin la clave de firma ninguna versión nueva de la app se instalará encima de e
 
 ## 10.2 La app
 
-1. Copie al teléfono **`miruta-4.5.0-32bits.apk`**. Ábrala y permita «instalar apps desconocidas».
+1. Copie al teléfono **`miruta-5.0.0-32bits.apk`**. Si el teléfono tenía la 4.x, desinstálela antes o instale
+   encima (misma clave de firma) y vuelva a entrar: el servidor 5.0.0 es nuevo y las cuentas se crean de nuevo. Ábrala y permita «instalar apps desconocidas».
 2. La app trae puesta la dirección del hospedaje: `http://www.twintechnology.cu/miruta`. Para usar otro
    servidor, en la pantalla de inicio de sesión pulse el **botón del servidor**, elija el protocolo y escriba la
    dirección:
@@ -73,15 +73,50 @@ Sin la clave de firma ninguna versión nueva de la app se instalará encima de e
 - Como Administrador: *Más → Mantenimiento del servidor*.
 - Sin sesión: botón del servidor → *Mantenimiento del servidor* → clave de mantenimiento.
 
-**Símbolos.** La app va ofuscada. Si un usuario envía el texto de un error de la versión 4.5.0, se traduce a nombres
-legibles con Flutter y los símbolos que deja la compilación en `app/build/symbols/4.5.0+15/` (guárdelos si los
+**Símbolos.** La app va ofuscada. Si un usuario envía el texto de un error de la versión 5.0.0, se traduce a nombres
+legibles con Flutter y los símbolos que deja la compilación en `app/build/symbols/5.0.0+16/` (guárdelos si los
 necesita; no se entregan aparte):
 
 ```bash
-flutter symbolize -i error.txt -d 4.5.0+15/app.android-arm.symbols     # app de 32 bits
+flutter symbolize -i error.txt -d 5.0.0+16/app.android-arm.symbols     # app de 32 bits
 ```
 
-## 10.3 quinquies Actualizar el hospedaje de la 4.4.0 a la 4.5.0
+## 10.3 cero Instalar la 5.0.0 en el hospedaje (desde cero, sobre una base de datos vacía)
+
+La 5.0.0 **sustituye** a la 4.5.0: se borra lo que había (código y datos) y se instala el servidor completo. **Antes
+de nada, exporte la base de datos de la 4.5.0** en SQL con el gestor del hospedaje (solo como copia: no se puede
+importar en la 5.0.0) y guarde `htdocs/miruta/servidor/configuracion.php` de la 4.5.0 (tiene la clave de
+mantenimiento y los datos de la base de datos).
+
+1. **Vaciar la base de datos.** En el gestor de bases de datos del hospedaje (phpMyAdmin o el que tenga), borre
+   **todas las tablas** de la base de datos de MiRuta (o bórrela y créela de nuevo, vacía, con `utf8mb4` y
+   `utf8mb4_unicode_ci`). La 5.0.0 necesita una base de datos **vacía**: con tablas de la 4.x la orden «Instalar base
+   de datos» responde *ALREADY_INSTALLED* y no hace nada.
+2. **Sustituir el código.** Con FileZilla, borre la carpeta `/htdocs/miruta/` (o renómbrela, p. ej. `miruta-4.5`, y
+   bórrela cuando todo funcione) y suba la nueva desde `miruta-servidor-5.0.0.zip` como en §10.3, paso 1 (los 2
+   archivos de `subida-rapida/` y `desempaquetar.php?clave=CLAVE` con la clave de `CLAVE-DE-MANTENIMIENTO.txt` del
+   paquete nuevo).
+3. **Configurar.** Si el paquete se generó sin los datos del hospedaje, edite `htdocs/miruta/servidor/configuracion.php`
+   (FileZilla: botón derecho → Ver/Editar) y ponga en lugar de «CAMBIAR»: `APP_URL` (`http://www.twintechnology.cu/miruta`),
+   `DB_HOST`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` (los mismos de la 4.5.0) y, si hiciera falta, `TEMP_PATH`.
+   Deje `APP_TIMEZONE` en `America/Havana`: todas las horas se guardan y se muestran en esa zona (el PHP del
+   hospedaje tiene UTC por omisión; la app usa la zona de las fechas del servidor aunque el teléfono tenga otra).
+   Guarde la clave de mantenimiento nueva.
+4. **Comprobar.** `http://www.twintechnology.cu/miruta/diagnostico.php?clave=CLAVE`: todo con ✔ y la base de datos
+   *conectada, sin instalar*.
+5. **Instalar la base de datos.** En la app: botón del servidor → *Mantenimiento del servidor* → clave → **Instalar
+   base de datos** (o `POST /miruta/api/v1/maintenance-runs` con `{"data":{"type":"maintenance-runs","attributes":{"command":"install"}}}`
+   y la cabecera `X-Maintenance-Key`). Crea todas las tablas de la 5.0.0 (compatible con MariaDB 10.3) y los
+   nomencladores de partida. *Estado del servidor* debe mostrar la versión 5.0.0 y ninguna migración pendiente.
+6. **Crear la cuenta del Administrador** desde la app con la 5.0.0 (§10.2, paso 3): ahora con **correo electrónico**
+   (único), sexo (por omisión Masculino) y fecha de nacimiento (opcional), en lugar del carné.
+7. **Revisar los ajustes nuevos** (*Más → Ajustes de la app*): Generales → **Radio acercamiento** (`300m`) y Radio
+   parada (`100m`); Estado trabajador → Cálculos consecutivos (`3`); Estado viaje → **Plazo cancelación** (`5hor`) y
+   **Conservación viajes** (`30dia`). Desaparecen «Plazo eliminación», «Distancia abandono» y «Espera final».
+8. **Publicar la app** (opcional): suba `miruta-5.0.0-32bits.apk` en *Más → Actualizaciones de la app* para que la
+   descarguen desde la app los que entren después.
+
+## 10.3 quinquies Actualizar el hospedaje de la 4.4.0 a la 4.5.0 (historia: no aplica a la 5.0.0)
 
 El hospedaje ya tiene la 4.4.0 con datos. **Antes de nada, exporte la base de datos** en SQL con el gestor del
 hospedaje (por si hubiera que volver atrás).
@@ -101,7 +136,7 @@ hospedaje (por si hubiera que volver atrás).
    usar el simulador»). Al terminar, **Eliminar Simulación** borra todo lo que creó. Funciona sin cron: avanza con
    las consultas de la app del Administrador (y, con `TASKS_ON_REQUESTS=true`, con cualquier petición).
 
-## 10.3 quater Actualizar el hospedaje de la 4.3.0 a la 4.4.0
+## 10.3 quater Actualizar el hospedaje de la 4.3.0 a la 4.4.0 (historia: no aplica a la 5.0.0)
 
 El hospedaje ya tiene la 4.3.0 con datos. **Antes de nada, exporte la base de datos** en SQL con el gestor del
 hospedaje (por si hubiera que volver atrás).
@@ -130,7 +165,7 @@ hospedaje (por si hubiera que volver atrás).
    Administradores solo pueden consultar los motivos de rechazo (para cambiarlos hace falta la 4.4.0). Al entrar con la
    4.4.0, la app descarga en segundo plano todo lo que la persona puede ver.
 
-## 10.3 ter Actualizar el hospedaje de la 4.2.0 a la 4.3.0
+## 10.3 ter Actualizar el hospedaje de la 4.2.0 a la 4.3.0 (historia: no aplica a la 5.0.0)
 
 El hospedaje ya tiene la 4.2.0 con datos. **Antes de nada, exporte la base de datos** en SQL con el gestor del
 hospedaje (por si hubiera que volver atrás).
@@ -148,7 +183,7 @@ hospedaje (por si hubiera que volver atrás).
    los canales de notificaciones viejos y aparecen los seis nuevos (Viajes, Vehículo, Mi estado, Solicitudes,
    Mensajes, Actualizaciones), que el usuario puede ajustar en los ajustes de Android.
 
-## 10.3 bis Actualizar el hospedaje de la 4.1.0 a la 4.2.0
+## 10.3 bis Actualizar el hospedaje de la 4.1.0 a la 4.2.0 (historia: no aplica a la 5.0.0)
 
 El hospedaje ya tiene la 4.1.0 con datos. **Antes de nada, exporte la base de datos** en SQL con el gestor del
 hospedaje (por si hubiera que volver atrás).
@@ -175,8 +210,9 @@ hospedaje (por si hubiera que volver atrás).
 
 ## 10.3 Entorno 1: el hospedaje (solo FTP)
 
-Use `miruta-servidor-4.2.0.zip`. Su `configuracion.php` ya trae la base de datos, la carpeta temporal y unas
-claves generadas para este servidor.
+Use `miruta-servidor-5.0.0.zip` (con una base de datos vacía; para pasar de la 4.5.0, §10.3 cero). Su
+`configuracion.php` trae unas claves generadas para este servidor y, si se generó con ellos, la base de datos y la
+carpeta temporal.
 
 1. **Subir.** Con FileZilla (FTP explícito sobre TLS, modo pasivo, transferencia binaria, como mucho 2
    conexiones), cree `/htdocs/miruta/` y suba allí los 2 archivos de `subida-rapida/`. Después abra:
@@ -242,7 +278,7 @@ php -r "echo 'base64:'.base64_encode(random_bytes(32)), PHP_EOL, bin2hex(random_
 
 ## 10.5 Entorno 3: un ordenador sin Docker (Apache o nginx, PHP y MySQL/MariaDB)
 
-Use `miruta-servidor-4.2.0.zip`. Hace falta:
+Use `miruta-servidor-5.0.0.zip` (base de datos vacía). Hace falta:
 
 - **PHP 8.2 o superior**, con las extensiones `pdo_mysql`, `mbstring`, `openssl`, `fileinfo`, `tokenizer`,
   `ctype`, `xml` y `dom` (y `zip` para la subida rápida);
@@ -299,7 +335,7 @@ Desde el repositorio (`https://github.com/maicolalmaralestamayo/MiRuta`):
 | Qué | Cómo |
 |---|---|
 | App | Suba la versión en `app/pubspec.yaml`, compile con `app/build_release.sh <dirección-del-servidor>/api/v1` (necesita la clave de firma en `app/android/`) y publíquela en *Gestión → Actualizaciones de la app*. Guarde `app/build/symbols/<versión>`. |
-| Servidor para el hospedaje (primera vez) | `tools/release/build-hosting-package.sh <versión>` con `APP_URL`, `DB_*` y `TEMP_PATH`; genera claves nuevas e instala `vendor/` con `composer install --no-dev --optimize-autoloader` (o, sin acceso a los `.zip` de GitHub, `VENDOR_METODO=git`). Con `GENERAR_SQL=1` añade el SQL inicial. Queda en `entregas/hosting/`. |
+| Servidor para el hospedaje (primera vez) | `tools/release/build-hosting-package.sh <versión>` (las herramientas `tools/` se guardan fuera del repositorio) con `APP_URL`, `DB_*` y `TEMP_PATH`; genera claves nuevas e instala `vendor/` con `composer install --no-dev --optimize-autoloader` (o, sin acceso a los `.zip` de GitHub, `VENDOR_METODO=git`). Con `GENERAR_SQL=1` añade el SQL inicial. Queda en `entregas/hosting/`. |
 | Servidor para actualizar uno instalado | `ACTUALIZACION=1 tools/release/build-hosting-package.sh <versión>`: no lleva `configuracion.php`, así que conserva sus claves y datos. Después, en la app: *Mantenimiento del servidor → Actualizar base de datos*. |
 | Imagen Docker | Por ahora no se entrega (docs/11 §11.55). Si hace falta: `docker build -f docker/offline/Dockerfile -t miruta-api:<versión> .` y `docker save miruta-api:<versión> mariadb:10.3 \| gzip > miruta-<versión>-imagenes.tar.gz` |
 

@@ -2,7 +2,7 @@
 
 Resumen **consolidado** de lo acordado en `docs/11-acuerdos-registro-qr.md` §11.19–§11.52, con la **última decisión**
 de cada tema (lo sustituido no aparece). **Servidor implementado** (Laravel 12; API en `docs/13-api-proxima-version.md`);
-**app implementada** (versión 4.5.0, `docs/05-app.md`).
+**app implementada** (versión 5.0.0, `docs/05-app.md`).
 
 ## 1. Plataforma
 
@@ -39,7 +39,8 @@ de cada tema (lo sustituido no aparece). **Servidor implementado** (Laravel 12; 
 - **Formularios** sin datos de otras tablas; el campo **Activado** es un interruptor del formulario.
 - Lo **desactivado** se ve atenuado solo para Administrador y Jefe.
 - **Botones** siempre con ícono y texto corto (acción y, si hace falta, objeto).
-- **Fechas** «sáb. dd-mm-aa»; **horas** de 12 h con a. m. / p. m. (4.4.0).
+- **Fechas y horas** «Jue. 19/11/26 10:30», horas de **24 h** en toda la app, como en las notificaciones, y en la zona
+  del servidor (5.0.0; la 4.4.0 usaba 12 h). Selector de hora digital de 24 h (hora y minutos).
 - Secciones **plegables** con su cantidad, que **recuerdan** si estaban plegadas; **paginadas de 5 en 5** (salvo las
   paradas de un itinerario elegido).
 
@@ -254,3 +255,33 @@ ajustes por Entidad / itinerario / parada / usuario.
 - **Sin cron:** avanza con cada consulta (la app del Administrador consulta cada 10 s) y, con `TASKS_ON_REQUESTS`,
   con cualquier petición; lo pendiente se envía con su hora de captura.
 - **Servidor:** migración 4.4.0 → 4.5.0 con «Actualizar base de datos» (docs/10 §10.3 quinquies).
+
+## 20. Versión 5.0.0 (19/11/2026, docs/11 §11.67)
+
+- **Instalación desde cero:** el servidor completo sobre una base de datos **vacía** (docs/10 §10.3 cero); no hay
+  actualización desde la 4.5.0. La app sigue llamándose **MiRuta**.
+- **Correo electrónico** (único) en lugar del **carné de identidad** en todas partes (registro, Gestión, perfil,
+  búsqueda, «Olvidé algo»); el **sexo** se escribe a mano (por omisión Masculino) y la fecha de nacimiento es
+  opcional. Los hijos, sin carné: sexo y fecha de nacimiento a mano.
+- **Estados del trabajador, versión definitiva**, con distancias configurables («Radio acercamiento» 300 m, «Radio
+  parada» 100 m): **Fuera de itinerario, Acercándose a Parada, Alejándose de Parada, En Parada, Llegada tarde, No
+  recogido, Viajando, Dejado** y **No viajaré** (solo a mano). Al iniciarse el viaje, los En Parada en la primera
+  parada que se alejan de forma consecutiva a velocidad no humana pasan a Viajando. Todos se pueden poner a mano; el
+  estado manual se respeta hasta que el cálculo detecta un cambio real.
+- **Estados de las paradas:** En espera, Recogida, Volada, Omitida.
+- **Ver recorrido** desde Planificado: tarjeta del viaje en 3 líneas con el icono de la app; tarjeta pequeña de
+  Sensores y tarjeta de estado («[estado]», «[parada] • [Detenido | En movimiento] • [velocidad]», «[coordenadas] •
+  [fecha y hora]», cada uno los suyos; desde Viajando, los del vehículo); la línea con las paradas a la misma
+  distancia, el estado y las cantidades de cada parada y el vehículo en medio de su tramo.
+- **Viajes:** tarjetas con el formato de la notificación («Viaje [estado]», itinerario • sentido • fecha y hora,
+  parada de salida • tipo de vehículo, «Cambió la …» en naranja); **cancelar** solo un Planificado, **eliminar** (borrar)
+  solo un Cancelado o Terminado, sin avisar; «Plazo cancelación» (5 h) y poda «Conservación viajes» (30 días);
+  círculo **verde** en la pestaña Viajes con los Planificados y En ejecución.
+- **Inicio:** sin viajes activos, sin títulos de sección ni cantidades; hijos debajo del QR; solo las solicitudes
+  **pendientes** (las resueltas, en Gestión → Entidades / Itinerarios); paginado.
+- **Toda la app:** nombres propios de las acciones (Aprobar, Rechazar, Solicitar, Cancelar Viaje, Iniciar Viaje…) y
+  sus spinners («Aprobando Solicitud»); el contador de la barra gira al llegar a cero; horas de 24 h en la zona del
+  servidor y selector de hora digital de 24 h.
+- **Errores de la 4.5.0 corregidos:** la hora de diferencia entre la tarjeta y la línea (captura 02) y el viaje
+  Planificado que no salía (captura 03) — causas en docs/11 §11.67.
+

@@ -1,7 +1,7 @@
 # 13. API de la próxima versión (servidor Laravel 12)
 
-Referencia para construir la app contra el servidor nuevo (versión **4.5.0**). Implementa lo acordado en `docs/11`
-§11.19–§11.66 y resumido en `docs/12`. Lo que no está aquí (pantallas, textos de la interfaz) sigue en esos documentos.
+Referencia para construir la app contra el servidor nuevo (versión **5.0.0**). Implementa lo acordado en `docs/11`
+§11.19–§11.67 y resumido en `docs/12`. Lo que no está aquí (pantallas, textos de la interfaz) sigue en esos documentos.
 
 - **Base:** `https://<servidor>/api/v1` (en el hospedaje, `http://<dominio>/miruta/api/v1`).
 - **Formato:** JSON:API 1.1, igual que en la versión 3.0: mismos documentos, errores, `include`, paginación y
@@ -83,7 +83,8 @@ Tres roles fijos (docs/11 §11.30), con los permisos en el código (`App\Service
 - **Viajes:** cada uno ve los de **todos sus itinerarios** en los que tiene parada (el Jefe, el suyo aunque no tenga
   parada); el Administrador, todos.
 - **Lo desactivado** (`active: false`) solo lo ven el Administrador y el Jefe (en su itinerario).
-- **Carné** (`identityCard`): la propia persona, el Administrador y el Jefe (miembros y solicitantes de su itinerario).
+- **Correo** (`email`, 5.0.0, en lugar del carné) y fecha de nacimiento: la propia persona, el Administrador y el Jefe
+  (miembros y solicitantes de su itinerario).
 
 ## 13.3 Actualización obligatoria (docs/11 §11.54)
 
@@ -106,12 +107,12 @@ Tres roles fijos (docs/11 §11.30), con los permisos en el código (`App\Service
 | `GET username-suggestion?firstName=&middleName=&firstSurname=&secondSurname=` | Público | `attributes.username` propuesto |
 | `GET password-suggestion` | Público | `attributes.password` propuesta |
 | `GET password-policy` | Público | `minLength`, `maxLength`, `requiredClasses`, `historyCount`, `expiryDays`, `usernameMinLength`, `usernameMaxLength` |
-| `POST users` | Público | Registro: `firstName`, `middleName?`, `firstSurname`, `secondSurname`, `identityCard` (11 dígitos), `username`, `password`. El primero es Administrador. Con `X-Installation`, la instalación queda ligada. Carné repetido: `409 IDENTITY_CARD_TAKEN` |
+| `POST users` | Público | Registro: `firstName`, `middleName?`, `firstSurname`, `secondSurname`, `email` (único en toda la base de datos; `409 EMAIL_TAKEN`, `422 EMAIL_INVALID`), `sex?` (`M` por omisión, `F`), `birthDate?` (`AAAA-MM-DD`, opcional), `username`, `password`. El primero es Administrador. Con `X-Installation`, la instalación queda ligada. Carné repetido: `409 IDENTITY_CARD_TAKEN` |
 | `POST tokens` | Público | `username`, `password`, `deviceName?` → `tokens`: `accessToken`, `refreshToken`, `tokenType`, `expiresIn`, `refreshExpiresIn`; `relationships.user` |
 | `POST tokens/refresh` | Público | `refreshToken` → par nuevo (rotación; reutilizar uno ya usado cierra todas las sesiones) |
 | `DELETE tokens/current` · `DELETE tokens` | Sesión | Cierra esta sesión · todas |
 | `GET me` | Sesión | La persona (`users`) con `meta.role`, `meta.chiefItineraryId` y `meta.memberships` (abajo) |
-| `PATCH me` | Sesión | Nombres, `identityCard`, `username`, `password` (con `meta.currentPassword`, salvo si la puso otra persona). Cambiarla cierra las demás sesiones |
+| `PATCH me` | Sesión | Nombres, `email`, `sex`, `birthDate`, `username`, `password` (con `meta.currentPassword`, salvo si la puso otra persona). Cambiarla cierra las demás sesiones |
 | `POST me/photo` (multipart `photo`) · `DELETE me/photo` | Sesión | Foto (jpeg/png, ajuste «Tamaño foto») |
 | `POST me/qr-devices` | Sesión | Certifica la clave del teléfono para Mi QR (§13.9) |
 | `POST me/applications-seen` | Sesión | Marca vistas sus solicitudes resueltas (al abrir la sección Solicitudes) |
@@ -123,7 +124,7 @@ active, workerCount}, stop {id, landmark, street, imageUrl, latitude, longitude}
 Trabajador.
 
 Recurso **`users`** (persona): `username`*, `firstName`, `middleName`, `firstSurname`, `secondSurname`, `fullName`,
-`sex`, `photoUrl`, `isAdmin`, `entities` (abreviaturas; vacía = «Sin Entidad»), `identityCard`/`birthDate` (si puede
+`sex`, `photoUrl`, `isAdmin`, `entities` (abreviaturas; vacía = «Sin Entidad»), `email`/`birthDate` (si puede
 verlos), `mustChangePassword`*, `currentPasswordRequired`*, `passwordExpiresAt`*, `appVersionCode`*, `createdAt`*
 (*solo ella misma y el Administrador).
 
@@ -200,11 +201,11 @@ tarjetas sin `include`).
 
 | Ruta | Quién | Notas |
 |---|---|---|
-| `GET users` | Todos (los de sus Entidades) | Filtros `entity` (id o `none` = «Sin Entidad», solo Administrador), `itinerary` (id o `none` = en ningún itinerario), `stop` (id o `none` = algún itinerario sin parada), `search` (nombre, usuario o carné) |
+| `GET users` | Todos (los de sus Entidades) | Filtros `entity` (id o `none` = «Sin Entidad», solo Administrador), `itinerary` (id o `none` = en ningún itinerario), `stop` (id o `none` = algún itinerario sin parada), `search` (nombre, usuario o correo) |
 | `GET users/{id}` | Ídem | Con `meta.memberships` (sus Entidades que ve quien consulta, con itinerarios y paradas): formulario del Trabajador |
-| `PATCH users/{id}` · `DELETE users/{id}` | Administrador | Nombres, carné, usuario · eliminar (no al Administrador) |
+| `PATCH users/{id}` · `DELETE users/{id}` | Administrador | Nombres, correo, sexo, nacimiento, usuario · eliminar (no al Administrador) |
 | `GET workers` | Todos | Filtros `entity`, `itinerary` (id o `none` = sin ningún itinerario en esa Entidad: «Trabajadores sin itinerario»), `stop` (id o `none`), `user`, `search`, `active`, `chief`; `include=user,entity`; orden `name`, `surname`, `id`, `createdAt` |
-| `POST workers` | Administrador | Persona existente: `relationships.user` + `entity` («Asociar Entidad», «Adicionar persona»; también él mismo). Persona nueva («Registrar trabajador»): `firstName`, `middleName?`, `firstSurname`, `secondSurname`, `identityCard`, `username?`, `password?` + `entity`; responde `meta.created`, `meta.username`, `meta.password`. La app pide usuario y contraseña (no los propone); si faltan, los genera el servidor. Si el carné ya existe, solo se le añade la Entidad (`meta.created=false`). Con `itinerary` (de esa Entidad) y `stop` se le añade además ese itinerario |
+| `POST workers` | Administrador | Persona existente: `relationships.user` + `entity` («Asociar Entidad», «Adicionar persona»; también él mismo). Persona nueva («Registrar trabajador»): `firstName`, `middleName?`, `firstSurname`, `secondSurname`, `email`, `sex?`, `birthDate?`, `username?`, `password?` + `entity`; responde `meta.created`, `meta.username`, `meta.password`. La app pide usuario y contraseña (no los propone); si faltan, los genera el servidor. Si el correo ya existe, solo se le añade la Entidad (`meta.created=false`). Con `itinerary` (de esa Entidad) y `stop` se le añade además ese itinerario |
 | `PATCH workers/{id}` | Administrador; Jefe (si está en su itinerario) | `active` |
 | `DELETE workers/{id}` | Administrador; la propia persona («Salir de la Entidad») | Se borran sus itinerarios allí (con parada y jefatura), sus ausencias allí y sus solicitudes pendientes |
 | `GET worker-itineraries` | Todos (los de sus Entidades) | Filtros `user`, `itinerary`, `entity`, `stop` (id o `none` = «Trabajadores sin parada»), `chief`, `search`; `include=user,worker,itinerary,stop` |
@@ -251,8 +252,8 @@ Entidades (por omisión, todos). `meta.itineraries` `[{id, name, entityAbbreviat
 ### Hijos — `children`
 
 `firstName`, `middleName?`, `firstSurname`, `secondSurname`, `fullName`, `sex`, `birthDate`, `eligibleUntil`,
-`eligible`, `active`, `photoUrl`, `identityCard` (padres y Administrador). `meta.parents` (quién más lo tiene
-declarado). `POST children` con el carné: si ya existe se vincula (`meta.alreadyDeclared`); sin derecho a viajar,
+`eligible`, `active`, `photoUrl`. Sin carné (5.0.0): `sex` (`M` por omisión) y `birthDate` (obligatoria) a mano. `meta.parents` (quién más lo tiene
+declarado). `POST children`: si ya existe uno con los mismos nombres, apellidos y fecha de nacimiento, se vincula (`meta.alreadyDeclared`); sin derecho a viajar,
 `422 CHILD_NOT_ELIGIBLE`. `DELETE` lo desvincula de quien lo pide. Foto: `POST/DELETE children/{id}/photo`.
 Filtros `parent`, `active`, `eligible`.
 
@@ -274,8 +275,10 @@ Un viaje es de **ida** o de **regreso** de un itinerario, un día, con su hora y
 sentido y día.
 
 Atributos: `direction` (`ida`, `regreso`), `date`, `departureTime` (`HH:MM`), `departsAt`, `status`
-(`planificado`, `en_ejecucion`, `terminado`, `cancelado`), `statusChangedAt`, `finishReason` (`manual`, `llegada`,
-`espera_cierre`, `duracion_maxima`), `observation?`, `vehicleState` (`detenido`, `en_movimiento`, `null`),
+(`planificado`, `en_ejecucion`, `terminado`, `cancelado`), `statusChangedAt`, `startedAt` (5.0.0: salida real),
+`changes` (5.0.0: qué cambió en el último «Viaje cambiado» mientras siga Planificado: `fecha`, `hora`,
+`tipo_vehiculo`, `observacion`, `parada_salida`), `finishReason` (`manual`, `llegada`, `espera_cierre`,
+`duracion_maxima`; en un cancelado, `manual` o `plazo_cancelacion`), `observation?`, `vehicleState` (`detenido`, `en_movimiento`, `null`),
 `vehicleStateSince`, `vehicleAtStop`, `nextStopIndex`, `arrivedAt`, `editable`, `updatedAt`. Al empezar el viaje
 `vehicleState` es `null` (**sin datos del vehículo**) hasta que informan los sensores (4.2.0). Relaciones `itinerary`,
 `vehicleType`, `detentionCause`, `createdBy`. `meta`: `expectedPassengers`, `capacity`, `myState`.
@@ -285,15 +288,17 @@ Atributos: `direction` (`ida`, `regreso`), `date`, `departureTime` (`HH:MM`), `d
 | `GET trips` | Ver §13.2 | Secciones: `filter[status]=planificado` / `en_ejecucion` / `terminado` / `cancelado` (lista). Otros: `itinerary`, `direction`, `date`, `from`, `to`; orden `departsAt` |
 | `POST trips` | Administrador o Jefe del itinerario | `direction`, `date`, `departureTime`, `observation?`; `itinerary`, `vehicleType`. Ida y regreso del mismo día = dos peticiones. Errores: `409 TRIP_EXISTS`, `ITINERARY_WITHOUT_STOPS`, `ITINERARY_INACTIVE`; `422 TRIP_IN_PAST`, `VEHICLE_TYPE_INVALID` |
 | `PATCH trips/{id}` | Ídem | Datos (`date`, `departureTime`, `observation`, `vehicleType`) solo en `planificado` (si no, `409 TRIP_NOT_EDITABLE`). `status` para el cambio a mano. `relationships.detentionCause` (o `null`) con el vehículo detenido |
-| `DELETE trips/{id}` | Ídem | No en ejecución (`409 TRIP_RUNNING`) |
+| `DELETE trips/{id}` | Ídem | 5.0.0: **eliminar** = borrarlo de la base de datos, **solo Cancelado o Terminado** (si no, `409 TRIP_NOT_DELETABLE`), y **sin avisar** |
 | `GET trips/{id}/passengers` | Quien ve el viaje | «Trabajadores»: `trip-workers` con `fullName`, `photoUrl`, `expected`, `state`, `stateAt`, `childrenCount`, `isChief` y, por qué es o no sensor (4.2.0): `lastSeenAt`, `gpsOk`, `sensor`, `sensorReason` (`sensor`, `no_en_vehiculo`, `sin_gps`, `sin_enviar`); relaciones `user`, `stop`; `meta.total` |
 | `GET trips/{id}/live` | Quien ve el viaje | Línea del recorrido (§13.8) |
 | `POST trips/{id}/reports` | Trabajadores del itinerario | Informe del teléfono (§13.8); con `?cursor=N`, también lo de `GET sync` |
-| `POST trips/{id}/stop-passes` | Administrador o Jefe del itinerario | «Pasó por la parada X» a mano (§13.8) |
+| `POST trips/{id}/stop-passes` | Administrador o Jefe del itinerario | «Marcar paso por parada» a mano (§13.8): la parada queda Recogida |
 
 **Cambios de estado a mano** (Administrador o Jefe del itinerario): `planificado → en_ejecucion`,
-`planificado → cancelado` (solo el Administrador o el Jefe que lo planificó), `en_ejecucion → terminado`. Otro:
-`409 TRIP_TRANSITION_INVALID`.
+`planificado → cancelado` (**cancelar**: solo un Planificado, y solo el Administrador o el Jefe que lo planificó),
+`en_ejecucion → terminado`. Otro: `409 TRIP_TRANSITION_INVALID`. Un `planificado` que sigue así pasado «Plazo
+cancelación» (5 h) desde su salida pasa solo a `cancelado` (con aviso «Viaje cancelado»); los `cancelado` y
+`terminado` de hace más de «Conservación viajes» (30 días) se **podan** sin avisar (tarea diaria `viajes:podar`).
 
 **Pasajeros esperados:** los activos del itinerario sin ausencia ese día (la parada habitual es opcional desde la
 4.4.0; los de cada parada son los que la tienen como habitual). Los niños cuentan como
@@ -306,20 +311,21 @@ si no hay conexión, con acuse, y reintenta hasta recibirlo (docs/11 §11.65). *
 
 ### Informe del teléfono: `POST trips/{id}/reports`
 
-Formato **4.4.0** (`events`, en el orden en que se capturaron; el servidor los aplica ordenados por `capturedAt`):
+Formato **4.4.0** (`events`, en el orden en que se capturaron; el servidor los aplica ordenados por `capturedAt`; la
+app 5.0.0 envía `capturedAt` en UTC con «Z», corregida con el reloj del servidor):
 
 ```json
 {"data": {"type": "trip-reports", "attributes": {"gps": true, "events": [
-  {"kind": "worker", "state": "en_parada", "stopId": 7, "capturedAt": "2026-11-16T10:40:05-05:00"},
-  {"kind": "worker", "state": "viajando", "stopId": 7, "childIds": [12], "capturedAt": "2026-11-16T10:41:15-05:00"},
-  {"kind": "vehicle", "vehicleState": "en_movimiento", "nextStopIndex": 2, "atStop": false, "capturedAt": "2026-11-16T10:41:25-05:00"}
+  {"kind": "worker", "state": "en_parada", "stopId": 7, "capturedAt": "2026-11-19T15:40:05.000Z"},
+  {"kind": "worker", "state": "viajando", "stopId": 7, "childIds": [12], "capturedAt": "2026-11-19T15:41:15.000Z"},
+  {"kind": "vehicle", "vehicleState": "en_movimiento", "nextStopIndex": 2, "atStop": false, "inRadius": false, "speed": 31.5, "capturedAt": "2026-11-19T15:41:25.000Z"}
 ]}}}
 ```
 
 | Evento | Campos | Notas |
 |---|---|---|
-| `worker` | `state`, `stopId`, `childIds` / `childrenCount`, `capturedAt` | Cambio de estado del trabajador con la **parada detectada** por cercanía (en Dejado, donde se bajó) |
-| `vehicle` | `vehicleState`, `nextStopIndex`, `atStop`, `capturedAt` | Observación del sensor (Viajando): detenido o en movimiento, próxima parada (posición en el recorrido, 0 = salida) y si está detenido en su radio. El teléfono la pone en cola solo cuando cambia |
+| `worker` | `state`, `stopId`, `manual?`, `childIds` / `childrenCount`, `capturedAt` | Cambio de estado del trabajador con la **parada detectada** por cercanía (en Dejado, donde se bajó); `manual: true` si lo puso él a mano (5.0.0). Sin parada en `fuera_itinerario` y `no_viajare` |
+| `vehicle` | `vehicleState`, `nextStopIndex`, `atStop`, `inRadius`, `speed`, `capturedAt` | Observación del sensor (Viajando): detenido o en movimiento, próxima parada (posición en el recorrido, 0 = salida), si está dentro del radio de la próxima parada (`inRadius`, 5.0.0), si está detenido en él y la velocidad en km/h (5.0.0). El teléfono la pone en cola solo cuando cambia |
 
 `gps` (cada envío, 4.2.0): `true` si el teléfono tenía posición del GPS; con `false` deja de contar como sensor.
 
@@ -331,57 +337,68 @@ además en `meta.sync` `{data, meta}` exactamente lo de `GET sync` (§13.10). As
 las novedades cada «Frecuencia corta» con una sola conexión.
 
 Respuesta `200`: la línea del recorrido (`trip-lives`, abajo) con `meta`:
-`{"ack": true, "accepted": 3, "applied": true|false, "reason": null|"INFORME_ANTERIOR"|"ESTADO_FINAL"|"TRANSICION_NO_PERMITIDA"|"VIAJE_CERRADO", "sensor": true|false}`
+`{"ack": true, "accepted": 3, "applied": true|false, "reason": null|"INFORME_ANTERIOR"|"VIAJE_CERRADO", "sensor": true|false}`
 (`applied` y `reason`, del último cambio del trabajador). Con `ack` la app quita de la cola lo enviado. Un estado
 desconocido: `422 WORKER_STATE_INVALID`; una parada de otro itinerario: `422 STOP_NOT_IN_ITINERARY`.
 
 Cada informe (aunque no traiga cambios) cuenta como «el teléfono envió algo»: un **sensor** deja de contar si no envía
 nada en 3 × «Frecuencia corta» (30 s).
 
-**Estados del trabajador** (docs/11 §11.65), **iguales en la ida y en el regreso**; se sube y se baja en **cualquier
-parada** del itinerario, detectada por cercanía:
+**Estados del trabajador, versión definitiva** (docs/11 §11.67), **iguales en la ida y en el regreso**; se sube y se
+baja en **cualquier parada** del itinerario, detectada por cercanía. Los calcula el teléfono (o los pone el trabajador
+a mano: **cualquier estado, en cualquier momento**; el servidor acepta cualquier cambio en el orden de captura):
 
 | Estado | Significa |
 |---|---|
-| `de_camino` | Se mueve hacia una parada: la más cercana de las que el vehículo aún no ha pasado |
-| `en_parada` | Dentro del radio de una parada que el vehículo aún no ha pasado |
-| `viajando` | Se aleja de su parada a velocidad de vehículo: va en él (sensor). Solo pasa a `dejado` |
-| `dejado` | Se separa del vehículo (final); queda Dejado en la parada más cercana |
-| `no_recogido` | Estaba En la parada, el vehículo pasó por ella y no subió (final; antes `botado`) |
-| `retrasado` | Estaba De camino y el vehículo pasó por su parada antes de que llegara (final; antes `dormido`) |
-| `no_voy` | No va a viajar (final) |
+| `fuera_itinerario` | A más de «Radio acercamiento» (300 m) de todas las paradas (sin parada) |
+| `acercandose` | Entre 300 y 100 m de una parada, a velocidad humana, y la distancia tiende a disminuir |
+| `alejandose` | Entre 300 y 100 m de una parada, a velocidad humana, y la distancia tiende a aumentar |
+| `en_parada` | A «Radio parada» (100 m) o menos de una parada |
+| `llegada_tarde` | Su parada dejó de estar En espera antes de que llegara a ella |
+| `no_recogido` | Su parada dejó de estar En espera, el vehículo la dejó atrás y él siguió En Parada |
+| `viajando` | Se aleja de la parada de forma consecutiva a velocidad no humana: va en el vehículo (sensor) |
+| `dejado` | Pasa a velocidad humana y se aleja de la parada más cercana: se bajó en ella |
+| `no_viajare` | Solo a mano: avisa que no irá (sin parada) |
 
-**Teléfonos viejos:** `recogido` (4.2.0), `botado` y `dormido` (4.3.0) se aceptan y se guardan como `viajando`,
-`no_recogido` y `retrasado`. A las apps con `X-App-Version` menor que 14 se les devuelven `botado` y `dormido` (en
-`myState.state`, `counts`, `trips/{id}/passengers`, `meta.myState` de los viajes y `myTrips`), y a las menores que 13
-`recogido` en el regreso.
+Los estados de las versiones 4.x (`de_camino`, `retrasado`, `no_voy`, `recogido`, `botado`, `dormido`) ya no se
+aceptan (`422 WORKER_STATE_INVALID`): la 5.0.0 se instala desde cero y necesita la app 5.0.0.
+
+**Estados de las paradas** (docs/11 §11.67, tabla `trip_stop_passes`): `en_espera` (el vehículo aún no llegó),
+`recogida` (se detuvo en ella: mayoría de sensores detenidos en su radio, a mano o la de salida al empezar),
+`volada` (pasó sin detenerse: la mayoría la vio dentro de su radio) y `omitida` (ni pasó por ella y una posterior ya
+cambió de estado).
 
 ### Reglas del servidor
 
 - **Orden por hora de captura:** el estado del trabajador y su `stateAt` son los del cambio capturado; un cambio más
-  viejo que el último aplicado se ignora (con acuse). Los finales no cambian, salvo lo que puso el servidor
-  (`setByServer`) y un `no_recogido` que el teléfono corrige a `viajando`.
+  viejo que el último aplicado se ignora (con acuse), salvo si el último lo puso el servidor (`setByServer`). Desde la
+  5.0.0 cualquier estado puede pasar a cualquier otro (el teléfono manda; también a mano).
 - **Mayoría de sensores** (docs/11 §11.43): con `n` sensores activos, un valor se acepta si lo indican al menos
   «Mínimo confirmaciones» (3) cuando `n ≥ 3`, o la mayoría si hay menos; siempre más de la mitad (con mínimo 1, un
   solo sensor basta). Se aplica al estado del vehículo, a `atStop` y al avance de la próxima parada. La **hora de
   paso** por cada parada es la hora de captura del sensor que completó la mayoría (`trip_stop_votes`).
 - **Planificado → En ejecución** (además de a mano): al menos «Mínimo confirmaciones» trabajadores `viajando` en
-  cualquier parada (si se esperan menos, todos los esperados). La salida es la hora del primer `viajando`; la parada
-  de salida queda pasada y `nextStopIndex = 1`.
-- **Teléfonos que no envían:** al pasar el vehículo por una parada, quien estaba `en_parada` en ella sin enviar en los
-  últimos 3 × «Frecuencia corta» queda `no_recogido`, y quien iba `de_camino` a ella, `retrasado` (`setByServer`).
+  cualquier parada (si se esperan menos, todos los esperados). La salida (`startedAt`) es la hora del primer
+  `viajando`; la parada de salida queda Recogida y atrás y `nextStopIndex = 1`. En el teléfono, los En Parada en la
+  **primera parada de recogida** que se alejan de forma consecutiva a velocidad no humana pasan a `viajando` (5.0.0).
+- **Estado de cada parada:** detenido en el radio de la próxima (mayoría) → `recogida`; al dejarla atrás (avance de la
+  próxima parada), si no estaba Recogida, `volada` si la mayoría pasó por su radio (`trip_stop_votes` de tipo
+  `radio`) u `omitida` si no; las anteriores que seguían En espera quedan `omitida` (o `volada`).
+- **Teléfonos que no envían:** al dejar el vehículo atrás una parada, quien estaba `en_parada` en ella sin enviar en los
+  últimos 3 × «Frecuencia corta» queda `no_recogido`, y quien iba `acercandose` o `alejandose` a ella,
+  `llegada_tarde` (`setByServer`).
 - **En ejecución → Terminado** (además de a mano): ida, el vehículo **pasó la última parada**
   (`nextStopIndex` = número de paradas); regreso, **detenido en el radio de la última parada del recorrido**.
   `finishReason = llegada`; quien seguía `viajando` queda `dejado` en la última parada.
-- **Revisión periódica** (tarea `viajes:revisar`, cada minuto, §13.13): un `planificado` se **elimina** pasado «Plazo
-  eliminación» (5 h) desde su salida; un `en_ejecucion` **termina** pasada «Duración máxima» (5 h) desde que empezó
+- **Revisión periódica** (tarea `viajes:revisar`, cada minuto, §13.13): un `planificado` pasa a **`cancelado`**
+  (`finishReason = plazo_cancelacion`) pasado «Plazo cancelación» (5 h) desde su salida; un `en_ejecucion` **termina** pasada «Duración máxima» (5 h) desde que empezó
   o pasada «Espera cierre» (2 h) desde el último `dejado` sin llegar a la parada final.
 - **Sin datos del vehículo** (4.2.0): al empezar el viaje no se supone nada (`vehicle.state = null`) hasta que la
   mayoría de los sensores informe. Un sensor cuyo último envío fue sin GPS no cuenta.
-- **«Pasó por la parada X» a mano** (4.2.0): `POST trips/{id}/stop-passes` con
+- **«Marcar paso por parada» a mano** (4.2.0): `POST trips/{id}/stop-passes` con
   `{"data": {"type": "trip-stop-passes", "attributes": {"routeIndex": 2}}}` (Administrador o Jefe del itinerario).
-  Cuenta igual que la confirmación de los sensores: hora de paso (también de las anteriores no pasadas), avance de la
-  próxima parada y No recogido / Retrasado. En un viaje Planificado lo pone En ejecución; la parada final lo termina
+  Cuenta igual que la confirmación de los sensores: la parada queda `recogida` (con `passedManually`), las anteriores
+  que seguían En espera `omitida`, avance de la próxima parada y No recogido / Llegada tarde. En un viaje Planificado lo pone En ejecución; la parada final lo termina
   (`finishReason = llegada`). Responde `201` con la línea del recorrido. Errores: `409 TRIP_CLOSED`,
   `422 STOP_INDEX_INVALID`.
 - **Vehículo detenido** fuera de una parada: sin causa hasta que la indiquen el Administrador o el Jefe
@@ -393,22 +410,27 @@ parada** del itinerario, detectada por cercanía:
 {"data": {"type": "trip-lives", "id": "15", "attributes": {
   "direction": "regreso", "status": "en_ejecucion", "departsAt": "…",
   "itineraryName": "XX Aniversario", "vehicleTypeName": "Carro Dongfeng",
-  "vehicle": {"state": "detenido", "since": "…", "atStop": true, "nextStopIndex": 1, "nextStopId": "7",
+  "startedAt": "…",
+  "vehicle": {"state": "detenido", "since": "…", "atStop": true, "nextStopIndex": 1, "nextStopId": "7", "speed": 0,
               "longDetention": false, "detentionCause": null},
   "sensors": 3,
   "inVehicle": {"workers": 12, "children": 2, "total": 14, "capacity": 41, "seats": 32},
   "expectedPassengers": 38, "notGoing": 1,
-  "stops": [{"index": 0, "stopId": "9", "landmark": "Parqueo del trabajo", "street": "…", "passed": true,
-             "passedAt": "…", "expected": 5, "counts": {"no_recogido": 1, "dejado": 2}, "mine": false}, …],
+  "stops": [{"index": 0, "stopId": "9", "landmark": "Parqueo del trabajo", "street": "…", "state": "recogida",
+             "passed": true, "left": true, "passedAt": "…", "expected": 5, "counts": {"no_recogido": 1, "dejado": 2},
+             "mine": false}, …],
   "myState": {"state": "dejado", "stateAt": "…", "stopId": "7", "stopName": "Coppelia", "childrenCount": 0,
-              "sensor": false, "setByServer": false},
+              "sensor": false, "manual": false, "setByServer": false},
   "myStopId": "9", "travels": true, "canManage": false, "serverTime": "…"}}}
 ```
 
 - `stops` va en el **orden del recorrido** (ida: 1.ª → última; regreso: última → 1.ª). Cada parada lleva además
   (4.2.0) `latitude`, `longitude` (el teléfono calcula con ellas) y `passedManually`.
-- `counts` (4.4.0): cuántos hay en cada estado `de_camino`, `en_parada`, `retrasado`, `no_recogido` y `dejado` en la
-  **parada detectada** de cada uno, en la ida y en el regreso (la app no muestra los ceros). `expected`: los que la
+- `state` (5.0.0): estado de la parada (`en_espera`, `recogida`, `volada`, `omitida`); `passed` = no está En espera;
+  `left` = el vehículo ya la dejó atrás; `passedAt` = cuándo dejó de estar En espera.
+- `counts`: cuántos hay en cada estado con parada (salvo `viajando`) en la **parada detectada** de cada uno; la app
+  no muestra los ceros, ni los `dejado` en la ida ni los `en_parada` en el regreso (docs/11 §11.67).
+- `vehicle.speed` (5.0.0): velocidad del vehículo en km/h, la mediana de lo que dicen los sensores activos. `expected`: los que la
   tienen como **parada habitual**.
 - `myState.stopId` / `stopName`: la parada detectada de su estado (en `dejado`, donde se le dejó).
 - `myStopId`: su **parada habitual** (opcional); `travels`: viaja en este itinerario (le obliga la ubicación);
@@ -500,7 +522,7 @@ abierta; y el botón Actualizar.
 | `viaje_creado` | Trabajadores del itinerario | Se planifica un viaje |
 | `viaje_modificado` | Ídem | Cambian sus datos mientras está Planificado |
 | `viaje_estado` | Ídem | Pasa a En ejecución o se cancela (no la terminación) |
-| `viaje_eliminado` | Ídem | Se elimina (a mano o pasado «Plazo eliminación»; 4.3.0) |
+| `viaje_eliminado` | Ídem | Desde la 5.0.0 no se envía: las eliminaciones no se avisan (la app quita la notificación al saber por el registro de cambios que el viaje ya no existe) |
 | `vehiculo_detencion_larga` | Quienes están `en_parada` | Detenido más de «Detención larga» |
 | `vehiculo_reanuda` | Ídem | Vuelve a moverse tras una detención larga |
 | `vehiculo_en_parada` | Ídem | Llega (detenido) a una parada: «Recogiendo/Dejando en la parada …» |
@@ -552,15 +574,15 @@ Unidades: tiempos `seg min hor dia sem mes ano` (mes = 30 días, año = 365), co
 | `frecuencia_corta` | Ventana viaje | Frecuencia corta (app abierta, o cerrada en la ventana de un viaje; 4.4.0, antes `frecuencia_calculo`) | `10seg` |
 | `frecuencia_larga` | Ventana viaje | Frecuencia larga (app cerrada fuera de la ventana; mínimo `15min`; 4.4.0, antes `frecuencia_reposo`) | `15min` |
 | `radio_parada` | Generales | Radio parada | `100m` |
+| `radio_acercamiento` | Generales | Radio acercamiento (5.0.0) | `300m` |
 | `minimo_confirmaciones` | Generales | Mínimo confirmaciones | `3` |
 | `velocidad_humana` | Estado trabajador | Velocidad humana | `10km/hor` |
 | `tolerancia_gps` | Estado trabajador | Tolerancia GPS | `20m` |
-| `distancia_abandono` | Estado trabajador | Distancia abandono | `1km` |
-| `calculos_consecutivos` | Estado trabajador | Cálculos consecutivos (solo Dejado) | `6` |
-| `espera_final` | Estado trabajador | Espera final | `10min` |
-| `plazo_eliminacion` | Estado viaje | Plazo eliminación | `5hor` |
+| `calculos_consecutivos` | Estado trabajador | Cálculos consecutivos (tendencias: acercarse, alejarse, Viajando, Dejado; 5.0.0) | `3` |
+| `plazo_cancelacion` | Estado viaje | Plazo cancelación (5.0.0, antes «Plazo eliminación») | `5hor` |
 | `duracion_maxima` | Estado viaje | Duración máxima | `5hor` |
 | `espera_cierre` | Estado viaje | Espera cierre | `2hor` |
+| `conservacion_viajes` | Estado viaje | Conservación viajes (5.0.0) | `30dia` |
 | `detencion_larga` | Notificaciones | Detención larga | `5min` |
 | `frecuencia_chat` | Sincronización | Frecuencia chat | `5seg` |
 | `conservacion_cambios` | Sincronización | Conservación cambios (registro de cambios; 4.4.0) | `1mes` |
@@ -598,10 +620,10 @@ Mínimos y máximos: ver `GET settings` o `api/app/Support/SettingCatalog.php`.
 
 - `POST installations` (público): `deviceModel?`, `androidVersion?`, `appVersionCode?` → `meta.header` para la cabecera
   `X-Installation` (guardarlo; el secreto no se vuelve a mostrar).
-- `POST guest/access-recoveries` (con `X-Installation`): `forgotUsername`, `forgotPassword`, `identityCard`, `phone`.
+- `POST guest/access-recoveries` (con `X-Installation`): `forgotUsername`, `forgotPassword`, `email` (5.0.0), `phone`.
   Como mucho «Solicitudes hora» por hora (`429`). `GET guest/access-recoveries/{id}`: estado (`pending`, `approved`,
   `rejected`, `completed`, `expired`) y, aprobada, solo lo pedido (`username`, `password`), una vez.
-- Administrador: `GET access-recoveries` (`filter[status]`), `GET access-recoveries/{id}` (carné, teléfono, `matched`),
+- Administrador: `GET access-recoveries` (`filter[status]`), `GET access-recoveries/{id}` (correo, teléfono, `matched`),
   `PATCH access-recoveries/{id}` con `status: approved` (propone contraseña, que se debe cambiar al entrar; cierra sus
   sesiones) o `rejected`. `GET/PATCH installations/{id}` (`blocked`).
 
@@ -615,9 +637,9 @@ Con la sesión del Administrador o con `X-Maintenance-Key`:
 
   | Orden | Hace |
   |---|---|
-  | `install` | Crea las tablas y los nomencladores de partida (solo si no están: si no, `409 ALREADY_INSTALLED`) |
+  | `install` | Crea las tablas y los nomencladores de partida (solo si no están: si no, `409 ALREADY_INSTALLED`). La 5.0.0 se instala así, sobre una base de datos vacía (docs/10 §10.3 cero) |
   | `migrate` | Aplica las migraciones pendientes de una versión nueva |
-  | `run-tasks` | Ejecuta las tareas pendientes (`viajes:revisar` cada minuto; `olvide:caducar` y `qr:limpiar` cada hora; `conversaciones:limpiar` y `notificaciones:limpiar` cada día) |
+  | `run-tasks` | Ejecuta las tareas pendientes (`viajes:revisar` cada minuto; `olvide:caducar` y `qr:limpiar` cada hora; `conversaciones:limpiar`, `notificaciones:limpiar`, `cambios:podar` y `viajes:podar` (5.0.0) cada día) |
   | `clear-cache` | Limpia la caché |
   | `log` | Últimas líneas del registro de errores |
 
@@ -645,7 +667,7 @@ Solo el **Administrador** (si no, `403`). Una sola simulación a la vez.
 
   Con otra simulación ya creada: `409 SIMULATION_EXISTS` (hay que eliminarla antes). Crea el **viaje de prueba**
   (observación «Simulación», sale en 2 min) y responde `201`.
-- `DELETE simulations/{id}` («Eliminar Simulación»): borra el viaje de prueba (avisa «Viaje eliminado» al
+- `DELETE simulations/{id}` («Eliminar Simulación»): borra el viaje de prueba (sin aviso desde la 5.0.0; antes avisaba «Viaje eliminado» al
   Administrador y borra sus notificaciones de ese viaje), los trabajadores simulados y la pertenencia añadida al
   Administrador. `204`.
 - Respuesta `simulations`: los parámetros, `itineraryName`, `status` (`en_curso` / `terminada`), `startedAt`,
@@ -750,4 +772,27 @@ Solo el **Administrador** (si no, `403`). Una sola simulación a la vez.
 - Base de datos: instalación desde cero, o «Actualizar base de datos» sobre una 4.4.0 (migración
   `2026_11_17_000001_upgrade_4_5`: tabla `simulations` y columna `simulation_id` en `users`, `workers`,
   `worker_itineraries` y `trips`; compatible con MariaDB 10.3).
+
+## 13.20 Qué cambió en la 5.0.0 (docs/11 §11.67)
+
+- **Instalación desde cero** sobre una base de datos vacía: las migraciones de la 5.0.0 crean el esquema final (sin
+  las de actualización de la 4.1 a la 4.5); no hay paso desde la 4.5.0. Compatible con MariaDB 10.3.
+- **Correo en lugar del carné:** `users.email` (único en toda la base de datos, en minúsculas; `409 EMAIL_TAKEN`,
+  `422 EMAIL_INVALID`) en registro, `PATCH me`, `PATCH users/{id}`, `POST workers` (persona nueva; si el correo ya
+  existe se le añade la Entidad), búsqueda (`filter[search]`) y «Olvidé algo» (`email`). `sex` (`M` por omisión) y
+  `birthDate` (opcional) se escriben a mano. Hijos sin carné: `sex` y `birthDate` (obligatoria); el mismo niño es el
+  de iguales nombres y fecha de nacimiento.
+- **Viajes:** cancelar solo un Planificado; `DELETE trips/{id}` solo Cancelado o Terminado (`409 TRIP_NOT_DELETABLE`),
+  sin avisar; «Plazo cancelación» (`plazo_cancelacion`, 5 h) pasa a `cancelado` un Planificado que no salió; poda
+  diaria `viajes:podar` con «Conservación viajes» (`conservacion_viajes`, 30 días). `trips` con `startedAt` y
+  `changes`.
+- **Estados del trabajador** de la versión definitiva (§13.8) y **No viajaré** solo a mano (`manual`); el servidor
+  acepta cualquier cambio en el orden de captura. **Estados de las paradas** (`stops[].state`, `left`) y velocidad
+  del vehículo (`vehicle.speed`); el sensor envía `inRadius` y `speed`.
+- **Ajustes:** nuevos `radio_acercamiento` (300 m), `plazo_cancelacion` (antes `plazo_eliminacion`) y
+  `conservacion_viajes`; `calculos_consecutivos` pasa a 3; se quitan `distancia_abandono` y `espera_final`.
+- **Horas:** todas las fechas llevan la zona del servidor (America/Havana); `GET sync` trae `meta.serverTime` y
+  `meta.counters.activeTrips` (Planificados y En ejecución que ve, para el círculo verde de Viajes). La hora del QR
+  sin conexión se toma en la zona del servidor (antes quedaba en UTC).
+- Se quitan los nombres viejos de los estados para las apps 4.2–4.4 (`legacyState`).
 

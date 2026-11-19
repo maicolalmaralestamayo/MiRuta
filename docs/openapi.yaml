@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: MiRuta API
-  version: 4.5.0
+  version: 5.0.0
   description: 'API de MiRuta (Laravel 12): gestión del transporte de trabajadores.
 
 
@@ -189,7 +189,7 @@ paths:
       - name: filter[search]
         in: query
         required: false
-        description: Nombre, usuario o carné
+        description: Nombre, usuario o correo
         schema:
           type: string
       - $ref: '#/components/parameters/PageNumber'
@@ -1317,7 +1317,7 @@ paths:
       - name: filter[search]
         in: query
         required: false
-        description: Nombre, usuario o carné
+        description: Nombre, usuario o correo
         schema:
           type: string
       - name: filter[active]
@@ -1363,7 +1363,8 @@ paths:
           $ref: '#/components/responses/Unprocessable'
         '426':
           $ref: '#/components/responses/UpdateRequired'
-      description: 'Administrador: persona existente (relationships.user) o nueva (nombres y carné; meta.username y meta.password).'
+      description: 'Administrador: persona existente (relationships.user) o nueva (nombres, correo, sexo y nacimiento; meta.username
+        y meta.password).'
       requestBody:
         required: true
         content:
@@ -1502,7 +1503,7 @@ paths:
       - name: filter[search]
         in: query
         required: false
-        description: Nombre, usuario o carné
+        description: Nombre, usuario o correo
         schema:
           type: string
       - $ref: '#/components/parameters/PageNumber'
@@ -3494,7 +3495,8 @@ paths:
           $ref: '#/components/responses/Conflict'
         '426':
           $ref: '#/components/responses/UpdateRequired'
-      description: No en ejecución.
+      description: '5.0.0: solo Cancelado o Terminado (409 TRIP_NOT_DELETABLE); se borra sin avisar. Cancelar = PATCH status
+        cancelado, solo Planificado.'
       parameters:
       - $ref: '#/components/parameters/Id'
   /trips/{id}/live:
@@ -4609,7 +4611,7 @@ components:
               enum:
               - F
               - M
-              readOnly: true
+              description: '5.0.0: a mano; por omisión M (Masculino)'
             photoUrl:
               type: string
               format: uri
@@ -4624,14 +4626,17 @@ components:
               items:
                 type: string
               readOnly: true
-            identityCard:
+            email:
               type: string
-              pattern: ^\d{11}$
-              description: Carné de identidad. Lo ven la persona, el Administrador y el Jefe de su itinerario.
+              format: email
+              maxLength: 150
+              description: '5.0.0: correo electrónico (en lugar del carné), único en toda la base de datos. Lo ven la persona,
+                el Administrador y el Jefe de su itinerario.'
             birthDate:
               type: string
               format: date
-              readOnly: true
+              nullable: true
+              description: Opcional
             password:
               type: string
               writeOnly: true
@@ -5449,7 +5454,8 @@ components:
           $ref: '#/components/schemas/Links'
     Child:
       type: object
-      description: Child
+      description: 'Hijo. Sin carné (5.0.0): el mismo niño declarado por otra persona es el de iguales nombres y fecha de
+        nacimiento.'
       required:
       - type
       properties:
@@ -5476,20 +5482,19 @@ components:
             secondSurname:
               type: string
               maxLength: 50
-            identityCard:
-              type: string
-              pattern: ^\d{11}$
-              description: Carné de identidad. Lo ven la persona, el Administrador y el Jefe de su itinerario.
             fullName:
               type: string
               readOnly: true
             sex:
               type: string
-              readOnly: true
+              enum:
+              - F
+              - M
+              description: '5.0.0: a mano; por omisión M (Masculino)'
             birthDate:
               type: string
               format: date
-              readOnly: true
+              description: Obligatoria (5.0.0, sin carné)
             eligibleUntil:
               type: string
               format: date
@@ -6052,6 +6057,24 @@ components:
               type: string
               format: date-time
               readOnly: true
+            startedAt:
+              type: string
+              format: date-time
+              nullable: true
+              description: '5.0.0: salida real'
+              readOnly: true
+            changes:
+              type: array
+              items:
+                type: string
+                enum:
+                - fecha
+                - hora
+                - tipo_vehiculo
+                - observacion
+                - parada_salida
+              description: '5.0.0: qué cambió en el último «Viaje cambiado», mientras siga Planificado'
+              readOnly: true
             finishReason:
               type: string
               nullable: true
@@ -6511,10 +6534,12 @@ components:
               type: boolean
             forgotPassword:
               type: boolean
-            identityCard:
+            email:
               type: string
-              pattern: ^\d{11}$
-              description: Carné de identidad. Lo ven la persona, el Administrador y el Jefe de su itinerario.
+              format: email
+              maxLength: 150
+              description: '5.0.0: correo electrónico (en lugar del carné), único en toda la base de datos. Lo ven la persona,
+                el Administrador y el Jefe de su itinerario.'
             phone:
               type: string
             status:
@@ -6793,13 +6818,14 @@ components:
               items:
                 type: object
                 additionalProperties: true
-              description: '4.4.0: cambios en cola, cada uno con capturedAt (hora de captura). kind worker: state (de_camino,
-                en_parada, viajando, dejado, no_recogido, retrasado, no_voy), stopId (parada detectada), childIds, childrenCount.
-                kind vehicle: vehicleState, atStop, nextStopIndex. Se aplican en el orden de capturedAt.'
+              description: 'Cambios en cola, cada uno con capturedAt (hora de captura; la app 5.0.0 la envía en UTC). kind
+                worker: state (fuera_itinerario, acercandose, alejandose, en_parada, llegada_tarde, no_recogido, viajando,
+                dejado, no_viajare), stopId (parada detectada), manual (puesto a mano), childIds, childrenCount. kind vehicle:
+                vehicleState, atStop, inRadius (dentro del radio de la próxima parada), nextStopIndex, speed (km/h). Se aplican
+                en el orden de capturedAt.'
             workerState:
               type: string
-              description: 4.3.0 (un solo cambio). botado, dormido y recogido se aceptan y se guardan como no_recogido, retrasado
-                y viajando.
+              description: Un solo cambio (formato de la 4.3.0), con los estados de la 5.0.0.
             stopId:
               type: integer
               nullable: true
@@ -6866,9 +6892,10 @@ components:
           $ref: '#/components/schemas/Links'
     TripLive:
       type: object
-      description: Línea del recorrido. vehicle.state null = sin datos del vehículo; stops[] con latitude, longitude, passedManually,
-        expected (parada habitual) y counts (de_camino, en_parada, retrasado, no_recogido, dejado en la parada detectada);
-        myState con stopId y stopName (parada detectada).
+      description: Línea del recorrido. vehicle.state null = sin datos del vehículo; vehicle.speed (km/h, mediana de los sensores).
+        stops[] con state (en_espera, recogida, volada, omitida), left (el vehículo la dejó atrás), latitude, longitude, passedManually,
+        expected (parada habitual) y counts por estado del trabajador en la parada detectada (sin viajando); myState con stopId,
+        stopName (parada detectada) y manual.
       required:
       - type
       properties:
@@ -6889,6 +6916,10 @@ components:
             departsAt:
               type: string
               format: date-time
+            startedAt:
+              type: string
+              format: date-time
+              nullable: true
             itineraryName:
               type: string
               nullable: true
@@ -6980,7 +7011,7 @@ components:
     Simulation:
       type: object
       description: 'Simulación de trabajadores (4.5.0, docs/11 §11.66): viaje de prueba con trabajadores simulados. Porcentajes
-        (normal, late, leftBehind, notGoing) que suman 100; por omisión 70/10/10/10.'
+        (normal, late = Llegada tarde, leftBehind = No recogido, notGoing = No viajaré) que suman 100; por omisión 70/10/10/10.'
       required:
       - type
       properties:
@@ -7163,7 +7194,8 @@ components:
           $ref: '#/components/schemas/Links'
     TripStopPass:
       type: object
-      description: «Pasó por la parada X», a mano (Administrador o Jefe).
+      description: '«Marcar paso por parada», a mano (Administrador o Jefe): la parada queda Recogida y las anteriores que
+        seguían En espera, Omitidas.'
       required:
       - type
       properties:
@@ -7329,7 +7361,7 @@ components:
       description: 'Notificación para mostrar en el teléfono (GET /sync). La app 4.3.0 compone la suya con `data`: viajes
         (tripId, status, direction, itineraryName, departsAt, departureStop, vehicleType, changes), solicitudes respondidas
         (applicationId, status, type, entity, itinerary, stop, resolvedAt, reason, note) y respuestas del desarrollador (conversationId,
-        sentAt). kind viaje_eliminado: viaje eliminado.'
+        sentAt). Desde la 5.0.0 las eliminaciones de viajes no se avisan.'
       required:
       - type
       properties:

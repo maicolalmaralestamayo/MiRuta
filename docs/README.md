@@ -17,7 +17,7 @@ MiRuta se llamaba antes MiTransporte.
 | [10-traspaso.md](10-traspaso.md) | **Traspaso de tecnología:** qué se entrega (APK, imagen Docker, .zip del servidor) y cómo ponerlo en marcha en el hospedaje, con Docker y sin Docker |
 | [12-resumen-proxima-version.md](12-resumen-proxima-version.md) | Resumen consolidado de la próxima versión (4.0) |
 | [13-api-proxima-version.md](13-api-proxima-version.md) | **API de la próxima versión** (Laravel 12): todas las rutas, roles, tiempo real, sincronización, ajustes con unidades, actualización obligatoria y mantenimiento |
-| [11-acuerdos-registro-qr.md](11-acuerdos-registro-qr.md) | Acuerdos de la versión 3.0 (implementados): carné de identidad (sin Pase ni jerarquía), varias Entidades por persona, registro, contraseñas, tarjetas modelo e Inicio, hijos sin solicitud, ausencias sin aprobación, punto de conexión y QR desechable sin conexión |
+| [11-acuerdos-registro-qr.md](11-acuerdos-registro-qr.md) | Acuerdos desde la versión 3.0 hasta la 5.0.0 (§11.67: correo en lugar del carné, estados definitivos; implementados): carné de identidad (sin Pase ni jerarquía; sustituido por el correo en la 5.0.0), varias Entidades por persona, registro, contraseñas, tarjetas modelo e Inicio, hijos sin solicitud, ausencias sin aprobación, punto de conexión y QR desechable sin conexión |
 
 ## Cómo ver la API en Swagger
 

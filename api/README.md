@@ -25,7 +25,7 @@ php -S 0.0.0.0:8000 -t public
 
 | Variable | Cómo generarla |
 |---|---|
-| `APP_KEY` | `php -r "echo 'base64:'.base64_encode(random_bytes(32)).PHP_EOL;"` (no cambiarla con datos: cifra los carnés) |
+| `APP_KEY` | `php -r "echo 'base64:'.base64_encode(random_bytes(32)).PHP_EOL;"` (no cambiarla con datos: cifra teléfonos y contraseñas propuestas) |
 | `JWT_SECRET` | `php -r "echo bin2hex(random_bytes(32)).PHP_EOL;"` (cambiarla cierra todas las sesiones) |
 | `MAINTENANCE_KEY` | 16 caracteres o más: mantenimiento del servidor sin sesión |
 
