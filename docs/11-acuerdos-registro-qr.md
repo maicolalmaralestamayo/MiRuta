@@ -2217,6 +2217,8 @@ Lista del usuario (archivo `modificaciones_miruta_4.5.txt`, capturas en `docs/ca
        aumentar.
      - **Al iniciarse un viaje** (ida y regreso): los trabajadores En Parada en la **primera parada de recogida** que
        se alejan de forma consecutiva a velocidad no humana pasan a **Viajando**.
+     - **No viajaré** (decidido 19/11/2026): se mantiene **solo como estado manual**; lo marca el propio trabajador para
+       avisar que no irá; nunca se calcula.
    - **Estados de una parada** (19/11/2026, del usuario; definiciones por precisar): **En espera**, **Recogida**,
      **Volada**, **Omitida** (definiciones aceptadas el 19/11/2026):
      - **En espera**: el vehículo todavía no ha llegado a esa parada.
