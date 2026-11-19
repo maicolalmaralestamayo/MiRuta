@@ -2196,12 +2196,17 @@ Lista del usuario (archivo `modificaciones_miruta_4.5.txt`, capturas en `docs/ca
     expresarlo; se recuperan en toda la app los nombres propios **Aprobar, Rechazar, Solicitar** (y similares), en vez
     de «Actualizar Solicitud: Aprobar» (corrige §11.65 punto 14).
 
-**Pantalla Gestión** (según el texto del usuario; varios puntos parecen referirse a Inicio: por confirmar)
+**Pantalla Inicio** (el usuario escribió «Gestión»; confirmado el 19/11/2026 que se refiere a **Inicio**)
 12. Se quitan de la vista las solicitudes **aprobadas y rechazadas**; solo se muestran las **pendientes**. Las aprobadas
     y rechazadas se le muestran al trabajador en la vista Gestión donde corresponda.
 13. Se quitan los **viajes activos**.
 14. Los **hijos** se muestran debajo de la tarjeta del QR, sin título de sección; si no tiene hijos no se muestra nada.
 15. **Sin títulos de sección ni cantidades**; paginado en Entidades, itinerarios y paradas como ya se vio.
+    - **Decidido** (19/11/2026): en **Inicio** se quitan los viajes activos, los títulos de sección y las cantidades;
+      los hijos van debajo del QR sin título (nada si no tiene); solo se ven las solicitudes **pendientes** del propio
+      trabajador (sustituye a «Ocultar/Mostrar solicitudes aprobadas» de §11.65). Las aprobadas y rechazadas las ve el
+      trabajador donde corresponda en **Gestión** (Entidades e Itinerarios). Entidades, itinerarios y paradas de Inicio
+      con paginado.
 
 **Pantalla Viajes**
 16. Contador **en verde** de los viajes Planificados y En ejecución.
