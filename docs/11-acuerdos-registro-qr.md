@@ -2223,6 +2223,9 @@ Lista del usuario (archivo `modificaciones_miruta_4.5.txt`, capturas en `docs/ca
      notificaciones; tarjeta **Sensores** (cantidad) y tarjeta **Estado** (estado, parada si procede, Detenido/En
      movimiento · velocidad, coordenadas y fecha y hora de la última ubicación); cada parada de la línea con su
      **estado** (En espera, Recogida, Volada, Omitida) y las cantidades por estado del trabajador (sin ceros).
+     - **Ajustes del usuario** (19/11/2026): se mantienen los **iconos actuales** de la app. Tarjeta **Sensores
+       pequeña**: solo el icono y la cantidad, sin texto, con la misma altura que la de Estado. La tarjeta **Estado**
+       ocupa el resto del ancho.
    - **Estados de una parada** (19/11/2026, del usuario; definiciones por precisar): **En espera**, **Recogida**,
      **Volada**, **Omitida** (definiciones aceptadas el 19/11/2026):
      - **En espera**: el vehículo todavía no ha llegado a esa parada.
