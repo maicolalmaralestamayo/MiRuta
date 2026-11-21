@@ -2385,3 +2385,33 @@ Lista del usuario (archivo `modificaciones_miruta_4.5.txt`, capturas en `docs/ca
 - **Simulador:** comportamientos `llegada_tarde` y `no_viajare` (antes Retrasado y No voy); los sensores simulados
   envían velocidad y si están en el radio, así las paradas quedan Recogidas.
 
+
+## 11.68 Perfilado de los estados (21/11/2026, en definición; no implementar todavía)
+
+Repaso uno a uno de los estados del viaje, del vehículo, de las paradas y del trabajador (estado actual en la 5.0.0:
+ver §11.67 «Decisiones de la implementación»).
+
+### Viaje
+
+- **Planificado → En ejecución** (automático): se **quita** la condición «o todos los esperados, si son menos»; sale
+  solo cuando hay al menos «Mínimo confirmaciones» trabajadores Viajando. Con «Mínimo confirmaciones» = 1, basta un
+  trabajador (p. ej. el propio usuario probando solo).
+- Diagrama de estados del viaje (propuesta en revisión):
+
+```mermaid
+stateDiagram-v2
+    direction TB
+    [*] --> Planificado : Crear Viaje (Jefe / Administrador)
+    Planificado --> Planificado : Actualizar (fecha, hora, vehículo, observación) => «Viaje cambiado»
+    Planificado --> EnEjecucion : Automático — Viajando ≥ Mínimo confirmaciones
+    Planificado --> EnEjecucion : A mano — Iniciar Viaje
+    Planificado --> Cancelado : A mano — Cancelar Viaje
+    Planificado --> Cancelado : Automático — sigue Planificado «Plazo cancelación» después de la salida
+    EnEjecucion --> Terminado : Llegada (ida — deja atrás la última parada / regreso — detenido en ella)
+    EnEjecucion --> Terminado : «Duración máxima» desde que empezó
+    EnEjecucion --> Terminado : «Espera cierre» desde el último Dejado
+    EnEjecucion --> Terminado : A mano — Terminar Viaje
+    Cancelado --> [*] : Eliminar (a mano) o poda «Conservación viajes» — sin avisar
+    Terminado --> [*] : Eliminar (a mano) o poda «Conservación viajes» — sin avisar
+    EnEjecucion : En ejecución
+```
